@@ -11,31 +11,31 @@ from __future__ import annotations
 import json
 import ipaddress
 import os
-import socket
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
 
-HOST = "0.0.0.0"
+HOST = "127.0.0.1"
 PORT = 8080
 BACKUP_PATH = "/api/automatic-backup"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+    "script-src 'self' https://accounts.google.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; "
+    "script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+    "img-src 'self' data: blob:; font-src 'self' data: https://cdnjs.cloudflare.com; "
+    "connect-src 'self' https://oeooedwobhmpwwdohrcy.supabase.co wss://oeooedwobhmpwwdohrcy.supabase.co "
+    "https://gmail.googleapis.com https://*.googleapis.com https://accounts.google.com; "
+    "frame-src 'self' blob: https://accounts.google.com; worker-src 'self' blob: https://cdn.jsdelivr.net; "
+    "form-action 'self'"
+)
 ALLOWED_BACKUP_HOSTS = {
     f"http://localhost:{PORT}": f"localhost:{PORT}",
     f"http://127.0.0.1:{PORT}": f"127.0.0.1:{PORT}",
 }
-
-
-def local_network_address() -> str:
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
-            connection.connect(("8.8.8.8", 80))
-            return connection.getsockname()[0]
-    except OSError:
-        return "your-computer-ip"
 
 
 def is_allowed_backup_request(origin: str, host: str, client_ip: str) -> bool:
@@ -78,6 +78,14 @@ def write_backup(payload: bytes) -> Path:
 
 
 class JeffVARequestHandler(SimpleHTTPRequestHandler):
+    def end_headers(self) -> None:
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        super().end_headers()
+
     def do_POST(self) -> None:  # noqa: N802 - inherited HTTP handler name
         if urlparse(self.path).path != BACKUP_PATH:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -127,8 +135,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     with ThreadingHTTPServer((HOST, PORT), JeffVARequestHandler) as server:
-        print(f"Jeff VA is running at http://localhost:{PORT}/")
-        print(f"For mobile on the same Wi-Fi: http://{local_network_address()}:{PORT}/")
+        print(f"Jeff VA is running at http://127.0.0.1:{PORT}/")
         print(f"Automatic Excel backup: Documents\\{BACKUP_FILENAME}")
         try:
             server.serve_forever()

@@ -17,7 +17,7 @@
         <h1>Welcome back</h1>
         <p class="login-copy">Sign in to continue to your client dashboard.</p>
         <form id="loginForm" class="login-form" novalidate>
-          <label class="form-field">Account email<input id="loginUsername" autocomplete="username" required placeholder="Enter your Supabase account email" /></label>
+          <label class="form-field">Email<input id="loginUsername" autocomplete="username" required placeholder="Enter your email" /></label>
           <label class="form-field">Password<input id="loginPassword" type="password" autocomplete="current-password" required placeholder="••••••" /></label>
           <p class="login-error" id="loginError" role="alert"></p>
           <button class="button button-primary login-submit" type="submit">Log in</button>
@@ -72,6 +72,12 @@
             <a class="nav-link" href="#to-apply" data-view="to-apply" title="To Apply">
               <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-calendar-check"></i></span><span class="nav-label">To Apply</span>
               <span class="nav-count" id="navToApplyCount">0</span>
+            </a>
+          </div>
+          <div class="nav-group" id="passwordNavGroup" hidden>
+            <p class="nav-group-label">ACCOUNT</p>
+            <a class="nav-link" href="#password" data-view="password" title="Password">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-key"></i></span><span class="nav-label">Password</span>
             </a>
           </div>
         </nav>
@@ -433,6 +439,33 @@
             </div>
           </section>
         </section>
+
+        <section class="view password-view" id="passwordView" data-view-panel="password" data-page="password">
+          <div class="password-page-heading">
+            <p class="eyebrow">ACCOUNT SECURITY</p>
+            <h2>Password</h2>
+            <p>Manage the password you use to sign in to this workspace.</p>
+          </div>
+          <div class="password-security-layout">
+            <section class="password-security-section">
+              <div class="password-section-heading"><div><p class="eyebrow" id="passwordFormEyebrow">UPDATE PASSWORD</p><h3 id="passwordFormHeading">Choose a new password</h3></div></div>
+              <p class="settings-copy hidden" id="passwordProviderNotice">You signed in with Google and do not have a password yet. Set one here to enable email and password sign-in.</p>
+              <p class="settings-copy hidden" id="passwordRecoveryNotice">You opened a password recovery link. Choose a new password below.</p>
+              <form id="changePasswordForm" class="password-change-form">
+                <label class="form-field" id="currentPasswordField">Current password<input id="currentPassword" type="password" autocomplete="current-password" required /></label>
+                <label class="form-field">New password<input id="newPassword" type="password" autocomplete="new-password" minlength="8" required /></label>
+                <label class="form-field">Confirm new password<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="8" required /></label>
+                <p class="login-error" id="changePasswordError" role="alert"></p>
+                <button class="button button-primary" type="submit" id="saveNewPasswordButton">Save password</button>
+              </form>
+            </section>
+            <section class="password-security-section password-recovery-section">
+              <div class="password-section-heading"><div><p class="eyebrow">RECOVERY</p><h3>Need a reset link?</h3></div></div>
+              <p class="settings-copy">Send a secure password reset link to <strong id="passwordAccountEmail"></strong>.</p>
+              <button class="button button-secondary" type="button" id="sendPasswordResetLinkButton">Email me a reset link</button>
+            </section>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -730,7 +763,7 @@
             <input id="hiredDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden />
           </div>
           <div class="doc-list" id="hiredDocumentList"></div>
-          <p class="doc-note">Documents are attached to this client and stored securely in your Supabase account for preview. No computer-folder save step is required.</p>
+          <p class="doc-note">Documents are attached to this client and stored securely in your account for preview. No computer-folder save step is required.</p>
         </div>
         <div class="modal-actions"><button class="button button-primary" value="done" type="submit">Done</button></div>
       </form>
@@ -818,7 +851,7 @@
     <dialog class="modal small-modal" id="settingsModal" aria-labelledby="settingsTitle">
       <form method="dialog">
         <div class="modal-heading"><div><p class="eyebrow">YOUR DEVICE</p><h2 id="settingsTitle">Local data</h2></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
-        <p class="settings-copy">Your applications, email headers, alerts, and attached documents are stored in your private Supabase account. Export to Excel when you want a separate backup; attached document files are not included in the Excel backup.</p>
+        <p class="settings-copy">Your applications, email headers, alerts, and attached documents are stored securely online. Export to Excel when you want a separate backup; attached document files are not included in the Excel backup.</p>
         <div class="settings-stats"><span><strong id="settingsAppCount">0</strong> applications</span><span><strong id="settingsEmailCount">0</strong> email headers</span></div>
         <label class="form-field">Browser-download Excel backup
           <select id="autoBackupFrequency" aria-describedby="autoBackupNote">

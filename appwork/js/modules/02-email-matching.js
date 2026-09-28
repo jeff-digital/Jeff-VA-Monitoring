@@ -667,7 +667,7 @@
         </section>
       </div>
       ${renderHiredEmailHistory(item)}
-      <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in Supabase.</div>`;
+      <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in your account.</div>`;
     renderHiredDocumentWorkspace(item);
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -723,8 +723,9 @@
   }
 
   function showView(view, { updateUrl = true } = {}) {
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents'];
+    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'password'];
     if (!validViews.includes(view)) view = 'dashboard';
+    if (view === 'password' && !hasPasswordSettingsAccess()) view = 'dashboard';
     if (updateUrl && window.location.hash !== `#${view}`) {
       window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
     }
@@ -733,7 +734,8 @@
       renderApplications();
     }
     if (view === 'daily-task') renderDailyTasks();
-    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['DAILY PLANNER', 'Daily Task'], applications: ['CLIENT TRACKER', 'Applications'], 'to-apply': ['', 'To apply'], hired: ['CLIENT PROFILES', 'Active clients'], inbox: ['LOCAL EMAIL LIST', 'Email inbox'], documents: ['PRIVATE TOOLS', 'Tools'] };
+    if (view === 'password') renderPasswordPage();
+    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['DAILY PLANNER', 'Daily Task'], applications: ['CLIENT TRACKER', 'Applications'], 'to-apply': ['', 'To apply'], hired: ['CLIENT PROFILES', 'Active clients'], inbox: ['LOCAL EMAIL LIST', 'Email inbox'], documents: ['PRIVATE TOOLS', 'Tools'], password: ['ACCOUNT SECURITY', 'Password'] };
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = view === 'to-apply';

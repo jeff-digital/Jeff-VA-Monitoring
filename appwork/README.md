@@ -39,7 +39,7 @@ window.SUPABASE_LOGIN_EMAIL = 'your-supabase-login-email@example.com';
 python local_server.py
 ```
 
-Then open `http://localhost:8080` on the same computer. To open Jeff VA on a phone or another computer connected to the same Wi-Fi, use the `For mobile on the same Wi-Fi` address printed by the server, such as `http://192.168.1.25:8080/`. Keep the server window open and allow Python through Windows Defender Firewall on private networks if Windows asks.
+Then open `http://127.0.0.1:8080` on the same computer. The local server listens only on this computer and is not available to phones or other computers on the network. Keep the server window open while using the app.
 
 For Windows, you can double-click `start-jeff-va.bat` in the project folder. It starts the local server and opens Jeff VA in your browser, so you do not need to open VS Code or type the commands manually. Keep the small server window open while using the app.
 
@@ -79,13 +79,17 @@ The browser loads the generated `js/app.js` bundle. Edit the ordered source modu
 
 The app derives its OAuth return URL from the page currently open, so the deployed site does not redirect to localhost. For the production Worker URL `https://jeff-va-monitoring.jeffdigi.workers.dev`:
 
-1. In Supabase **Authentication -> URL Configuration**, set **Site URL** to `https://jeff-va-monitoring.jeffdigi.workers.dev` and add `https://jeff-va-monitoring.jeffdigi.workers.dev/**` under **Redirect URLs**. Keep `http://localhost:8080/**` and `http://localhost:3000/**` only if you still use those local development URLs.
+1. In Supabase **Authentication -> URL Configuration**, set **Site URL** to `https://jeff-va-monitoring.jeffdigi.workers.dev` and add `https://jeff-va-monitoring.jeffdigi.workers.dev/**` under **Redirect URLs**. Keep `http://127.0.0.1:8080/**` and `http://localhost:3000/**` only if you still use those local development URLs.
 2. Under Supabase **Authentication -> Providers -> Google**, use the Google OAuth **Web application** client ID and secret.
-3. In Google Cloud Console for that same OAuth client, add `https://jeff-va-monitoring.jeffdigi.workers.dev` under **Authorized JavaScript origins**. Origins contain only scheme and hostname, with no path or trailing slash. Keep `http://localhost:8080` and optionally `http://localhost:3000` there only for local development.
+3. In Google Cloud Console for that same OAuth client, add `https://jeff-va-monitoring.jeffdigi.workers.dev` under **Authorized JavaScript origins**. Origins contain only scheme and hostname, with no path or trailing slash. Keep `http://127.0.0.1:8080` and optionally `http://localhost:3000` there only for local development.
 4. In Google Cloud Console, keep the **Authorized redirect URI** equal to the Supabase callback URL shown in Supabase's Google provider settings (normally `https://oeooedwobhmpwwdohrcy.supabase.co/auth/v1/callback`). Do not replace this callback with the Worker URL.
 5. Keep the client ID in `js/gmail-config.js` the same as the client ID configured in Supabase. For personal use while Google's consent screen is in Testing, add your Google account as a test user.
 
 The Google login button creates the Supabase session directly, so a separate Supabase email/password login is not required. After changing the settings, sign out, open the Worker URL, and reconnect Google there. Never share an OAuth callback URL containing values after `#` or `?`; those may contain active tokens.
+
+## Supabase password recovery
+
+For an email/password Supabase account, use the recovery option under the signed-in **Password** page. The reset link returns to the app origin that requested it. In Supabase **Authentication -> URL Configuration -> Redirect URLs**, allow `https://jeff-va-monitoring.jeffdigi.workers.dev/**` and keep `http://127.0.0.1:8080/**` only for local development. Open the recovery link in the same browser where the app is running and set/confirm the new password in the recovery dialog. Google-only accounts must change their Google password through Google Account security instead.
 
 ## Using the same private dashboard on another laptop
 
@@ -99,4 +103,4 @@ This version does not automatically upload the old browser's localStorage/Indexe
 
 Gmail continues to use Google's browser OAuth flow directly. When Google login is configured with Gmail scopes, the inbox sync starts automatically after login. Your Gmail access token is kept only for the current browser session; it is not uploaded to Supabase by Jeff VA.
 
-Gmail sync and sending require the Gmail API and the OAuth client to allow `https://jeff-va-monitoring.jeffdigi.workers.dev` as an authorized JavaScript origin. Add `http://localhost:8080` (and optionally `http://localhost:3000`) only for local development. The OAuth consent screen must include your Google account as a test user while the app is in testing mode. After changing origins or enabling email sending, disconnect and reconnect Gmail so Google grants the requested permissions to the production site.
+Gmail sync and sending require the Gmail API and the OAuth client to allow `https://jeff-va-monitoring.jeffdigi.workers.dev` as an authorized JavaScript origin. Add `http://127.0.0.1:8080` (and optionally `http://localhost:3000`) only for local development. The OAuth consent screen must include your Google account as a test user while the app is in testing mode. After changing origins or enabling email sending, disconnect and reconnect Gmail so Google grants the requested permissions to the production site.

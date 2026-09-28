@@ -771,11 +771,13 @@
 
   async function loginWithGoogle() {
     if (!supabaseConfigured()) {
-      $('#loginError').textContent = 'Supabase is not configured yet. Fill in js/supabase-config.js first.';
+      $('#loginError').textContent = 'Sign-in is unavailable. Check the app configuration.';
       return;
     }
     $('#loginGoogleButton').disabled = true;
     $('#loginGoogleStatus').textContent = 'Opening Google sign-in…';
+    activeAuthProvider = 'google';
+    sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);
     try {
       const { error } = await requireSupabase().auth.signInWithOAuth({
         provider: 'google',
@@ -786,11 +788,13 @@
       });
       if (error) throw error;
     } catch (error) {
+      activeAuthProvider = null;
+      sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
       console.error(error);
       const providerDisabled = error?.error_code === 'validation_failed' && error?.msg?.includes('provider is not enabled');
       $('#loginError').textContent = providerDisabled
-        ? 'Google login is disabled in Supabase. Enable Google under Authentication > Providers, then try again.'
-        : 'Google sign-in could not start. Check your Supabase Google provider settings.';
+        ? 'Google sign-in is not enabled. Check the authentication provider settings, then try again.'
+        : 'Google sign-in could not start. Check the authentication provider settings.';
       $('#loginGoogleStatus').textContent = 'Use your Google account to open the dashboard.';
       $('#loginGoogleButton').disabled = false;
     }

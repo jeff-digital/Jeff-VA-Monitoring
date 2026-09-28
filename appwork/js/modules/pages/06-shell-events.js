@@ -122,7 +122,7 @@
     scheduleAutomaticBackup();
   });
   $('#clearDataButton').addEventListener('click', async () => {
-    if (!(await appConfirm('Clear every application, imported email, and attached document from Supabase? This cannot be undone unless you have exported a backup.', { title: 'Clear workspace data', confirmLabel: 'Clear data', danger: true }))) return;
+    if (!(await appConfirm('Clear every application, imported email, and attached document from your account? This cannot be undone unless you have exported a backup.', { title: 'Clear workspace data', confirmLabel: 'Clear data', danger: true }))) return;
     clearSupabaseData()
       .then(() => {
         persist();
@@ -132,7 +132,7 @@
       })
       .catch(error => {
         console.error(error);
-        showActionResult({ title: 'Could not clear workspace data', message: 'Supabase data could not be cleared. Check your connection and try again.', status: 'error' });
+        showActionResult({ title: 'Could not clear workspace data', message: 'Your account data could not be cleared. Check your connection and try again.', status: 'error' });
       });
   });
 

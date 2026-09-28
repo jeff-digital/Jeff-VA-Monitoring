@@ -1337,6 +1337,19 @@ body.authenticated .login-screen { display: none; }
 .login-form input:focus { border-color: #7b849f; box-shadow: 0 0 0 3px rgba(94,108,150,.10); }
 .login-submit { width: 100%; margin-top: 3px; }
 .login-google { width: 100%; }
+.login-forgot-password { justify-self: end; padding: 0; border: 0; background: transparent; color: var(--navy); font-size: 11px; text-decoration: underline; cursor: pointer; }
+.password-page-heading { margin: 0 0 22px; }
+.password-page-heading h2 { margin: 4px 0 6px; color: var(--ink); font-size: 22px; }
+.password-page-heading > p:last-child { margin: 0; color: var(--muted); font-size: 12px; }
+.password-security-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr); gap: 24px; align-items: start; }
+.password-security-section { min-width: 0; padding: 20px 0; border-top: 1px solid var(--line); }
+.password-section-heading { margin-bottom: 14px; }
+.password-section-heading h3 { margin: 4px 0 0; color: var(--ink); font-size: 16px; }
+.password-change-form { display: grid; gap: 13px; max-width: 460px; }
+.password-change-form .form-field { margin: 0; }
+.password-change-form .button { justify-self: start; }
+.password-recovery-section { border-left: 1px solid var(--line); padding-left: 24px; }
+.password-recovery-section .button { margin-top: 15px; }
 .login-google.button-success { background: var(--green-soft); border-color: #c8dccb; color: #42614b; }
 .login-google-status { text-align: center; margin: -5px 0 0; min-height: 27px; }
 .login-error { min-height: 16px; margin: 0; color: var(--rose); font-size: 11px; }
@@ -1502,6 +1515,8 @@ body.authenticated .login-screen { display: none; }
 .daily-task-detail-modal .modal-actions { margin-top: 18px; }
 
 @media (max-width: 720px) {
+  .password-security-layout { grid-template-columns: 1fr; gap: 4px; }
+  .password-recovery-section { border-left: 0; padding-left: 0; }
   .daily-task-heading { align-items: stretch; flex-direction: column; gap: 14px; padding-bottom: 16px; }
   .daily-task-heading h2 { font-size: 21px; }
   .daily-task-heading > .daily-task-date-field { max-width: none; }

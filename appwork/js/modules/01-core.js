@@ -1,8 +1,10 @@
   const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
   const SUPABASE_BUCKET = 'client-documents';
+  const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [] });
   let supabaseClient = null;
   let currentUser = null;
+  let activeAuthProvider = null;
   let appStateChannel = null;
   let gmailSyncTimer = null;
   let gmailSyncInFlight = false;
@@ -11,6 +13,7 @@
   let persistChain = Promise.resolve();
   let dataReady = false;
   let supabaseDataLoaded = false;
+  let passwordRecoveryMode = false;
   const STATUS_COLORS = {
     Ongoing: '#1d8a89', Applied: '#8a9b8e', 'To Proceed': '#2f6f8f', Interview: '#c28a52', 'Active client': '#5a956a', 'Not selected': '#c36e73'
   };
@@ -92,6 +95,50 @@
   function showEmailActionResult(options = {}) {
     showActionResult({ ...options, label: 'EMAIL STATUS' });
   }
+
+  function userHasPasswordIdentity(user = currentUser) {
+    return Boolean(user?.app_metadata?.providers?.includes('email')
+      || user?.identities?.some(identity => identity.provider === 'email'));
+  }
+
+  function resolveAuthProvider(session) {
+    const savedProvider = sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY);
+    if (savedProvider === 'google' || savedProvider === 'email') return savedProvider;
+    return session?.provider_token || !userHasPasswordIdentity(session?.user) ? 'google' : 'email';
+  }
+
+  function hasPasswordSettingsAccess() {
+    return Boolean(currentUser && activeAuthProvider !== 'google' && userHasPasswordIdentity());
+  }
+
+  function renderPasswordAccess() {
+    $('#passwordNavGroup').hidden = !hasPasswordSettingsAccess();
+  }
+
+  function renderPasswordPage() {
+    const hasPassword = userHasPasswordIdentity();
+    $('#passwordAccountEmail').textContent = currentUser?.email || 'your account';
+    $('#currentPasswordField').hidden = passwordRecoveryMode || !hasPassword;
+    $('#currentPassword').required = !passwordRecoveryMode && hasPassword;
+    $('#passwordFormEyebrow').textContent = hasPassword ? 'UPDATE PASSWORD' : passwordRecoveryMode ? 'RESET PASSWORD' : 'SET PASSWORD';
+    $('#passwordFormHeading').textContent = hasPassword ? 'Choose a new password' : 'Create a password';
+    $('#saveNewPasswordButton').textContent = hasPassword ? 'Save password' : passwordRecoveryMode ? 'Reset password' : 'Set password';
+    $('#passwordProviderNotice').classList.toggle('hidden', hasPassword || passwordRecoveryMode);
+    $('#passwordRecoveryNotice').classList.toggle('hidden', !passwordRecoveryMode);
+  }
+
+  function setPasswordRecoveryMode(value) {
+    passwordRecoveryMode = Boolean(value);
+  }
+
+  function openPasswordPage({ recovery = false } = {}) {
+    passwordRecoveryMode = recovery;
+    $('#changePasswordForm').reset();
+    $('#changePasswordError').textContent = '';
+    renderPasswordPage();
+    showView('password');
+    $('#newPassword').focus();
+  }
   const today = () => {
     const date = new Date();
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
@@ -145,7 +192,7 @@
   }
 
   function requireSupabase() {
-    if (!supabaseConfigured()) throw new Error('Supabase is not configured. Fill in js/supabase-config.js.');
+    if (!supabaseConfigured()) throw new Error('Account sign-in is unavailable. Check the app configuration.');
     if (!supabaseClient) {
       supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
         auth: {
@@ -212,7 +259,7 @@
       }, { onConflict: 'user_id' });
       if (error) {
         console.error('Supabase save failed:', error);
-        showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to Supabase. Check your connection and try again.', status: 'error' });
+        showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
         throw error;
       }
     }).catch(() => {});
@@ -222,10 +269,11 @@
     return persistChain;
   }
 
-  async function initializeSupabaseForUser(user) {
+  async function initializeSupabaseForUser(user, { showSuccess = true } = {}) {
     if (!user || initializingUserId === user.id) return;
     initializingUserId = user.id;
     currentUser = user;
+    renderPasswordAccess();
     dataReady = false;
     supabaseDataLoaded = false;
     setAuthenticated(true);
@@ -252,12 +300,12 @@
       if (gmailAccessToken) await syncGmail(true);
       await persist();
       scheduleAutomaticBackup();
-      showActionResult({ title: 'Signed in successfully', message: 'Your Supabase workspace is ready.' });
+      if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
     } catch (error) {
       console.error(error);
       data = emptyData();
       supabaseDataLoaded = false;
-      showActionResult({ title: 'Could not load workspace', message: 'Your Supabase data could not be loaded. Check your connection and try again.', status: 'error' });
+      showActionResult({ title: 'Could not load workspace', message: 'Your account data could not be loaded. Check your connection and try again.', status: 'error' });
       dataReady = true;
       renderAll();
     } finally {
@@ -284,14 +332,17 @@
   async function restoreSupabaseSession() {
     if (!supabaseConfigured()) return;
     const callbackParams = new URLSearchParams(`${window.location.search}&${window.location.hash.slice(1)}`);
-    const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code'];
+    const isPasswordRecovery = callbackParams.get('type') === 'recovery';
+    const isAuthenticationCallback = callbackParams.has('code')
+      || (callbackParams.has('access_token') && callbackParams.has('refresh_token'));
+    const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
     if (callbackKeys.some(key => callbackParams.has(key))) {
       window.history.replaceState({}, document.title, `${window.location.pathname}#dashboard`);
     }
     if (callbackParams.get('error')) {
       const description = callbackParams.get('error_description') || callbackParams.get('error');
       $('#loginError').textContent = description.includes('exchange external code')
-        ? 'Supabase could not exchange Google’s sign-in code. Check that the Google Client ID and Client Secret in Supabase come from the same Web application OAuth client.'
+        ? 'Google sign-in could not complete the authorization exchange. Check the OAuth client configuration.'
         : `Google sign-in failed: ${description}`;
       $('#loginGoogleStatus').textContent = 'Sign-in could not be completed. You can try again after correcting the provider settings.';
       return;
@@ -300,12 +351,13 @@
       const client = requireSupabase();
       client.auth.onAuthStateChange((event, session) => {
         if (event !== 'SIGNED_IN' || !session?.user || currentUser) return;
+        activeAuthProvider = resolveAuthProvider(session);
         if (session.provider_token) {
           gmailAccessToken = session.provider_token;
           sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
         }
-        initializeSupabaseForUser(session.user);
+        initializeSupabaseForUser(session.user, { showSuccess: isAuthenticationCallback && !isPasswordRecovery });
       });
       const accessToken = callbackParams.get('access_token');
       const refreshToken = callbackParams.get('refresh_token');
@@ -330,10 +382,14 @@
         sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
         startGmailSyncTimer();
       }
-      if (sessionData.session?.user) await initializeSupabaseForUser(sessionData.session.user);
+      if (sessionData.session?.user) {
+        activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
+        await initializeSupabaseForUser(sessionData.session.user, { showSuccess: isAuthenticationCallback && !isPasswordRecovery });
+        if (isPasswordRecovery) openPasswordPage({ recovery: true });
+      }
     } catch (error) {
       console.error('Could not restore Supabase session:', error);
-      $('#loginError').textContent = 'Google sign-in returned, but Jeff VA could not restore the session. Check the Supabase redirect URL.';
+      $('#loginError').textContent = 'Google sign-in returned, but the session could not be restored. Check the authentication redirect URL.';
       $('#loginGoogleStatus').textContent = 'Sign-in could not be completed.';
     }
   }

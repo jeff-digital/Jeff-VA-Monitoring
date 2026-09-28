@@ -597,7 +597,7 @@
       frame.src = 'about:blank';
       frame.style.display = 'block';
       frame.classList.add('document-word-placeholder');
-      frame.srcdoc = `<div style="font-family:Arial,sans-serif;padding:40px;color:#333"><div style="font-size:42px">DOC</div><h2>${escapeHtml(fileRecord.name || 'Word document')}</h2><p>Word files are stored securely in your Supabase account. Use “Open / download” to view the original file.</p></div>`;
+      frame.srcdoc = `<div style="font-family:Arial,sans-serif;padding:40px;color:#333"><div style="font-size:42px">DOC</div><h2>${escapeHtml(fileRecord.name || 'Word document')}</h2><p>Word files are stored securely in your account. Use “Open / download” to view the original file.</p></div>`;
       note.textContent = 'Word document preview';
     }
     modal.showModal();
@@ -657,7 +657,7 @@
             ? `<iframe src="${pendingDocumentPreviewUrl}" title="Preview of ${escapeHtml(file.name)}"></iframe>`
             : `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(file.name)}</h4><p>Your Word file is selected and ready to save. The browser cannot render .doc/.docx directly here, but you can open it after saving.</p></div>`}
         </div>
-        <p class="doc-note save-file-note">Choose <strong>Save file</strong> to attach it to this client. It's stored securely in your Supabase account and ready to preview anytime.</p>
+        <p class="doc-note save-file-note">Choose <strong>Save file</strong> to attach it to this client. It's stored securely in your account and ready to preview anytime.</p>
       </div>`;
   }
 
@@ -820,7 +820,7 @@
       showActionResult({ title: 'Document saved', message: activationEmailPending ? 'The file was saved. Send the client email to finish activation.' : 'The file was saved. You can send the updated version now or later.' });
     } catch (error) {
       console.error(error);
-      const message = error?.message || 'Supabase Storage rejected the upload';
+      const message = error?.message || 'The secure file store rejected the upload';
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = `Upload failed: ${message}`;
       showActionResult({ title: 'Document save failed', message: `Could not save ${file.name}: ${message}`, status: 'error' });
@@ -846,7 +846,7 @@
     try {
       const doc = (data.applications.flatMap(app => app.documents || [])).find(item => item.id === docId);
       const blob = await getDocumentBlob(doc?.storagePath || docId);
-      if (!blob) { showActionResult({ title: 'Document unavailable', message: 'That file could not be found in Supabase.', status: 'error' }); return; }
+      if (!blob) { showActionResult({ title: 'Document unavailable', message: 'That file could not be found in your account.', status: 'error' }); return; }
       showDocumentViewer(doc || { name: 'Document' }, blob);
     } catch {
       showActionResult({ title: 'Could not open document', message: 'The document could not be downloaded from Supabase.', status: 'error' });
