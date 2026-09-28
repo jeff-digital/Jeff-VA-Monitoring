@@ -120,7 +120,7 @@
     closeDocumentEmailReminder();
     renderHiredDetail(item, false);
     processDueDocumentEmailReminders();
-    toast(`Reminder set for ${formatDate(reminderDate)}.`);
+    showActionResult({ title: 'Reminder set', message: `The document email reminder is set for ${formatDate(reminderDate)}.` });
   });
 
   $('#cancelDocumentEmailReminder').addEventListener('click', closeDocumentEmailReminder);

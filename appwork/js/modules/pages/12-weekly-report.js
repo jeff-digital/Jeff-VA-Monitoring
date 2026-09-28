@@ -166,10 +166,10 @@
       const y = (pageHeight - imgHeight) / 2;
       pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
       pdf.save(`jeff-va-weekly-report-${report.range.end}.pdf`);
-      toast('Weekly report PDF downloaded');
+      showActionResult({ title: 'Report downloaded', message: 'Your weekly report PDF was downloaded.' });
     }).catch(error => {
       console.error('Weekly report PDF export failed:', error);
-      toast('Could not generate the PDF report.');
+      showActionResult({ title: 'Could not generate report', message: 'The weekly report PDF could not be generated. Try again.', status: 'error' });
     }).finally(() => {
       button.disabled = false;
       button.textContent = previousLabel;

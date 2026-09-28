@@ -135,7 +135,7 @@
     persist();
     resetScriptForm();
     renderScripts();
-    toast(existingIndex >= 0 ? 'Script updated' : 'Script saved');
+    showActionResult({ title: existingIndex >= 0 ? 'Script updated' : 'Script saved', message: existingIndex >= 0 ? 'Your script changes were saved.' : 'The script was added to your tools.' });
   }
 
   async function deleteScript(id) {
@@ -144,7 +144,7 @@
     data.scripts = data.scripts.filter(item => item.id !== id);
     persist();
     renderScripts();
-    toast('Script deleted');
+    showActionResult({ title: 'Script deleted', message: 'The script was removed from your tools.' });
   }
 
   function renderWorkLinks() {
@@ -199,7 +199,7 @@
     persist();
     resetWorkLinkForm();
     renderWorkLinks();
-    toast(existingIndex >= 0 ? 'Link updated' : 'Link saved');
+    showActionResult({ title: existingIndex >= 0 ? 'Link updated' : 'Link saved', message: existingIndex >= 0 ? 'Your link changes were saved.' : 'The link was added to your tools.' });
   }
 
   async function deleteWorkLink(id) {
@@ -208,7 +208,7 @@
     data.workLinks = data.workLinks.filter(item => item.id !== id);
     persist();
     renderWorkLinks();
-    toast('Link deleted');
+    showActionResult({ title: 'Link deleted', message: 'The link was removed from your tools.' });
   }
 
   function renderInvoiceList() {
@@ -250,11 +250,11 @@
       data.personalDocuments.unshift(record);
       persist();
       renderAll();
-      toast('Personal document uploaded');
+      showActionResult({ title: 'Document uploaded', message: 'Your personal document was saved to Supabase.' });
       return record;
     } catch (error) {
       console.error(error);
-      toast(`Could not upload ${file.name}`);
+      showActionResult({ title: 'Document upload failed', message: `Could not upload ${file.name}. Check your connection and try again.`, status: 'error' });
       return null;
     }
   }
@@ -448,7 +448,7 @@
     persist();
     renderAll();
     showView('applications');
-    toast('Activation cancelled. The application was restored.');
+    showActionResult({ title: 'Activation cancelled', message: 'The application was restored and the staged document was removed.' });
   }
 
   function clearActivationRollback() {
@@ -571,7 +571,7 @@
     pendingActiveClientId = null;
     renderAll();
     openClientEmailComposer(application);
-    toast('Document attached. Send the client email to finish activation.');
+    showActionResult({ title: 'Document attached', message: 'The contract was attached. Send the client email to finish activation.' });
   }
 
   function showDocumentViewer(fileRecord, blob) {
@@ -612,7 +612,7 @@
       showDocumentViewer(fileRecord, blob);
     } catch (error) {
       console.error(error);
-      toast('Could not open that personal document');
+      showActionResult({ title: 'Could not open document', message: 'The personal document could not be downloaded from Supabase.', status: 'error' });
     }
   }
 
@@ -623,7 +623,7 @@
     persist();
     try { await deleteDocumentBlob(fileRecord.storagePath); } catch (error) { console.error(error); }
     renderAll();
-    toast('Personal document deleted');
+    showActionResult({ title: 'Document deleted', message: 'The personal document was removed from Supabase.' });
   }
 
   function clearPendingDocumentPreview() {
@@ -786,7 +786,7 @@
         const file = await handle.getFile();
         stageHiredDocument([file]);
       } catch (error) {
-        if (error?.name !== 'AbortError') toast('Could not open the file picker');
+        if (error?.name !== 'AbortError') showActionResult({ title: 'File picker unavailable', message: 'Could not open the file picker. Check browser permissions and try again.', status: 'error' });
       }
       return;
     }
@@ -817,13 +817,13 @@
       if (activationEmailPending) openClientEmailComposer(item);
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = 'Saved — ready to preview anytime.';
-      toast(activationEmailPending ? 'File saved. Send the client email to finish activation.' : 'File saved. You can send the updated version now or later.');
+      showActionResult({ title: 'Document saved', message: activationEmailPending ? 'The file was saved. Send the client email to finish activation.' : 'The file was saved. You can send the updated version now or later.' });
     } catch (error) {
       console.error(error);
       const message = error?.message || 'Supabase Storage rejected the upload';
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = `Upload failed: ${message}`;
-      toast(`Could not save ${file.name}: ${message}`);
+      showActionResult({ title: 'Document save failed', message: `Could not save ${file.name}: ${message}`, status: 'error' });
     }
   }
 
@@ -839,17 +839,17 @@
     try { await deleteDocumentBlob(doc?.storagePath || docId); } catch { /* already gone, ignore */ }
     renderHired();
     renderHiredDetail(item, false);
-    toast('Document removed');
+    showActionResult({ title: 'Document removed', message: 'The client document was removed from Supabase.' });
   }
 
   async function openDocument(docId) {
     try {
       const doc = (data.applications.flatMap(app => app.documents || [])).find(item => item.id === docId);
       const blob = await getDocumentBlob(doc?.storagePath || docId);
-      if (!blob) { toast('That file could not be found — it may have been cleared from this browser'); return; }
+      if (!blob) { showActionResult({ title: 'Document unavailable', message: 'That file could not be found in Supabase.', status: 'error' }); return; }
       showDocumentViewer(doc || { name: 'Document' }, blob);
     } catch {
-      toast('Could not open that document');
+      showActionResult({ title: 'Could not open document', message: 'The document could not be downloaded from Supabase.', status: 'error' });
     }
   }
 
@@ -878,14 +878,8 @@
       app.interviewAlert = sameDay ? 'Interview date confirmed by another client email' : 'Interview requested or scheduled';
     });
 
-    const preview = unique.slice(0, 3).map(({ emailItem, app }) => `
-      <div class="client-email-alert-item">
-        <strong>${escapeHtml(app.clientName)}</strong>
-        <span>${isInterviewEmail(emailItem) ? 'Interview alert · ' : ''}${escapeHtml(emailItem.subject || '(No subject)')}${interviewDateFromEmail(emailItem) ? ` · ${emailDate(interviewDateFromEmail(emailItem))}` : ''}</span>
-        <small>${escapeHtml(emailItem.from || 'Unknown sender')}</small>
-      </div>
-    `).join('');
-    const extra = unique.length > 3 ? `<small class="client-email-alert-more">+${unique.length - 3} more matching email${unique.length - 3 === 1 ? '' : 's'}</small>` : '';
+    const preview = unique.slice(0, 3).map(({ emailItem, app }) => `${app.clientName}: ${emailItem.subject || '(No subject)'}`).join('\n');
+    const extra = unique.length > 3 ? `\n+${unique.length - 3} more matching emails` : '';
 
     data.alerts = data.alerts || [];
     unique.forEach(({ emailItem, app }) => {
@@ -909,22 +903,14 @@
     persist();
     renderAlerts();
 
-    const target = $('#toast');
-    target.innerHTML = `
-      <div class="client-email-alert">
-        <div class="client-email-alert-title">🔔 New email from a client</div>
-        <div class="client-email-alert-list">${preview}</div>
-        ${extra}
-        <button class="client-email-alert-open" type="button">Open Emails</button>
-      </div>
-    `;
-    target.classList.add('show', 'client-alert-toast');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => target.classList.remove('show', 'client-alert-toast'), 7000);
-    target.querySelector('.client-email-alert-open')?.addEventListener('click', () => {
-      target.classList.remove('show', 'client-alert-toast');
-      showView('inbox');
-    }, { once: true });
+    showActionResult({
+      title: 'New client email',
+      message: `${plural(unique.length, 'new email')} matched to your applications.\n${preview}${extra}`,
+      status: 'info',
+      label: 'CLIENT EMAIL ALERT',
+      actionLabel: 'Open inbox',
+      onAction: () => showView('inbox')
+    });
     return true;
   }
 
@@ -1027,6 +1013,7 @@
   async function sendContractEndedEmail(item, alert) {
     if (!gmailAccessToken || !isEmailAddress(item.email) || item.contractEndedEmailSentAt || contractEndedEmailSending.has(item.id)) return;
     contractEndedEmailSending.add(item.id);
+    const previousFailureWasReported = alert.emailSent === false;
     const template = buildDocumentEmailTemplate('contract-ended', item, { duration: contractDuration(item) || 'the project period' });
     const subject = template.subject;
     const body = template.body;
@@ -1042,6 +1029,7 @@
       alert.date = sentAt;
       persist();
       renderAll();
+      showActionResult({ title: 'Contract email sent successfully', message: 'The contract-ended email was sent to the client.' });
     } catch (error) {
       console.error('Contract-ended email failed:', error);
       alert.subject = 'Contract ended: email not sent';
@@ -1049,6 +1037,9 @@
       alert.emailSent = false;
       persist();
       renderAlerts();
+      if (!previousFailureWasReported) {
+        showActionResult({ title: 'Contract email could not be sent', message: 'Reconnect Gmail and review the client alert before retrying.', status: 'error' });
+      }
     } finally {
       contractEndedEmailSending.delete(item.id);
     }
@@ -1078,6 +1069,17 @@
     if (changed) {
       data.alerts = data.alerts.slice(0, 30);
       persist();
+      const needsManualEmail = ended.filter(item => !item.contractEndedEmailSentAt && (!gmailAccessToken || !isEmailAddress(item.email))).length;
+      if (needsManualEmail) {
+        showActionResult({
+          title: 'Contract ended',
+          message: `${plural(needsManualEmail, 'client')} have an ended contract. Connect Gmail and review the client alert to send the notice.`,
+          status: 'info',
+          label: 'CLIENT REMINDER',
+          actionLabel: 'Open active clients',
+          onAction: () => showView('hired')
+        });
+      }
     }
     ended.forEach(item => {
       const alert = data.alerts.find(candidate => candidate.id === `contract-ended|${item.id}|${dateKey(item.contractEndDate)}`);
@@ -1089,6 +1091,7 @@
     const due = data.applications.filter(item => isInterviewToday(item) && item.interviewAlertDate !== today());
     if (!due.length) return;
     data.alerts = data.alerts || [];
+    let interviewsDue = 0;
     due.forEach(item => {
       const alertId = `interview|today|${item.id}|${today()}`;
       if (data.alerts.some(alert => alert.id === alertId)) {
@@ -1108,10 +1111,21 @@
         meetingLink: item.interviewLink || '',
         unread: true
       });
+      interviewsDue += 1;
     });
     data.alerts = data.alerts.slice(0, 30);
     persist();
     renderAlerts();
+    if (interviewsDue) {
+      showActionResult({
+        title: 'Interview scheduled today',
+        message: `${plural(interviewsDue, 'interview')} are scheduled for today.`,
+        status: 'info',
+        label: 'INTERVIEW REMINDER',
+        actionLabel: 'Open applications',
+        onAction: () => showView('applications')
+      });
+    }
   }
 
   function processDueDocumentEmailReminders() {
@@ -1135,13 +1149,27 @@
     renderAlerts();
     const currentClient = data.applications.find(item => item.id === hiredEditingId);
     if (currentClient) renderHiredDetail(currentClient, false);
-    toast('Document email reminder is due today.');
+    showActionResult({
+      title: 'Document reminder due',
+      message: `${plural(due.length, 'updated document')} need to be sent today.`,
+      status: 'info',
+      label: 'DOCUMENT REMINDER',
+      actionLabel: 'Open client',
+      onAction: () => {
+        showView('hired');
+        renderHiredDetail(due[0], false);
+      }
+    });
   }
 
   async function processDueFollowUps() {
     const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
     if (!due.length) return;
     data.alerts = data.alerts || [];
+    let followUpAlertsAdded = 0;
+    let automaticEmailsSent = 0;
+    let automaticEmailsFailed = 0;
+    let followUpsNeedingReview = 0;
     for (const item of due) {
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
@@ -1152,27 +1180,53 @@
           const rawMessage = buildRawEmailMessage({ to: item.email, subject, body });
           await sendGmailRaw(rawMessage);
           sent = true;
+          automaticEmailsSent += 1;
         } catch (error) {
           console.error('Automatic follow-up failed:', error);
+          automaticEmailsFailed += 1;
         }
       }
       item.followUpProcessedAt = new Date().toISOString();
       item.followUpSentAt = sent ? item.followUpProcessedAt : '';
-      data.alerts.unshift({
-        id: `follow-up|${item.id}|${item.followUpDate}`,
+      const alertId = `follow-up|${item.id}|${item.followUpDate}`;
+      const existingAlert = data.alerts.find(alert => alert.id === alertId);
+      const followUpAlert = {
+        id: alertId,
         clientName: item.clientName,
         subject: sent ? `Automatic follow-up sent: ${subject}` : `Follow-up needed: ${subject}`,
         from: sent ? 'Jeff VA' : 'Jeff VA reminder',
         date: new Date().toISOString(),
         unread: true
-      });
+      };
+      if (existingAlert) Object.assign(existingAlert, followUpAlert);
+      else {
+        data.alerts.unshift(followUpAlert);
+        followUpAlertsAdded += 1;
+      }
       if (sent) {
         data.emails.unshift({ id: uid(), applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: new Date().toISOString(), importedAt: new Date().toISOString(), source: 'sent', direction: 'sent' });
+      } else if (!item.automaticFollowUp || !gmailAccessToken || !isEmailAddress(item.email)) {
+        followUpsNeedingReview += 1;
       }
     }
     data.alerts = data.alerts.slice(0, 30);
     persist();
     renderAlerts();
+    if (followUpAlertsAdded || automaticEmailsSent) {
+      const summary = [
+        automaticEmailsSent ? `${plural(automaticEmailsSent, 'automatic follow-up email')} sent` : '',
+        automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} could not be sent; reconnect Gmail and review the alert` : '',
+        followUpsNeedingReview ? `${plural(followUpsNeedingReview, 'follow-up')} need your attention in Applications` : ''
+      ].filter(Boolean).join('. ');
+      showActionResult({
+        title: automaticEmailsFailed ? 'Follow-ups need attention' : automaticEmailsSent ? 'Automatic follow-ups sent' : 'Follow-ups due',
+        message: summary,
+        status: automaticEmailsFailed ? 'error' : automaticEmailsSent ? 'success' : 'info',
+        label: 'FOLLOW-UP STATUS',
+        actionLabel: 'Open applications',
+        onAction: () => showView('applications')
+      });
+    }
   }
 
   function openNotifications() {

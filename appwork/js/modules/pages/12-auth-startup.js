@@ -28,7 +28,6 @@
       if (error) throw error;
       loginForm.reset();
       await initializeSupabaseForUser(authData.user);
-      toast('Welcome back, Jeff');
     } catch (error) {
       console.error(error);
       const message = error?.message?.trim() || '';

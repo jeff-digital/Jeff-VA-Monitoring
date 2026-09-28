@@ -128,11 +128,11 @@
         persist();
         renderAll();
         $('#settingsModal').close();
-        toast('All Supabase data cleared');
+        showActionResult({ title: 'Workspace data cleared', message: 'All applications, imported email, and attached documents were removed from Supabase.' });
       })
       .catch(error => {
         console.error(error);
-        toast('Could not clear Supabase data');
+        showActionResult({ title: 'Could not clear workspace data', message: 'Supabase data could not be cleared. Check your connection and try again.', status: 'error' });
       });
   });
 

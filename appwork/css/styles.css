@@ -990,10 +990,12 @@ dialog[open] { overscroll-behavior: contain; }
 .email-result-badge { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; font-size: 20px; }
 .email-result-badge.success { background: linear-gradient(135deg, #edf9ef, #dff3e0); color: #2e7d4d; border: 1px solid #cfe7d3; }
 .email-result-badge.error { background: linear-gradient(135deg, #fff1f1, #fde3e3); color: #b33b44; border: 1px solid #f0c9c9; }
+.email-result-badge.info { background: #eef3f5; color: #426272; border: 1px solid #d5e0e4; }
 .email-result-modal .modal-heading h2 { margin: 0; font-size: 22px; }
 .email-result-message { margin: 0; padding: 14px 16px; border-radius: 10px; background: #f7f8f6; border: 1px solid #e7e8e3; color: #4d534d; line-height: 1.55; font-size: 13px; white-space: pre-line; overflow-wrap: anywhere; }
 .email-result-modal[data-status="success"] .email-result-message { background: linear-gradient(180deg, #f5fbf7, #eefaf0); border-color: #cfe5d4; color: #28563b; }
 .email-result-modal[data-status="error"] .email-result-message { background: linear-gradient(180deg, #fff8f8, #fff0f0); border-color: #f1d0d0; color: #7d2d33; }
+.email-result-modal[data-status="info"] .email-result-message { background: #f6f9fa; border-color: #dce7ea; color: #354d58; }
 .email-result-actions { margin-top: 20px; }
 .app-confirm-modal { font-family: inherit; }
 .app-confirm-form .modal-heading { margin-bottom: 14px; }

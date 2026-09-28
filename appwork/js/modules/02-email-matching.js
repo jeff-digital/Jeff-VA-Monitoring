@@ -390,6 +390,7 @@
     data.toApply = data.toApply || [];
     data.alerts = data.alerts || [];
     let changed = false;
+    let remindersDue = 0;
     data.toApply.forEach(item => {
       if (item.dueDate !== currentDate) return;
       const alertId = `to-apply|due|${item.id}|${item.dueDate}`;
@@ -403,11 +404,20 @@
         unread: true
       });
       changed = true;
+      remindersDue += 1;
     });
     if (changed) {
       data.alerts = data.alerts.slice(0, 30);
       persist();
       renderAlerts();
+      showActionResult({
+        title: 'Application reminders due',
+        message: `${plural(remindersDue, 'application reminder')} are due today.`,
+        status: 'info',
+        label: 'APPLICATION REMINDER',
+        actionLabel: 'Open To Apply',
+        onAction: () => showView('to-apply')
+      });
     }
   }
 
@@ -656,6 +666,7 @@
           <div id="hiredDocumentWorkspace"></div>
         </section>
       </div>
+      ${renderHiredEmailHistory(item)}
       <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in Supabase.</div>`;
     renderHiredDocumentWorkspace(item);
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -873,16 +884,32 @@
     const list = $('#clientEmailHistoryList');
     const count = $('#clientEmailHistoryCount');
     if (!target || !list || !count) return;
+    const sentEmails = sentEmailsForApplication(item);
+    target.classList.remove('hidden');
+    count.textContent = `${sentEmails.length} ${sentEmails.length === 1 ? 'email' : 'emails'}`;
+    list.innerHTML = renderSentEmailHistoryItems(sentEmails, 'No emails have been sent to this application.');
+  }
+
+  function sentEmailsForApplication(item) {
     const clientEmail = String(item.email || '').trim().toLowerCase();
-    const sentEmails = data.emails
+    return data.emails
       .filter(email => email.direction === 'sent'
         && (email.applicationId === item.id || (!email.applicationId && clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail)))
       .sort((first, second) => new Date(second.date) - new Date(first.date));
-    target.classList.remove('hidden');
-    count.textContent = `${sentEmails.length} ${sentEmails.length === 1 ? 'email' : 'emails'}`;
-    list.innerHTML = sentEmails.length
+  }
+
+  function renderSentEmailHistoryItems(sentEmails, emptyMessage) {
+    return sentEmails.length
       ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}"><span><strong>${escapeHtml(email.subject || '(No subject)')}</strong><small>${escapeHtml(emailContentText(email.body).slice(0, 150) || 'No message preview')}</small></span><time>${escapeHtml(emailDate(email.date))}</time></button>`).join('')
-      : '<p>No emails have been sent to this application.</p>';
+      : `<p>${emptyMessage}</p>`;
+  }
+
+  function renderHiredEmailHistory(item) {
+    const sentEmails = sentEmailsForApplication(item);
+    return `<section class="client-email-history hired-email-history" aria-live="polite">
+      <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this client</h3></div><strong>${plural(sentEmails.length, 'email')}</strong></div>
+      <div class="client-email-history-list">${renderSentEmailHistoryItems(sentEmails, 'No emails have been sent to this client.')}</div>
+    </section>`;
   }
 
   function updateClientActionLabel() {
@@ -992,7 +1019,7 @@
       showView('hired');
       renderHiredDetail(application);
     } else {
-      toast(editingId ? 'Application updated' : 'Client application added');
+      showActionResult({ title: editingId ? 'Application updated' : 'Application added', message: editingId ? 'Your application changes were saved.' : 'The application was added to your workspace.' });
     }
     processDueInterviews();
     await processDueFollowUps();
@@ -1009,6 +1036,6 @@
     editingId = null;
     if (fromActive) closeHiredDetail(false);
     renderAll();
-    toast('Client deleted');
+    showActionResult({ title: 'Client deleted', message: 'The client and its attached documents were removed.' });
   }
 

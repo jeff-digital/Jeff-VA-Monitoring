@@ -46,6 +46,55 @@
     appConfirmResolve = null;
     resolve?.($('#appConfirmModal').returnValue === 'confirm');
   });
+  const actionResultQueue = [];
+  let actionResultAction = null;
+  const actionResultModal = $('#emailActionResultModal');
+  $('#emailActionResultAction')?.addEventListener('click', () => {
+    const action = actionResultAction;
+    actionResultModal.close('action');
+    action?.();
+  });
+  actionResultModal?.addEventListener('close', () => {
+    actionResultAction = null;
+    const nextResult = actionResultQueue.shift();
+    if (nextResult) setTimeout(() => showActionResult(nextResult), 0);
+  });
+
+  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null } = {}) {
+    const modal = $('#emailActionResultModal');
+    if (!modal) {
+      toast(message);
+      return;
+    }
+    if (modal.open) {
+      actionResultQueue.push({ title, message, status, label, actionLabel, onAction });
+      return;
+    }
+    const isError = status === 'error';
+    const isInfo = status === 'info';
+    modal.dataset.status = isError ? 'error' : isInfo ? 'info' : 'success';
+    $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
+    $('#emailActionResultTitle').textContent = title;
+    $('#emailActionResultMessage').textContent = message;
+    const badge = $('#emailActionResultBadge');
+    badge.classList.toggle('error', isError);
+    badge.classList.toggle('info', isInfo);
+    badge.classList.toggle('success', !isError && !isInfo);
+    const icon = document.createElement('i');
+    icon.className = `fa-solid ${isError ? 'fa-triangle-exclamation' : isInfo ? 'fa-circle-info' : 'fa-check'}`;
+    icon.setAttribute('aria-hidden', 'true');
+    badge.replaceChildren(icon);
+    actionResultAction = typeof onAction === 'function' ? onAction : null;
+    const actionButton = $('#emailActionResultAction');
+    actionButton.hidden = !actionResultAction;
+    actionButton.textContent = actionLabel || 'Open';
+    modal.showModal();
+    $('#emailActionResultAccept').focus();
+  }
+
+  function showEmailActionResult(options = {}) {
+    showActionResult({ ...options, label: 'EMAIL STATUS' });
+  }
   const today = () => {
     const date = new Date();
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
@@ -166,7 +215,7 @@
       }, { onConflict: 'user_id' });
       if (error) {
         console.error('Supabase save failed:', error);
-        toast('Could not save to Supabase');
+        showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to Supabase. Check your connection and try again.', status: 'error' });
         throw error;
       }
     }).catch(() => {});
@@ -203,15 +252,15 @@
       processDueDocumentEmailReminders();
       processContractEndedAlerts();
       renderAll();
-      if (gmailAccessToken) await syncGmail();
+      if (gmailAccessToken) await syncGmail(true);
       await persist();
       scheduleAutomaticBackup();
-      toast('Signed in successfully');
+      showActionResult({ title: 'Signed in successfully', message: 'Your Supabase workspace is ready.' });
     } catch (error) {
       console.error(error);
       data = emptyData();
       supabaseDataLoaded = false;
-      toast('Could not load your Supabase data');
+      showActionResult({ title: 'Could not load workspace', message: 'Your Supabase data could not be loaded. Check your connection and try again.', status: 'error' });
       dataReady = true;
       renderAll();
     } finally {
@@ -803,6 +852,7 @@
     data.toApply = data.toApply || [];
     data.alerts = data.alerts || [];
     let changed = false;
+    let remindersDue = 0;
     data.toApply.forEach(item => {
       if (item.dueDate !== currentDate) return;
       const alertId = `to-apply|due|${item.id}|${item.dueDate}`;
@@ -816,11 +866,20 @@
         unread: true
       });
       changed = true;
+      remindersDue += 1;
     });
     if (changed) {
       data.alerts = data.alerts.slice(0, 30);
       persist();
       renderAlerts();
+      showActionResult({
+        title: 'Application reminders due',
+        message: `${plural(remindersDue, 'application reminder')} are due today.`,
+        status: 'info',
+        label: 'APPLICATION REMINDER',
+        actionLabel: 'Open To Apply',
+        onAction: () => showView('to-apply')
+      });
     }
   }
 
@@ -1069,6 +1128,7 @@
           <div id="hiredDocumentWorkspace"></div>
         </section>
       </div>
+      ${renderHiredEmailHistory(item)}
       <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in Supabase.</div>`;
     renderHiredDocumentWorkspace(item);
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1286,16 +1346,32 @@
     const list = $('#clientEmailHistoryList');
     const count = $('#clientEmailHistoryCount');
     if (!target || !list || !count) return;
+    const sentEmails = sentEmailsForApplication(item);
+    target.classList.remove('hidden');
+    count.textContent = `${sentEmails.length} ${sentEmails.length === 1 ? 'email' : 'emails'}`;
+    list.innerHTML = renderSentEmailHistoryItems(sentEmails, 'No emails have been sent to this application.');
+  }
+
+  function sentEmailsForApplication(item) {
     const clientEmail = String(item.email || '').trim().toLowerCase();
-    const sentEmails = data.emails
+    return data.emails
       .filter(email => email.direction === 'sent'
         && (email.applicationId === item.id || (!email.applicationId && clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail)))
       .sort((first, second) => new Date(second.date) - new Date(first.date));
-    target.classList.remove('hidden');
-    count.textContent = `${sentEmails.length} ${sentEmails.length === 1 ? 'email' : 'emails'}`;
-    list.innerHTML = sentEmails.length
+  }
+
+  function renderSentEmailHistoryItems(sentEmails, emptyMessage) {
+    return sentEmails.length
       ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}"><span><strong>${escapeHtml(email.subject || '(No subject)')}</strong><small>${escapeHtml(emailContentText(email.body).slice(0, 150) || 'No message preview')}</small></span><time>${escapeHtml(emailDate(email.date))}</time></button>`).join('')
-      : '<p>No emails have been sent to this application.</p>';
+      : `<p>${emptyMessage}</p>`;
+  }
+
+  function renderHiredEmailHistory(item) {
+    const sentEmails = sentEmailsForApplication(item);
+    return `<section class="client-email-history hired-email-history" aria-live="polite">
+      <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this client</h3></div><strong>${plural(sentEmails.length, 'email')}</strong></div>
+      <div class="client-email-history-list">${renderSentEmailHistoryItems(sentEmails, 'No emails have been sent to this client.')}</div>
+    </section>`;
   }
 
   function updateClientActionLabel() {
@@ -1405,7 +1481,7 @@
       showView('hired');
       renderHiredDetail(application);
     } else {
-      toast(editingId ? 'Application updated' : 'Client application added');
+      showActionResult({ title: editingId ? 'Application updated' : 'Application added', message: editingId ? 'Your application changes were saved.' : 'The application was added to your workspace.' });
     }
     processDueInterviews();
     await processDueFollowUps();
@@ -1422,7 +1498,7 @@
     editingId = null;
     if (fromActive) closeHiredDetail(false);
     renderAll();
-    toast('Client deleted');
+    showActionResult({ title: 'Client deleted', message: 'The client and its attached documents were removed.' });
   }
 
 
@@ -1563,7 +1639,7 @@
     persist();
     resetScriptForm();
     renderScripts();
-    toast(existingIndex >= 0 ? 'Script updated' : 'Script saved');
+    showActionResult({ title: existingIndex >= 0 ? 'Script updated' : 'Script saved', message: existingIndex >= 0 ? 'Your script changes were saved.' : 'The script was added to your tools.' });
   }
 
   async function deleteScript(id) {
@@ -1572,7 +1648,7 @@
     data.scripts = data.scripts.filter(item => item.id !== id);
     persist();
     renderScripts();
-    toast('Script deleted');
+    showActionResult({ title: 'Script deleted', message: 'The script was removed from your tools.' });
   }
 
   function renderWorkLinks() {
@@ -1627,7 +1703,7 @@
     persist();
     resetWorkLinkForm();
     renderWorkLinks();
-    toast(existingIndex >= 0 ? 'Link updated' : 'Link saved');
+    showActionResult({ title: existingIndex >= 0 ? 'Link updated' : 'Link saved', message: existingIndex >= 0 ? 'Your link changes were saved.' : 'The link was added to your tools.' });
   }
 
   async function deleteWorkLink(id) {
@@ -1636,7 +1712,7 @@
     data.workLinks = data.workLinks.filter(item => item.id !== id);
     persist();
     renderWorkLinks();
-    toast('Link deleted');
+    showActionResult({ title: 'Link deleted', message: 'The link was removed from your tools.' });
   }
 
   function renderInvoiceList() {
@@ -1678,11 +1754,11 @@
       data.personalDocuments.unshift(record);
       persist();
       renderAll();
-      toast('Personal document uploaded');
+      showActionResult({ title: 'Document uploaded', message: 'Your personal document was saved to Supabase.' });
       return record;
     } catch (error) {
       console.error(error);
-      toast(`Could not upload ${file.name}`);
+      showActionResult({ title: 'Document upload failed', message: `Could not upload ${file.name}. Check your connection and try again.`, status: 'error' });
       return null;
     }
   }
@@ -1876,7 +1952,7 @@
     persist();
     renderAll();
     showView('applications');
-    toast('Activation cancelled. The application was restored.');
+    showActionResult({ title: 'Activation cancelled', message: 'The application was restored and the staged document was removed.' });
   }
 
   function clearActivationRollback() {
@@ -1999,7 +2075,7 @@
     pendingActiveClientId = null;
     renderAll();
     openClientEmailComposer(application);
-    toast('Document attached. Send the client email to finish activation.');
+    showActionResult({ title: 'Document attached', message: 'The contract was attached. Send the client email to finish activation.' });
   }
 
   function showDocumentViewer(fileRecord, blob) {
@@ -2040,7 +2116,7 @@
       showDocumentViewer(fileRecord, blob);
     } catch (error) {
       console.error(error);
-      toast('Could not open that personal document');
+      showActionResult({ title: 'Could not open document', message: 'The personal document could not be downloaded from Supabase.', status: 'error' });
     }
   }
 
@@ -2051,7 +2127,7 @@
     persist();
     try { await deleteDocumentBlob(fileRecord.storagePath); } catch (error) { console.error(error); }
     renderAll();
-    toast('Personal document deleted');
+    showActionResult({ title: 'Document deleted', message: 'The personal document was removed from Supabase.' });
   }
 
   function clearPendingDocumentPreview() {
@@ -2214,7 +2290,7 @@
         const file = await handle.getFile();
         stageHiredDocument([file]);
       } catch (error) {
-        if (error?.name !== 'AbortError') toast('Could not open the file picker');
+        if (error?.name !== 'AbortError') showActionResult({ title: 'File picker unavailable', message: 'Could not open the file picker. Check browser permissions and try again.', status: 'error' });
       }
       return;
     }
@@ -2245,13 +2321,13 @@
       if (activationEmailPending) openClientEmailComposer(item);
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = 'Saved — ready to preview anytime.';
-      toast(activationEmailPending ? 'File saved. Send the client email to finish activation.' : 'File saved. You can send the updated version now or later.');
+      showActionResult({ title: 'Document saved', message: activationEmailPending ? 'The file was saved. Send the client email to finish activation.' : 'The file was saved. You can send the updated version now or later.' });
     } catch (error) {
       console.error(error);
       const message = error?.message || 'Supabase Storage rejected the upload';
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = `Upload failed: ${message}`;
-      toast(`Could not save ${file.name}: ${message}`);
+      showActionResult({ title: 'Document save failed', message: `Could not save ${file.name}: ${message}`, status: 'error' });
     }
   }
 
@@ -2267,17 +2343,17 @@
     try { await deleteDocumentBlob(doc?.storagePath || docId); } catch { /* already gone, ignore */ }
     renderHired();
     renderHiredDetail(item, false);
-    toast('Document removed');
+    showActionResult({ title: 'Document removed', message: 'The client document was removed from Supabase.' });
   }
 
   async function openDocument(docId) {
     try {
       const doc = (data.applications.flatMap(app => app.documents || [])).find(item => item.id === docId);
       const blob = await getDocumentBlob(doc?.storagePath || docId);
-      if (!blob) { toast('That file could not be found — it may have been cleared from this browser'); return; }
+      if (!blob) { showActionResult({ title: 'Document unavailable', message: 'That file could not be found in Supabase.', status: 'error' }); return; }
       showDocumentViewer(doc || { name: 'Document' }, blob);
     } catch {
-      toast('Could not open that document');
+      showActionResult({ title: 'Could not open document', message: 'The document could not be downloaded from Supabase.', status: 'error' });
     }
   }
 
@@ -2306,14 +2382,8 @@
       app.interviewAlert = sameDay ? 'Interview date confirmed by another client email' : 'Interview requested or scheduled';
     });
 
-    const preview = unique.slice(0, 3).map(({ emailItem, app }) => `
-      <div class="client-email-alert-item">
-        <strong>${escapeHtml(app.clientName)}</strong>
-        <span>${isInterviewEmail(emailItem) ? 'Interview alert · ' : ''}${escapeHtml(emailItem.subject || '(No subject)')}${interviewDateFromEmail(emailItem) ? ` · ${emailDate(interviewDateFromEmail(emailItem))}` : ''}</span>
-        <small>${escapeHtml(emailItem.from || 'Unknown sender')}</small>
-      </div>
-    `).join('');
-    const extra = unique.length > 3 ? `<small class="client-email-alert-more">+${unique.length - 3} more matching email${unique.length - 3 === 1 ? '' : 's'}</small>` : '';
+    const preview = unique.slice(0, 3).map(({ emailItem, app }) => `${app.clientName}: ${emailItem.subject || '(No subject)'}`).join('\n');
+    const extra = unique.length > 3 ? `\n+${unique.length - 3} more matching emails` : '';
 
     data.alerts = data.alerts || [];
     unique.forEach(({ emailItem, app }) => {
@@ -2337,22 +2407,14 @@
     persist();
     renderAlerts();
 
-    const target = $('#toast');
-    target.innerHTML = `
-      <div class="client-email-alert">
-        <div class="client-email-alert-title">🔔 New email from a client</div>
-        <div class="client-email-alert-list">${preview}</div>
-        ${extra}
-        <button class="client-email-alert-open" type="button">Open Emails</button>
-      </div>
-    `;
-    target.classList.add('show', 'client-alert-toast');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => target.classList.remove('show', 'client-alert-toast'), 7000);
-    target.querySelector('.client-email-alert-open')?.addEventListener('click', () => {
-      target.classList.remove('show', 'client-alert-toast');
-      showView('inbox');
-    }, { once: true });
+    showActionResult({
+      title: 'New client email',
+      message: `${plural(unique.length, 'new email')} matched to your applications.\n${preview}${extra}`,
+      status: 'info',
+      label: 'CLIENT EMAIL ALERT',
+      actionLabel: 'Open inbox',
+      onAction: () => showView('inbox')
+    });
     return true;
   }
 
@@ -2455,6 +2517,7 @@
   async function sendContractEndedEmail(item, alert) {
     if (!gmailAccessToken || !isEmailAddress(item.email) || item.contractEndedEmailSentAt || contractEndedEmailSending.has(item.id)) return;
     contractEndedEmailSending.add(item.id);
+    const previousFailureWasReported = alert.emailSent === false;
     const template = buildDocumentEmailTemplate('contract-ended', item, { duration: contractDuration(item) || 'the project period' });
     const subject = template.subject;
     const body = template.body;
@@ -2470,6 +2533,7 @@
       alert.date = sentAt;
       persist();
       renderAll();
+      showActionResult({ title: 'Contract email sent successfully', message: 'The contract-ended email was sent to the client.' });
     } catch (error) {
       console.error('Contract-ended email failed:', error);
       alert.subject = 'Contract ended: email not sent';
@@ -2477,6 +2541,9 @@
       alert.emailSent = false;
       persist();
       renderAlerts();
+      if (!previousFailureWasReported) {
+        showActionResult({ title: 'Contract email could not be sent', message: 'Reconnect Gmail and review the client alert before retrying.', status: 'error' });
+      }
     } finally {
       contractEndedEmailSending.delete(item.id);
     }
@@ -2506,6 +2573,17 @@
     if (changed) {
       data.alerts = data.alerts.slice(0, 30);
       persist();
+      const needsManualEmail = ended.filter(item => !item.contractEndedEmailSentAt && (!gmailAccessToken || !isEmailAddress(item.email))).length;
+      if (needsManualEmail) {
+        showActionResult({
+          title: 'Contract ended',
+          message: `${plural(needsManualEmail, 'client')} have an ended contract. Connect Gmail and review the client alert to send the notice.`,
+          status: 'info',
+          label: 'CLIENT REMINDER',
+          actionLabel: 'Open active clients',
+          onAction: () => showView('hired')
+        });
+      }
     }
     ended.forEach(item => {
       const alert = data.alerts.find(candidate => candidate.id === `contract-ended|${item.id}|${dateKey(item.contractEndDate)}`);
@@ -2517,6 +2595,7 @@
     const due = data.applications.filter(item => isInterviewToday(item) && item.interviewAlertDate !== today());
     if (!due.length) return;
     data.alerts = data.alerts || [];
+    let interviewsDue = 0;
     due.forEach(item => {
       const alertId = `interview|today|${item.id}|${today()}`;
       if (data.alerts.some(alert => alert.id === alertId)) {
@@ -2536,10 +2615,21 @@
         meetingLink: item.interviewLink || '',
         unread: true
       });
+      interviewsDue += 1;
     });
     data.alerts = data.alerts.slice(0, 30);
     persist();
     renderAlerts();
+    if (interviewsDue) {
+      showActionResult({
+        title: 'Interview scheduled today',
+        message: `${plural(interviewsDue, 'interview')} are scheduled for today.`,
+        status: 'info',
+        label: 'INTERVIEW REMINDER',
+        actionLabel: 'Open applications',
+        onAction: () => showView('applications')
+      });
+    }
   }
 
   function processDueDocumentEmailReminders() {
@@ -2563,13 +2653,27 @@
     renderAlerts();
     const currentClient = data.applications.find(item => item.id === hiredEditingId);
     if (currentClient) renderHiredDetail(currentClient, false);
-    toast('Document email reminder is due today.');
+    showActionResult({
+      title: 'Document reminder due',
+      message: `${plural(due.length, 'updated document')} need to be sent today.`,
+      status: 'info',
+      label: 'DOCUMENT REMINDER',
+      actionLabel: 'Open client',
+      onAction: () => {
+        showView('hired');
+        renderHiredDetail(due[0], false);
+      }
+    });
   }
 
   async function processDueFollowUps() {
     const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
     if (!due.length) return;
     data.alerts = data.alerts || [];
+    let followUpAlertsAdded = 0;
+    let automaticEmailsSent = 0;
+    let automaticEmailsFailed = 0;
+    let followUpsNeedingReview = 0;
     for (const item of due) {
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
@@ -2580,27 +2684,53 @@
           const rawMessage = buildRawEmailMessage({ to: item.email, subject, body });
           await sendGmailRaw(rawMessage);
           sent = true;
+          automaticEmailsSent += 1;
         } catch (error) {
           console.error('Automatic follow-up failed:', error);
+          automaticEmailsFailed += 1;
         }
       }
       item.followUpProcessedAt = new Date().toISOString();
       item.followUpSentAt = sent ? item.followUpProcessedAt : '';
-      data.alerts.unshift({
-        id: `follow-up|${item.id}|${item.followUpDate}`,
+      const alertId = `follow-up|${item.id}|${item.followUpDate}`;
+      const existingAlert = data.alerts.find(alert => alert.id === alertId);
+      const followUpAlert = {
+        id: alertId,
         clientName: item.clientName,
         subject: sent ? `Automatic follow-up sent: ${subject}` : `Follow-up needed: ${subject}`,
         from: sent ? 'Jeff VA' : 'Jeff VA reminder',
         date: new Date().toISOString(),
         unread: true
-      });
+      };
+      if (existingAlert) Object.assign(existingAlert, followUpAlert);
+      else {
+        data.alerts.unshift(followUpAlert);
+        followUpAlertsAdded += 1;
+      }
       if (sent) {
         data.emails.unshift({ id: uid(), applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: new Date().toISOString(), importedAt: new Date().toISOString(), source: 'sent', direction: 'sent' });
+      } else if (!item.automaticFollowUp || !gmailAccessToken || !isEmailAddress(item.email)) {
+        followUpsNeedingReview += 1;
       }
     }
     data.alerts = data.alerts.slice(0, 30);
     persist();
     renderAlerts();
+    if (followUpAlertsAdded || automaticEmailsSent) {
+      const summary = [
+        automaticEmailsSent ? `${plural(automaticEmailsSent, 'automatic follow-up email')} sent` : '',
+        automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} could not be sent; reconnect Gmail and review the alert` : '',
+        followUpsNeedingReview ? `${plural(followUpsNeedingReview, 'follow-up')} need your attention in Applications` : ''
+      ].filter(Boolean).join('. ');
+      showActionResult({
+        title: automaticEmailsFailed ? 'Follow-ups need attention' : automaticEmailsSent ? 'Automatic follow-ups sent' : 'Follow-ups due',
+        message: summary,
+        status: automaticEmailsFailed ? 'error' : automaticEmailsSent ? 'success' : 'info',
+        label: 'FOLLOW-UP STATUS',
+        actionLabel: 'Open applications',
+        onAction: () => showView('applications')
+      });
+    }
   }
 
   function openNotifications() {
@@ -2819,10 +2949,10 @@
 
     try {
       await sendGmailRaw(rawMessage);
-      toast(`Template test sent to ${recipient}.`);
+      showEmailActionResult({ title: 'Test email sent successfully', message: `The template test was sent to ${recipient}.` });
     } catch (error) {
       console.error('Template test failed:', error);
-      toast(`Could not send the ${template.name} test email. Check Gmail access.`);
+      showEmailActionResult({ title: 'Test email could not be sent', message: `Could not send the ${template.name} test email. Check Gmail access.`, status: 'error' });
     }
   }
 
@@ -3252,7 +3382,7 @@
         rawMessage = buildRawEmailMessage({ to, subject, body });
       }
       await sendGmailRaw(rawMessage);
-      data.emails.unshift({
+      const sentEmailRecord = {
         id: uid(),
         applicationId: composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
         from: 'You',
@@ -3264,7 +3394,8 @@
         source: 'sent',
         direction: 'sent',
         attachmentName: composeAttachment?.name || composeAttachmentFile?.name || ''
-      });
+      };
+      data.emails.unshift(sentEmailRecord);
       if (composeInvoiceDraft) {
         data.invoices = data.invoices || [];
         data.invoices.unshift({ id: uid(), ...composeInvoiceDraft, sentAt: new Date().toISOString() });
@@ -3284,6 +3415,10 @@
       }
       persist();
       renderAll();
+      if ($('#clientModal').open && sentEmailRecord.applicationId === editingId) {
+        const application = data.applications.find(item => item.id === editingId);
+        if (application) renderClientEmailHistory(application);
+      }
       $('#emailComposeModal').close();
       let successMessage = 'Email sent successfully through Gmail.';
       if (activatingClient) {
@@ -3298,8 +3433,7 @@
       if (composeInvoiceDraft) {
         successMessage = 'Invoice sent successfully and added to this client\'s history.';
       }
-      showEmailActionResult({ title: 'Email sent', message: successMessage });
-      toast(successMessage);
+      showEmailActionResult({ title: 'Email sent successfully', message: successMessage });
       composeAttachmentFile = null;
       composeInvoiceDraft = null;
       composeClientId = null;
@@ -3310,7 +3444,7 @@
       console.error(error);
       const failureMessage = `${error.message} Google authorization may be required.`;
       setEmailComposeStatus(failureMessage, 'error');
-      showEmailActionResult({ title: 'Email not sent', message: failureMessage, status: 'error' });
+      showEmailActionResult({ title: 'Email could not be sent', message: failureMessage, status: 'error' });
     } finally {
       sendButton.disabled = false;
     }
@@ -3360,7 +3494,7 @@
         if (response.error) {
           const message = response.error_description || response.error;
           setGmailStatus(`Gmail connection failed: ${message}`);
-          toast(`Gmail connection failed: ${message}`);
+          showActionResult({ title: 'Gmail connection failed', message, status: 'error' });
           return;
         }
         gmailAccessToken = response.access_token;
@@ -3431,7 +3565,7 @@
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
     setGmailStatus('Gmail ready — log in with Google to sync your inbox');
-    toast('Disconnected from Gmail');
+    showActionResult({ title: 'Gmail disconnected', message: 'Gmail access was disconnected for this browser session.' });
   }
 
   function handleGmailAuthorizationFailure() {
@@ -3501,12 +3635,12 @@
       updateGmailConnectionUI(true);
       sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
       setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}`);
-      if (!silent && !alertNewMatches(newOnes)) toast('Gmail inbox synced');
+      if (!silent && !alertNewMatches(newOnes)) showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
       if (silent) alertNewMatches(newOnes);
     } catch (error) {
       const message = error?.message || 'Unknown Gmail API error';
       setGmailStatus(`Gmail sync failed: ${message}`);
-      if (!silent) toast(`Gmail sync failed: ${message}`);
+      if (!silent) showActionResult({ title: 'Gmail sync failed', message, status: 'error' });
     } finally {
       gmailSyncInFlight = false;
     }
@@ -3620,7 +3754,10 @@
     if (!window.XLSX) { if (!automatic) toast('Excel export is still loading, try again in a moment'); return false; }
     const workbook = buildBackupWorkbook();
     XLSX.writeFile(workbook, `${automatic ? 'jeff-va-auto-backup' : 'jeff-va-export'}-${today()}.xlsx`);
-    toast(automatic ? 'Automatic Excel backup downloaded' : 'Excel file downloaded');
+    showActionResult({
+      title: automatic ? 'Automatic backup downloaded' : 'Backup downloaded',
+      message: automatic ? 'Your scheduled Excel backup was downloaded.' : 'Your Excel backup was downloaded.'
+    });
     return true;
   }
 
@@ -3749,9 +3886,9 @@
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
       data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks };
-      persist(); renderAll(); toast('Data restored from Excel file');
+      persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });
     } catch {
-      toast('That file doesn\'t look like a Jeff VA export');
+      showActionResult({ title: 'Could not restore backup', message: 'That file is not a valid Jeff VA export.', status: 'error' });
     } finally { $('#backupInput').value = ''; }
   }
 
@@ -3895,11 +4032,11 @@
         persist();
         renderAll();
         $('#settingsModal').close();
-        toast('All Supabase data cleared');
+        showActionResult({ title: 'Workspace data cleared', message: 'All applications, imported email, and attached documents were removed from Supabase.' });
       })
       .catch(error => {
         console.error(error);
-        toast('Could not clear Supabase data');
+        showActionResult({ title: 'Could not clear workspace data', message: 'Supabase data could not be cleared. Check your connection and try again.', status: 'error' });
       });
   });
 
@@ -4542,7 +4679,7 @@
     closeDocumentEmailReminder();
     renderHiredDetail(item, false);
     processDueDocumentEmailReminders();
-    toast(`Reminder set for ${formatDate(reminderDate)}.`);
+    showActionResult({ title: 'Reminder set', message: `The document email reminder is set for ${formatDate(reminderDate)}.` });
   });
 
   $('#cancelDocumentEmailReminder').addEventListener('click', closeDocumentEmailReminder);
@@ -4644,7 +4781,7 @@
         }
         renderAll();
         await persist();
-        toast('Email removed from this list');
+        showActionResult({ title: 'Email removed', message: 'The email was removed from your saved list.' });
       }
       document.querySelectorAll('.email-actions-menu').forEach(menu => menu.classList.add('hidden'));
       document.querySelectorAll('[data-email-action-trigger]').forEach(trigger => trigger.setAttribute('aria-expanded', 'false'));
@@ -4656,7 +4793,9 @@
       document.querySelectorAll('[data-email-action-trigger]').forEach(trigger => trigger.setAttribute('aria-expanded', 'false'));
     }
 
-    if (emailDetail && !event.target.closest('button')) openEmailDetail(emailDetail.dataset.emailDetail);
+    if (emailDetail && (!event.target.closest('button') || event.target.closest('button[data-email-detail]'))) {
+      openEmailDetail(emailDetail.dataset.emailDetail);
+    }
   });
 
   $('#emailSearch').addEventListener('input', renderEmails);
@@ -5011,10 +5150,10 @@
       const y = (pageHeight - imgHeight) / 2;
       pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
       pdf.save(`jeff-va-weekly-report-${report.range.end}.pdf`);
-      toast('Weekly report PDF downloaded');
+      showActionResult({ title: 'Report downloaded', message: 'Your weekly report PDF was downloaded.' });
     }).catch(error => {
       console.error('Weekly report PDF export failed:', error);
-      toast('Could not generate the PDF report.');
+      showActionResult({ title: 'Could not generate report', message: 'The weekly report PDF could not be generated. Try again.', status: 'error' });
     }).finally(() => {
       button.disabled = false;
       button.textContent = previousLabel;
@@ -5063,7 +5202,6 @@
       if (error) throw error;
       loginForm.reset();
       await initializeSupabaseForUser(authData.user);
-      toast('Welcome back, Jeff');
     } catch (error) {
       console.error(error);
       const message = error?.message?.trim() || '';

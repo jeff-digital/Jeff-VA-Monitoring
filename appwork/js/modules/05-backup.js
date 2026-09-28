@@ -105,7 +105,10 @@
     if (!window.XLSX) { if (!automatic) toast('Excel export is still loading, try again in a moment'); return false; }
     const workbook = buildBackupWorkbook();
     XLSX.writeFile(workbook, `${automatic ? 'jeff-va-auto-backup' : 'jeff-va-export'}-${today()}.xlsx`);
-    toast(automatic ? 'Automatic Excel backup downloaded' : 'Excel file downloaded');
+    showActionResult({
+      title: automatic ? 'Automatic backup downloaded' : 'Backup downloaded',
+      message: automatic ? 'Your scheduled Excel backup was downloaded.' : 'Your Excel backup was downloaded.'
+    });
     return true;
   }
 
@@ -234,9 +237,9 @@
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
       data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks };
-      persist(); renderAll(); toast('Data restored from Excel file');
+      persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });
     } catch {
-      toast('That file doesn\'t look like a Jeff VA export');
+      showActionResult({ title: 'Could not restore backup', message: 'That file is not a valid Jeff VA export.', status: 'error' });
     } finally { $('#backupInput').value = ''; }
   }
 

@@ -191,10 +191,10 @@
 
     try {
       await sendGmailRaw(rawMessage);
-      toast(`Template test sent to ${recipient}.`);
+      showEmailActionResult({ title: 'Test email sent successfully', message: `The template test was sent to ${recipient}.` });
     } catch (error) {
       console.error('Template test failed:', error);
-      toast(`Could not send the ${template.name} test email. Check Gmail access.`);
+      showEmailActionResult({ title: 'Test email could not be sent', message: `Could not send the ${template.name} test email. Check Gmail access.`, status: 'error' });
     }
   }
 
@@ -624,7 +624,7 @@
         rawMessage = buildRawEmailMessage({ to, subject, body });
       }
       await sendGmailRaw(rawMessage);
-      data.emails.unshift({
+      const sentEmailRecord = {
         id: uid(),
         applicationId: composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
         from: 'You',
@@ -636,7 +636,8 @@
         source: 'sent',
         direction: 'sent',
         attachmentName: composeAttachment?.name || composeAttachmentFile?.name || ''
-      });
+      };
+      data.emails.unshift(sentEmailRecord);
       if (composeInvoiceDraft) {
         data.invoices = data.invoices || [];
         data.invoices.unshift({ id: uid(), ...composeInvoiceDraft, sentAt: new Date().toISOString() });
@@ -656,6 +657,10 @@
       }
       persist();
       renderAll();
+      if ($('#clientModal').open && sentEmailRecord.applicationId === editingId) {
+        const application = data.applications.find(item => item.id === editingId);
+        if (application) renderClientEmailHistory(application);
+      }
       $('#emailComposeModal').close();
       let successMessage = 'Email sent successfully through Gmail.';
       if (activatingClient) {
@@ -670,8 +675,7 @@
       if (composeInvoiceDraft) {
         successMessage = 'Invoice sent successfully and added to this client\'s history.';
       }
-      showEmailActionResult({ title: 'Email sent', message: successMessage });
-      toast(successMessage);
+      showEmailActionResult({ title: 'Email sent successfully', message: successMessage });
       composeAttachmentFile = null;
       composeInvoiceDraft = null;
       composeClientId = null;
@@ -682,7 +686,7 @@
       console.error(error);
       const failureMessage = `${error.message} Google authorization may be required.`;
       setEmailComposeStatus(failureMessage, 'error');
-      showEmailActionResult({ title: 'Email not sent', message: failureMessage, status: 'error' });
+      showEmailActionResult({ title: 'Email could not be sent', message: failureMessage, status: 'error' });
     } finally {
       sendButton.disabled = false;
     }
@@ -732,7 +736,7 @@
         if (response.error) {
           const message = response.error_description || response.error;
           setGmailStatus(`Gmail connection failed: ${message}`);
-          toast(`Gmail connection failed: ${message}`);
+          showActionResult({ title: 'Gmail connection failed', message, status: 'error' });
           return;
         }
         gmailAccessToken = response.access_token;
@@ -803,7 +807,7 @@
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
     setGmailStatus('Gmail ready — log in with Google to sync your inbox');
-    toast('Disconnected from Gmail');
+    showActionResult({ title: 'Gmail disconnected', message: 'Gmail access was disconnected for this browser session.' });
   }
 
   function handleGmailAuthorizationFailure() {
@@ -873,12 +877,12 @@
       updateGmailConnectionUI(true);
       sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
       setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}`);
-      if (!silent && !alertNewMatches(newOnes)) toast('Gmail inbox synced');
+      if (!silent && !alertNewMatches(newOnes)) showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
       if (silent) alertNewMatches(newOnes);
     } catch (error) {
       const message = error?.message || 'Unknown Gmail API error';
       setGmailStatus(`Gmail sync failed: ${message}`);
-      if (!silent) toast(`Gmail sync failed: ${message}`);
+      if (!silent) showActionResult({ title: 'Gmail sync failed', message, status: 'error' });
     } finally {
       gmailSyncInFlight = false;
     }

@@ -34,7 +34,7 @@
         }
         renderAll();
         await persist();
-        toast('Email removed from this list');
+        showActionResult({ title: 'Email removed', message: 'The email was removed from your saved list.' });
       }
       document.querySelectorAll('.email-actions-menu').forEach(menu => menu.classList.add('hidden'));
       document.querySelectorAll('[data-email-action-trigger]').forEach(trigger => trigger.setAttribute('aria-expanded', 'false'));
@@ -46,7 +46,9 @@
       document.querySelectorAll('[data-email-action-trigger]').forEach(trigger => trigger.setAttribute('aria-expanded', 'false'));
     }
 
-    if (emailDetail && !event.target.closest('button')) openEmailDetail(emailDetail.dataset.emailDetail);
+    if (emailDetail && (!event.target.closest('button') || event.target.closest('button[data-email-detail]'))) {
+      openEmailDetail(emailDetail.dataset.emailDetail);
+    }
   });
 
   $('#emailSearch').addEventListener('input', renderEmails);

@@ -43,6 +43,55 @@
     appConfirmResolve = null;
     resolve?.($('#appConfirmModal').returnValue === 'confirm');
   });
+  const actionResultQueue = [];
+  let actionResultAction = null;
+  const actionResultModal = $('#emailActionResultModal');
+  $('#emailActionResultAction')?.addEventListener('click', () => {
+    const action = actionResultAction;
+    actionResultModal.close('action');
+    action?.();
+  });
+  actionResultModal?.addEventListener('close', () => {
+    actionResultAction = null;
+    const nextResult = actionResultQueue.shift();
+    if (nextResult) setTimeout(() => showActionResult(nextResult), 0);
+  });
+
+  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null } = {}) {
+    const modal = $('#emailActionResultModal');
+    if (!modal) {
+      toast(message);
+      return;
+    }
+    if (modal.open) {
+      actionResultQueue.push({ title, message, status, label, actionLabel, onAction });
+      return;
+    }
+    const isError = status === 'error';
+    const isInfo = status === 'info';
+    modal.dataset.status = isError ? 'error' : isInfo ? 'info' : 'success';
+    $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
+    $('#emailActionResultTitle').textContent = title;
+    $('#emailActionResultMessage').textContent = message;
+    const badge = $('#emailActionResultBadge');
+    badge.classList.toggle('error', isError);
+    badge.classList.toggle('info', isInfo);
+    badge.classList.toggle('success', !isError && !isInfo);
+    const icon = document.createElement('i');
+    icon.className = `fa-solid ${isError ? 'fa-triangle-exclamation' : isInfo ? 'fa-circle-info' : 'fa-check'}`;
+    icon.setAttribute('aria-hidden', 'true');
+    badge.replaceChildren(icon);
+    actionResultAction = typeof onAction === 'function' ? onAction : null;
+    const actionButton = $('#emailActionResultAction');
+    actionButton.hidden = !actionResultAction;
+    actionButton.textContent = actionLabel || 'Open';
+    modal.showModal();
+    $('#emailActionResultAccept').focus();
+  }
+
+  function showEmailActionResult(options = {}) {
+    showActionResult({ ...options, label: 'EMAIL STATUS' });
+  }
   const today = () => {
     const date = new Date();
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
@@ -163,7 +212,7 @@
       }, { onConflict: 'user_id' });
       if (error) {
         console.error('Supabase save failed:', error);
-        toast('Could not save to Supabase');
+        showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to Supabase. Check your connection and try again.', status: 'error' });
         throw error;
       }
     }).catch(() => {});
@@ -200,15 +249,15 @@
       processDueDocumentEmailReminders();
       processContractEndedAlerts();
       renderAll();
-      if (gmailAccessToken) await syncGmail();
+      if (gmailAccessToken) await syncGmail(true);
       await persist();
       scheduleAutomaticBackup();
-      toast('Signed in successfully');
+      showActionResult({ title: 'Signed in successfully', message: 'Your Supabase workspace is ready.' });
     } catch (error) {
       console.error(error);
       data = emptyData();
       supabaseDataLoaded = false;
-      toast('Could not load your Supabase data');
+      showActionResult({ title: 'Could not load workspace', message: 'Your Supabase data could not be loaded. Check your connection and try again.', status: 'error' });
       dataReady = true;
       renderAll();
     } finally {
