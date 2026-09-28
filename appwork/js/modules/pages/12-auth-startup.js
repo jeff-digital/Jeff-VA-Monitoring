@@ -29,7 +29,7 @@
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw error;
       loginForm.reset();
-      await initializeSupabaseForUser(authData.user);
+      await initializeSupabaseForUser(authData.user, { recordSignIn: true, showOverview: true });
     } catch (error) {
       activeAuthProvider = null;
       sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
@@ -114,15 +114,27 @@
     }
   });
   $('#logoutButton')?.addEventListener('click', async () => {
+    disconnectGmail({ notify: false });
     try {
-      if (supabaseClient) await supabaseClient.auth.signOut();
+      if (supabaseClient) {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+      }
     } catch (error) {
       console.error(error);
+      try {
+        if (supabaseClient) {
+          const { error: localSignOutError } = await supabaseClient.auth.signOut({ scope: 'local' });
+          if (localSignOutError) console.error('Could not clear the local Supabase session:', localSignOutError);
+        }
+      } catch (localSignOutError) {
+        console.error('Could not clear the local Supabase session:', localSignOutError);
+      }
     }
     currentUser = null;
     activeAuthProvider = null;
     sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
-    renderPasswordAccess();
+    renderAccountAccess();
     if (appStateChannel && supabaseClient) {
       supabaseClient.removeChannel(appStateChannel);
       appStateChannel = null;
@@ -144,6 +156,8 @@
   });
 
   renderAll();
+  window.addEventListener('online', renderAccountPage);
+  window.addEventListener('offline', renderAccountPage);
   const initialView = window.location.hash.slice(1) || 'dashboard';
   showView(initialView, { updateUrl: false });
   window.addEventListener('popstate', () => {

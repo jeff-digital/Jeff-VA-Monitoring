@@ -4,7 +4,7 @@
   const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
   const SUPABASE_BUCKET = 'client-documents';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -105,29 +105,109 @@
   }
 
   function resolveAuthProvider(session) {
+    if (session?.provider_token) return 'google';
     const savedProvider = sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY);
     if (savedProvider === 'google' || savedProvider === 'email') return savedProvider;
-    return session?.provider_token || !userHasPasswordIdentity(session?.user) ? 'google' : 'email';
+    return !userHasPasswordIdentity(session?.user) ? 'google' : 'email';
   }
 
-  function hasPasswordSettingsAccess() {
-    return Boolean(currentUser && activeAuthProvider !== 'google' && userHasPasswordIdentity());
+  function hasAccountSettingsAccess() {
+    return Boolean(currentUser);
   }
 
-  function renderPasswordAccess() {
-    $('#passwordNavGroup').hidden = !hasPasswordSettingsAccess();
+  function renderAccountAccess() {
+    $('#accountNavGroup').hidden = !hasAccountSettingsAccess();
   }
 
   function renderPasswordPage() {
-    const hasPassword = userHasPasswordIdentity();
-    $('#passwordAccountEmail').textContent = currentUser?.email || 'your account';
-    $('#currentPasswordField').hidden = passwordRecoveryMode || !hasPassword;
-    $('#currentPassword').required = !passwordRecoveryMode && hasPassword;
-    $('#passwordFormEyebrow').textContent = hasPassword ? 'UPDATE PASSWORD' : passwordRecoveryMode ? 'RESET PASSWORD' : 'SET PASSWORD';
-    $('#passwordFormHeading').textContent = hasPassword ? 'Choose a new password' : 'Create a password';
+    const isGoogleSession = activeAuthProvider === 'google';
+    const hasPassword = userHasPasswordIdentity() && !isGoogleSession;
+    $('#accountGooglePasswordNotice').hidden = !isGoogleSession;
+    $('#passwordSettingsSection').hidden = isGoogleSession;
+    $('#passwordRecoverySection').hidden = isGoogleSession || !hasPassword;
+    $('#currentPasswordField').hidden = isGoogleSession || passwordRecoveryMode || !hasPassword;
+    $('#currentPassword').required = !isGoogleSession && !passwordRecoveryMode && hasPassword;
     $('#saveNewPasswordButton').textContent = hasPassword ? 'Save password' : passwordRecoveryMode ? 'Reset password' : 'Set password';
-    $('#passwordProviderNotice').classList.toggle('hidden', hasPassword || passwordRecoveryMode);
     $('#passwordRecoveryNotice').classList.toggle('hidden', !passwordRecoveryMode);
+  }
+
+  function formatAccountTimestamp(value) {
+    if (!value) return 'Not available';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? 'Not available'
+      : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  }
+
+  function recordAccountSignIn(user, provider) {
+    const signedInAt = user.last_sign_in_at || new Date().toISOString();
+    const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
+    if (history.some(entry => entry.userId === user.id && entry.signedInAt === signedInAt)) return false;
+    data.accountSignInHistory = [{
+      id: `${user.id}:${signedInAt}`,
+      userId: user.id,
+      signedInAt,
+      provider: provider === 'google' ? 'Google' : 'Email and password'
+    }, ...history].slice(0, 20);
+    return true;
+  }
+
+  function renderAccountPage() {
+    if (!currentUser) return;
+    const provider = activeAuthProvider === 'google' ? 'Google' : activeAuthProvider === 'email' ? 'Email and password' : 'Supabase Auth';
+    const projectHost = (() => {
+      try { return new URL(window.SUPABASE_URL).host; } catch { return 'Not configured'; }
+    })();
+    const supabaseStatus = !supabaseConfigured()
+      ? 'Not configured'
+      : !navigator.onLine
+        ? 'Offline'
+        : supabaseDataLoaded
+          ? 'Connected'
+          : dataReady
+            ? 'Unavailable'
+            : 'Connecting';
+    const gmailSyncMessage = $('#accountGmailSyncStatus').textContent;
+    const gmailNeedsAttention = /failed|expired|not set up/i.test(gmailSyncMessage);
+    const gmailStatus = !navigator.onLine
+      ? 'Offline'
+      : !gmailConfigured()
+        ? 'Not configured'
+        : !window.google?.accounts?.oauth2
+          ? 'Unavailable'
+          : gmailNeedsAttention
+            ? 'Needs attention'
+            : gmailAccessToken
+              ? 'Authorized this session'
+              : 'Not connected';
+    $('#accountEmail').textContent = currentUser.email || 'Not available';
+    $('#accountUserId').textContent = currentUser.id || 'Not available';
+    $('#accountSignInProvider').textContent = provider;
+    $('#accountSupabaseStatus').textContent = supabaseStatus;
+    $('#accountSupabaseProject').textContent = projectHost;
+    $('#accountNetworkStatus').textContent = navigator.onLine ? 'Online' : 'Offline';
+    $('#accountGmailStatus').textContent = gmailStatus;
+    $('#accountLastSignIn').textContent = formatAccountTimestamp(currentUser.last_sign_in_at);
+    $('#accountCreatedAt').textContent = formatAccountTimestamp(currentUser.created_at);
+    $('#accountGmailAction').hidden = !gmailConfigured() || !window.google?.accounts?.oauth2 || !navigator.onLine;
+    $('#accountGmailAction').textContent = gmailAccessToken
+      ? gmailNeedsAttention ? 'Reconnect' : 'Disconnect'
+      : sessionStorage.getItem(GMAIL_CONNECTED_KEY) ? 'Reconnect' : 'Connect Gmail';
+
+    const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
+    const list = $('#accountSignInHistory');
+    list.replaceChildren();
+    $('#accountNoSignIns').hidden = history.length > 0;
+    history.forEach(entry => {
+      const item = document.createElement('li');
+      const method = document.createElement('span');
+      method.textContent = entry.provider || 'Sign-in';
+      const timestamp = document.createElement('time');
+      timestamp.dateTime = entry.signedInAt || '';
+      timestamp.textContent = formatAccountTimestamp(entry.signedInAt);
+      item.append(method, timestamp);
+      list.append(item);
+    });
   }
 
   function setPasswordRecoveryMode(value) {
@@ -139,7 +219,7 @@
     $('#changePasswordForm').reset();
     $('#changePasswordError').textContent = '';
     renderPasswordPage();
-    showView('password');
+    showView('account');
     $('#newPassword').focus();
   }
   const today = () => {
@@ -239,6 +319,7 @@
       dailyTasks: Array.isArray(saved.dailyTasks) ? saved.dailyTasks : [],
       emails: dedupeEmails(Array.isArray(saved.emails) ? saved.emails : []).filter(item => !(item.source === 'gmail' && deletedGmailIdSet.has(item.gmailId))),
       deletedGmailIds,
+      accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],
       alerts: Array.isArray(saved.alerts) ? saved.alerts : [],
       emailTemplates: Array.isArray(saved.emailTemplates) ? saved.emailTemplates : [],
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
@@ -272,14 +353,15 @@
     return persistChain;
   }
 
-  async function initializeSupabaseForUser(user, { showSuccess = true } = {}) {
+  async function initializeSupabaseForUser(user, { showSuccess = true, recordSignIn = false, showOverview = false } = {}) {
     if (!user || initializingUserId === user.id) return;
     initializingUserId = user.id;
     currentUser = user;
-    renderPasswordAccess();
+    renderAccountAccess();
     dataReady = false;
     supabaseDataLoaded = false;
     setAuthenticated(true);
+    if (showOverview) showView('dashboard');
     subscribeToAppState(user.id);
     if (!applyReminderTimer) applyReminderTimer = setInterval(() => {
       if (!currentUser) return;
@@ -292,6 +374,7 @@
     if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
     try {
       data = await loadDataFromSupabase();
+      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
       supabaseDataLoaded = true;
       dataReady = true;
       await processDueFollowUps();
@@ -300,6 +383,7 @@
       processDueDocumentEmailReminders();
       processContractEndedAlerts();
       renderAll();
+      renderAccountPage();
       if (gmailAccessToken) await syncGmail(true);
       await persist();
       scheduleAutomaticBackup();
@@ -311,6 +395,7 @@
       showActionResult({ title: 'Could not load workspace', message: 'Your account data could not be loaded. Check your connection and try again.', status: 'error' });
       dataReady = true;
       renderAll();
+      renderAccountPage();
     } finally {
       initializingUserId = null;
     }
@@ -360,7 +445,12 @@
           sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
         }
-        initializeSupabaseForUser(session.user, { showSuccess: isAuthenticationCallback && !isPasswordRecovery });
+        const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
+        initializeSupabaseForUser(session.user, {
+          showSuccess: isAuthenticationCallback && !isPasswordRecovery || activeAuthProvider === 'email',
+          recordSignIn: isFreshSignIn,
+          showOverview: isFreshSignIn
+        });
       });
       const accessToken = callbackParams.get('access_token');
       const refreshToken = callbackParams.get('refresh_token');
@@ -387,7 +477,11 @@
       }
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
-        await initializeSupabaseForUser(sessionData.session.user, { showSuccess: isAuthenticationCallback && !isPasswordRecovery });
+        await initializeSupabaseForUser(sessionData.session.user, {
+          showSuccess: isAuthenticationCallback && !isPasswordRecovery,
+          recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
+          showOverview: isAuthenticationCallback && !isPasswordRecovery
+        });
         if (isPasswordRecovery) openPasswordPage({ recovery: true });
       }
     } catch (error) {
@@ -553,6 +647,11 @@
     return new RegExp(`\\b${escapeForRegExp(needle)}\\b`, 'i').test(haystack || '');
   }
 
+  function isDirectClientApplication(application) {
+    const platform = String(application.platform || '').trim().toLowerCase();
+    return platform === 'direct client' || platform === 'direct apply';
+  }
+
   function emailHasApplicationUpdateSignal(emailItem) {
     const source = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
     if (!source.trim()) return false;
@@ -582,8 +681,7 @@
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
     const directClientMatches = data.applications.filter(app => {
-      const platform = String(app.platform || '').trim().toLowerCase();
-      if (platform !== 'direct client') return false;
+      if (!isDirectClientApplication(app)) return false;
       const emailCandidate = (app.email || '').trim().toLowerCase();
       const clientName = (app.clientName || '').trim().toLowerCase();
       const contact = (app.contact || '').trim().toLowerCase();
@@ -943,8 +1041,7 @@
     const item = (data.toApply || []).find(reminder => reminder.id === id);
     $('#toApplyForm').reset();
     $('#toApplyId').value = id || '';
-    $('#toApplyModalEyebrow').textContent = id ? 'EDIT REMINDER' : 'NEW LIST';
-    $('#toApplyModalTitle').textContent = id ? 'Update application reminder' : 'Add New List';
+    $('#toApplyModalTitle').textContent = id ? 'Edit reminder' : 'Add reminder';
     $('#deleteToApplyButton').hidden = !id;
     if (item) {
       $('#toApplyTitle').value = item.title || '';
@@ -1241,9 +1338,10 @@
   }
 
   function showView(view, { updateUrl = true } = {}) {
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'password'];
+    if (view === 'password') view = 'account';
+    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
-    if (view === 'password' && !hasPasswordSettingsAccess()) view = 'dashboard';
+    if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (updateUrl && window.location.hash !== `#${view}`) {
       window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
     }
@@ -1252,11 +1350,14 @@
       renderApplications();
     }
     if (view === 'daily-task') renderDailyTasks();
-    if (view === 'password') renderPasswordPage();
-    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['DAILY PLANNER', 'Daily Task'], applications: ['CLIENT TRACKER', 'Applications'], 'to-apply': ['', 'To apply'], hired: ['CLIENT PROFILES', 'Active clients'], inbox: ['LOCAL EMAIL LIST', 'Email inbox'], documents: ['PRIVATE TOOLS', 'Tools'], password: ['ACCOUNT SECURITY', 'Password'] };
+    if (view === 'account') {
+      renderPasswordPage();
+      renderAccountPage();
+    }
+    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['', 'Daily Task'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
-    $('#pageEyebrow').hidden = view === 'to-apply';
+    $('#pageEyebrow').hidden = !labels[view][0];
     $('#pageTitle').hidden = false;
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';
@@ -2875,6 +2976,7 @@
   let composeDocumentUpdateClientId = null;
   let composeRequiresConfirmation = false;
   let gmailTokenRequest = null;
+  let sentHistoryAddressSignature = '';
   const GMAIL_CONNECTED_KEY = 'jeff-va-gmail-connected-v1';
   const GMAIL_TOKEN_SESSION_KEY = 'jeff-va-gmail-token-session-v1';
 
@@ -3394,7 +3496,7 @@
         headers: { Authorization: `Bearer ${gmailAccessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw: encodeBase64Url(rawMessage) })
       });
-      if (response.ok) return response;
+      if (response.ok) return response.json();
       if ((response.status === 401 || response.status === 403) && attempt === 0) {
         gmailAccessToken = null;
         await requestGmailAccessToken('');
@@ -3439,9 +3541,11 @@
       } else {
         rawMessage = buildRawEmailMessage({ to, subject, body });
       }
-      await sendGmailRaw(rawMessage);
+      const gmailMessage = await sendGmailRaw(rawMessage);
+      const gmailId = gmailMessage?.id || '';
       const sentEmailRecord = {
-        id: uid(),
+        id: gmailId ? `gmail-${gmailId}` : uid(),
+        gmailId,
         applicationId: composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
         from: 'You',
         to,
@@ -3449,7 +3553,7 @@
         body,
         date: new Date().toISOString(),
         importedAt: new Date().toISOString(),
-        source: 'sent',
+        source: gmailId ? 'gmail' : 'sent',
         direction: 'sent',
         attachmentName: composeAttachment?.name || composeAttachmentFile?.name || ''
       };
@@ -3529,6 +3633,9 @@
   function setGmailStatus(message) {
     const status = $('#gmailStatus');
     if (status) status.textContent = message;
+    const accountStatus = $('#accountGmailSyncStatus');
+    if (accountStatus) accountStatus.textContent = message;
+    renderAccountPage();
   }
 
   function initGmail() {
@@ -3616,19 +3723,47 @@
     }
   }
 
-  function disconnectGmail() {
-    if (gmailAccessToken && window.google?.accounts?.oauth2?.revoke) {
-      google.accounts.oauth2.revoke(gmailAccessToken, () => {});
-    }
+  function disconnectGmail({ notify = true } = {}) {
+    const token = gmailAccessToken;
     gmailAccessToken = null;
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
+    try {
+      if (token && window.google?.accounts?.oauth2?.revoke) google.accounts.oauth2.revoke(token, () => {});
+    } catch (error) {
+      console.warn('Could not revoke Gmail access token:', error);
+    }
     if (gmailSyncTimer) { clearInterval(gmailSyncTimer); gmailSyncTimer = null; }
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
     setGmailStatus('Gmail ready — log in with Google to sync your inbox');
-    showActionResult({ title: 'Gmail disconnected', message: 'Gmail access was disconnected for this browser session.' });
+    if (notify) showActionResult({ title: 'Gmail disconnected', message: 'Gmail access was disconnected for this browser session.' });
   }
+
+  $('#accountGmailAction')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      if (gmailAccessToken && button.textContent === 'Disconnect') {
+        disconnectGmail();
+        return;
+      }
+      if (gmailAccessToken) {
+        gmailAccessToken = null;
+        sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
+      }
+      await ensureGmailAccessToken();
+      setGmailStatus('Connected — syncing…');
+      startGmailSyncTimer();
+      await syncGmail(true);
+    } catch (error) {
+      setGmailStatus(`Gmail connection failed: ${error?.message || 'Check your Google authorization.'}`);
+      showActionResult({ title: 'Gmail connection failed', message: error?.message || 'Check your Google authorization and try again.', status: 'error' });
+    } finally {
+      button.disabled = false;
+      renderAccountPage();
+    }
+  });
 
   function handleGmailAuthorizationFailure() {
     gmailAccessToken = null;
@@ -3653,20 +3788,45 @@
     if (gmailSyncInFlight || !gmailAccessToken || !currentUser || !dataReady || !supabaseDataLoaded) return;
     gmailSyncInFlight = true;
     try {
-      const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&labelIds=INBOX', {
-        headers: { Authorization: `Bearer ${gmailAccessToken}` }
-      });
-      if (listRes.status === 401 || listRes.status === 403) {
-        handleGmailAuthorizationFailure();
-        throw new Error('Gmail authorization expired. Log in with Google again.');
+      const fetchMessageList = async params => {
+        const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
+          headers: { Authorization: `Bearer ${gmailAccessToken}` }
+        });
+        if (response.status === 401 || response.status === 403) {
+          handleGmailAuthorizationFailure();
+          throw new Error('Gmail authorization expired. Log in with Google again.');
+        }
+        if (!response.ok) throw new Error('list failed');
+        return response.json();
+      };
+      const directClientEmailList = [...new Set(data.applications
+        .filter(isDirectClientApplication)
+        .map(application => String(application.email || '').trim().toLowerCase())
+        .filter(isEmailAddress))].sort();
+      const directClientEmails = new Set(directClientEmailList);
+      const loadSentHistory = directClientEmails.size > 0
+        && directClientEmailList.join('|') !== sentHistoryAddressSignature;
+      const inboxParams = new URLSearchParams({ maxResults: '30', labelIds: 'INBOX' });
+      const inboxList = await fetchMessageList(inboxParams);
+      const listedMessages = [...(inboxList.messages || [])];
+      if (directClientEmails.size) {
+        const sentQuery = `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}`;
+        let pageToken = '';
+        do {
+          const sentParams = new URLSearchParams({ maxResults: loadSentHistory ? '500' : '30', labelIds: 'SENT', q: sentQuery });
+          if (pageToken) sentParams.set('pageToken', pageToken);
+          const sentList = await fetchMessageList(sentParams);
+          listedMessages.push(...(sentList.messages || []));
+          pageToken = loadSentHistory ? sentList.nextPageToken || '' : '';
+        } while (pageToken);
+        sentHistoryAddressSignature = directClientEmailList.join('|');
       }
-      if (!listRes.ok) throw new Error('list failed');
-      const listData = await listRes.json();
       const deletedGmailIds = new Set(data.deletedGmailIds || []);
-      const ids = (listData.messages || []).map(message => message.id).filter(id => !deletedGmailIds.has(id));
+      const ids = [...new Set(listedMessages.map(message => message.id))].filter(id => !deletedGmailIds.has(id));
       const previousGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       const newIds = ids.filter(id => !previousGmailIds.has(id));
-      const fetchedNewMessages = await Promise.all(newIds.map(async id => {
+      let matchedExistingSentMessages = false;
+      const fetchedNewMessages = (await Promise.all(newIds.map(async id => {
         const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, {
           headers: { Authorization: `Bearer ${gmailAccessToken}` }
         });
@@ -3676,8 +3836,39 @@
         const header = name => headers.find(item => item.name === name)?.value || '';
         const rawDate = header('Date');
         const date = rawDate && !Number.isNaN(Date.parse(rawDate)) ? new Date(rawDate).toISOString() : new Date().toISOString();
-        return { id: `gmail-${id}`, gmailId: id, from: header('From') || 'Unknown sender', subject: header('Subject') || '(No subject)', body: gmailMessageBody(msg.payload), date, importedAt: new Date().toISOString(), source: 'gmail' };
-      }));
+        const to = header('To');
+        const isSent = (msg.labelIds || []).includes('SENT');
+        const recipient = extractEmailAddress(to);
+        if (isSent && !directClientEmails.has(recipient)) return null;
+        const subject = header('Subject') || '(No subject)';
+        const body = gmailMessageBody(msg.payload);
+        if (isSent) {
+          const existingSentMessage = data.emails.find(email => email.direction === 'sent'
+            && !email.gmailId
+            && extractEmailAddress(email.to) === recipient
+            && String(email.subject || '').trim() === subject.trim()
+            && String(email.body || '').trim() === body.trim());
+          if (existingSentMessage) {
+            existingSentMessage.id = `gmail-${id}`;
+            existingSentMessage.gmailId = id;
+            existingSentMessage.source = 'gmail';
+            matchedExistingSentMessages = true;
+            return null;
+          }
+        }
+        return {
+          id: `gmail-${id}`,
+          gmailId: id,
+          from: header('From') || 'Unknown sender',
+          to,
+          subject,
+          body,
+          date,
+          importedAt: new Date().toISOString(),
+          source: 'gmail',
+          direction: isSent ? 'sent' : 'received'
+        };
+      }))).filter(Boolean);
       // A user can delete an email while this sync is fetching message details.
       // Re-read the deletion list before merging so an older response cannot revive it.
       const currentDeletedGmailIds = new Set(data.deletedGmailIds || []);
@@ -3690,7 +3881,7 @@
         ...existingGmailMessages,
         ...newOnes
       ]).filter(item => !(item.source === 'gmail' && currentDeletedGmailIds.has(item.gmailId)));
-      if (newOnes.length || data.emails.length !== emailCountBeforeMerge) {
+      if (newOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge) {
         persist();
         renderAll();
       }
@@ -3947,7 +4138,7 @@
       const scripts = workbook.Sheets.Scripts ? XLSX.utils.sheet_to_json(workbook.Sheets.Scripts, { defval: '' }) : data.scripts || [];
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
-      data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks };
+      data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks };
       persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });
     } catch {
       showActionResult({ title: 'Could not restore backup', message: 'That file is not a valid Jeff VA export.', status: 'error' });
@@ -5265,7 +5456,7 @@
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw error;
       loginForm.reset();
-      await initializeSupabaseForUser(authData.user);
+      await initializeSupabaseForUser(authData.user, { recordSignIn: true, showOverview: true });
     } catch (error) {
       activeAuthProvider = null;
       sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
@@ -5350,15 +5541,27 @@
     }
   });
   $('#logoutButton')?.addEventListener('click', async () => {
+    disconnectGmail({ notify: false });
     try {
-      if (supabaseClient) await supabaseClient.auth.signOut();
+      if (supabaseClient) {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+      }
     } catch (error) {
       console.error(error);
+      try {
+        if (supabaseClient) {
+          const { error: localSignOutError } = await supabaseClient.auth.signOut({ scope: 'local' });
+          if (localSignOutError) console.error('Could not clear the local Supabase session:', localSignOutError);
+        }
+      } catch (localSignOutError) {
+        console.error('Could not clear the local Supabase session:', localSignOutError);
+      }
     }
     currentUser = null;
     activeAuthProvider = null;
     sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
-    renderPasswordAccess();
+    renderAccountAccess();
     if (appStateChannel && supabaseClient) {
       supabaseClient.removeChannel(appStateChannel);
       appStateChannel = null;
@@ -5380,6 +5583,8 @@
   });
 
   renderAll();
+  window.addEventListener('online', renderAccountPage);
+  window.addEventListener('offline', renderAccountPage);
   const initialView = window.location.hash.slice(1) || 'dashboard';
   showView(initialView, { updateUrl: false });
   window.addEventListener('popstate', () => {

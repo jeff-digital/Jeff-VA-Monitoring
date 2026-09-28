@@ -59,6 +59,7 @@
   let composeDocumentUpdateClientId = null;
   let composeRequiresConfirmation = false;
   let gmailTokenRequest = null;
+  let sentHistoryAddressSignature = '';
   const GMAIL_CONNECTED_KEY = 'jeff-va-gmail-connected-v1';
   const GMAIL_TOKEN_SESSION_KEY = 'jeff-va-gmail-token-session-v1';
 
@@ -578,7 +579,7 @@
         headers: { Authorization: `Bearer ${gmailAccessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw: encodeBase64Url(rawMessage) })
       });
-      if (response.ok) return response;
+      if (response.ok) return response.json();
       if ((response.status === 401 || response.status === 403) && attempt === 0) {
         gmailAccessToken = null;
         await requestGmailAccessToken('');
@@ -623,9 +624,11 @@
       } else {
         rawMessage = buildRawEmailMessage({ to, subject, body });
       }
-      await sendGmailRaw(rawMessage);
+      const gmailMessage = await sendGmailRaw(rawMessage);
+      const gmailId = gmailMessage?.id || '';
       const sentEmailRecord = {
-        id: uid(),
+        id: gmailId ? `gmail-${gmailId}` : uid(),
+        gmailId,
         applicationId: composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
         from: 'You',
         to,
@@ -633,7 +636,7 @@
         body,
         date: new Date().toISOString(),
         importedAt: new Date().toISOString(),
-        source: 'sent',
+        source: gmailId ? 'gmail' : 'sent',
         direction: 'sent',
         attachmentName: composeAttachment?.name || composeAttachmentFile?.name || ''
       };
@@ -713,6 +716,9 @@
   function setGmailStatus(message) {
     const status = $('#gmailStatus');
     if (status) status.textContent = message;
+    const accountStatus = $('#accountGmailSyncStatus');
+    if (accountStatus) accountStatus.textContent = message;
+    renderAccountPage();
   }
 
   function initGmail() {
@@ -800,19 +806,47 @@
     }
   }
 
-  function disconnectGmail() {
-    if (gmailAccessToken && window.google?.accounts?.oauth2?.revoke) {
-      google.accounts.oauth2.revoke(gmailAccessToken, () => {});
-    }
+  function disconnectGmail({ notify = true } = {}) {
+    const token = gmailAccessToken;
     gmailAccessToken = null;
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
+    try {
+      if (token && window.google?.accounts?.oauth2?.revoke) google.accounts.oauth2.revoke(token, () => {});
+    } catch (error) {
+      console.warn('Could not revoke Gmail access token:', error);
+    }
     if (gmailSyncTimer) { clearInterval(gmailSyncTimer); gmailSyncTimer = null; }
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
     setGmailStatus('Gmail ready — log in with Google to sync your inbox');
-    showActionResult({ title: 'Gmail disconnected', message: 'Gmail access was disconnected for this browser session.' });
+    if (notify) showActionResult({ title: 'Gmail disconnected', message: 'Gmail access was disconnected for this browser session.' });
   }
+
+  $('#accountGmailAction')?.addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      if (gmailAccessToken && button.textContent === 'Disconnect') {
+        disconnectGmail();
+        return;
+      }
+      if (gmailAccessToken) {
+        gmailAccessToken = null;
+        sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
+      }
+      await ensureGmailAccessToken();
+      setGmailStatus('Connected — syncing…');
+      startGmailSyncTimer();
+      await syncGmail(true);
+    } catch (error) {
+      setGmailStatus(`Gmail connection failed: ${error?.message || 'Check your Google authorization.'}`);
+      showActionResult({ title: 'Gmail connection failed', message: error?.message || 'Check your Google authorization and try again.', status: 'error' });
+    } finally {
+      button.disabled = false;
+      renderAccountPage();
+    }
+  });
 
   function handleGmailAuthorizationFailure() {
     gmailAccessToken = null;
@@ -837,20 +871,45 @@
     if (gmailSyncInFlight || !gmailAccessToken || !currentUser || !dataReady || !supabaseDataLoaded) return;
     gmailSyncInFlight = true;
     try {
-      const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30&labelIds=INBOX', {
-        headers: { Authorization: `Bearer ${gmailAccessToken}` }
-      });
-      if (listRes.status === 401 || listRes.status === 403) {
-        handleGmailAuthorizationFailure();
-        throw new Error('Gmail authorization expired. Log in with Google again.');
+      const fetchMessageList = async params => {
+        const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
+          headers: { Authorization: `Bearer ${gmailAccessToken}` }
+        });
+        if (response.status === 401 || response.status === 403) {
+          handleGmailAuthorizationFailure();
+          throw new Error('Gmail authorization expired. Log in with Google again.');
+        }
+        if (!response.ok) throw new Error('list failed');
+        return response.json();
+      };
+      const directClientEmailList = [...new Set(data.applications
+        .filter(isDirectClientApplication)
+        .map(application => String(application.email || '').trim().toLowerCase())
+        .filter(isEmailAddress))].sort();
+      const directClientEmails = new Set(directClientEmailList);
+      const loadSentHistory = directClientEmails.size > 0
+        && directClientEmailList.join('|') !== sentHistoryAddressSignature;
+      const inboxParams = new URLSearchParams({ maxResults: '30', labelIds: 'INBOX' });
+      const inboxList = await fetchMessageList(inboxParams);
+      const listedMessages = [...(inboxList.messages || [])];
+      if (directClientEmails.size) {
+        const sentQuery = `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}`;
+        let pageToken = '';
+        do {
+          const sentParams = new URLSearchParams({ maxResults: loadSentHistory ? '500' : '30', labelIds: 'SENT', q: sentQuery });
+          if (pageToken) sentParams.set('pageToken', pageToken);
+          const sentList = await fetchMessageList(sentParams);
+          listedMessages.push(...(sentList.messages || []));
+          pageToken = loadSentHistory ? sentList.nextPageToken || '' : '';
+        } while (pageToken);
+        sentHistoryAddressSignature = directClientEmailList.join('|');
       }
-      if (!listRes.ok) throw new Error('list failed');
-      const listData = await listRes.json();
       const deletedGmailIds = new Set(data.deletedGmailIds || []);
-      const ids = (listData.messages || []).map(message => message.id).filter(id => !deletedGmailIds.has(id));
+      const ids = [...new Set(listedMessages.map(message => message.id))].filter(id => !deletedGmailIds.has(id));
       const previousGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       const newIds = ids.filter(id => !previousGmailIds.has(id));
-      const fetchedNewMessages = await Promise.all(newIds.map(async id => {
+      let matchedExistingSentMessages = false;
+      const fetchedNewMessages = (await Promise.all(newIds.map(async id => {
         const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, {
           headers: { Authorization: `Bearer ${gmailAccessToken}` }
         });
@@ -860,8 +919,39 @@
         const header = name => headers.find(item => item.name === name)?.value || '';
         const rawDate = header('Date');
         const date = rawDate && !Number.isNaN(Date.parse(rawDate)) ? new Date(rawDate).toISOString() : new Date().toISOString();
-        return { id: `gmail-${id}`, gmailId: id, from: header('From') || 'Unknown sender', subject: header('Subject') || '(No subject)', body: gmailMessageBody(msg.payload), date, importedAt: new Date().toISOString(), source: 'gmail' };
-      }));
+        const to = header('To');
+        const isSent = (msg.labelIds || []).includes('SENT');
+        const recipient = extractEmailAddress(to);
+        if (isSent && !directClientEmails.has(recipient)) return null;
+        const subject = header('Subject') || '(No subject)';
+        const body = gmailMessageBody(msg.payload);
+        if (isSent) {
+          const existingSentMessage = data.emails.find(email => email.direction === 'sent'
+            && !email.gmailId
+            && extractEmailAddress(email.to) === recipient
+            && String(email.subject || '').trim() === subject.trim()
+            && String(email.body || '').trim() === body.trim());
+          if (existingSentMessage) {
+            existingSentMessage.id = `gmail-${id}`;
+            existingSentMessage.gmailId = id;
+            existingSentMessage.source = 'gmail';
+            matchedExistingSentMessages = true;
+            return null;
+          }
+        }
+        return {
+          id: `gmail-${id}`,
+          gmailId: id,
+          from: header('From') || 'Unknown sender',
+          to,
+          subject,
+          body,
+          date,
+          importedAt: new Date().toISOString(),
+          source: 'gmail',
+          direction: isSent ? 'sent' : 'received'
+        };
+      }))).filter(Boolean);
       // A user can delete an email while this sync is fetching message details.
       // Re-read the deletion list before merging so an older response cannot revive it.
       const currentDeletedGmailIds = new Set(data.deletedGmailIds || []);
@@ -874,7 +964,7 @@
         ...existingGmailMessages,
         ...newOnes
       ]).filter(item => !(item.source === 'gmail' && currentDeletedGmailIds.has(item.gmailId)));
-      if (newOnes.length || data.emails.length !== emailCountBeforeMerge) {
+      if (newOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge) {
         persist();
         renderAll();
       }

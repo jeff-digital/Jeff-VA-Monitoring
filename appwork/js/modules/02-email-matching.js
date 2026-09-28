@@ -35,6 +35,11 @@
     return new RegExp(`\\b${escapeForRegExp(needle)}\\b`, 'i').test(haystack || '');
   }
 
+  function isDirectClientApplication(application) {
+    const platform = String(application.platform || '').trim().toLowerCase();
+    return platform === 'direct client' || platform === 'direct apply';
+  }
+
   function emailHasApplicationUpdateSignal(emailItem) {
     const source = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
     if (!source.trim()) return false;
@@ -64,8 +69,7 @@
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
     const directClientMatches = data.applications.filter(app => {
-      const platform = String(app.platform || '').trim().toLowerCase();
-      if (platform !== 'direct client') return false;
+      if (!isDirectClientApplication(app)) return false;
       const emailCandidate = (app.email || '').trim().toLowerCase();
       const clientName = (app.clientName || '').trim().toLowerCase();
       const contact = (app.contact || '').trim().toLowerCase();
@@ -425,8 +429,7 @@
     const item = (data.toApply || []).find(reminder => reminder.id === id);
     $('#toApplyForm').reset();
     $('#toApplyId').value = id || '';
-    $('#toApplyModalEyebrow').textContent = id ? 'EDIT REMINDER' : 'NEW LIST';
-    $('#toApplyModalTitle').textContent = id ? 'Update application reminder' : 'Add New List';
+    $('#toApplyModalTitle').textContent = id ? 'Edit reminder' : 'Add reminder';
     $('#deleteToApplyButton').hidden = !id;
     if (item) {
       $('#toApplyTitle').value = item.title || '';
@@ -723,9 +726,10 @@
   }
 
   function showView(view, { updateUrl = true } = {}) {
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'password'];
+    if (view === 'password') view = 'account';
+    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
-    if (view === 'password' && !hasPasswordSettingsAccess()) view = 'dashboard';
+    if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (updateUrl && window.location.hash !== `#${view}`) {
       window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
     }
@@ -734,11 +738,14 @@
       renderApplications();
     }
     if (view === 'daily-task') renderDailyTasks();
-    if (view === 'password') renderPasswordPage();
-    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['DAILY PLANNER', 'Daily Task'], applications: ['CLIENT TRACKER', 'Applications'], 'to-apply': ['', 'To apply'], hired: ['CLIENT PROFILES', 'Active clients'], inbox: ['LOCAL EMAIL LIST', 'Email inbox'], documents: ['PRIVATE TOOLS', 'Tools'], password: ['ACCOUNT SECURITY', 'Password'] };
+    if (view === 'account') {
+      renderPasswordPage();
+      renderAccountPage();
+    }
+    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['', 'Daily Task'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
-    $('#pageEyebrow').hidden = view === 'to-apply';
+    $('#pageEyebrow').hidden = !labels[view][0];
     $('#pageTitle').hidden = false;
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';

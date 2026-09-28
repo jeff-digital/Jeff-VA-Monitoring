@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="image/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20260928-6" />
+    <link rel="stylesheet" href="css/styles.css?v=20260929-6" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -74,10 +74,10 @@
               <span class="nav-count" id="navToApplyCount">0</span>
             </a>
           </div>
-          <div class="nav-group" id="passwordNavGroup" hidden>
+          <div class="nav-group" id="accountNavGroup" hidden>
             <p class="nav-group-label">ACCOUNT</p>
-            <a class="nav-link" href="#password" data-view="password" title="Password">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-key"></i></span><span class="nav-label">Password</span>
+            <a class="nav-link" href="#account" data-view="account" title="Account">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-user-gear"></i></span><span class="nav-label">Account</span>
             </a>
           </div>
         </nav>
@@ -209,21 +209,16 @@
 
         <section class="view daily-task-view" id="dailyTaskView" data-view-panel="daily-task" data-page="daily-task">
           <section class="daily-task-heading">
-            <div>
-              <p class="eyebrow"><i class="fa-solid fa-list-check" aria-hidden="true"></i> DAILY PLANNER</p>
-              <h2>Plan the work. Keep the record.</h2>
-              <p>Organize client work, applications, places to apply, and content in one daily list.</p>
-            </div>
             <label class="daily-task-date-field"><span>Plan date</span><input id="dailyTaskDate" type="date" aria-label="Plan date" /></label>
           </section>
           <section class="daily-task-layout">
             <section class="panel daily-task-list-panel" aria-labelledby="dailyTaskListTitle">
-              <div class="daily-task-section-heading daily-task-list-heading"><div><p class="eyebrow">YOUR PLAN</p><h3 id="dailyTaskListTitle">Tasks for today</h3></div><div class="daily-task-plan-actions"><span class="daily-task-count" id="dailyTaskCount">0 tasks</span><button class="button button-primary" type="button" id="openDailyTaskAddModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add task</button></div></div>
+              <div class="daily-task-section-heading daily-task-list-heading"><div><h3 id="dailyTaskListTitle">Tasks</h3></div><div class="daily-task-plan-actions"><span class="daily-task-count" id="dailyTaskCount">0 tasks</span><button class="button button-primary" type="button" id="openDailyTaskAddModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add task</button></div></div>
               <div class="daily-task-list" id="dailyTaskList" aria-live="polite"></div>
             </section>
           </section>
           <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
-            <div class="daily-task-section-heading daily-task-history-heading"><div><p class="eyebrow">COMPLETED WORK</p><h3 id="dailyTaskHistoryTitle">Task history</h3><p>Review what you finished on any day.</p></div></div>
+            <div class="daily-task-section-heading daily-task-history-heading"><div><h3 id="dailyTaskHistoryTitle">History</h3></div></div>
             <div class="daily-task-history-controls">
               <label class="daily-task-date-field"><span>Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" /></label>
               <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Same day last week</button></div>
@@ -234,18 +229,12 @@
 
         <section class="view" id="applicationsView" data-view-panel="applications" data-page="applications">
           <section class="application-workspace-head">
-            <div class="application-workspace-title">
-              <p class="eyebrow"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> PIPELINE MANAGEMENT</p>
-              <h2>Application pipeline</h2>
-              <p>Review applications, hiring stages, and next steps in one place.</p>
-            </div>
             <div class="application-workspace-count">
-              <span class="application-workspace-count-icon" aria-hidden="true"><i class="fa-solid fa-briefcase"></i></span>
-              <span><small>Visible records</small><strong id="applicationListLabel">0 applications</strong></span>
+              <span><strong id="applicationListLabel">0 applications</strong></span>
             </div>
           </section>
           <section class="application-filters" aria-label="Application filters">
-            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="applicationSearch" placeholder="Search company, role, platform, or notes" /></label>
+            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="applicationSearch" aria-label="Search applications" placeholder="Search applications" /></label>
             <div class="application-filter-controls">
               <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="applicationDateFilter" aria-label="Filter applications by exact date" /></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Added week</span><select id="applicationDateSort"><option value="0">This week</option></select></label>
@@ -254,30 +243,24 @@
             </div>
           </section>
           <section class="panel application-panel">
-            <div class="application-list-head"><span><i class="fa-solid fa-list-check" aria-hidden="true"></i> Client / role</span><span>Source &amp; compensation</span><span>Stage</span><span>Applied &amp; activity</span><span>Action</span></div>
+            <div class="application-list-head"><span><i class="fa-solid fa-list-check" aria-hidden="true"></i> Client / role</span><span>Source &amp; pay</span><span>Stage</span><span>Applied / activity</span><span></span></div>
             <div class="application-list" id="applicationList"></div>
           </section>
         </section>
 
         <section class="view" id="toApplyView" data-view-panel="to-apply" data-page="to-apply">
           <section class="application-workspace-head to-apply-workspace-head">
-            <div class="application-workspace-title">
-              <p class="eyebrow"><i class="fa-solid fa-list-check" aria-hidden="true"></i> REMINDER MANAGEMENT</p>
-              <h2>Application reminders</h2>
-              <p>Keep upcoming application deadlines and follow-ups organized.</p>
-            </div>
             <div class="to-apply-head-actions">
               <div class="application-workspace-count">
-                <span class="application-workspace-count-icon to-apply-workspace-count-icon" aria-hidden="true"><i class="fa-regular fa-calendar-check"></i></span>
-                <span><small>Visible reminders</small><strong id="toApplyCountLabel">0 reminders</strong></span>
+                <span><strong id="toApplyCountLabel">0 reminders</strong></span>
               </div>
-              <button class="button button-primary" type="button" id="addToApplyButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add New List</button>
+              <button class="button button-primary" type="button" id="addToApplyButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add reminder</button>
             </div>
           </section>
           <section class="application-filters to-apply-filters" aria-label="Reminder filters">
-            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="toApplySearch" placeholder="Search title, link, or notes" /></label>
+            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="toApplySearch" aria-label="Search reminders" placeholder="Search reminders" /></label>
             <div class="application-filter-controls to-apply-filter-controls">
-              <label class="application-filter-field"><span><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Sort reminders</span><select id="toApplySort"><option value="due-soonest">Due date (soonest)</option><option value="due-latest">Due date (latest)</option><option value="title-asc">Title (A to Z)</option></select></label>
+              <label class="application-filter-field"><span><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Sort</span><select id="toApplySort"><option value="due-soonest">Due date (soonest)</option><option value="due-latest">Due date (latest)</option><option value="title-asc">Title (A to Z)</option></select></label>
             </div>
           </section>
           <section class="panel to-apply-page-panel">
@@ -287,18 +270,12 @@
 
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
           <section class="application-workspace-head hired-workspace-head">
-            <div class="application-workspace-title">
-              <p class="eyebrow"><i class="fa-solid fa-user-tie" aria-hidden="true"></i> ACTIVE CLIENTS</p>
-              <h2>Client roster</h2>
-              <p>Track contracts, billing, and shared document access in one place.</p>
-            </div>
             <div class="application-workspace-count">
-              <span class="application-workspace-count-icon" aria-hidden="true"><i class="fa-solid fa-people-group"></i></span>
-              <span><small>Visible clients</small><strong id="hiredCountLabel">0 clients</strong></span>
+              <span><strong id="hiredCountLabel">0 clients</strong></span>
             </div>
           </section>
           <section class="toolbar">
-            <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="hiredSearch" placeholder="Search active clients" /></label>
+            <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="hiredSearch" aria-label="Search clients" placeholder="Search clients" /></label>
             <label class="date-filter"><span class="sr-only">Filter active clients by date</span><input type="date" id="hiredDateFilter" aria-label="Filter active clients by exact date" /></label>
             <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
             <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
@@ -309,7 +286,6 @@
           <section class="panel hired-detail-panel hidden" id="hiredDetailPanel" aria-live="polite">
             <div class="hired-detail-heading">
               <div>
-                <p class="eyebrow">ACTIVE CLIENT</p>
                 <h2 id="hiredDetailTitle">Client details</h2>
                 <p class="hired-detail-subtitle" id="hiredDetailSubtitle"></p>
               </div>
@@ -325,31 +301,25 @@
 
         <section class="view" id="inboxView" data-view-panel="inbox" data-page="inbox">
           <section class="application-workspace-head email-workspace-head">
-            <div class="application-workspace-title">
-              <p class="eyebrow"><i class="fa-solid fa-inbox" aria-hidden="true"></i> INBOX MANAGEMENT</p>
-              <h2>Client correspondence</h2>
-              <p>Review matched client messages and sent follow-ups.</p>
-            </div>
             <div class="application-workspace-count">
-              <span class="application-workspace-count-icon email-workspace-count-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
-              <span><small>Visible messages</small><strong id="emailCountLabel">0 emails</strong></span>
+              <span><strong id="emailCountLabel">0 emails</strong></span>
             </div>
           </section>
           <section class="application-filters email-filters" aria-label="Email filters">
-            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" placeholder="Search sender, recipient, subject, or message" /></label>
+            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>
             <div class="application-filter-controls email-filter-controls">
               <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="emailDateFilter" aria-label="Filter emails by exact date" /></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Received week</span><select id="emailDateSort"><option value="0">This week</option></select></label>
             </div>
           </section>
           <div class="email-view-tabs" role="tablist" aria-label="Email list view">
-            <button class="email-view-tab active" type="button" role="tab" aria-selected="true" data-email-view="client"><i class="fa-regular fa-envelope" aria-hidden="true"></i> Client emails</button>
-            <button class="email-view-tab" type="button" role="tab" aria-selected="false" data-email-view="sent"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i> Sent by you</button>
+            <button class="email-view-tab active" type="button" role="tab" aria-selected="true" data-email-view="client"><i class="fa-regular fa-envelope" aria-hidden="true"></i> Client</button>
+            <button class="email-view-tab" type="button" role="tab" aria-selected="false" data-email-view="sent"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i> Sent</button>
           </div>
           <section class="panel inbox-panel">
             <div class="email-list" id="emailList"></div>
           </section>
-          <p class="privacy-note">Gmail sync uses Google's own sign-in and reads message headers only. Jeff VA never sees your password or sends your email through its own server.</p>
+          <p class="privacy-note">Gmail connects directly through Google; Jeff VA never sees your password.</p>
         </section>
 
         <section class="view" id="documentsView" data-view-panel="documents" data-page="tools">
@@ -440,16 +410,55 @@
           </section>
         </section>
 
-        <section class="view password-view" id="passwordView" data-view-panel="password" data-page="password">
-          <div class="password-page-heading">
-            <p class="eyebrow">ACCOUNT SECURITY</p>
-            <h2>Password</h2>
-            <p>Manage the password you use to sign in to this workspace.</p>
+        <section class="view account-view" id="accountView" data-view-panel="account" data-page="account">
+          <section class="account-identity-section">
+            <div class="account-avatar" aria-hidden="true"><i class="fa-solid fa-user"></i></div>
+            <div class="account-identity-copy">
+              <p class="account-provider-label" id="accountSignInProvider">Supabase Auth</p>
+              <h2 id="accountEmail">Account</h2>
+            </div>
+          </section>
+          <div class="account-overview-grid">
+          <section class="account-section" aria-labelledby="accountConnectionsTitle">
+            <div class="account-section-heading"><h2 id="accountConnectionsTitle">Connections</h2></div>
+            <dl class="account-connection-list">
+              <div class="account-connection-row">
+                <dt>Supabase</dt>
+                <dd><strong id="accountSupabaseStatus">Checking</strong><small id="accountSupabaseProject"></small></dd>
+              </div>
+              <div class="account-connection-row">
+                <dt>Network</dt>
+                <dd><strong id="accountNetworkStatus">Checking</strong></dd>
+              </div>
+              <div class="account-connection-row">
+                <dt>Gmail</dt>
+                <dd><strong id="accountGmailStatus">Checking</strong><small id="accountGmailSyncStatus">Sending and sync use your Google authorization.</small></dd>
+                <button class="button button-secondary account-gmail-action" type="button" id="accountGmailAction" hidden>Connect Gmail</button>
+              </div>
+            </dl>
+          </section>
+          <section class="account-section" aria-labelledby="accountDetailsTitle">
+            <div class="account-section-heading"><h2 id="accountDetailsTitle">Account details</h2></div>
+            <dl class="account-detail-list">
+              <div><dt>Last Supabase sign-in</dt><dd id="accountLastSignIn">Not available</dd></div>
+              <div><dt>Account created</dt><dd id="accountCreatedAt">Not available</dd></div>
+              <div><dt>Account ID</dt><dd id="accountUserId">Not available</dd></div>
+              <div><dt>Data storage</dt><dd>Supabase Postgres and private Storage</dd></div>
+            </dl>
+          </section>
           </div>
+          <section class="account-section account-history-section" aria-labelledby="accountSignInHistoryTitle">
+            <div class="account-section-heading account-history-heading">
+              <h2 id="accountSignInHistoryTitle">Sign-in history</h2>
+              <span>Latest 20 on this app</span>
+            </div>
+            <p class="account-empty-state" id="accountNoSignIns">Sign-ins from this app will appear here.</p>
+            <ol class="account-sign-in-history" id="accountSignInHistory"></ol>
+          </section>
+          <p class="settings-copy account-google-password-notice" id="accountGooglePasswordNotice" hidden>Password is managed by your Google account.</p>
           <div class="password-security-layout">
-            <section class="password-security-section">
-              <div class="password-section-heading"><div><p class="eyebrow" id="passwordFormEyebrow">UPDATE PASSWORD</p><h3 id="passwordFormHeading">Choose a new password</h3></div></div>
-              <p class="settings-copy hidden" id="passwordProviderNotice">You signed in with Google and do not have a password yet. Set one here to enable email and password sign-in.</p>
+            <section class="password-security-section" id="passwordSettingsSection">
+              <h2>Password</h2>
               <p class="settings-copy hidden" id="passwordRecoveryNotice">You opened a password recovery link. Choose a new password below.</p>
               <form id="changePasswordForm" class="password-change-form">
                 <label class="form-field" id="currentPasswordField">Current password<input id="currentPassword" type="password" autocomplete="current-password" required /></label>
@@ -459,10 +468,10 @@
                 <button class="button button-primary" type="submit" id="saveNewPasswordButton">Save password</button>
               </form>
             </section>
-            <section class="password-security-section password-recovery-section">
-              <div class="password-section-heading"><div><p class="eyebrow">RECOVERY</p><h3>Need a reset link?</h3></div></div>
-              <p class="settings-copy">Send a secure password reset link to <strong id="passwordAccountEmail"></strong>.</p>
-              <button class="button button-secondary" type="button" id="sendPasswordResetLinkButton">Email me a reset link</button>
+            <section class="password-security-section password-recovery-section" id="passwordRecoverySection">
+                <h2>Password recovery</h2>
+              <p class="settings-copy">Reset link for <strong id="passwordAccountEmail"></strong>.</p>
+              <button class="button button-secondary" type="button" id="sendPasswordResetLinkButton">Send reset link</button>
             </section>
           </div>
         </section>
@@ -472,7 +481,7 @@
     <dialog class="modal daily-task-add-modal" id="dailyTaskAddModal" aria-labelledby="dailyTaskAddModalTitle">
       <form class="daily-task-form" id="dailyTaskForm">
         <div class="modal-heading">
-          <div><p class="eyebrow">ADD TO YOUR LIST</p><h2 id="dailyTaskAddModalTitle">What needs doing?</h2></div>
+          <div><h2 id="dailyTaskAddModalTitle">Add task</h2></div>
           <button class="icon-button" type="button" id="closeDailyTaskAddModal" aria-label="Close add task form">×</button>
         </div>
         <label class="form-field">Task <span class="required">*</span><input id="dailyTaskTitle" maxlength="160" required placeholder="e.g. Prepare a proposal for the launch" /></label>
@@ -483,7 +492,7 @@
         <label class="form-field hidden" id="dailyTaskDestinationField">Where should you apply?<input id="dailyTaskDestination" maxlength="200" placeholder="Company, platform, or application link" /></label>
         <label class="form-field">Notes or content<textarea id="dailyTaskNotes" maxlength="2000" rows="3" placeholder="Add a brief, ideas, or anything to remember"></textarea></label>
         <section class="daily-task-checklist-editor" aria-labelledby="dailyTaskChecklistEditorTitle">
-          <div class="daily-task-checklist-heading"><div><p class="eyebrow">CHECKLIST</p><h3 id="dailyTaskChecklistEditorTitle">Add items one at a time</h3></div><span id="dailyTaskDraftChecklistCount">0 items</span></div>
+          <div class="daily-task-checklist-heading"><div><h3 id="dailyTaskChecklistEditorTitle">Checklist</h3></div><span id="dailyTaskDraftChecklistCount">0 items</span></div>
           <div class="daily-task-checklist-add-row"><label class="form-field" for="dailyTaskChecklistInput">Checklist item<input id="dailyTaskChecklistInput" maxlength="180" placeholder="e.g. Update the application" /></label><button class="button button-secondary" type="button" id="dailyTaskAddChecklistButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add checklist</button></div>
           <ol class="daily-task-draft-checklist" id="dailyTaskDraftChecklist"></ol>
         </section>
@@ -494,12 +503,12 @@
     <dialog class="modal daily-task-detail-modal" id="dailyTaskDetailModal" aria-labelledby="dailyTaskDetailTitle">
       <div class="daily-task-detail-shell">
         <div class="modal-heading">
-          <div><p class="eyebrow">TASK DETAILS</p><h2 id="dailyTaskDetailTitle">Task</h2></div>
+          <div><h2 id="dailyTaskDetailTitle">Task</h2></div>
           <button class="icon-button" type="button" id="closeDailyTaskDetails" aria-label="Close task details">×</button>
         </div>
         <div id="dailyTaskDetailSummary"></div>
         <section class="daily-task-detail-checklist" aria-labelledby="dailyTaskDetailChecklistTitle">
-          <div class="daily-task-checklist-heading"><div><p class="eyebrow">TASK CHECKLIST</p><h3 id="dailyTaskDetailChecklistTitle">Checklist</h3></div><span id="dailyTaskDetailChecklistCount">0 of 0</span></div>
+          <div class="daily-task-checklist-heading"><div><h3 id="dailyTaskDetailChecklistTitle">Checklist</h3></div><span id="dailyTaskDetailChecklistCount">0 of 0</span></div>
           <div class="daily-task-checklist-items" id="dailyTaskDetailChecklist" aria-live="polite"></div>
           <form class="daily-task-checklist-form" id="dailyTaskChecklistForm">
             <label class="form-field">Checklist item<input id="dailyTaskChecklistItemInput" maxlength="180" required placeholder="e.g. Confirm the final link" /></label>
@@ -575,7 +584,7 @@
     <dialog class="modal small-modal" id="toApplyModal" aria-labelledby="toApplyModalTitle">
       <form method="dialog" id="toApplyForm" class="to-apply-form">
         <div class="modal-heading">
-          <div><p class="eyebrow" id="toApplyModalEyebrow">NEW LIST</p><h2 id="toApplyModalTitle">Add New List</h2></div>
+          <div><h2 id="toApplyModalTitle">Add reminder</h2></div>
           <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <input type="hidden" id="toApplyId" />
@@ -876,6 +885,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20260928-9"></script>
+    <script src="js/app.js?v=20260929-7"></script>
   </body>
 </html>

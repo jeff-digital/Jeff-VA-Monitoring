@@ -1563,3 +1563,468 @@ body.authenticated .login-screen { display: none; }
   .document-archive-filename { white-space: normal; overflow-wrap: anywhere; }
   .document-archive-name { align-items: flex-start; }
 }
+
+#dailyTaskView,
+#applicationsView,
+#toApplyView,
+#hiredView,
+#inboxView,
+#accountView {
+  --workspace-ink: #202724;
+  --workspace-muted: #66716c;
+  --workspace-line: #dce2de;
+  --workspace-soft: var(--navy-soft);
+  --workspace-accent: var(--navy);
+  --workspace-danger: #a34e54;
+  color: var(--workspace-ink);
+}
+
+#dailyTaskView .panel,
+#applicationsView .panel,
+#toApplyView .panel,
+#hiredView .panel,
+#inboxView .panel {
+  border: 1px solid var(--workspace-line);
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: none;
+}
+
+#dailyTaskView .eyebrow,
+#applicationsView .eyebrow,
+#toApplyView .eyebrow,
+#hiredView .eyebrow,
+#inboxView .eyebrow,
+#accountView .eyebrow {
+  color: #68756e;
+}
+
+#dailyTaskView .daily-task-heading,
+#applicationsView .application-workspace-head,
+#toApplyView .application-workspace-head,
+#hiredView .application-workspace-head,
+#inboxView .application-workspace-head {
+  padding-bottom: 18px;
+  border-color: var(--workspace-line);
+}
+
+#dailyTaskView .daily-task-heading h2,
+#applicationsView .application-workspace-title h2,
+#toApplyView .application-workspace-title h2,
+#hiredView .application-workspace-title h2,
+#inboxView .application-workspace-title h2 {
+  color: var(--workspace-ink);
+  font-size: 22px;
+  font-weight: 650;
+}
+
+#dailyTaskView .daily-task-heading > div > p:last-child,
+#applicationsView .application-workspace-title > p:last-child,
+#toApplyView .application-workspace-title > p:last-child,
+#hiredView .application-workspace-title > p:last-child,
+#inboxView .application-workspace-title > p:last-child {
+  color: var(--workspace-muted);
+  font-size: 12px;
+}
+
+#dailyTaskView .panel,
+#applicationsView .application-panel,
+#toApplyView .to-apply-page-panel,
+#hiredView .hired-panel,
+#hiredView .hired-detail-panel,
+#inboxView .inbox-panel {
+  box-shadow: none;
+}
+
+#dailyTaskView .daily-task-list-panel,
+#dailyTaskView .daily-task-history-panel {
+  padding: 18px 20px;
+}
+
+#dailyTaskView .daily-task-section-heading h3,
+#dailyTaskView .daily-task-checklist-heading h3 {
+  color: var(--workspace-ink);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+#dailyTaskView .daily-task-item {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 13px 0;
+  border-color: #e9eeeb;
+}
+
+#dailyTaskView .daily-task-item-number {
+  width: 23px;
+  min-height: 23px;
+  border-radius: 4px;
+  background: var(--navy-soft);
+  color: var(--workspace-accent);
+}
+
+#dailyTaskView .daily-task-item-title { color: var(--workspace-ink); }
+#dailyTaskView .daily-task-count { color: var(--workspace-muted); font-variant-numeric: tabular-nums; }
+#dailyTaskView .daily-task-action { border-color: #c9cedf; background: var(--navy-soft); color: var(--workspace-accent); }
+#dailyTaskView .daily-task-delete { border-color: #eadcdd; background: #fff; color: var(--workspace-danger); }
+#dailyTaskView .daily-task-history-panel { margin-top: 14px; }
+
+#applicationsView .application-workspace-count,
+#toApplyView .application-workspace-count,
+#hiredView .application-workspace-count,
+#inboxView .application-workspace-count {
+  min-width: 0;
+  padding: 2px 0 2px 14px;
+  border: 0;
+  border-left: 2px solid #c9cedf;
+  border-radius: 0;
+  background: transparent;
+}
+
+#applicationsView .application-workspace-count-icon,
+#toApplyView .application-workspace-count-icon,
+#hiredView .application-workspace-count-icon,
+#inboxView .application-workspace-count-icon {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  border-radius: 4px;
+  background: var(--workspace-soft);
+  color: var(--workspace-accent);
+}
+
+#applicationsView .application-workspace-count small,
+#toApplyView .application-workspace-count small,
+#hiredView .application-workspace-count small,
+#inboxView .application-workspace-count small { color: var(--workspace-muted); }
+
+#applicationsView #applicationListLabel,
+#toApplyView #toApplyCountLabel,
+#inboxView #emailCountLabel {
+  color: var(--workspace-ink);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+#applicationsView .application-filters,
+#toApplyView .application-filters,
+#inboxView .application-filters {
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  gap: 14px;
+  margin: 14px 0;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--workspace-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+#applicationsView .application-search-field,
+#toApplyView .application-search-field,
+#inboxView .application-search-field {
+  height: 37px;
+  border-color: var(--workspace-line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+#applicationsView .application-filter-field,
+#toApplyView .application-filter-field,
+#inboxView .application-filter-field { color: var(--workspace-muted); }
+
+#applicationsView .application-filter-field input,
+#applicationsView .application-filter-field select,
+#toApplyView .application-filter-field input,
+#toApplyView .application-filter-field select,
+#inboxView .application-filter-field input,
+#inboxView .application-filter-field select {
+  height: 35px;
+  border-color: var(--workspace-line);
+  border-radius: 4px;
+  color: var(--workspace-ink);
+}
+
+#applicationsView .application-filter-field input:focus,
+#applicationsView .application-filter-field select:focus,
+#toApplyView .application-filter-field input:focus,
+#toApplyView .application-filter-field select:focus,
+#inboxView .application-filter-field input:focus,
+#inboxView .application-filter-field select:focus {
+  border-color: var(--workspace-accent);
+  box-shadow: 0 0 0 2px rgba(26, 35, 64, .12);
+}
+
+#applicationsView .application-panel { overflow: hidden; }
+#applicationsView .application-list-head,
+#inboxView .email-list-head {
+  border-color: var(--workspace-line);
+  background: #f6f8f6;
+  color: #68736d;
+  font-size: 9px;
+}
+
+#applicationsView .application-group + .application-group,
+#inboxView .email-section + .email-section { border-top: 1px solid var(--workspace-line); }
+
+#applicationsView .application-group-heading,
+#inboxView .email-section-heading {
+  padding: 11px 20px;
+  border-color: #e7ece8;
+  background: #fbfcfb;
+}
+
+#applicationsView .application-group-ongoing .application-group-heading,
+#applicationsView .application-group-to-proceed .application-group-heading,
+#applicationsView .application-group-to-proceed,
+#inboxView .email-section-sent .email-section-heading {
+  background: #f7faf8;
+}
+
+#applicationsView .application-group-to-proceed { border-radius: 0; }
+
+#applicationsView .application-row {
+  padding: 13px 20px;
+  border-color: #e9eeeb;
+  transition: background-color .14s ease;
+}
+
+#applicationsView .application-row:hover,
+#applicationsView .application-row:focus-visible,
+#inboxView .email-row:hover,
+#inboxView .email-row:focus-visible { background: #f7faf8; }
+
+#applicationsView .application-row:active,
+#inboxView .email-row:active { box-shadow: inset 2px 0 0 var(--workspace-accent); }
+
+#applicationsView .application-row.interview-today { background: #fff8f2; border-left-color: #c17b45; }
+#applicationsView .application-row.interview-today:hover { background: #fff4e9; }
+#applicationsView .client-card-title,
+#inboxView .email-subject { color: var(--workspace-ink); }
+#applicationsView .client-card-website,
+#applicationsView .hired-card-website a { color: var(--workspace-accent); }
+
+#applicationsView .status-pill,
+#dailyTaskView .daily-task-type { border-radius: 3px; font-weight: 650; }
+
+#toApplyView .to-apply-page-panel {
+  height: auto;
+  min-height: 220px;
+  padding: 0;
+}
+
+#toApplyView .to-apply-page-panel .to-apply-list {
+  flex: initial;
+  overflow: visible;
+  margin: 0;
+}
+
+#toApplyView .to-apply-list-head {
+  padding: 11px 20px;
+  border-color: var(--workspace-line);
+  background: #f6f8f6;
+  color: #68736d;
+}
+
+#toApplyView .to-apply-row {
+  padding: 13px 20px;
+  border-color: #e9eeeb;
+}
+
+#toApplyView .to-apply-row:hover,
+#toApplyView .to-apply-row:focus-within { background: #f7faf8; }
+
+#toApplyView .to-apply-row.overdue,
+#toApplyView .to-apply-row.due-today {
+  padding-left: 16px;
+  border-left: 4px solid #c17b45;
+  background: #fff9f3;
+}
+
+#toApplyView .to-apply-row.overdue:hover,
+#toApplyView .to-apply-row.due-today:hover { background: #fff4e9; }
+
+#toApplyView .to-apply-row.overdue .to-apply-date,
+#toApplyView .to-apply-row.overdue .to-apply-date span,
+#toApplyView .to-apply-row.due-today .to-apply-date,
+#toApplyView .to-apply-row.due-today .to-apply-date span { color: #9b6336; }
+
+#toApplyView .to-apply-title strong { color: var(--workspace-ink); }
+#toApplyView .to-apply-title a { color: var(--workspace-accent); }
+
+#hiredView .hired-panel { padding: 0; background: #fff; }
+#hiredView .hired-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
+#hiredView .hired-card {
+  min-height: 0;
+  padding: 14px 18px;
+  gap: 7px;
+  border: 0;
+  border-bottom: 1px solid #e9eeeb;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  transform: none;
+}
+
+#hiredView .hired-card:hover,
+#hiredView .hired-card:focus-visible { background: #f7faf8; box-shadow: none; transform: none; }
+#hiredView .hired-card.selected { box-shadow: inset 3px 0 0 var(--workspace-accent); }
+#hiredView .hired-card.contract-ended-card { background: #fff9f3; }
+#hiredView .hired-card.contract-ended-card:hover { background: #fff4e9; }
+#hiredView .hired-detail-panel { margin-top: 14px; padding: 18px; border-radius: 5px; }
+#hiredView .hired-detail-heading { border-color: var(--workspace-line); }
+#hiredView .hired-detail-heading h2 { color: var(--workspace-ink); font-size: 21px; }
+#hiredView .hired-detail-salary { border-color: #dce2de; border-radius: 3px; background: #f5f8f6; color: var(--workspace-accent); }
+#hiredView .active-document-box,
+#hiredView .invoice-send-panel { border-color: var(--workspace-line); border-radius: 4px; box-shadow: none; }
+#hiredView .document-version-section { border-radius: 4px; box-shadow: none; }
+#hiredView .active-document-row { border-radius: 4px; }
+
+#inboxView .email-filters { margin-top: 12px; }
+#inboxView .email-view-tabs {
+  gap: 16px;
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--workspace-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+#inboxView .email-view-tab {
+  min-height: 39px;
+  padding: 8px 2px;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--workspace-muted);
+}
+
+#inboxView .email-view-tab:hover { background: transparent; color: var(--workspace-ink); }
+#inboxView .email-view-tab.active { border-bottom-color: var(--workspace-accent); background: transparent; color: var(--workspace-accent); box-shadow: none; }
+#inboxView .inbox-panel { margin-top: 12px; overflow: visible; }
+#inboxView .email-section-heading { padding: 13px 18px 10px; }
+#inboxView .email-row { padding: 13px 18px; border-color: #e9eeeb; }
+#inboxView .email-row.sent { padding-left: 15px; border-left-color: var(--workspace-accent); background: #fbfcfb; }
+#inboxView .email-avatar { width: 30px; height: 30px; border-radius: 4px; background: var(--navy-soft); color: var(--workspace-accent); }
+#inboxView .sent-email-badge { border-radius: 3px; background: var(--navy-soft); color: var(--navy); }
+#inboxView .client-match-tag { border-radius: 3px; background: #f6f0e7; color: #85643e; }
+#inboxView .privacy-note { color: var(--workspace-muted); }
+
+#accountView .password-security-layout { gap: 28px; }
+#accountView .password-security-section { padding: 18px 0; border-color: var(--workspace-line); }
+#accountView .password-recovery-section { padding-left: 24px; border-left-color: var(--workspace-line); }
+#accountView { display: none; }
+#accountView.active { display: grid; gap: 18px; max-width: 1040px; }
+#accountView .account-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--workspace-line); }
+#accountView .account-overview-grid .account-section { min-width: 0; padding: 0; border: 0; }
+#accountView .account-identity-section { display: flex; align-items: center; gap: 14px; padding: 4px 0 18px; border-bottom: 1px solid var(--workspace-line); }
+#accountView .account-avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 4px; background: var(--navy-soft); color: var(--navy); font-size: 16px; }
+#accountView .account-provider-label { margin: 0 0 3px; color: var(--workspace-muted); font-size: 11px; }
+#accountView .account-identity-copy h2 { margin: 0; color: var(--workspace-ink); font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+#accountView .account-section { padding: 15px 0; border-bottom: 1px solid var(--workspace-line); }
+#accountView .account-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+#accountView .account-section-heading h2 { margin: 0; color: var(--workspace-ink); font-size: 14px; font-weight: 650; }
+#accountView .account-section-heading > span { color: var(--workspace-muted); font-size: 10px; }
+#accountView .account-connection-list,
+#accountView .account-detail-list { display: grid; margin: 0; }
+#accountView .account-connection-row,
+#accountView .account-detail-list > div { display: grid; grid-template-columns: minmax(130px, .35fr) minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 48px; padding: 8px 0; border-top: 1px solid #e9eeeb; }
+#accountView .account-connection-row dt,
+#accountView .account-detail-list dt { color: var(--workspace-muted); font-size: 11px; }
+#accountView .account-connection-row dd,
+#accountView .account-detail-list dd { display: grid; gap: 3px; min-width: 0; margin: 0; color: var(--workspace-ink); font-size: 12px; overflow-wrap: anywhere; }
+#accountView .account-connection-row dd small { color: var(--workspace-muted); font-size: 10px; }
+#accountView .account-gmail-action { min-height: 32px; padding: 6px 10px; font-size: 11px; }
+#accountView .account-detail-list > div { grid-template-columns: minmax(130px, .35fr) minmax(0, 1fr); }
+#accountView .account-sign-in-history { display: grid; margin: 0; padding: 0; list-style: none; }
+#accountView .account-sign-in-history li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid #e9eeeb; color: var(--workspace-ink); font-size: 11px; }
+#accountView .account-sign-in-history time { color: var(--workspace-muted); font-size: 10px; text-align: right; }
+#accountView .account-empty-state { margin: 0; padding: 8px 0; color: var(--workspace-muted); font-size: 11px; }
+#accountView .password-security-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(240px, .8fr); gap: 26px; padding-top: 4px; }
+#accountView .password-security-section { min-width: 0; padding: 10px 0; border-top: 0; }
+#accountView .password-security-section h2 { margin: 0 0 12px; color: var(--workspace-ink); font-size: 14px; font-weight: 650; }
+#accountView .password-recovery-section { padding-left: 22px; border-left: 1px solid var(--workspace-line); }
+#accountView .settings-copy { color: var(--workspace-muted); font-size: 11px; line-height: 1.5; }
+#accountView .password-change-form { gap: 10px; }
+#accountView .password-change-form .form-field { font-size: 11px; }
+#accountView .password-change-form input { min-height: 38px; border-radius: 4px; }
+
+#dailyTaskView input:focus-visible,
+#dailyTaskView select:focus-visible,
+#applicationsView input:focus-visible,
+#applicationsView select:focus-visible,
+#toApplyView input:focus-visible,
+#toApplyView select:focus-visible,
+#hiredView input:focus-visible,
+#hiredView select:focus-visible,
+#inboxView input:focus-visible,
+#inboxView select:focus-visible,
+#accountView input:focus-visible {
+  outline: 2px solid rgba(26, 35, 64, .55);
+  outline-offset: 1px;
+}
+
+#dailyTaskView .button-primary,
+#applicationsView .button-primary,
+#toApplyView .button-primary,
+#hiredView .button-primary,
+#inboxView .button-primary,
+#accountView .button-primary {
+  border-radius: 4px;
+  background: var(--navy);
+  box-shadow: none;
+}
+
+#dailyTaskView .button-primary:hover,
+#applicationsView .button-primary:hover,
+#toApplyView .button-primary:hover,
+#hiredView .button-primary:hover,
+#inboxView .button-primary:hover,
+#accountView .button-primary:hover { background: var(--navy-deep); }
+
+#dailyTaskView .button-secondary,
+#applicationsView .button-secondary,
+#toApplyView .button-secondary,
+#hiredView .button-secondary,
+#inboxView .button-secondary,
+#accountView .button-secondary { border-radius: 4px; }
+
+@media (max-width: 720px) {
+  #accountView .account-overview-grid { grid-template-columns: 1fr; gap: 0; padding-bottom: 0; border-bottom: 0; }
+  #accountView .account-overview-grid .account-section { padding: 15px 0; border-bottom: 1px solid var(--workspace-line); }
+  #dailyTaskView .daily-task-list-panel,
+  #dailyTaskView .daily-task-history-panel { padding: 15px; }
+  #applicationsView .application-filters,
+  #toApplyView .application-filters,
+  #inboxView .application-filters { padding-bottom: 12px; }
+  #applicationsView .application-workspace-count,
+  #toApplyView .application-workspace-count,
+  #hiredView .application-workspace-count,
+  #inboxView .application-workspace-count { padding-left: 10px; }
+  #applicationsView .application-row { padding: 12px 14px; }
+  #applicationsView .application-row.interview-today { padding-left: 10px; }
+  #toApplyView .to-apply-page-panel { min-height: 180px; }
+  #toApplyView .to-apply-list-head { padding: 10px 14px; }
+  #toApplyView .to-apply-row { padding: 12px 14px; }
+  #toApplyView .to-apply-row.overdue,
+  #toApplyView .to-apply-row.due-today { padding-left: 10px; }
+  #hiredView .hired-card { padding: 13px 14px; }
+  #inboxView .email-row { padding: 12px 10px; }
+  #inboxView .email-row.sent { padding-left: 7px; }
+  #accountView .account-connection-row { grid-template-columns: 90px minmax(0, 1fr) auto; gap: 8px; }
+  #accountView .account-detail-list > div { grid-template-columns: 125px minmax(0, 1fr); gap: 8px; }
+  #accountView .password-security-layout { grid-template-columns: 1fr; gap: 0; }
+  #accountView .password-recovery-section { padding: 14px 0 0; border-left: 0; border-top: 1px solid var(--workspace-line); }
+}
+
+@media (max-width: 480px) {
+  #dailyTaskView .daily-task-plan-actions { flex-wrap: wrap; justify-content: flex-end; }
+  #dailyTaskView .daily-task-count { margin-right: auto; }
+  #applicationsView .application-workspace-title h2,
+  #toApplyView .application-workspace-title h2,
+  #hiredView .application-workspace-title h2,
+  #inboxView .application-workspace-title h2 { font-size: 20px; }
+  #applicationsView .application-filter-controls,
+  #inboxView .email-filter-controls { grid-template-columns: 1fr 1fr; }
+  #inboxView .email-view-tabs { width: 100%; }
+  #inboxView .email-view-tab { flex: 1 1 0; }
+}

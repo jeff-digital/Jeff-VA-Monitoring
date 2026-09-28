@@ -1,7 +1,7 @@
   const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
   const SUPABASE_BUCKET = 'client-documents';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -102,29 +102,109 @@
   }
 
   function resolveAuthProvider(session) {
+    if (session?.provider_token) return 'google';
     const savedProvider = sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY);
     if (savedProvider === 'google' || savedProvider === 'email') return savedProvider;
-    return session?.provider_token || !userHasPasswordIdentity(session?.user) ? 'google' : 'email';
+    return !userHasPasswordIdentity(session?.user) ? 'google' : 'email';
   }
 
-  function hasPasswordSettingsAccess() {
-    return Boolean(currentUser && activeAuthProvider !== 'google' && userHasPasswordIdentity());
+  function hasAccountSettingsAccess() {
+    return Boolean(currentUser);
   }
 
-  function renderPasswordAccess() {
-    $('#passwordNavGroup').hidden = !hasPasswordSettingsAccess();
+  function renderAccountAccess() {
+    $('#accountNavGroup').hidden = !hasAccountSettingsAccess();
   }
 
   function renderPasswordPage() {
-    const hasPassword = userHasPasswordIdentity();
-    $('#passwordAccountEmail').textContent = currentUser?.email || 'your account';
-    $('#currentPasswordField').hidden = passwordRecoveryMode || !hasPassword;
-    $('#currentPassword').required = !passwordRecoveryMode && hasPassword;
-    $('#passwordFormEyebrow').textContent = hasPassword ? 'UPDATE PASSWORD' : passwordRecoveryMode ? 'RESET PASSWORD' : 'SET PASSWORD';
-    $('#passwordFormHeading').textContent = hasPassword ? 'Choose a new password' : 'Create a password';
+    const isGoogleSession = activeAuthProvider === 'google';
+    const hasPassword = userHasPasswordIdentity() && !isGoogleSession;
+    $('#accountGooglePasswordNotice').hidden = !isGoogleSession;
+    $('#passwordSettingsSection').hidden = isGoogleSession;
+    $('#passwordRecoverySection').hidden = isGoogleSession || !hasPassword;
+    $('#currentPasswordField').hidden = isGoogleSession || passwordRecoveryMode || !hasPassword;
+    $('#currentPassword').required = !isGoogleSession && !passwordRecoveryMode && hasPassword;
     $('#saveNewPasswordButton').textContent = hasPassword ? 'Save password' : passwordRecoveryMode ? 'Reset password' : 'Set password';
-    $('#passwordProviderNotice').classList.toggle('hidden', hasPassword || passwordRecoveryMode);
     $('#passwordRecoveryNotice').classList.toggle('hidden', !passwordRecoveryMode);
+  }
+
+  function formatAccountTimestamp(value) {
+    if (!value) return 'Not available';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? 'Not available'
+      : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  }
+
+  function recordAccountSignIn(user, provider) {
+    const signedInAt = user.last_sign_in_at || new Date().toISOString();
+    const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
+    if (history.some(entry => entry.userId === user.id && entry.signedInAt === signedInAt)) return false;
+    data.accountSignInHistory = [{
+      id: `${user.id}:${signedInAt}`,
+      userId: user.id,
+      signedInAt,
+      provider: provider === 'google' ? 'Google' : 'Email and password'
+    }, ...history].slice(0, 20);
+    return true;
+  }
+
+  function renderAccountPage() {
+    if (!currentUser) return;
+    const provider = activeAuthProvider === 'google' ? 'Google' : activeAuthProvider === 'email' ? 'Email and password' : 'Supabase Auth';
+    const projectHost = (() => {
+      try { return new URL(window.SUPABASE_URL).host; } catch { return 'Not configured'; }
+    })();
+    const supabaseStatus = !supabaseConfigured()
+      ? 'Not configured'
+      : !navigator.onLine
+        ? 'Offline'
+        : supabaseDataLoaded
+          ? 'Connected'
+          : dataReady
+            ? 'Unavailable'
+            : 'Connecting';
+    const gmailSyncMessage = $('#accountGmailSyncStatus').textContent;
+    const gmailNeedsAttention = /failed|expired|not set up/i.test(gmailSyncMessage);
+    const gmailStatus = !navigator.onLine
+      ? 'Offline'
+      : !gmailConfigured()
+        ? 'Not configured'
+        : !window.google?.accounts?.oauth2
+          ? 'Unavailable'
+          : gmailNeedsAttention
+            ? 'Needs attention'
+            : gmailAccessToken
+              ? 'Authorized this session'
+              : 'Not connected';
+    $('#accountEmail').textContent = currentUser.email || 'Not available';
+    $('#accountUserId').textContent = currentUser.id || 'Not available';
+    $('#accountSignInProvider').textContent = provider;
+    $('#accountSupabaseStatus').textContent = supabaseStatus;
+    $('#accountSupabaseProject').textContent = projectHost;
+    $('#accountNetworkStatus').textContent = navigator.onLine ? 'Online' : 'Offline';
+    $('#accountGmailStatus').textContent = gmailStatus;
+    $('#accountLastSignIn').textContent = formatAccountTimestamp(currentUser.last_sign_in_at);
+    $('#accountCreatedAt').textContent = formatAccountTimestamp(currentUser.created_at);
+    $('#accountGmailAction').hidden = !gmailConfigured() || !window.google?.accounts?.oauth2 || !navigator.onLine;
+    $('#accountGmailAction').textContent = gmailAccessToken
+      ? gmailNeedsAttention ? 'Reconnect' : 'Disconnect'
+      : sessionStorage.getItem(GMAIL_CONNECTED_KEY) ? 'Reconnect' : 'Connect Gmail';
+
+    const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
+    const list = $('#accountSignInHistory');
+    list.replaceChildren();
+    $('#accountNoSignIns').hidden = history.length > 0;
+    history.forEach(entry => {
+      const item = document.createElement('li');
+      const method = document.createElement('span');
+      method.textContent = entry.provider || 'Sign-in';
+      const timestamp = document.createElement('time');
+      timestamp.dateTime = entry.signedInAt || '';
+      timestamp.textContent = formatAccountTimestamp(entry.signedInAt);
+      item.append(method, timestamp);
+      list.append(item);
+    });
   }
 
   function setPasswordRecoveryMode(value) {
@@ -136,7 +216,7 @@
     $('#changePasswordForm').reset();
     $('#changePasswordError').textContent = '';
     renderPasswordPage();
-    showView('password');
+    showView('account');
     $('#newPassword').focus();
   }
   const today = () => {
@@ -236,6 +316,7 @@
       dailyTasks: Array.isArray(saved.dailyTasks) ? saved.dailyTasks : [],
       emails: dedupeEmails(Array.isArray(saved.emails) ? saved.emails : []).filter(item => !(item.source === 'gmail' && deletedGmailIdSet.has(item.gmailId))),
       deletedGmailIds,
+      accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],
       alerts: Array.isArray(saved.alerts) ? saved.alerts : [],
       emailTemplates: Array.isArray(saved.emailTemplates) ? saved.emailTemplates : [],
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
@@ -269,14 +350,15 @@
     return persistChain;
   }
 
-  async function initializeSupabaseForUser(user, { showSuccess = true } = {}) {
+  async function initializeSupabaseForUser(user, { showSuccess = true, recordSignIn = false, showOverview = false } = {}) {
     if (!user || initializingUserId === user.id) return;
     initializingUserId = user.id;
     currentUser = user;
-    renderPasswordAccess();
+    renderAccountAccess();
     dataReady = false;
     supabaseDataLoaded = false;
     setAuthenticated(true);
+    if (showOverview) showView('dashboard');
     subscribeToAppState(user.id);
     if (!applyReminderTimer) applyReminderTimer = setInterval(() => {
       if (!currentUser) return;
@@ -289,6 +371,7 @@
     if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
     try {
       data = await loadDataFromSupabase();
+      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
       supabaseDataLoaded = true;
       dataReady = true;
       await processDueFollowUps();
@@ -297,6 +380,7 @@
       processDueDocumentEmailReminders();
       processContractEndedAlerts();
       renderAll();
+      renderAccountPage();
       if (gmailAccessToken) await syncGmail(true);
       await persist();
       scheduleAutomaticBackup();
@@ -308,6 +392,7 @@
       showActionResult({ title: 'Could not load workspace', message: 'Your account data could not be loaded. Check your connection and try again.', status: 'error' });
       dataReady = true;
       renderAll();
+      renderAccountPage();
     } finally {
       initializingUserId = null;
     }
@@ -357,7 +442,12 @@
           sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
         }
-        initializeSupabaseForUser(session.user, { showSuccess: isAuthenticationCallback && !isPasswordRecovery });
+        const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
+        initializeSupabaseForUser(session.user, {
+          showSuccess: isAuthenticationCallback && !isPasswordRecovery || activeAuthProvider === 'email',
+          recordSignIn: isFreshSignIn,
+          showOverview: isFreshSignIn
+        });
       });
       const accessToken = callbackParams.get('access_token');
       const refreshToken = callbackParams.get('refresh_token');
@@ -384,7 +474,11 @@
       }
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
-        await initializeSupabaseForUser(sessionData.session.user, { showSuccess: isAuthenticationCallback && !isPasswordRecovery });
+        await initializeSupabaseForUser(sessionData.session.user, {
+          showSuccess: isAuthenticationCallback && !isPasswordRecovery,
+          recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
+          showOverview: isAuthenticationCallback && !isPasswordRecovery
+        });
         if (isPasswordRecovery) openPasswordPage({ recovery: true });
       }
     } catch (error) {
