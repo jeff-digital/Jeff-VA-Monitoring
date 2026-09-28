@@ -77,7 +77,15 @@ The browser loads the generated `js/app.js` bundle. Edit the ordered source modu
 
 ## Google login
 
-To use **Log in with Google**, enable Google under Supabase **Authentication -> Providers**, add your Google OAuth client ID and secret there, and add the Supabase callback URL shown in that provider settings page to the Google Cloud OAuth client's authorized redirect URIs. In Supabase **Authentication -> URL Configuration**, add the exact app URL you open, for example `http://localhost:8080/`, to the redirect URL allow list. The Google login button creates the Supabase session directly, so a separate Supabase email/password login is not required.
+The app derives its OAuth return URL from the page currently open, so the deployed site does not redirect to localhost. For the production Worker URL `https://jeff-va-monitoring.jeffdigi.workers.dev`:
+
+1. In Supabase **Authentication -> URL Configuration**, set **Site URL** to `https://jeff-va-monitoring.jeffdigi.workers.dev` and add `https://jeff-va-monitoring.jeffdigi.workers.dev/**` under **Redirect URLs**. Keep `http://localhost:8080/**` and `http://localhost:3000/**` only if you still use those local development URLs.
+2. Under Supabase **Authentication -> Providers -> Google**, use the Google OAuth **Web application** client ID and secret.
+3. In Google Cloud Console for that same OAuth client, add `https://jeff-va-monitoring.jeffdigi.workers.dev` under **Authorized JavaScript origins**. Origins contain only scheme and hostname, with no path or trailing slash. Keep `http://localhost:8080` and optionally `http://localhost:3000` there only for local development.
+4. In Google Cloud Console, keep the **Authorized redirect URI** equal to the Supabase callback URL shown in Supabase's Google provider settings (normally `https://oeooedwobhmpwwdohrcy.supabase.co/auth/v1/callback`). Do not replace this callback with the Worker URL.
+5. Keep the client ID in `js/gmail-config.js` the same as the client ID configured in Supabase. For personal use while Google's consent screen is in Testing, add your Google account as a test user.
+
+The Google login button creates the Supabase session directly, so a separate Supabase email/password login is not required. After changing the settings, sign out, open the Worker URL, and reconnect Google there. Never share an OAuth callback URL containing values after `#` or `?`; those may contain active tokens.
 
 ## Using the same private dashboard on another laptop
 
@@ -91,4 +99,4 @@ This version does not automatically upload the old browser's localStorage/Indexe
 
 Gmail continues to use Google's browser OAuth flow directly. When Google login is configured with Gmail scopes, the inbox sync starts automatically after login. Your Gmail access token is kept only for the current browser session; it is not uploaded to Supabase by Jeff VA.
 
-Gmail sync and sending require the Gmail API and the OAuth client to allow `http://localhost:8080` as an authorized JavaScript origin. The OAuth consent screen must also include your Google account as a test user while the app is in testing mode. After enabling email sending, disconnect and reconnect Gmail once so Google grants the additional send permission.
+Gmail sync and sending require the Gmail API and the OAuth client to allow `https://jeff-va-monitoring.jeffdigi.workers.dev` as an authorized JavaScript origin. Add `http://localhost:8080` (and optionally `http://localhost:3000`) only for local development. The OAuth consent screen must include your Google account as a test user while the app is in testing mode. After changing origins or enabling email sending, disconnect and reconnect Gmail so Google grants the requested permissions to the production site.
