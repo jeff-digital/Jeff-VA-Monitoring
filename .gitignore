@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.xlsx
+appwork/documents/*
+!appwork/documents/.gitkeep
+.env
+.env.*
+!.env.example

@@ -1,0 +1,408 @@
+  const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
+  const SUPABASE_BUCKET = 'client-documents';
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [] });
+  let supabaseClient = null;
+  let currentUser = null;
+  let appStateChannel = null;
+  let gmailSyncTimer = null;
+  let gmailSyncInFlight = false;
+  let applyReminderTimer = null;
+  let initializingUserId = null;
+  let persistChain = Promise.resolve();
+  let dataReady = false;
+  let supabaseDataLoaded = false;
+  const STATUS_COLORS = {
+    Ongoing: '#1d8a89', Applied: '#8a9b8e', 'To Proceed': '#2f6f8f', Interview: '#c28a52', 'Active client': '#5a956a', 'Not selected': '#c36e73'
+  };
+  const STATUS_CLASS = { Ongoing: 'ongoing', Applied: 'applied', 'To Proceed': 'to-proceed', 'To Proceeding': 'to-proceed', Interview: 'interview', 'Active client': 'active-client', 'Not selected': 'not-selected' };
+  const STATUS_LABELS = { 'Not selected': 'Rejected', 'To Proceeding': 'To Proceed' };
+  const $ = (selector, scope = document) => scope.querySelector(selector);
+  const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+  let appConfirmResolve = null;
+  function appConfirm(message, { title = 'Confirm action', confirmLabel = 'Continue', danger = false } = {}) {
+    return new Promise(resolve => {
+      const modal = $('#appConfirmModal');
+      if (modal.open) {
+        resolve(false);
+        return;
+      }
+      $('#appConfirmTitle').textContent = title;
+      $('#appConfirmMessage').textContent = message;
+      const acceptButton = $('#appConfirmAccept');
+      acceptButton.textContent = confirmLabel;
+      acceptButton.className = `button ${danger ? 'button-danger' : 'button-primary'}`;
+      appConfirmResolve = resolve;
+      modal.returnValue = '';
+      modal.showModal();
+      acceptButton.focus();
+    });
+  }
+  $('#appConfirmAccept').addEventListener('click', () => $('#appConfirmModal').close('confirm'));
+  $('#appConfirmModal').addEventListener('close', () => {
+    const resolve = appConfirmResolve;
+    appConfirmResolve = null;
+    resolve?.($('#appConfirmModal').returnValue === 'confirm');
+  });
+  const today = () => {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 10);
+  };
+  const localDateKey = date => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+  const addDays = (date, days) => {
+    const result = new Date(`${date}T12:00:00`);
+    result.setDate(result.getDate() + days);
+    return result.toISOString().slice(0, 10);
+  };
+  const uid = () => (crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+  const SESSION_KEY = 'jeff-va-session-v1';
+  const APPLICATION_WEEK_FILTER_KEY = 'jeff-va-application-week-filter-v1';
+  const EMAIL_WEEK_FILTER_KEY = 'jeff-va-email-week-filter-v1';
+  let data = emptyData();
+  let activeView = 'dashboard';
+  let emailViewFilter = 'client';
+  let applicationDateSort = localStorage.getItem(APPLICATION_WEEK_FILTER_KEY) || '0';
+  let hiredDateSort = 'newest';
+  let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || '0';
+  let applicationDateFilter = '';
+  let hiredDateFilter = '';
+  let emailDateFilter = '';
+  let interviewCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const contractEndedEmailSending = new Set();
+  let pendingActiveClientId = null;
+  let editingId = null;
+  let hiredEditingId = null;
+  let pendingDocumentFile = null;
+  let pendingDocumentPreviewUrl = null;
+  let pendingInvoiceFile = null;
+  let pendingInvoiceClientId = null;
+  let pendingInvoiceDetails = {};
+  let pendingActivation = null;
+  let toastTimer;
+  let viewingClientDetails = false;
+
+  function isAuthenticated() {
+    return Boolean(currentUser);
+  }
+
+  function setAuthenticated(value) {
+    if (value) document.body.classList.add('authenticated');
+    else document.body.classList.remove('authenticated');
+  }
+
+  function supabaseConfigured() {
+    return Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase?.createClient);
+  }
+
+  function requireSupabase() {
+    if (!supabaseConfigured()) throw new Error('Supabase is not configured. Fill in js/supabase-config.js.');
+    if (!supabaseClient) {
+      supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          storage: window.sessionStorage,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+    }
+    return supabaseClient;
+  }
+
+  function dedupeEmails(items = []) {
+    const seen = new Set();
+    return items.filter(item => {
+      const key = item.source === 'gmail' && item.gmailId
+        ? `gmail:${item.gmailId}`
+        : `email:${item.id || `${item.from}|${item.to}|${item.subject}|${item.date}`}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  async function loadDataFromSupabase() {
+    const client = requireSupabase();
+    if (!currentUser) return emptyData();
+    const { data: row, error } = await client
+      .from('app_state')
+      .select('data')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    const saved = row?.data || {};
+    const deletedGmailIds = Array.isArray(saved.deletedGmailIds) ? saved.deletedGmailIds : [];
+    const deletedGmailIdSet = new Set(deletedGmailIds);
+    return {
+      applications: Array.isArray(saved.applications) ? saved.applications : [],
+      toApply: Array.isArray(saved.toApply) ? saved.toApply : [],
+      dailyTasks: Array.isArray(saved.dailyTasks) ? saved.dailyTasks : [],
+      emails: dedupeEmails(Array.isArray(saved.emails) ? saved.emails : []).filter(item => !(item.source === 'gmail' && deletedGmailIdSet.has(item.gmailId))),
+      deletedGmailIds,
+      alerts: Array.isArray(saved.alerts) ? saved.alerts : [],
+      emailTemplates: Array.isArray(saved.emailTemplates) ? saved.emailTemplates : [],
+      personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
+      invoices: Array.isArray(saved.invoices) ? saved.invoices : [],
+      scripts: Array.isArray(saved.scripts) ? saved.scripts : [],
+      workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : []
+    };
+  }
+
+  function persist() {
+    if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) return Promise.resolve();
+    const snapshot = JSON.parse(JSON.stringify(data));
+    const userId = currentUser.id;
+    const client = supabaseClient;
+    persistChain = persistChain.then(async () => {
+      if (!client || !userId) return;
+      const { error } = await client.from('app_state').upsert({
+        user_id: userId,
+        data: snapshot,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+      if (error) {
+        console.error('Supabase save failed:', error);
+        toast('Could not save to Supabase');
+        throw error;
+      }
+    }).catch(() => {});
+    // Keep the local Documents Excel copy current too. The function debounces
+    // rapid edits, so this does not create a file for every keystroke.
+    queueDocumentsBackup({ immediate: true });
+    return persistChain;
+  }
+
+  async function initializeSupabaseForUser(user) {
+    if (!user || initializingUserId === user.id) return;
+    initializingUserId = user.id;
+    currentUser = user;
+    dataReady = false;
+    supabaseDataLoaded = false;
+    setAuthenticated(true);
+    subscribeToAppState(user.id);
+    if (!applyReminderTimer) applyReminderTimer = setInterval(() => {
+      if (!currentUser) return;
+      processDueApplyReminders();
+      processDueInterviews();
+      processDueDocumentEmailReminders();
+      processContractEndedAlerts();
+    }, 60000);
+    const loginStatus = $('#loginGoogleStatus');
+    if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
+    try {
+      data = await loadDataFromSupabase();
+      supabaseDataLoaded = true;
+      dataReady = true;
+      await processDueFollowUps();
+      processDueApplyReminders();
+      processDueInterviews();
+      processDueDocumentEmailReminders();
+      processContractEndedAlerts();
+      renderAll();
+      if (gmailAccessToken) await syncGmail();
+      await persist();
+      scheduleAutomaticBackup();
+      toast('Signed in successfully');
+    } catch (error) {
+      console.error(error);
+      data = emptyData();
+      supabaseDataLoaded = false;
+      toast('Could not load your Supabase data');
+      dataReady = true;
+      renderAll();
+    } finally {
+      initializingUserId = null;
+    }
+  }
+
+  function subscribeToAppState(userId) {
+    if (!supabaseClient || !userId) return;
+    if (appStateChannel) supabaseClient.removeChannel(appStateChannel);
+    appStateChannel = supabaseClient.channel(`app-state-${userId}`).on('postgres_changes', {
+      event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}`
+    }, async () => {
+      if (!dataReady || !currentUser || currentUser.id !== userId) return;
+      try {
+        data = await loadDataFromSupabase();
+        renderAll();
+      } catch (error) {
+        console.error('Could not refresh live app state:', error);
+      }
+    }).subscribe();
+  }
+
+  async function restoreSupabaseSession() {
+    if (!supabaseConfigured()) return;
+    const callbackParams = new URLSearchParams(`${window.location.search}&${window.location.hash.slice(1)}`);
+    if (callbackParams.get('error')) {
+      const description = callbackParams.get('error_description') || callbackParams.get('error');
+      $('#loginError').textContent = description.includes('exchange external code')
+        ? 'Supabase could not exchange Google’s sign-in code. Check that the Google Client ID and Client Secret in Supabase come from the same Web application OAuth client.'
+        : `Google sign-in failed: ${description}`;
+      $('#loginGoogleStatus').textContent = 'Sign-in could not be completed. You can try again after correcting the provider settings.';
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+    try {
+      const client = requireSupabase();
+      client.auth.onAuthStateChange((event, session) => {
+        if (event !== 'SIGNED_IN' || !session?.user || currentUser) return;
+        if (session.provider_token) {
+          gmailAccessToken = session.provider_token;
+          sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
+          sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+        }
+        initializeSupabaseForUser(session.user);
+      });
+      const accessToken = callbackParams.get('access_token');
+      const refreshToken = callbackParams.get('refresh_token');
+      const callbackCode = callbackParams.get('code');
+      let { data: sessionData, error } = await client.auth.getSession();
+      if (error) throw error;
+      if (!sessionData.session && accessToken && refreshToken) {
+        const callbackResult = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        if (callbackResult.error) throw callbackResult.error;
+        window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}#dashboard`);
+        ({ data: sessionData, error } = await client.auth.getSession());
+        if (error) throw error;
+      }
+      if (!sessionData.session && callbackCode) {
+        const exchangeResult = await client.auth.exchangeCodeForSession(callbackCode);
+        if (exchangeResult.error) throw exchangeResult.error;
+        window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}#dashboard`);
+        ({ data: sessionData, error } = await client.auth.getSession());
+        if (error) throw error;
+      }
+      if (sessionData.session?.provider_token) {
+        gmailAccessToken = sessionData.session.provider_token;
+        sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
+        sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+        startGmailSyncTimer();
+      }
+      if (sessionData.session?.user) await initializeSupabaseForUser(sessionData.session.user);
+    } catch (error) {
+      console.error('Could not restore Supabase session:', error);
+      $('#loginError').textContent = 'Google sign-in returned, but Jeff VA could not restore the session. Check the Supabase redirect URL.';
+      $('#loginGoogleStatus').textContent = 'Sign-in could not be completed.';
+    }
+  }
+
+  async function clearSupabaseData() {
+    if (!currentUser || !supabaseClient) return;
+    const client = supabaseClient;
+    const paths = (data.applications || []).flatMap(application => (application.documents || []).map(doc => doc.storagePath || `${currentUser.id}/${doc.id}`));
+    if (paths.length) {
+      const { error: storageError } = await client.storage.from(SUPABASE_BUCKET).remove(paths);
+      if (storageError) throw storageError;
+    }
+    const personalPaths = (data.personalDocuments || []).map(document => document.storagePath).filter(Boolean);
+    if (personalPaths.length) {
+      const { error: personalStorageError } = await client.storage.from(SUPABASE_BUCKET).remove(personalPaths);
+      if (personalStorageError) throw personalStorageError;
+    }
+    const { error } = await client.from('app_state').delete().eq('user_id', currentUser.id);
+    if (error) throw error;
+    data = emptyData();
+    supabaseDataLoaded = true;
+  }
+
+  function escapeHtml(value = '') {
+    return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+  }
+
+  function formatDate(value) {
+    if (!value) return 'No date';
+    const date = new Date(`${value}T12:00:00`);
+    return Number.isNaN(date) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+  }
+
+  function relativeDate(value) {
+    if (!value) return 'No date';
+    const date = new Date(value);
+    if (Number.isNaN(date)) return value;
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
+  }
+
+  function emailDate(value) {
+    if (!value) return 'No date';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+  }
+
+  function applicationAddedDate(item) {
+    return item.createdAt || item.updatedAt || item.appliedDate;
+  }
+
+  function activeSinceDate(item) {
+    return item.activeAt || item.appliedDate;
+  }
+
+  function sortByDate(items, getDate, direction = 'newest') {
+    const multiplier = direction === 'oldest' ? 1 : -1;
+    return [...items].sort((a, b) => {
+      const firstDate = new Date(getDate(a) || 0).getTime();
+      const secondDate = new Date(getDate(b) || 0).getTime();
+      const first = Number.isNaN(firstDate) ? 0 : firstDate;
+      const second = Number.isNaN(secondDate) ? 0 : secondDate;
+      return (first - second) * multiplier;
+    });
+  }
+
+  function dateKey(value) {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) return String(value).slice(0, 10);
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+  }
+
+  function plural(number, word) { return `${number} ${word}${number === 1 ? '' : 's'}`; }
+
+  function receivedEmails() {
+    const deletedGmailIds = new Set(data.deletedGmailIds || []);
+    return data.emails.filter(item => item.direction !== 'sent'
+      && item.source !== 'sent'
+      && !(item.source === 'gmail' && deletedGmailIds.has(item.gmailId)));
+  }
+
+  function statusPill(status) {
+    return `<span class="status-pill ${STATUS_CLASS[status] || ''}">${escapeHtml(STATUS_LABELS[status] || status)}</span>`;
+  }
+
+  function salaryCurrencySymbol(currency = 'USD') {
+    return currency === 'PHP' ? '₱' : '$';
+  }
+
+  function formatSalaryAmount(amount, currency = 'USD', type = 'monthly', hoursPerWeek = 0) {
+    const numeric = Number(amount || 0);
+    const symbol = salaryCurrencySymbol(currency);
+    if (!Number.isFinite(numeric) || numeric <= 0) return `${symbol}0`;
+    if (type === 'hourly' && Number(hoursPerWeek) > 0) {
+      return `${symbol}${Math.round(numeric * Number(hoursPerWeek) * 4).toLocaleString()} / month`;
+    }
+    return `${symbol}${Math.round(numeric).toLocaleString()}${type === 'monthly' ? ' / month' : ' / hour'}`;
+  }
+
+  function isInterviewToday(item) {
+    return item.status === 'Interview' && dateKey(item.interviewDate) === today();
+  }
+
+  function isToProceedStatus(item) {
+    return item.status === 'To Proceed' || item.status === 'To Proceeding';
+  }
+
+  function sortedApplications() {
+    return [...data.applications].sort((a, b) => Number(Boolean(b.interviewPriority)) - Number(Boolean(a.interviewPriority)) || new Date(b.updatedAt || b.appliedDate) - new Date(a.updatedAt || a.appliedDate));
+  }
+
+  // Once a client's status is "Active client", they move to the Active Clients page and drop out
+  // of the Applications tracker — this is the shared list both the Dashboard's recent table and
+  // the Applications page itself pull from, so they stay in sync with each other.
+  function pipelineApplications() {
+    return data.applications.filter(item => item.status !== 'Active client' || item.activePendingDocument || item.activePendingEmail);
+  }
+
+  function sortedPipelineApplications() {
+    return sortByDate(pipelineApplications(), item => item.appliedDate || applicationAddedDate(item));
+  }
+

@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#171717" />
+    <title>Jeff VA</title>
+    <link id="tabFavicon" rel="icon" type="image/png" href="image/tab.png" />
+    <link rel="stylesheet" href="css/styles.css?v=20260928-6" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  </head>
+  <body>
+    <section class="login-screen" id="loginScreen" aria-label="Jeff VA login">
+      <div class="login-card">
+        <div class="login-brand"><span class="brand-mark">J</span><span>Jeff VA</span></div>
+        <p class="eyebrow">PRIVATE WORKSPACE</p>
+        <h1>Welcome back</h1>
+        <p class="login-copy">Sign in to continue to your client dashboard.</p>
+        <form id="loginForm" class="login-form" novalidate>
+          <label class="form-field">Account email<input id="loginUsername" autocomplete="username" required placeholder="Enter your Supabase account email" /></label>
+          <label class="form-field">Password<input id="loginPassword" type="password" autocomplete="current-password" required placeholder="••••••" /></label>
+          <p class="login-error" id="loginError" role="alert"></p>
+          <button class="button button-primary login-submit" type="submit">Log in</button>
+          <button class="button button-secondary login-google" type="button" id="loginGoogleButton">Log in with Google</button>
+          <p class="gmail-status login-google-status" id="loginGoogleStatus" aria-live="polite">Use your Google account to open the dashboard.</p>
+        </form>
+        <p class="login-note">Your session stays active while this browser tab is open.</p>
+      </div>
+    </section>
+    <div class="app-shell">
+      <button class="sidebar-backdrop" type="button" id="mobileSidebarBackdrop" aria-label="Close navigation" hidden></button>
+      <aside class="sidebar" id="mainSidebar" aria-label="Main navigation" aria-hidden="false">
+        <div class="sidebar-brand-row">
+          <a class="brand" href="#dashboard" aria-label="Jeff VA home">
+          <span class="brand-mark" aria-hidden="true"><img src="image/tab.png" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'J'}))" /></span>
+            <span class="brand-label">Jeff VA</span>
+          </a>
+          <button class="sidebar-toggle" type="button" id="desktopSidebarToggle" aria-label="Minimize sidebar" aria-expanded="true">‹</button>
+          <button class="mobile-sidebar-close" type="button" id="mobileSidebarClose" aria-label="Close navigation">×</button>
+        </div>
+
+        <nav class="main-nav">
+          <div class="nav-group">
+            <p class="nav-group-label">WORKSPACE</p>
+            <a class="nav-link active" href="#dashboard" data-view="dashboard" title="Overview">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span><span class="nav-label">Overview</span>
+            </a>
+            <a class="nav-link" href="#daily-task" data-view="daily-task" title="Daily Task">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-list-check"></i></span><span class="nav-label">Daily Task</span><span class="nav-count" id="navDailyTaskCount">0</span>
+            </a>
+            <a class="nav-link" href="#inbox" data-view="inbox" title="Email">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span><span class="nav-label">Email</span>
+              <span class="nav-count" id="navEmailCount">0</span>
+            </a>
+          </div>
+          <div class="nav-group">
+            <p class="nav-group-label">CLIENTS</p>
+            <a class="nav-link" href="#hired" data-view="hired" title="Active Client">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-user-tie"></i></span><span class="nav-label">Active clients</span>
+              <span class="nav-count" id="navHiredCount">0</span>
+            </a>
+            <a class="nav-link" href="#documents" data-view="documents" title="Tools">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-toolbox"></i></span><span class="nav-label">Tools</span>
+            </a>
+          </div>
+          <div class="nav-group">
+            <p class="nav-group-label">PIPELINE</p>
+            <a class="nav-link" href="#applications" data-view="applications" title="Applications">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-layer-group"></i></span><span class="nav-label">Applications</span>
+              <span class="nav-count" id="navApplicationCount">0</span>
+            </a>
+            <a class="nav-link" href="#to-apply" data-view="to-apply" title="To Apply">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-calendar-check"></i></span><span class="nav-label">To Apply</span>
+              <span class="nav-count" id="navToApplyCount">0</span>
+            </a>
+          </div>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="sidebar-utility-menu">
+            <button class="sidebar-action sidebar-utility-trigger" type="button" id="utilityMenuButton" aria-label="Open settings and utility menu" aria-expanded="false" aria-controls="utilityMenu" title="Settings and utility menu">
+              <span aria-hidden="true">⚙</span>
+            </button>
+            <div class="sidebar-utility-panel hidden" id="utilityMenu">
+              <button class="sidebar-action" type="button" id="exportButton" aria-label="Export backup" title="Export backup"><span aria-hidden="true"><i class="fa-solid fa-download"></i></span><span class="sidebar-label">Export backup</span></button>
+              <label class="sidebar-action import-label" for="backupInput" aria-label="Restore backup" title="Restore backup"><span aria-hidden="true"><i class="fa-solid fa-upload"></i></span><span class="sidebar-label">Restore backup</span></label>
+              <button class="sidebar-action" type="button" id="settingsButton" aria-label="Settings" title="Settings"><span aria-hidden="true"><i class="fa-solid fa-gear"></i></span><span class="sidebar-label">Settings</span></button>
+              <button class="sidebar-action" type="button" id="logoutButton" aria-label="Sign out" title="Sign out"><span aria-hidden="true"><i class="fa-solid fa-arrow-right-from-bracket"></i></span><span class="sidebar-label">Sign out</span></button>
+            </div>
+          </div>
+          <input id="backupInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <button class="mobile-menu" type="button" id="mobileMenu" aria-label="Open navigation" aria-controls="mainSidebar" aria-expanded="false">☰</button>
+          <div>
+            <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
+            <h1 id="pageTitle">Client overview</h1>
+            <p class="page-context" id="applicationWeekDate" hidden></p>
+            <p class="page-context" id="emailWeekDate" hidden></p>
+          </div>
+          <div class="topbar-actions">
+            <p class="local-indicator"><span></span> Stored securely</p>
+            <div class="notification-menu" id="notificationMenu">
+              <button class="notification-button" type="button" id="notificationButton" aria-label="Recent client alerts" aria-haspopup="true" aria-expanded="false">
+                <span aria-hidden="true"><i class="fa-solid fa-bell"></i></span><span class="notification-badge" id="notificationBadge" hidden>0</span>
+              </button>
+              <div class="notification-panel hidden" id="notificationPanel" role="dialog" aria-label="Recent client alerts">
+                <div class="notification-panel-head"><div><strong>Recent alerts</strong><span>Client replies matched to your applications</span></div><div class="notification-panel-actions"><button type="button" class="text-button" id="markAlertsRead">Mark read</button><button type="button" class="text-button clear-alerts-button" id="clearAlerts">Clear all</button></div></div>
+                <div id="notificationList"></div>
+              </div>
+            </div>
+            <button class="button button-secondary" type="button" id="openFollowUpTemplate" hidden aria-hidden="true">Follow-up template</button>
+            <button class="button button-primary" type="button" id="openAddModal" hidden aria-hidden="true"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add application</button>
+          </div>
+        </header>
+
+        <section class="view active" id="dashboardView" data-view-panel="dashboard" data-page="dashboard">
+          <section class="weekly-report-banner" aria-label="Weekly report">
+            <div><p class="eyebrow">WEEKLY REVIEW</p><h2>Track this week’s progress</h2><p id="weeklyReportPeriod">A summary of your current work week.</p></div>
+            <button class="button button-secondary" type="button" id="openWeeklyReport">View weekly report</button>
+          </section>
+          <section class="stat-grid" aria-label="Pipeline summary">
+            <article class="stat-card stat-card-primary">
+              <div class="stat-label"><span class="stat-icon">◎</span> Applications</div>
+              <strong id="totalApplications">0</strong>
+              <p id="applicationsDetail">No applications tracked yet</p>
+            </article>
+            <article class="stat-card stat-card-link" data-go-to="hired">
+              <div class="stat-label"><span class="stat-icon">✓</span> Active clients</div>
+              <strong id="activeClients">0</strong>
+              <p id="activeDetail">Clients currently in progress</p>
+            </article>
+            <article class="stat-card">
+              <div class="stat-label"><span class="stat-icon">↗</span> Applied today</div>
+              <strong id="conversationClients">0</strong>
+              <p id="conversationDetail">Applications submitted today</p>
+            </article>
+            <article class="stat-card">
+              <div class="stat-label"><span class="stat-icon">◴</span> Follow up</div>
+              <strong id="followUpClients">0</strong>
+              <p id="followUpDetail">Applications to revisit soon</p>
+            </article>
+          </section>
+
+          <section class="dashboard-grid">
+            <article class="panel platform-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">APPLICATION SOURCES</p>
+                  <h2>Where you applied</h2>
+                </div>
+                <button class="text-button" type="button" data-go-to="applications">View all</button>
+              </div>
+              <div class="platform-list" id="platformBreakdown"></div>
+            </article>
+
+            <article class="panel status-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">PIPELINE STATUS</p>
+                  <h2>At a glance</h2>
+                </div>
+              </div>
+              <div class="status-donut-row">
+                <div class="donut" id="statusDonut" aria-label="Application status chart"><span id="donutValue">0</span></div>
+                <div class="status-legend" id="statusLegend"></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="panel interview-calendar-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">INTERVIEWS ONLY</p>
+                <h2>Interview calendar</h2>
+              </div>
+              <div class="calendar-controls"><button class="icon-button" type="button" id="previousInterviewMonth" aria-label="Previous month">‹</button><strong id="interviewCalendarMonth"></strong><button class="icon-button" type="button" id="nextInterviewMonth" aria-label="Next month">›</button></div>
+            </div>
+            <div class="interview-calendar" id="interviewCalendar"></div>
+          </section>
+
+          <section class="panel recent-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">RECENTLY ADDED</p>
+                <h2>Latest applications</h2>
+              </div>
+              <button class="text-button" type="button" data-go-to="applications">View all</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Client / company</th><th>Platform</th><th>Status</th><th>Applied</th><th></th></tr>
+                </thead>
+                <tbody id="recentApplications"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view daily-task-view" id="dailyTaskView" data-view-panel="daily-task" data-page="daily-task">
+          <section class="daily-task-heading">
+            <div>
+              <p class="eyebrow"><i class="fa-solid fa-list-check" aria-hidden="true"></i> DAILY PLANNER</p>
+              <h2>Plan the work. Keep the record.</h2>
+              <p>Organize client work, applications, places to apply, and content in one daily list.</p>
+            </div>
+            <label class="daily-task-date-field"><span>Plan date</span><input id="dailyTaskDate" type="date" aria-label="Plan date" /></label>
+          </section>
+          <section class="daily-task-layout">
+            <section class="panel daily-task-list-panel" aria-labelledby="dailyTaskListTitle">
+              <div class="daily-task-section-heading daily-task-list-heading"><div><p class="eyebrow">YOUR PLAN</p><h3 id="dailyTaskListTitle">Tasks for today</h3></div><div class="daily-task-plan-actions"><span class="daily-task-count" id="dailyTaskCount">0 tasks</span><button class="button button-primary" type="button" id="openDailyTaskAddModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add task</button></div></div>
+              <div class="daily-task-list" id="dailyTaskList" aria-live="polite"></div>
+            </section>
+          </section>
+          <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
+            <div class="daily-task-section-heading daily-task-history-heading"><div><p class="eyebrow">COMPLETED WORK</p><h3 id="dailyTaskHistoryTitle">Task history</h3><p>Review what you finished on any day.</p></div></div>
+            <div class="daily-task-history-controls">
+              <label class="daily-task-date-field"><span>Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" /></label>
+              <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Same day last week</button></div>
+            </div>
+            <div class="daily-task-history-list" id="dailyTaskHistoryList" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <section class="view" id="applicationsView" data-view-panel="applications" data-page="applications">
+          <section class="application-workspace-head">
+            <div class="application-workspace-title">
+              <p class="eyebrow"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> PIPELINE MANAGEMENT</p>
+              <h2>Application pipeline</h2>
+              <p>Review applications, hiring stages, and next steps in one place.</p>
+            </div>
+            <div class="application-workspace-count">
+              <span class="application-workspace-count-icon" aria-hidden="true"><i class="fa-solid fa-briefcase"></i></span>
+              <span><small>Visible records</small><strong id="applicationListLabel">0 applications</strong></span>
+            </div>
+          </section>
+          <section class="application-filters" aria-label="Application filters">
+            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="applicationSearch" placeholder="Search company, role, platform, or notes" /></label>
+            <div class="application-filter-controls">
+              <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="applicationDateFilter" aria-label="Filter applications by exact date" /></label>
+              <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Added week</span><select id="applicationDateSort"><option value="0">This week</option></select></label>
+              <label class="application-filter-field"><span><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i> Stage</span><select id="statusFilter"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
+              <label class="application-filter-field"><span><i class="fa-solid fa-globe" aria-hidden="true"></i> Source</span><select id="platformFilter"><option value="">All sources</option></select></label>
+            </div>
+          </section>
+          <section class="panel application-panel">
+            <div class="application-list-head"><span><i class="fa-solid fa-list-check" aria-hidden="true"></i> Client / role</span><span>Source &amp; compensation</span><span>Stage</span><span>Applied &amp; activity</span><span>Action</span></div>
+            <div class="application-list" id="applicationList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="toApplyView" data-view-panel="to-apply" data-page="to-apply">
+          <section class="application-workspace-head to-apply-workspace-head">
+            <div class="application-workspace-title">
+              <p class="eyebrow"><i class="fa-solid fa-list-check" aria-hidden="true"></i> REMINDER MANAGEMENT</p>
+              <h2>Application reminders</h2>
+              <p>Keep upcoming application deadlines and follow-ups organized.</p>
+            </div>
+            <div class="to-apply-head-actions">
+              <div class="application-workspace-count">
+                <span class="application-workspace-count-icon to-apply-workspace-count-icon" aria-hidden="true"><i class="fa-regular fa-calendar-check"></i></span>
+                <span><small>Visible reminders</small><strong id="toApplyCountLabel">0 reminders</strong></span>
+              </div>
+              <button class="button button-primary" type="button" id="addToApplyButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add New List</button>
+            </div>
+          </section>
+          <section class="application-filters to-apply-filters" aria-label="Reminder filters">
+            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="toApplySearch" placeholder="Search title, link, or notes" /></label>
+            <div class="application-filter-controls to-apply-filter-controls">
+              <label class="application-filter-field"><span><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Sort reminders</span><select id="toApplySort"><option value="due-soonest">Due date (soonest)</option><option value="due-latest">Due date (latest)</option><option value="title-asc">Title (A to Z)</option></select></label>
+            </div>
+          </section>
+          <section class="panel to-apply-page-panel">
+            <div class="to-apply-list" id="toApplyList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
+          <section class="application-workspace-head hired-workspace-head">
+            <div class="application-workspace-title">
+              <p class="eyebrow"><i class="fa-solid fa-user-tie" aria-hidden="true"></i> ACTIVE CLIENTS</p>
+              <h2>Client roster</h2>
+              <p>Track contracts, billing, and shared document access in one place.</p>
+            </div>
+            <div class="application-workspace-count">
+              <span class="application-workspace-count-icon" aria-hidden="true"><i class="fa-solid fa-people-group"></i></span>
+              <span><small>Visible clients</small><strong id="hiredCountLabel">0 clients</strong></span>
+            </div>
+          </section>
+          <section class="toolbar">
+            <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="hiredSearch" placeholder="Search active clients" /></label>
+            <label class="date-filter"><span class="sr-only">Filter active clients by date</span><input type="date" id="hiredDateFilter" aria-label="Filter active clients by exact date" /></label>
+            <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+            <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
+          </section>
+          <section class="panel hired-panel">
+            <div class="hired-list" id="hiredList"></div>
+          </section>
+          <section class="panel hired-detail-panel hidden" id="hiredDetailPanel" aria-live="polite">
+            <div class="hired-detail-heading">
+              <div>
+                <p class="eyebrow">ACTIVE CLIENT</p>
+                <h2 id="hiredDetailTitle">Client details</h2>
+                <p class="hired-detail-subtitle" id="hiredDetailSubtitle"></p>
+              </div>
+              <button class="button button-secondary" type="button" id="closeHiredDetail">← All clients</button>
+            </div>
+            <dl class="hired-detail-grid hired-detail-grid-large" id="hiredDetailGrid"></dl>
+            <div class="hired-upload-section" id="hiredUploadSection">
+              <div id="hiredDocumentWorkspace"></div>
+              <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are kept in this browser for preview. No save-file dialog is used.</div>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="inboxView" data-view-panel="inbox" data-page="inbox">
+          <section class="application-workspace-head email-workspace-head">
+            <div class="application-workspace-title">
+              <p class="eyebrow"><i class="fa-solid fa-inbox" aria-hidden="true"></i> INBOX MANAGEMENT</p>
+              <h2>Client correspondence</h2>
+              <p>Review matched client messages and sent follow-ups.</p>
+            </div>
+            <div class="application-workspace-count">
+              <span class="application-workspace-count-icon email-workspace-count-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
+              <span><small>Visible messages</small><strong id="emailCountLabel">0 emails</strong></span>
+            </div>
+          </section>
+          <section class="application-filters email-filters" aria-label="Email filters">
+            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" placeholder="Search sender, recipient, subject, or message" /></label>
+            <div class="application-filter-controls email-filter-controls">
+              <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="emailDateFilter" aria-label="Filter emails by exact date" /></label>
+              <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Received week</span><select id="emailDateSort"><option value="0">This week</option></select></label>
+            </div>
+          </section>
+          <div class="email-view-tabs" role="tablist" aria-label="Email list view">
+            <button class="email-view-tab active" type="button" role="tab" aria-selected="true" data-email-view="client"><i class="fa-regular fa-envelope" aria-hidden="true"></i> Client emails</button>
+            <button class="email-view-tab" type="button" role="tab" aria-selected="false" data-email-view="sent"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i> Sent by you</button>
+          </div>
+          <section class="panel inbox-panel">
+            <div class="email-list" id="emailList"></div>
+          </section>
+          <p class="privacy-note">Gmail sync uses Google's own sign-in and reads message headers only. Jeff VA never sees your password or sends your email through its own server.</p>
+        </section>
+
+        <section class="view" id="documentsView" data-view-panel="documents" data-page="tools">
+          <section class="tools-workspace-heading">
+            <div>
+              <p class="eyebrow"><i class="fa-solid fa-toolbox" aria-hidden="true"></i> WORKSPACE RESOURCES</p>
+              <h2>Tools library</h2>
+            </div>
+          </section>
+          <section class="panel documents-page-panel">
+            <div class="documents-tabs" role="tablist" aria-label="Tools">
+              <button class="documents-tab active" type="button" role="tab" aria-selected="true" data-documents-tab="scripts"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Scripts</span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="links"><i class="fa-solid fa-link" aria-hidden="true"></i><span>Softcopy links</span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="documents"><i class="fa-regular fa-folder-open" aria-hidden="true"></i><span>Documents</span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="templates"><i class="fa-regular fa-copy" aria-hidden="true"></i><span>Templates</span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="invoices"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Invoices</span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="salary"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span>Salary</span></button>
+            </div>
+            <div class="documents-tab-panel" id="scriptsPanel" data-documents-panel="scripts">
+              <div class="scripts-section">
+                <div class="documents-subsection-head">
+                  <div><p class="eyebrow">TEXT SCRIPTS</p><h3>Reusable scripts</h3></div>
+                  <button class="button button-secondary" type="button" id="addScriptButton">+ Add script</button>
+                </div>
+                <div class="script-list" id="scriptList"></div>
+              </div>
+            </div>
+            <div class="documents-tab-panel hidden" id="personalDocumentsPanel" data-documents-panel="documents">
+              <div class="documents-subsection-head">
+                <div><p class="eyebrow">PERSONAL DOCUMENTS</p><h3>Saved documents</h3></div>
+                <label class="button button-secondary import-label" id="uploadDocumentButton" for="personalDocumentInput" hidden>+ Upload document</label>
+              </div>
+              <input id="personalDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+              <div class="personal-document-list" id="personalDocumentList"></div>
+            </div>
+            <div class="documents-tab-panel hidden" id="workLinksPanel" data-documents-panel="links">
+              <div class="work-links-section">
+                <div class="documents-subsection-head">
+                  <div>
+                    <p class="eyebrow">SOFTCOPY LINKS</p>
+                    <h3>Google Docs, Sheets, and other softcopy links</h3>
+                  </div>
+                  <button class="button button-secondary" type="button" id="addWorkLinkButton">+ Add softcopy link</button>
+                </div>
+                <div class="work-link-list" id="workLinkList"></div>
+              </div>
+            </div>
+            <div class="documents-tab-panel hidden" id="templatesPanel" data-documents-panel="templates">
+              <div class="documents-subsection-head">
+                <div><p class="eyebrow">DOCUMENT TEMPLATES</p><h3>Template tester</h3></div>
+              </div>
+              <div class="template-tester">
+                <label class="form-field"><span>Template</span><select id="documentTemplateSelect"></select></label>
+                <div class="template-tester-actions">
+                  <button class="button button-secondary" type="button" id="previewDocumentTemplateButton">Preview</button>
+                  <button class="button button-primary" type="button" id="sendDocumentTemplateTestButton">Send test to me</button>
+                </div>
+                <div class="template-preview" id="documentTemplatePreview"></div>
+              </div>
+            </div>
+            <div class="documents-tab-panel hidden" id="invoiceHistoryPanel" data-documents-panel="invoices">
+              <div class="documents-subsection-head">
+                <div><p class="eyebrow">BILLING RECORDS</p><h3>Sent invoices</h3></div>
+              </div>
+              <div class="invoice-list" id="invoiceList"></div>
+            </div>
+            <div class="documents-tab-panel hidden" id="salaryCalculatorPanel" data-documents-panel="salary">
+              <div class="salary-calculator">
+                <div class="documents-subsection-head">
+                  <div><p class="eyebrow">PAY CONVERTER</p><h3>Salary calculator</h3></div>
+                  <span class="salary-rate-note">1 USD = 58 PHP</span>
+                </div>
+                <div class="salary-calculator-fields">
+                  <label class="form-field"><span>Pay currency</span><select id="salaryCalculatorCurrency"><option value="USD">US dollars (USD)</option><option value="PHP">Philippine pesos (PHP)</option></select></label>
+                  <label class="form-field"><span>Hourly rate</span><input id="salaryCalculatorRate" type="number" min="0" step="0.01" value="10" placeholder="e.g. 10 or 400" /></label>
+                  <label class="form-field"><span>Hours per week</span><input id="salaryCalculatorHours" type="number" min="0" step="0.5" value="40" placeholder="e.g. 40" /></label>
+                  <label class="form-field"><span>Working days per week</span><input id="salaryCalculatorDays" type="number" min="0" max="7" step="0.5" value="5" placeholder="e.g. 5" /></label>
+                </div>
+                <div class="salary-calculator-result" aria-live="polite">
+                  <div><span>Estimated days per month</span><strong id="salaryCalculatorMonthlyDays">21.7 days</strong></div>
+                  <div><span>Total per month</span><strong id="salaryCalculatorMonthlyTotal">$1,733</strong></div>
+                  <div><span>Converted monthly</span><strong id="salaryCalculatorConversion">₱100,514</strong></div>
+                  <div><span>Converted hourly</span><strong id="salaryCalculatorHourlyConversion">₱580</strong></div>
+                </div>
+                <p class="salary-calculator-help">Monthly estimates use 52 weeks divided by 12 months. Conversion is approximate and uses the rate shown above.</p>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="modal daily-task-add-modal" id="dailyTaskAddModal" aria-labelledby="dailyTaskAddModalTitle">
+      <form class="daily-task-form" id="dailyTaskForm">
+        <div class="modal-heading">
+          <div><p class="eyebrow">ADD TO YOUR LIST</p><h2 id="dailyTaskAddModalTitle">What needs doing?</h2></div>
+          <button class="icon-button" type="button" id="closeDailyTaskAddModal" aria-label="Close add task form">×</button>
+        </div>
+        <label class="form-field">Task <span class="required">*</span><input id="dailyTaskTitle" maxlength="160" required placeholder="e.g. Prepare a proposal for the launch" /></label>
+        <div class="daily-task-form-row">
+          <label class="form-field">Type<select id="dailyTaskType"><option value="task">General task</option><option value="client">Client work</option><option value="application">Application</option><option value="apply">Apply somewhere</option><option value="content">Content</option></select></label>
+          <label class="form-field" id="dailyTaskRelatedField">Client or application<select id="dailyTaskRelated"><option value="">No linked record</option></select></label>
+        </div>
+        <label class="form-field hidden" id="dailyTaskDestinationField">Where should you apply?<input id="dailyTaskDestination" maxlength="200" placeholder="Company, platform, or application link" /></label>
+        <label class="form-field">Notes or content<textarea id="dailyTaskNotes" maxlength="2000" rows="3" placeholder="Add a brief, ideas, or anything to remember"></textarea></label>
+        <section class="daily-task-checklist-editor" aria-labelledby="dailyTaskChecklistEditorTitle">
+          <div class="daily-task-checklist-heading"><div><p class="eyebrow">CHECKLIST</p><h3 id="dailyTaskChecklistEditorTitle">Add items one at a time</h3></div><span id="dailyTaskDraftChecklistCount">0 items</span></div>
+          <div class="daily-task-checklist-add-row"><label class="form-field" for="dailyTaskChecklistInput">Checklist item<input id="dailyTaskChecklistInput" maxlength="180" placeholder="e.g. Update the application" /></label><button class="button button-secondary" type="button" id="dailyTaskAddChecklistButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add checklist</button></div>
+          <ol class="daily-task-draft-checklist" id="dailyTaskDraftChecklist"></ol>
+        </section>
+        <div class="modal-actions daily-task-form-actions"><button class="button button-secondary" type="button" id="cancelDailyTaskAddModal">Cancel</button><button class="button button-primary daily-task-add-button" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add task</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal daily-task-detail-modal" id="dailyTaskDetailModal" aria-labelledby="dailyTaskDetailTitle">
+      <div class="daily-task-detail-shell">
+        <div class="modal-heading">
+          <div><p class="eyebrow">TASK DETAILS</p><h2 id="dailyTaskDetailTitle">Task</h2></div>
+          <button class="icon-button" type="button" id="closeDailyTaskDetails" aria-label="Close task details">×</button>
+        </div>
+        <div id="dailyTaskDetailSummary"></div>
+        <section class="daily-task-detail-checklist" aria-labelledby="dailyTaskDetailChecklistTitle">
+          <div class="daily-task-checklist-heading"><div><p class="eyebrow">TASK CHECKLIST</p><h3 id="dailyTaskDetailChecklistTitle">Checklist</h3></div><span id="dailyTaskDetailChecklistCount">0 of 0</span></div>
+          <div class="daily-task-checklist-items" id="dailyTaskDetailChecklist" aria-live="polite"></div>
+          <form class="daily-task-checklist-form" id="dailyTaskChecklistForm">
+            <label class="form-field">Checklist item<input id="dailyTaskChecklistItemInput" maxlength="180" required placeholder="e.g. Confirm the final link" /></label>
+            <button class="button button-secondary" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add checklist</button>
+          </form>
+        </section>
+        <div class="modal-actions"><button class="button button-secondary" type="button" id="closeDailyTaskDetailsAction">Close</button></div>
+      </div>
+    </dialog>
+
+    <dialog class="modal small-modal app-confirm-modal" id="appConfirmModal" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmMessage">
+      <form method="dialog" class="app-confirm-form">
+        <div class="modal-heading">
+          <div><p class="eyebrow">CONFIRMATION</p><h2 id="appConfirmTitle">Confirm action</h2></div>
+          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Cancel">×</button>
+        </div>
+        <p class="app-confirm-message" id="appConfirmMessage"></p>
+        <div class="modal-actions">
+          <button class="button button-secondary" type="submit" value="cancel" formnovalidate>Cancel</button>
+          <button class="button button-primary" type="button" id="appConfirmAccept">Continue</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal email-result-modal" id="emailActionResultModal" aria-labelledby="emailActionResultTitle" aria-describedby="emailActionResultMessage">
+      <form method="dialog">
+        <div class="modal-heading email-result-heading">
+          <div class="email-result-header">
+            <div class="email-result-badge" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
+            <div><p class="eyebrow">EMAIL STATUS</p><h2 id="emailActionResultTitle">Email</h2></div>
+          </div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <p class="email-result-message" id="emailActionResultMessage"></p>
+        <div class="modal-actions email-result-actions">
+          <button class="button button-primary" value="ok" type="submit">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="scriptDialog" aria-labelledby="scriptDialogTitle">
+      <form method="dialog" id="scriptForm" class="script-form">
+        <div class="modal-heading">
+          <div><p class="eyebrow">SCRIPT</p><h2 id="scriptDialogTitle">Add script</h2></div>
+          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Close">×</button>
+        </div>
+        <input type="hidden" id="scriptId" />
+        <label class="form-field"><span>Script name</span><input id="scriptTitle" maxlength="120" required placeholder="e.g. Client introduction" /></label>
+        <label class="form-field"><span>Script text</span><textarea id="scriptContent" maxlength="10000" rows="10" required placeholder="Write your script here..."></textarea></label>
+        <div class="script-form-actions modal-actions">
+          <button class="button button-secondary" type="submit" value="cancel" formnovalidate id="cancelScriptButton">Cancel</button>
+          <button class="button button-primary" type="submit">Save script</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="workLinkDialog" aria-labelledby="workLinkDialogTitle">
+      <form method="dialog" id="workLinkForm" class="work-link-form">
+        <div class="modal-heading">
+          <div><p class="eyebrow">SOFTCOPY LINK</p><h2 id="workLinkDialogTitle">Add softcopy link</h2></div>
+          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Close">×</button>
+        </div>
+        <label class="form-field"><span>Link name</span><input id="workLinkName" maxlength="120" placeholder="e.g. Shared tracker or project doc" /></label>
+        <label class="form-field"><span>URL</span><input id="workLinkUrl" type="url" maxlength="500" placeholder="https://docs.google.com/..." required /></label>
+        <div class="work-link-form-actions modal-actions">
+          <button class="button button-secondary" type="submit" value="cancel" formnovalidate id="cancelWorkLinkButton">Cancel</button>
+          <button class="button button-primary" type="submit" id="saveWorkLinkButton">Save link</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="toApplyModal" aria-labelledby="toApplyModalTitle">
+      <form method="dialog" id="toApplyForm" class="to-apply-form">
+        <div class="modal-heading">
+          <div><p class="eyebrow" id="toApplyModalEyebrow">NEW LIST</p><h2 id="toApplyModalTitle">Add New List</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <input type="hidden" id="toApplyId" />
+        <label class="form-field">Title <span class="required">*</span><input id="toApplyTitle" maxlength="150" required placeholder="e.g. Virtual assistant role" /></label>
+        <label class="form-field">Application link <span class="required">*</span><input id="toApplyLink" type="url" maxlength="500" required placeholder="https://example.com/job" /></label>
+        <label class="form-field">Date needed to apply <span class="required">*</span><input id="toApplyDate" type="date" required /></label>
+        <label class="form-field form-field-wide">Reason or notes <textarea id="toApplyNotes" maxlength="1000" rows="4" placeholder="Why is this on hold or what should I remember before applying?"></textarea></label>
+        <div class="modal-actions modal-actions-split"><button class="danger-button" type="button" id="deleteToApplyButton" hidden>Delete</button><div class="modal-actions-right"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit">Save reminder</button></div></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="clientModal" aria-labelledby="clientModalTitle">
+      <form method="dialog" id="clientForm">
+        <div class="modal-heading">
+          <div><p class="eyebrow" id="modalEyebrow">NEW RECORD</p><h2 id="clientModalTitle">Add an applied job</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <input type="hidden" id="clientId" />
+        <div class="client-form-layout">
+          <section class="client-form-column">
+            <p class="form-column-label">CLIENT DETAILS</p>
+          <label class="form-field form-field-wide">Client or company name <span class="required">*</span><input id="clientName" maxlength="100" required placeholder="e.g. Acme Studio" /></label>
+            <label class="form-field">Contact person <span class="required">*</span><input id="contactName" maxlength="100" required placeholder="e.g. Jordan Lee" /></label>
+            <label class="form-field">Role or service <span class="required">*</span><input id="clientRole" maxlength="120" required placeholder="e.g. Website redesign" /></label>
+          <label class="form-field">Email <span class="required">*</span><input id="hiredEmail" type="email" maxlength="120" required placeholder="name@company.com" /></label>
+          <label class="form-field">Phone number <span class="required">*</span><input id="hiredPhone" type="tel" maxlength="40" required placeholder="e.g. +1 555 010 2938" /></label>
+          <label class="form-field">Website <input id="hiredWebsite" type="text" maxlength="200" placeholder="e.g. acmestudio.com" /></label>
+          <label class="form-field">Social media <input id="hiredSocial" type="text" maxlength="200" placeholder="e.g. @acmestudio" /></label>
+          <label class="form-field form-field-wide">Client location <select id="clientCountry"><option value="" selected>Select client country</option><option value="US">United States</option><option value="CA">Canada</option><option value="AU">Australia</option><option value="CN">China</option><option value="GB">United Kingdom</option><option value="PH">Philippines</option><option value="IN">India</option><option value="SG">Singapore</option><option value="JP">Japan</option><option value="HK">Hong Kong</option><option value="AE">United Arab Emirates</option><option value="NZ">New Zealand</option><option value="DE">Germany</option><option value="FR">France</option><option value="NL">Netherlands</option><option value="ES">Spain</option><option value="IT">Italy</option><option value="IE">Ireland</option><option value="BR">Brazil</option><option value="MX">Mexico</option><option value="CO">Colombia</option><option value="PE">Peru</option><option value="ZA">South Africa</option><option value="KR">South Korea</option><option value="TW">Taiwan</option><option value="IL">Israel</option><option value="OTHER">Other country</option></select><span id="clientRegionField" class="hidden"><select id="clientRegion"><option value="" selected disabled>Select client region</option><option data-countries="US,CA" value="America/New_York">Eastern</option><option data-countries="US,CA" value="America/Chicago">Central</option><option data-countries="US,CA" value="America/Denver">Mountain</option><option data-countries="US,CA" value="America/Los_Angeles">Pacific</option><option data-countries="CA" value="America/Halifax">Atlantic</option><option data-countries="CA" value="America/St_Johns">Newfoundland</option><option data-countries="US" value="America/Anchorage">Alaska</option><option data-countries="US" value="Pacific/Honolulu">Hawaii</option><option data-countries="AU" value="Australia/Sydney">East</option><option data-countries="AU" value="Australia/Adelaide">Central</option><option data-countries="AU" value="Australia/Perth">West</option></select></span><input id="hiredLocation" type="hidden" /><input id="clientTimeZone" type="hidden" /><small id="clientTimeZoneDisplay" class="field-help">Select the client country to determine the client timezone.</small></label>
+          <section class="client-follow-up-history hidden" id="clientFollowUpHistory" aria-live="polite"></section>
+          </section>
+          <section class="client-form-column">
+            <p class="form-column-label">APPLICATION DETAILS</p>
+          <p class="form-subsection-label">PLATFORM</p>
+          <label class="form-field">Where did you apply? <span class="required">*</span><select id="clientPlatform" required><option value="" selected disabled>Select platform</option><option>Crew Club</option><option>Direct client</option><option>Upwork</option><option>OnlineJobs.ph</option><option>LinkedIn</option><option>Indeed</option><option>Jobstreet</option><option>Freelancer</option><option>Fiverr</option><option>vaworkersph</option><option>Referral</option><option>Company website</option><option>Email outreach</option><option>Other</option></select></label>
+          <label class="form-field hidden" id="customPlatformField">Platform name <span class="required">*</span><input id="customPlatform" maxlength="80" placeholder="Name the platform" /></label>
+          <label class="form-field">Employment type <span class="required">*</span><select id="employmentType" required><option value="" selected disabled>Select type</option><option>Full time</option><option>Part time</option><option>Gig</option></select></label>
+          <p class="form-subsection-label">SALARY</p>
+          <label class="form-field">Salary type <select id="salaryType"><option value="" selected>Not set</option><option value="monthly">Monthly</option><option value="hourly">Per hour</option></select></label>
+          <label class="form-field">Salary currency <select id="salaryCurrency"><option value="USD">US Dollar (USD)</option><option value="PHP">Philippine Peso (PHP)</option></select></label>
+          <label class="form-field salary-amount-field hidden">Salary amount <input id="salaryAmount" type="number" min="0" step="0.01" placeholder="e.g. 5000 or 25" /></label>
+          <label class="form-field salary-hours-field hidden">Hours per week <input id="salaryHoursPerWeek" type="number" min="1" max="80" step="0.5" placeholder="e.g. 25" /></label>
+          <div class="salary-estimate-field hidden" role="status" aria-live="polite"><span class="salary-estimate-label">Estimated monthly pay</span><span class="salary-estimate-values"><strong id="salaryMonthlyEstimatePreview">$0</strong><span id="salaryMonthlyEstimatePhp" class="salary-estimate-php">approx. ₱0</span></span></div>
+          <p class="form-subsection-label">STATUS</p>
+          <label class="form-field">Current status <span class="required">*</span><select id="clientStatus" required><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
+          <label class="form-field hidden" id="nextStepField">Next step <input id="nextStep" maxlength="300" placeholder="e.g. Send portfolio or schedule a call" /></label>
+          <label class="form-field contract-field hidden">Contract end date <input id="contractEndDate" type="date" /><small class="field-help">Leave blank if the contract has no end date.</small></label>
+          <label class="form-field">Date applied <span class="required">*</span><input id="appliedDate" type="date" required /></label>
+          <label class="form-field interview-field hidden">Interview date <input id="interviewDate" type="date" /></label>
+          <label class="form-field interview-field hidden">Interview meeting link <input id="interviewLink" type="url" maxlength="300" placeholder="https://meet.google.com/..." /></label>
+          <label class="form-field">Follow-up date <input id="followUpDate" type="date" /><small class="field-help">Choose a date, or enable automatic follow-up for one week from today.</small></label>
+          <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. On the selected date, the app sends one email between 8:00 AM and 5:00 PM in the client timezone.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label>
+          <label class="form-field form-field-wide">Notes <textarea id="clientNotes" maxlength="1000" rows="4" placeholder="A useful detail, next step, rate, or link…"></textarea></label>
+          <section class="client-email-history hidden" id="clientEmailHistory" aria-live="polite">
+            <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this application</h3></div><strong id="clientEmailHistoryCount">0 emails</strong></div>
+            <div class="client-email-history-list" id="clientEmailHistoryList"></div>
+          </section>
+          </section>
+        </div>
+        <div class="modal-actions modal-actions-split">
+          <button class="danger-button" type="button" id="deleteClientButton" hidden>Delete</button>
+          <div class="modal-actions-right"><div class="send-email-menu"><button class="button button-secondary send-email-menu-button" type="button" id="sendEmailMenuButton" aria-haspopup="true" aria-expanded="false" hidden>Send <span aria-hidden="true">▾</span></button><div class="send-email-menu-panel hidden" id="sendEmailMenu" role="menu"><button type="button" id="sendClientEmailButton" role="menuitem">Send email</button><button type="button" id="sendProceedEmailButton" role="menuitem" hidden>Send proceed email</button></div></div><button class="button button-secondary" value="cancel" type="submit" formnovalidate id="closeClientDetailsButton">Close</button><button class="button button-primary" type="submit" id="saveClientButton">Save application</button></div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal follow-up-editor-modal" id="followUpEditorModal" aria-labelledby="followUpEditorTitle">
+      <form method="dialog" id="followUpEditorForm">
+        <div class="modal-heading">
+          <div><p class="eyebrow">APPLICATION FOLLOW-UP</p><h2 id="followUpEditorTitle">Edit follow-up</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <div class="follow-up-editor-fields">
+          <label class="form-field form-field-wide">Subject <input id="followUpEditorSubject" maxlength="200" required /></label>
+          <label class="form-field form-field-wide">Message <textarea id="followUpEditorBody" rows="12" maxlength="5000" required></textarea></label>
+        </div>
+        <p class="follow-up-editor-status">Available placeholders: <code>{{contact}}</code>, <code>{{role}}</code>, <code>{{appliedDate}}</code>, and <code>{{client}}</code>.</p>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit">Save follow-up</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="clientDocumentPickerModal" aria-labelledby="clientDocumentPickerTitle">
+      <form method="dialog">
+        <div class="modal-heading">
+          <div><p class="eyebrow">NEXT STEP</p><h2 id="clientDocumentPickerTitle">Add a document to this client</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <p class="settings-copy">Upload the contract file for this client. It will be attached to the client for this one-time email and will not be saved in Tools.</p>
+        <div class="activation-file-info hidden" id="activationFileInfo"></div>
+        <label class="button button-primary import-label picker-upload" id="uploadActivationFileButton" for="clientPickerUploadInput">+ Upload contract file</label>
+        <input id="clientPickerUploadInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+        <p class="compose-status" id="clientDocumentPickerStatus" role="status"></p>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" id="cancelActivationDocumentButton">Cancel</button><button class="button button-primary" type="button" id="continueActivationEmailButton" disabled>Next</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="clientEmailConfirmationModal" aria-labelledby="clientEmailConfirmationTitle">
+      <form method="dialog" id="clientEmailConfirmationForm">
+        <div class="modal-heading">
+          <div><p class="eyebrow">ACTIVE CLIENT SETUP</p><h2 id="clientEmailConfirmationTitle">Confirm client email</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <p class="settings-copy" id="clientEmailConfirmationStatus"></p>
+        <p class="follow-up-editor-status">The client will be changed to Active Client after the file is attached. Choose a saved email template in the next step, review it, and send it through Gmail.</p>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="button" id="confirmClientEmailButton">Continue to email</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="invoiceDocumentPickerModal" aria-labelledby="invoiceDocumentPickerTitle">
+      <form method="dialog">
+        <div class="modal-heading">
+          <div><p class="eyebrow">SEND INVOICE</p><h2 id="invoiceDocumentPickerTitle">Choose an invoice</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <div class="compose-fields invoice-fields">
+          <label class="form-field">Invoice number <span class="required">*</span><input id="invoiceNumber" maxlength="60" required placeholder="Detected from the invoice" /></label>
+          <label class="form-field">Date of issue <span class="required">*</span><input id="invoiceIssueDate" maxlength="60" required placeholder="Detected from the invoice" /></label>
+          <label class="form-field">Billing period <span class="required">*</span><input id="invoiceBillingPeriod" maxlength="120" required placeholder="Detected from the invoice" /></label>
+          <label class="form-field">Due date <span class="required">*</span><input id="invoiceDueDate" maxlength="60" required placeholder="Detected from the invoice" /></label>
+          <label class="form-field">Service <span class="required">*</span><input id="invoiceService" maxlength="120" required value="Social Media Management Services" /></label>
+          <label class="form-field">Task starts <span class="required">*</span><input id="invoiceStartDate" type="date" required /></label>
+          <label class="form-field">Task ends <span class="required">*</span><input id="invoiceEndDate" type="date" required /></label>
+        </div>
+        <p class="settings-copy" id="invoiceDocumentPickerDescription">Upload the invoice you want to send. It will be used once and will not be saved to the Documents page.</p>
+        <label class="button button-primary import-label picker-upload" for="invoicePickerUploadInput">+ Choose invoice file</label>
+        <input id="invoicePickerUploadInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+        <p class="compose-status" id="invoiceDocumentPickerStatus" role="status"></p>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button><button class="button button-primary" type="button" id="useInvoiceFileButton" disabled>Continue with this file</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="invoiceDuplicateAlertModal" aria-labelledby="invoiceDuplicateAlertTitle">
+      <form method="dialog">
+        <div class="modal-heading">
+          <div><p class="eyebrow">DUPLICATE INVOICE</p><h2 id="invoiceDuplicateAlertTitle">Invoice already sent</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <p class="settings-copy" id="invoiceDuplicateAlertMessage"></p>
+        <div class="modal-actions"><button class="button button-primary" value="ok" type="submit">OK</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="documentEmailReminderModal" aria-labelledby="documentEmailReminderTitle">
+      <form id="documentEmailReminderForm">
+        <div class="modal-heading">
+          <div><p class="eyebrow">CLIENT FILES</p><h2 id="documentEmailReminderTitle">Send updated version later</h2></div>
+          <button class="icon-button" value="cancel" type="button" id="cancelDocumentEmailReminder" aria-label="Close">×</button>
+        </div>
+        <p class="settings-copy">Choose when you want to be reminded to send the updated document.</p>
+        <label class="form-field">Reminder date <span class="required">*</span><input id="documentEmailReminderDate" type="date" required /></label>
+        <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelDocumentEmailReminderAction">Cancel</button><button class="button button-primary" type="submit">Set reminder</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal weekly-report-modal" id="weeklyReportModal" aria-labelledby="weeklyReportTitle">
+      <form method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">WEEKLY REPORT</p><h2 id="weeklyReportTitle">Weekly activity</h2><p class="weekly-report-date" id="weeklyReportDate"></p></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
+        <div class="weekly-report-period-controls"><label for="weeklyReportHistory">Report history</label><select id="weeklyReportHistory"><option value="0">Choose a previous week</option></select><button class="button button-secondary" type="button" id="showCurrentWeeklyReport">Current week</button></div>
+        <div class="weekly-report-metrics" id="weeklyReportMetrics"></div>
+        <section class="weekly-report-chart-section"><div class="weekly-report-section-heading"><h3>Weekly activity</h3><span>Completed this week</span></div><div class="weekly-report-chart" id="weeklyReportChart" role="img" aria-label="Weekly activity chart"></div></section>
+        <section class="weekly-report-email-section"><div class="weekly-report-section-heading"><h3>Emails sent</h3><span id="weeklyReportEmailTotal"></span></div><div class="weekly-report-email-list" id="weeklyReportEmailBreakdown"></div></section>
+        <section class="weekly-report-activity-section"><div class="weekly-report-section-heading"><h3>Activity log</h3><span id="weeklyReportActivityCount"></span></div><div class="weekly-report-activity-list" id="weeklyReportActivities"></div></section>
+        <div class="modal-actions"><button class="button button-secondary" type="button" id="downloadWeeklyReport">Download PDF report</button><button class="button button-primary" value="done" type="submit">Done</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="weeklyReportDownloadConfirmation" aria-labelledby="weeklyReportDownloadTitle">
+      <form method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">WEEKLY REPORT</p><h2 id="weeklyReportDownloadTitle">Download PDF report?</h2></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
+        <p class="settings-copy">This downloads a PDF snapshot of the current weekly report as you see it on screen.</p>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button><button class="button button-primary" type="button" id="confirmWeeklyReportDownload">Download report</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="hiredModal" aria-labelledby="hiredModalTitle">
+      <form method="dialog" id="hiredForm">
+        <div class="modal-heading">
+          <div><p class="eyebrow">CONTRACT &amp; DOCUMENTS</p><h2 id="hiredModalTitle">Client documents</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <div class="hired-documents-field hired-documents-field-standalone">
+          <div class="hired-documents-field-head">
+            <span>Contract &amp; documents</span>
+            <label class="text-button import-label" for="hiredDocumentInput">+ Attach file</label>
+            <input id="hiredDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden />
+          </div>
+          <div class="doc-list" id="hiredDocumentList"></div>
+          <p class="doc-note">Documents are attached to this client and stored securely in your Supabase account for preview. No computer-folder save step is required.</p>
+        </div>
+        <div class="modal-actions"><button class="button button-primary" value="done" type="submit">Done</button></div>
+      </form>
+    </dialog>
+
+
+    <dialog class="modal document-viewer-modal" id="documentViewerModal" aria-labelledby="documentViewerTitle">
+      <form method="dialog">
+        <div class="modal-heading">
+          <div><p class="eyebrow">DOCUMENT VIEWER</p><h2 id="documentViewerTitle">Document</h2><p class="document-viewer-note" id="documentViewerNote"></p></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <iframe id="documentViewerFrame" title="Document preview"></iframe>
+        <div class="modal-actions"><a class="button button-secondary" id="documentViewerOpen" target="_blank" rel="noopener">Open / download</a><button class="button button-primary" value="done" type="submit">Done</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal email-compose-modal" id="emailComposeModal" aria-labelledby="emailComposeTitle">
+      <form method="dialog" id="emailComposeForm">
+        <div class="modal-heading">
+          <div><p class="eyebrow">CLIENT EMAIL</p><h2 id="emailComposeTitle">Write an email</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <div class="compose-template-row">
+          <label class="form-field">Template
+            <select id="emailTemplateSelect"><option value="">Start from scratch</option></select>
+          </label>
+          <button class="button button-secondary" type="button" id="deleteEmailTemplateButton" hidden>Delete template</button>
+        </div>
+        <div class="compose-fields">
+          <label class="form-field">To <input id="composeTo" type="email" required /></label>
+          <label class="form-field">Subject <input id="composeSubject" maxlength="200" required /></label>
+          <label class="form-field form-field-wide">Message <textarea id="composeBody" rows="10" required placeholder="Write your message..."></textarea></label>
+          <div class="compose-attachment-row">
+            <input id="composeAttachmentInput" type="file" accept=".pdf,.doc,.docx,.rtf,.txt,.odt,.png,.jpg,.jpeg" hidden />
+            <button class="button button-secondary" type="button" id="attachFileButton">Attach file</button>
+            <button class="button button-secondary" type="button" id="removeComposeAttachmentButton" hidden>Remove attachment</button>
+            <span class="compose-attachment-name" id="composeAttachmentName"></span>
+          </div>
+          <div class="compose-template-save">
+            <input id="emailTemplateName" maxlength="80" placeholder="Template name" aria-label="Template name" />
+            <button class="button button-secondary" type="button" id="saveEmailTemplateButton">Save as template</button>
+          </div>
+        </div>
+        <p class="compose-status" id="emailComposeStatus" role="status"></p>
+        <div class="modal-actions">
+          <button class="button button-secondary" value="cancel" type="submit" formnovalidate id="cancelActivationEmailButton">Cancel</button>
+          <button class="button button-primary" type="button" id="sendEmailButton">Send email</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal email-detail-modal" id="emailDetailModal" aria-labelledby="emailDetailTitle">
+      <form method="dialog">
+        <div class="modal-heading">
+          <div><p class="eyebrow" id="emailDetailEyebrow">EMAIL DETAILS</p><h2 id="emailDetailTitle">Email</h2></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
+        </div>
+        <div class="email-detail-meta">
+          <div><span>From</span><strong id="emailDetailFrom"></strong></div>
+          <div><span>To</span><strong id="emailDetailTo"></strong></div>
+          <div><span id="emailDetailDateLabel">Date</span><strong id="emailDetailDate"></strong></div>
+        </div>
+        <div class="email-detail-body" id="emailDetailBody"></div>
+        <p class="compose-status" id="emailDetailStatus" role="status"></p>
+        <div class="modal-actions">
+          <button class="button button-secondary" value="cancel" type="submit">Close</button>
+          <button class="button button-primary" type="button" id="emailDetailComposeButton">Send email</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal application-emails-modal" id="applicationEmailsModal" aria-labelledby="applicationEmailsTitle" aria-describedby="applicationEmailsSummary">
+      <form method="dialog" class="application-emails-form">
+        <div class="modal-heading">
+          <div><p class="eyebrow">APPLICATION EMAILS</p><h2 id="applicationEmailsTitle">Matching emails</h2></div>
+          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Close">×</button>
+        </div>
+        <p class="application-emails-summary" id="applicationEmailsSummary"></p>
+        <div class="application-emails-list" id="applicationEmailsList"></div>
+        <div class="modal-actions"><button class="button button-secondary" type="submit" value="cancel" formnovalidate>Close</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="settingsModal" aria-labelledby="settingsTitle">
+      <form method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">YOUR DEVICE</p><h2 id="settingsTitle">Local data</h2></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
+        <p class="settings-copy">Your applications, email headers, alerts, and attached documents are stored in your private Supabase account. Export to Excel when you want a separate backup; attached document files are not included in the Excel backup.</p>
+        <div class="settings-stats"><span><strong id="settingsAppCount">0</strong> applications</span><span><strong id="settingsEmailCount">0</strong> email headers</span></div>
+        <label class="form-field">Browser-download Excel backup
+          <select id="autoBackupFrequency" aria-describedby="autoBackupNote">
+            <option value="off">Off</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Every week</option>
+          </select>
+        </label>
+        <p class="settings-copy" id="autoBackupNote">An updated Excel copy is saved automatically to Documents\Jeff VA Backup.xlsx while Jeff VA is open. Downloaded backups still use your browser Downloads folder.</p>
+        <p class="backup-status" id="documentsBackupStatus" role="status" aria-live="polite">Waiting for the first Documents backup.</p>
+        <button class="danger-button" type="button" id="clearDataButton">Clear all cloud data</button>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Done</button></div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/gmail-config.js"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/app.js?v=20260928-6"></script>
+  </body>
+</html>
