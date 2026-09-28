@@ -256,7 +256,7 @@
       <tr>
         <td><div class="table-client">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
         <td>${escapeHtml(item.platform)}</td><td>${statusPill(item.status)}${matchBadge(item)}</td><td>${formatDate(item.appliedDate)}</td>
-        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${item.id}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
+        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
       </tr>
     `).join('');
   }
@@ -316,12 +316,12 @@
             : `${formatSalaryAmount(item.salaryAmount, currency, 'hourly')}`
           : 'Salary not set';
       return `
-      <article class="application-row${isInterviewToday(item) ? ' interview-today' : ''}" data-view-details="${item.id}" tabindex="0" role="button" aria-label="View details for ${escapeHtml(item.clientName)}">
+      <article class="application-row${isInterviewToday(item) ? ' interview-today' : ''}" data-view-details="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="View details for ${escapeHtml(item.clientName)}">
         <div><h3 class="client-card-title">${escapeHtml(item.clientName)}</h3><p class="client-card-subtitle">${escapeHtml(item.role || item.contact || item.nextStep || item.notes || 'No extra details')}</p>${item.website ? `<a class="client-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>` : ''}${item.interviewLink ? `<a class="interview-link-button" href="${escapeHtml(normalizeUrl(item.interviewLink))}" target="_blank" rel="noopener"><span aria-hidden="true">↗</span> Join interview</a>` : ''}</div>
         <div class="application-meta">${escapeHtml(item.platform)}<small>${escapeHtml(item.employmentType || 'Employment type not set')}</small><small class="application-salary">${escapeHtml(salaryText)}</small></div>
         <div>${statusPill(item.status)}${item.interviewPriority ? '<span class="interview-priority-badge">INTERVIEW</span>' : ''}${matchBadge(item)}</div>
         <div class="application-meta">${emailDate(item.appliedDate)}<small>Applied${item.interviewDate ? ` · Interview ${formatDate(item.interviewDate)}` : ''}${item.followUpDate ? ` · Follow up ${formatDate(item.followUpDate)}` : ''}</small><small>Added ${emailDate(applicationAddedDate(item))}</small></div>
-        <button class="icon-button list-icon-button update-row-button" type="button" data-edit-id="${item.id}" aria-label="Update ${escapeHtml(item.clientName)}" title="Update application">Update</button>
+        <button class="icon-button list-icon-button update-row-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Update ${escapeHtml(item.clientName)}" title="Update application">Update</button>
       </article>
     `; }).join('');
     const newestFirst = sortByDate(filtered, applicationAddedDate);
@@ -522,7 +522,7 @@
       const sentClass = item.direction === 'sent' ? ' sent' : '';
       const sentBadge = item.direction === 'sent' ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = item.direction === 'sent' ? 'Sent' : 'Received';
-      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}"><span class="email-avatar">${escapeHtml(initial)}</span><div><h3 class="email-subject" title="${escapeHtml(item.subject)}">${escapeHtml(item.subject || '(No subject)')} ${sentBadge}</h3><p class="email-from">${escapeHtml(item.from || 'Unknown sender')}</p>${matchTag}</div><time class="email-date"><span>${dateLabel}</span>${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${item.id}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${item.id}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${item.id}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${item.id}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}"><span class="email-avatar">${escapeHtml(initial)}</span><div><h3 class="email-subject" title="${escapeHtml(item.subject)}">${escapeHtml(item.subject || '(No subject)')} ${sentBadge}</h3><p class="email-from">${escapeHtml(item.from || 'Unknown sender')}</p>${matchTag}</div><time class="email-date"><span>${dateLabel}</span>${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${sectionHeading}${listHead}${renderEmailRows(visibleEmails)}</section>`;
   }
@@ -584,7 +584,7 @@
       const contractEnded = isContractEnded(item);
       const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
       const statusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
-      return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${item.id}" tabindex="0" role="button">
+      return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
         <span class="hired-card-head"><span><strong class="client-card-title">${escapeHtml(item.clientName)}</strong><span class="client-card-subtitle">${escapeHtml(item.role || 'No role added')}</span></span><span class="hired-card-arrow" aria-hidden="true">→</span></span>
         <span class="client-contract-status ${statusClass}">${escapeHtml(contractStatus)}${item.contractEndDate ? ` · ends ${escapeHtml(formatDate(item.contractEndDate))}` : ''}</span>
         ${matchBadge(item) ? `<span>${matchBadge(item)}</span>` : ''}

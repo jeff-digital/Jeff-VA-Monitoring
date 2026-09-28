@@ -1,13 +1,43 @@
   // --- Active client documents ---
   // Document binaries are stored in the private Supabase Storage bucket; only metadata and
   // the storage path are kept in the user's app_state row. Nothing is stored in IndexedDB.
+  const PDFJS_MODULE_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs';
+  const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
+  const MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024;
+  const DOCUMENT_CONTENT_TYPES = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  };
+  let pdfjsModulePromise = null;
+
+  function loadPdfJs() {
+    if (!pdfjsModulePromise) {
+      pdfjsModulePromise = import(PDFJS_MODULE_URL).then(pdfjs => {
+        pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        return pdfjs;
+      }).catch(error => {
+        pdfjsModulePromise = null;
+        throw error;
+      });
+    }
+    return pdfjsModulePromise;
+  }
+
+  function documentContentType(file) {
+    if (Object.values(DOCUMENT_CONTENT_TYPES).includes(file.type)) return file.type;
+    const extension = String(file.name || '').split('.').pop().toLowerCase();
+    return DOCUMENT_CONTENT_TYPES[extension] || 'application/octet-stream';
+  }
+
   async function saveDocumentBlob(id, file) {
     const client = requireSupabase();
     if (!currentUser) throw new Error('Not signed in');
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) throw new Error('Documents must be 25 MB or smaller.');
     const path = `${currentUser.id}/${id}`;
     const { error } = await client.storage.from(SUPABASE_BUCKET).upload(path, file, {
       upsert: false,
-      contentType: file.type || 'application/octet-stream'
+      contentType: documentContentType(file)
     });
     if (error) throw error;
     return path;
@@ -198,6 +228,10 @@
 
   async function uploadPersonalDocument(file) {
     if (!file) return;
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      toast('Documents must be 25 MB or smaller.');
+      return null;
+    }
     if (!/\.(pdf|doc|docx)$/i.test(file.name)) {
       toast('Please choose a PDF or Word document.');
       return;
@@ -208,7 +242,7 @@
       const client = requireSupabase();
       const { error } = await client.storage.from(SUPABASE_BUCKET).upload(storagePath, file, {
         upsert: false,
-        contentType: file.type || 'application/octet-stream'
+        contentType: documentContentType(file)
       });
       if (error) throw error;
       data.personalDocuments = data.personalDocuments || [];
@@ -264,9 +298,9 @@
 
   async function extractInvoiceText(file) {
     const extension = file.name.split('.').pop().toLowerCase();
-    if (extension === 'pdf' && window.pdfjsLib) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    if (extension === 'pdf') {
+      const pdfjs = await loadPdfJs();
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
       const pages = [];
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
         const page = await pdf.getPage(pageNumber);
@@ -657,9 +691,9 @@
         ${item.contractEndDate && dateKey(item.contractEndDate) < today() ? '' : `<div class="document-row-menu">
           <button class="icon-button document-menu-button" type="button" aria-label="Document actions" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>
           <div class="document-menu hidden">
-            <button type="button" data-doc-open="${doc.id}">View File</button>
-            <button type="button" data-doc-email="${doc.id}">Send Email</button>
-            <button type="button" class="document-menu-danger" data-doc-remove="${doc.id}">Delete File</button>
+            <button type="button" data-doc-open="${escapeHtml(doc.id)}">View File</button>
+              <button type="button" data-doc-email="${escapeHtml(doc.id)}">Send Email</button>
+              <button type="button" class="document-menu-danger" data-doc-remove="${escapeHtml(doc.id)}">Delete File</button>
           </div>
         </div>`}
       </div>`;
@@ -685,11 +719,11 @@
         <div class="document-archive-list">
           ${archiveItems.map(doc => `
             <div class="document-archive-item">
-              <button type="button" class="document-archive-name" data-doc-open="${doc.id}">
+              <button type="button" class="document-archive-name" data-doc-open="${escapeHtml(doc.id)}">
                 <span class="doc-type-icon">${/\.pdf$/i.test(doc.name) ? 'PDF' : 'DOC'}</span>
                 <span class="document-archive-meta"><span class="document-archive-filename">COA | ${escapeHtml(formatDate(doc.addedAt.slice(0, 10)))}</span><span class="document-archive-date">${formatFileSize(doc.size)}</span></span>
               </button>
-              <button type="button" class="doc-remove archive-delete-button" data-doc-remove="${doc.id}" aria-label="Delete ${escapeHtml(doc.name)} from the archive" title="Delete file">Delete file</button>
+              <button type="button" class="doc-remove archive-delete-button" data-doc-remove="${escapeHtml(doc.id)}" aria-label="Delete ${escapeHtml(doc.name)} from the archive" title="Delete file">Delete file</button>
             </div>`).join('')}
         </div>
       </div>` : ''}`;
@@ -713,7 +747,7 @@
       if (/\.pdf$/i.test(doc.name) || blob.type === 'application/pdf') {
         target.innerHTML = `<iframe src="${url}" title="PDF preview for ${escapeHtml(doc.name)}"></iframe>`;
       } else {
-        target.innerHTML = `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(doc.name)}</h4><p>Word preview is not rendered directly by the browser. Use “Open Word file” to view the saved document.</p><button class="button button-primary" type="button" data-doc-open="${doc.id}">Open Word file</button></div>`;
+        target.innerHTML = `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(doc.name)}</h4><p>Word preview is not rendered directly by the browser. Use “Open Word file” to view the saved document.</p><button class="button button-primary" type="button" data-doc-open="${escapeHtml(doc.id)}">Open Word file</button></div>`;
       }
     } catch { target.innerHTML = '<div class="document-loading">Could not load the document preview.</div>'; }
   }
@@ -723,7 +757,7 @@
     if (!list) return;
     const docs = item.documents || [];
     list.innerHTML = docs.length ? docs.map(doc => `
-      <div class="doc-row"><button type="button" class="doc-name" data-doc-open="${doc.id}"><span class="doc-type-icon">${/\.pdf$/i.test(doc.name) ? 'PDF' : 'DOC'}</span><span class="doc-name-text">${escapeHtml(doc.name)}</span></button><span class="doc-size">${formatFileSize(doc.size)}</span><button type="button" class="doc-remove" data-doc-remove="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}">×</button></div>
+      <div class="doc-row"><button type="button" class="doc-name" data-doc-open="${escapeHtml(doc.id)}"><span class="doc-type-icon">${/\.pdf$/i.test(doc.name) ? 'PDF' : 'DOC'}</span><span class="doc-name-text">${escapeHtml(doc.name)}</span></button><span class="doc-size">${formatFileSize(doc.size)}</span><button type="button" class="doc-remove" data-doc-remove="${escapeHtml(doc.id)}" aria-label="Remove ${escapeHtml(doc.name)}">×</button></div>
     `).join('') : '<p class="doc-empty">No documents attached yet.</p>';
   }
 

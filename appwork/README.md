@@ -18,7 +18,7 @@ The frontend uses the Supabase **anon/publishable key** only. Never put a Supaba
 
 1. Create a project at Supabase.
 2. In Supabase, open **SQL Editor** and run the complete contents of `sql/supabase-schema.sql`.
-   This also enables Supabase Realtime for the app state so recent alerts refresh across open browsers.
+   This enables Supabase Realtime and configures the private document bucket to accept only PDF/Word files up to 25 MiB. Re-run the script to apply the bucket limits if the bucket already exists.
 3. In Supabase, open **Authentication -> Users** and create your private user account. Use the email/password you want to use on the Jeff VA login screen.
 4. In Supabase, open **Project Settings -> API** and copy:
    - **Project URL**
@@ -31,8 +31,8 @@ window.SUPABASE_ANON_KEY = 'YOUR-PUBLISHABLE-OR-ANON-KEY';
 window.SUPABASE_LOGIN_EMAIL = 'your-supabase-login-email@example.com';
 ```
 
-6. Keep `js/supabase-config.js` private because it reveals your project URL and public client key. It must **not** contain a service-role/secret key.
-7. Keep the ZIP/project folder private. Anyone who receives the folder can see the frontend source and public client key. Your Supabase RLS policies are the protection that prevents unauthenticated access to the data.
+6. `js/supabase-config.js` contains the project URL and publishable/anon key, which are visible to browsers by design. Never put a service-role/secret key or Google OAuth client secret in frontend files. Supabase RLS is what protects user data.
+7. Keep the GitHub repository private if you do not want people browsing the source. A deployed website still exposes the files you choose to publish, so deploy only the runtime assets.
 8. For the most reliable local-browser behavior, run the folder from a small local HTTP server instead of opening `index.html` directly:
 
 ```powershell
@@ -42,6 +42,12 @@ python local_server.py
 Then open `http://localhost:8080` on the same computer. To open Jeff VA on a phone or another computer connected to the same Wi-Fi, use the `For mobile on the same Wi-Fi` address printed by the server, such as `http://192.168.1.25:8080/`. Keep the server window open and allow Python through Windows Defender Firewall on private networks if Windows asks.
 
 For Windows, you can double-click `start-jeff-va.bat` in the project folder. It starts the local server and opens Jeff VA in your browser, so you do not need to open VS Code or type the commands manually. Keep the small server window open while using the app.
+
+## Cloudflare Pages deployment
+
+Connect the private GitHub repository to Cloudflare Pages with production branch `main`, build command `bash ./build-cloudflare.sh`, and output directory `dist`. The build copies only `index.html`, CSS, the favicon, browser JavaScript/config, and Cloudflare response headers. Do not set `appwork` itself as the output directory; that would also publish the local server, SQL schema, README, and source modules. The Pages output includes a Content Security Policy and standard security headers.
+
+The local Python server and its automatic Documents backup are not included in the Pages output. Supabase records and private document storage continue to work online.
 
 ## Automatic Documents backup
 

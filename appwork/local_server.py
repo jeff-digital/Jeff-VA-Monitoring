@@ -9,6 +9,7 @@ written workbook behind.
 from __future__ import annotations
 
 import json
+import ipaddress
 import os
 import socket
 from http import HTTPStatus
@@ -22,7 +23,10 @@ PORT = 8080
 BACKUP_PATH = "/api/automatic-backup"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
-ALLOWED_ORIGINS = {f"http://localhost:{PORT}", f"http://127.0.0.1:{PORT}"}
+ALLOWED_BACKUP_HOSTS = {
+    f"http://localhost:{PORT}": f"localhost:{PORT}",
+    f"http://127.0.0.1:{PORT}": f"127.0.0.1:{PORT}",
+}
 
 
 def local_network_address() -> str:
@@ -34,12 +38,13 @@ def local_network_address() -> str:
         return "your-computer-ip"
 
 
-def is_allowed_origin(origin: str, host: str) -> bool:
-    if origin in ALLOWED_ORIGINS:
-        return True
-    parsed_origin = urlparse(origin)
-    parsed_host = urlparse(f"http://{host}")
-    return parsed_origin.scheme == "http" and parsed_origin.port == PORT and parsed_origin.hostname == parsed_host.hostname
+def is_allowed_backup_request(origin: str, host: str, client_ip: str) -> bool:
+    expected_host = ALLOWED_BACKUP_HOSTS.get(origin)
+    try:
+        is_loopback = ipaddress.ip_address(client_ip).is_loopback
+    except ValueError:
+        return False
+    return is_loopback and expected_host is not None and host.lower() == expected_host
 
 
 def documents_folder() -> Path:
@@ -79,7 +84,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             return
 
         origin = self.headers.get("Origin", "")
-        if origin and not is_allowed_origin(origin, self.headers.get("Host", "")):
+        if not is_allowed_backup_request(origin, self.headers.get("Host", ""), self.client_address[0]):
             self.send_error(HTTPStatus.FORBIDDEN, "Only the local Jeff VA app can save a backup")
             return
 

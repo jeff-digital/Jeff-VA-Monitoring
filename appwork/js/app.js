@@ -238,13 +238,16 @@
   async function restoreSupabaseSession() {
     if (!supabaseConfigured()) return;
     const callbackParams = new URLSearchParams(`${window.location.search}&${window.location.hash.slice(1)}`);
+    const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code'];
+    if (callbackKeys.some(key => callbackParams.has(key))) {
+      window.history.replaceState({}, document.title, `${window.location.pathname}#dashboard`);
+    }
     if (callbackParams.get('error')) {
       const description = callbackParams.get('error_description') || callbackParams.get('error');
       $('#loginError').textContent = description.includes('exchange external code')
         ? 'Supabase could not exchange Google’s sign-in code. Check that the Google Client ID and Client Secret in Supabase come from the same Web application OAuth client.'
         : `Google sign-in failed: ${description}`;
       $('#loginGoogleStatus').textContent = 'Sign-in could not be completed. You can try again after correcting the provider settings.';
-      window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
     try {
@@ -266,14 +269,12 @@
       if (!sessionData.session && accessToken && refreshToken) {
         const callbackResult = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (callbackResult.error) throw callbackResult.error;
-        window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}#dashboard`);
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
       if (!sessionData.session && callbackCode) {
         const exchangeResult = await client.auth.exchangeCodeForSession(callbackCode);
         if (exchangeResult.error) throw exchangeResult.error;
-        window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}#dashboard`);
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
@@ -668,7 +669,7 @@
       <tr>
         <td><div class="table-client">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
         <td>${escapeHtml(item.platform)}</td><td>${statusPill(item.status)}${matchBadge(item)}</td><td>${formatDate(item.appliedDate)}</td>
-        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${item.id}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
+        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
       </tr>
     `).join('');
   }
@@ -728,12 +729,12 @@
             : `${formatSalaryAmount(item.salaryAmount, currency, 'hourly')}`
           : 'Salary not set';
       return `
-      <article class="application-row${isInterviewToday(item) ? ' interview-today' : ''}" data-view-details="${item.id}" tabindex="0" role="button" aria-label="View details for ${escapeHtml(item.clientName)}">
+      <article class="application-row${isInterviewToday(item) ? ' interview-today' : ''}" data-view-details="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="View details for ${escapeHtml(item.clientName)}">
         <div><h3 class="client-card-title">${escapeHtml(item.clientName)}</h3><p class="client-card-subtitle">${escapeHtml(item.role || item.contact || item.nextStep || item.notes || 'No extra details')}</p>${item.website ? `<a class="client-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>` : ''}${item.interviewLink ? `<a class="interview-link-button" href="${escapeHtml(normalizeUrl(item.interviewLink))}" target="_blank" rel="noopener"><span aria-hidden="true">↗</span> Join interview</a>` : ''}</div>
         <div class="application-meta">${escapeHtml(item.platform)}<small>${escapeHtml(item.employmentType || 'Employment type not set')}</small><small class="application-salary">${escapeHtml(salaryText)}</small></div>
         <div>${statusPill(item.status)}${item.interviewPriority ? '<span class="interview-priority-badge">INTERVIEW</span>' : ''}${matchBadge(item)}</div>
         <div class="application-meta">${emailDate(item.appliedDate)}<small>Applied${item.interviewDate ? ` · Interview ${formatDate(item.interviewDate)}` : ''}${item.followUpDate ? ` · Follow up ${formatDate(item.followUpDate)}` : ''}</small><small>Added ${emailDate(applicationAddedDate(item))}</small></div>
-        <button class="icon-button list-icon-button update-row-button" type="button" data-edit-id="${item.id}" aria-label="Update ${escapeHtml(item.clientName)}" title="Update application">Update</button>
+        <button class="icon-button list-icon-button update-row-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Update ${escapeHtml(item.clientName)}" title="Update application">Update</button>
       </article>
     `; }).join('');
     const newestFirst = sortByDate(filtered, applicationAddedDate);
@@ -934,7 +935,7 @@
       const sentClass = item.direction === 'sent' ? ' sent' : '';
       const sentBadge = item.direction === 'sent' ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = item.direction === 'sent' ? 'Sent' : 'Received';
-      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}"><span class="email-avatar">${escapeHtml(initial)}</span><div><h3 class="email-subject" title="${escapeHtml(item.subject)}">${escapeHtml(item.subject || '(No subject)')} ${sentBadge}</h3><p class="email-from">${escapeHtml(item.from || 'Unknown sender')}</p>${matchTag}</div><time class="email-date"><span>${dateLabel}</span>${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${item.id}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${item.id}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${item.id}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${item.id}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}"><span class="email-avatar">${escapeHtml(initial)}</span><div><h3 class="email-subject" title="${escapeHtml(item.subject)}">${escapeHtml(item.subject || '(No subject)')} ${sentBadge}</h3><p class="email-from">${escapeHtml(item.from || 'Unknown sender')}</p>${matchTag}</div><time class="email-date"><span>${dateLabel}</span>${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${sectionHeading}${listHead}${renderEmailRows(visibleEmails)}</section>`;
   }
@@ -996,7 +997,7 @@
       const contractEnded = isContractEnded(item);
       const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
       const statusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
-      return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${item.id}" tabindex="0" role="button">
+      return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
         <span class="hired-card-head"><span><strong class="client-card-title">${escapeHtml(item.clientName)}</strong><span class="client-card-subtitle">${escapeHtml(item.role || 'No role added')}</span></span><span class="hired-card-arrow" aria-hidden="true">→</span></span>
         <span class="client-contract-status ${statusClass}">${escapeHtml(contractStatus)}${item.contractEndDate ? ` · ends ${escapeHtml(formatDate(item.contractEndDate))}` : ''}</span>
         ${matchBadge(item) ? `<span>${matchBadge(item)}</span>` : ''}
@@ -1428,13 +1429,43 @@
   // --- Active client documents ---
   // Document binaries are stored in the private Supabase Storage bucket; only metadata and
   // the storage path are kept in the user's app_state row. Nothing is stored in IndexedDB.
+  const PDFJS_MODULE_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs';
+  const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
+  const MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024;
+  const DOCUMENT_CONTENT_TYPES = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  };
+  let pdfjsModulePromise = null;
+
+  function loadPdfJs() {
+    if (!pdfjsModulePromise) {
+      pdfjsModulePromise = import(PDFJS_MODULE_URL).then(pdfjs => {
+        pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        return pdfjs;
+      }).catch(error => {
+        pdfjsModulePromise = null;
+        throw error;
+      });
+    }
+    return pdfjsModulePromise;
+  }
+
+  function documentContentType(file) {
+    if (Object.values(DOCUMENT_CONTENT_TYPES).includes(file.type)) return file.type;
+    const extension = String(file.name || '').split('.').pop().toLowerCase();
+    return DOCUMENT_CONTENT_TYPES[extension] || 'application/octet-stream';
+  }
+
   async function saveDocumentBlob(id, file) {
     const client = requireSupabase();
     if (!currentUser) throw new Error('Not signed in');
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) throw new Error('Documents must be 25 MB or smaller.');
     const path = `${currentUser.id}/${id}`;
     const { error } = await client.storage.from(SUPABASE_BUCKET).upload(path, file, {
       upsert: false,
-      contentType: file.type || 'application/octet-stream'
+      contentType: documentContentType(file)
     });
     if (error) throw error;
     return path;
@@ -1625,6 +1656,10 @@
 
   async function uploadPersonalDocument(file) {
     if (!file) return;
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      toast('Documents must be 25 MB or smaller.');
+      return null;
+    }
     if (!/\.(pdf|doc|docx)$/i.test(file.name)) {
       toast('Please choose a PDF or Word document.');
       return;
@@ -1635,7 +1670,7 @@
       const client = requireSupabase();
       const { error } = await client.storage.from(SUPABASE_BUCKET).upload(storagePath, file, {
         upsert: false,
-        contentType: file.type || 'application/octet-stream'
+        contentType: documentContentType(file)
       });
       if (error) throw error;
       data.personalDocuments = data.personalDocuments || [];
@@ -1691,9 +1726,9 @@
 
   async function extractInvoiceText(file) {
     const extension = file.name.split('.').pop().toLowerCase();
-    if (extension === 'pdf' && window.pdfjsLib) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    if (extension === 'pdf') {
+      const pdfjs = await loadPdfJs();
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
       const pages = [];
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
         const page = await pdf.getPage(pageNumber);
@@ -2084,9 +2119,9 @@
         ${item.contractEndDate && dateKey(item.contractEndDate) < today() ? '' : `<div class="document-row-menu">
           <button class="icon-button document-menu-button" type="button" aria-label="Document actions" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>
           <div class="document-menu hidden">
-            <button type="button" data-doc-open="${doc.id}">View File</button>
-            <button type="button" data-doc-email="${doc.id}">Send Email</button>
-            <button type="button" class="document-menu-danger" data-doc-remove="${doc.id}">Delete File</button>
+            <button type="button" data-doc-open="${escapeHtml(doc.id)}">View File</button>
+              <button type="button" data-doc-email="${escapeHtml(doc.id)}">Send Email</button>
+              <button type="button" class="document-menu-danger" data-doc-remove="${escapeHtml(doc.id)}">Delete File</button>
           </div>
         </div>`}
       </div>`;
@@ -2112,11 +2147,11 @@
         <div class="document-archive-list">
           ${archiveItems.map(doc => `
             <div class="document-archive-item">
-              <button type="button" class="document-archive-name" data-doc-open="${doc.id}">
+              <button type="button" class="document-archive-name" data-doc-open="${escapeHtml(doc.id)}">
                 <span class="doc-type-icon">${/\.pdf$/i.test(doc.name) ? 'PDF' : 'DOC'}</span>
                 <span class="document-archive-meta"><span class="document-archive-filename">COA | ${escapeHtml(formatDate(doc.addedAt.slice(0, 10)))}</span><span class="document-archive-date">${formatFileSize(doc.size)}</span></span>
               </button>
-              <button type="button" class="doc-remove archive-delete-button" data-doc-remove="${doc.id}" aria-label="Delete ${escapeHtml(doc.name)} from the archive" title="Delete file">Delete file</button>
+              <button type="button" class="doc-remove archive-delete-button" data-doc-remove="${escapeHtml(doc.id)}" aria-label="Delete ${escapeHtml(doc.name)} from the archive" title="Delete file">Delete file</button>
             </div>`).join('')}
         </div>
       </div>` : ''}`;
@@ -2140,7 +2175,7 @@
       if (/\.pdf$/i.test(doc.name) || blob.type === 'application/pdf') {
         target.innerHTML = `<iframe src="${url}" title="PDF preview for ${escapeHtml(doc.name)}"></iframe>`;
       } else {
-        target.innerHTML = `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(doc.name)}</h4><p>Word preview is not rendered directly by the browser. Use “Open Word file” to view the saved document.</p><button class="button button-primary" type="button" data-doc-open="${doc.id}">Open Word file</button></div>`;
+        target.innerHTML = `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(doc.name)}</h4><p>Word preview is not rendered directly by the browser. Use “Open Word file” to view the saved document.</p><button class="button button-primary" type="button" data-doc-open="${escapeHtml(doc.id)}">Open Word file</button></div>`;
       }
     } catch { target.innerHTML = '<div class="document-loading">Could not load the document preview.</div>'; }
   }
@@ -2150,7 +2185,7 @@
     if (!list) return;
     const docs = item.documents || [];
     list.innerHTML = docs.length ? docs.map(doc => `
-      <div class="doc-row"><button type="button" class="doc-name" data-doc-open="${doc.id}"><span class="doc-type-icon">${/\.pdf$/i.test(doc.name) ? 'PDF' : 'DOC'}</span><span class="doc-name-text">${escapeHtml(doc.name)}</span></button><span class="doc-size">${formatFileSize(doc.size)}</span><button type="button" class="doc-remove" data-doc-remove="${doc.id}" aria-label="Remove ${escapeHtml(doc.name)}">×</button></div>
+      <div class="doc-row"><button type="button" class="doc-name" data-doc-open="${escapeHtml(doc.id)}"><span class="doc-type-icon">${/\.pdf$/i.test(doc.name) ? 'PDF' : 'DOC'}</span><span class="doc-name-text">${escapeHtml(doc.name)}</span></button><span class="doc-size">${formatFileSize(doc.size)}</span><button type="button" class="doc-remove" data-doc-remove="${escapeHtml(doc.id)}" aria-label="Remove ${escapeHtml(doc.name)}">×</button></div>
     `).join('') : '<p class="doc-empty">No documents attached yet.</p>';
   }
 
@@ -2703,13 +2738,22 @@
   }
 
   function buildRawEmailMessage({ to, subject, body, attachmentName = '', attachmentType = 'application/octet-stream', attachmentBase64 = '' }) {
+    const safeRecipient = String(to || '').replace(/[\r\n]+/g, '');
+    const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ');
+    const safeAttachmentName = String(attachmentName || 'attachment')
+      .replace(/[\r\n"\\]/g, '_')
+      .replace(/[^\x20-\x7E]/g, '_')
+      .slice(0, 180) || 'attachment';
+    const safeAttachmentType = /^[a-z\d.+-]+\/[a-z\d.+-]+$/i.test(attachmentType)
+      ? attachmentType
+      : 'application/octet-stream';
     const mixedBoundary = `jeff-va-${uid()}`;
     const altBoundary = `jeff-va-alt-${uid()}`;
     const htmlBody = htmlEmailBodyFromText(body);
     if (!attachmentBase64) {
       return [
-        `To: ${to}`,
-        `Subject: ${subject}`,
+        `To: ${safeRecipient}`,
+        `Subject: ${safeSubject}`,
         'MIME-Version: 1.0',
         `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
         '',
@@ -2726,8 +2770,8 @@
     }
 
     return [
-      `To: ${to}`,
-      `Subject: ${subject}`,
+      `To: ${safeRecipient}`,
+      `Subject: ${safeSubject}`,
       'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
       '',
@@ -2744,9 +2788,9 @@
       htmlBody,
       `--${altBoundary}--`,
       `--${mixedBoundary}`,
-      `Content-Type: ${attachmentType}; name="${attachmentName}"`,
+      `Content-Type: ${safeAttachmentType}; name="${safeAttachmentName}"`,
       'Content-Transfer-Encoding: base64',
-      `Content-Disposition: attachment; filename="${attachmentName}"`,
+      `Content-Disposition: attachment; filename="${safeAttachmentName}"`,
       '',
       attachmentBase64,
       `--${mixedBoundary}--`

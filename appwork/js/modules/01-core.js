@@ -235,13 +235,16 @@
   async function restoreSupabaseSession() {
     if (!supabaseConfigured()) return;
     const callbackParams = new URLSearchParams(`${window.location.search}&${window.location.hash.slice(1)}`);
+    const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code'];
+    if (callbackKeys.some(key => callbackParams.has(key))) {
+      window.history.replaceState({}, document.title, `${window.location.pathname}#dashboard`);
+    }
     if (callbackParams.get('error')) {
       const description = callbackParams.get('error_description') || callbackParams.get('error');
       $('#loginError').textContent = description.includes('exchange external code')
         ? 'Supabase could not exchange Google’s sign-in code. Check that the Google Client ID and Client Secret in Supabase come from the same Web application OAuth client.'
         : `Google sign-in failed: ${description}`;
       $('#loginGoogleStatus').textContent = 'Sign-in could not be completed. You can try again after correcting the provider settings.';
-      window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
     try {
@@ -263,14 +266,12 @@
       if (!sessionData.session && accessToken && refreshToken) {
         const callbackResult = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (callbackResult.error) throw callbackResult.error;
-        window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}#dashboard`);
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
       if (!sessionData.session && callbackCode) {
         const exchangeResult = await client.auth.exchangeCodeForSession(callbackCode);
         if (exchangeResult.error) throw exchangeResult.error;
-        window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}#dashboard`);
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }

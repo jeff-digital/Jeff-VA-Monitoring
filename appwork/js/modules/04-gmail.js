@@ -110,13 +110,22 @@
   }
 
   function buildRawEmailMessage({ to, subject, body, attachmentName = '', attachmentType = 'application/octet-stream', attachmentBase64 = '' }) {
+    const safeRecipient = String(to || '').replace(/[\r\n]+/g, '');
+    const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ');
+    const safeAttachmentName = String(attachmentName || 'attachment')
+      .replace(/[\r\n"\\]/g, '_')
+      .replace(/[^\x20-\x7E]/g, '_')
+      .slice(0, 180) || 'attachment';
+    const safeAttachmentType = /^[a-z\d.+-]+\/[a-z\d.+-]+$/i.test(attachmentType)
+      ? attachmentType
+      : 'application/octet-stream';
     const mixedBoundary = `jeff-va-${uid()}`;
     const altBoundary = `jeff-va-alt-${uid()}`;
     const htmlBody = htmlEmailBodyFromText(body);
     if (!attachmentBase64) {
       return [
-        `To: ${to}`,
-        `Subject: ${subject}`,
+        `To: ${safeRecipient}`,
+        `Subject: ${safeSubject}`,
         'MIME-Version: 1.0',
         `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
         '',
@@ -133,8 +142,8 @@
     }
 
     return [
-      `To: ${to}`,
-      `Subject: ${subject}`,
+      `To: ${safeRecipient}`,
+      `Subject: ${safeSubject}`,
       'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
       '',
@@ -151,9 +160,9 @@
       htmlBody,
       `--${altBoundary}--`,
       `--${mixedBoundary}`,
-      `Content-Type: ${attachmentType}; name="${attachmentName}"`,
+      `Content-Type: ${safeAttachmentType}; name="${safeAttachmentName}"`,
       'Content-Transfer-Encoding: base64',
-      `Content-Disposition: attachment; filename="${attachmentName}"`,
+      `Content-Disposition: attachment; filename="${safeAttachmentName}"`,
       '',
       attachmentBase64,
       `--${mixedBoundary}--`

@@ -48,9 +48,18 @@ create policy "Users can delete their own app state"
   using (auth.uid() = user_id);
 
 -- Private bucket for PDF/Word client documents.
-insert into storage.buckets (id, name, public)
-values ('client-documents', 'client-documents', false)
-on conflict (id) do update set public = false;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'client-documents',
+  'client-documents',
+  false,
+  26214400,
+  array['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']::text[]
+)
+on conflict (id) do update set
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 -- Files are stored under: <authenticated-user-uuid>/<document-uuid>
 drop policy if exists "Users can upload their own client documents" on storage.objects;
