@@ -27,15 +27,18 @@
     const body = [intro, values.body].filter(Boolean).join('\n\n');
     const bodyHtml = body.split(/\n\s*\n/).filter(Boolean)
       .map(paragraph => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`).join('');
-    const company = values.company ? `<br>${escapeHtml(values.company)}` : '';
+    const recipientName = (values.recipient || '').trim();
+    const defaultRecipient = 'Hiring Manager';
+    const salutationRecipient = recipientName || defaultRecipient;
+    const recipientAddress = recipientName && recipientName.toLowerCase() !== defaultRecipient.toLowerCase() ? recipientName : '';
     $('#coverLetterPreview').innerHTML = `
       <header class="cover-letter-page-header">
         <img src="image/tab.png" alt="Jeff VA logo" />
         <div><h1>Jeffrey S. Almocera</h1><div class="cover-letter-contact">${escapeHtml(contact)}</div></div>
       </header>
       <p class="cover-letter-date">${coverLetterDate()}</p>
-      <p class="cover-letter-recipient">${escapeHtml(values.recipient || 'Hiring Manager')}${company}</p>
-      <p class="cover-letter-greeting">Dear ${escapeHtml(values.recipient || 'Hiring Manager')},</p>
+      ${recipientAddress ? `<p class="cover-letter-recipient">${escapeHtml(recipientAddress)}</p>` : ''}
+      <p class="cover-letter-greeting">Dear ${escapeHtml(salutationRecipient)},</p>
       <div class="cover-letter-copy">${bodyHtml}</div>
       <p class="cover-letter-signoff">Best regards,<br><strong>Jeffrey S. Almocera</strong></p>`;
   }
@@ -129,6 +132,10 @@
       const logoData = new Uint8Array(await logoResponse.arrayBuffer());
       const { AlignmentType, BorderStyle, Document, ImageRun, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlign, WidthType } = docx;
       const contact = [values.email, values.phone, values.location, values.website].filter(Boolean).join(' | ');
+      const recipientName = (values.recipient || '').trim();
+      const defaultRecipient = 'Hiring Manager';
+      const salutationRecipient = recipientName || defaultRecipient;
+      const recipientAddress = recipientName && recipientName.toLowerCase() !== defaultRecipient.toLowerCase() ? recipientName : '';
       const textParagraph = (text, options = {}) => {
         const { fontSize = 20, color, bold = false, ...paragraphOptions } = options;
         return new Paragraph({
@@ -177,8 +184,8 @@
         header,
         headerDivider,
         textParagraph(coverLetterDate(), { fontSize: 18, spacing: { before: 200, after: 200 } }),
-        textParagraph(`${values.recipient || 'Hiring Manager'}${values.company ? `\n${values.company}` : ''}`, { spacing: { after: 200 } }),
-        textParagraph(`Dear ${values.recipient || 'Hiring Manager'},`, { spacing: { after: 165 } }),
+        ...(recipientAddress ? [textParagraph(recipientAddress, { spacing: { after: 200 } })] : []),
+        textParagraph(`Dear ${salutationRecipient},`, { spacing: { after: 165 } }),
         textParagraph(`I am excited to apply for the ${values.role || 'position'}${values.company ? ` at ${values.company}` : ''}.`, { alignment: AlignmentType.JUSTIFIED })
       ];
       String(values.body || '').split(/\n\s*\n/).filter(Boolean).forEach(paragraph => {
