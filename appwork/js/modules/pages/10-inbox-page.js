@@ -1,5 +1,50 @@
   // Inbox and shared email composer controls.
+  function removeEmailsFromList(emails) {
+    const emailIds = new Set(emails.map(email => email.id));
+    const gmailIds = new Set(emails.map(email => email.gmailId).filter(Boolean));
+    data.deletedGmailIds = [...new Set([...(data.deletedGmailIds || []), ...gmailIds])];
+    data.emails = data.emails.filter(email => !emailIds.has(email.id)
+      && !(email.source === 'gmail' && gmailIds.has(email.gmailId)));
+  }
+
+  function updateEmailSelectionControls() {
+    const checkboxes = [...document.querySelectorAll('#emailList [data-email-select]')];
+    const selectedCount = checkboxes.filter(checkbox => checkbox.checked).length;
+    const selectAll = document.querySelector('#emailList [data-email-select-all]');
+    const deleteButton = document.querySelector('#emailList [data-email-bulk-delete]');
+    const selectionCount = document.querySelector('#emailList [data-email-selection-count]');
+    if (selectAll) {
+      selectAll.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
+      selectAll.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;
+      selectAll.disabled = checkboxes.length === 0;
+    }
+    if (deleteButton) {
+      deleteButton.disabled = selectedCount === 0;
+    }
+    if (selectionCount) selectionCount.textContent = `${selectedCount} selected`;
+  }
+
   document.addEventListener('click', async event => {
+    if (event.target.closest('[data-email-selection-toggle]')) {
+      emailSelectionMode = !emailSelectionMode;
+      renderEmails();
+      return;
+    }
+
+    if (event.target.closest('[data-email-select], [data-email-select-all]')) return;
+
+    if (event.target.closest('[data-email-bulk-delete]')) {
+      const selectedIds = new Set([...document.querySelectorAll('#emailList [data-email-select]:checked')].map(input => input.value));
+      const selectedEmails = data.emails.filter(email => selectedIds.has(email.id));
+      if (!selectedEmails.length || !(await appConfirm(`Are you sure you want to delete ${selectedEmails.length} selected email${selectedEmails.length === 1 ? '' : 's'} from your list?`, { title: 'Remove selected emails', confirmLabel: 'Remove', danger: true }))) return;
+      removeEmailsFromList(selectedEmails);
+      emailSelectionMode = false;
+      renderAll();
+      await persist();
+      showActionResult({ title: 'Emails removed', message: `${selectedEmails.length} selected email${selectedEmails.length === 1 ? ' was' : 's were'} removed from your saved list.` });
+      return;
+    }
+
     const actionTrigger = event.target.closest('[data-email-action-trigger]');
     const actionButton = event.target.closest('[data-email-action]');
     const emailDetail = event.target.closest('[data-email-detail]');
@@ -27,11 +72,7 @@
       if (actionButton.dataset.emailAction === 'delete') {
         const email = data.emails.find(item => item.id === emailId);
         if (!email || !(await appConfirm(`Are you sure you want to delete this email from your list?\n\n${email.subject || '(No subject)'}`, { title: 'Remove email', confirmLabel: 'Remove', danger: true }))) return;
-        data.emails = data.emails.filter(item => item.id !== emailId);
-        if (email.source === 'gmail' && email.gmailId) {
-          data.deletedGmailIds = [...new Set([...(data.deletedGmailIds || []), email.gmailId])];
-          data.emails = data.emails.filter(item => !(item.source === 'gmail' && item.gmailId === email.gmailId));
-        }
+        removeEmailsFromList([email]);
         renderAll();
         await persist();
         showActionResult({ title: 'Email removed', message: 'The email was removed from your saved list.' });
@@ -48,6 +89,17 @@
 
     if (emailDetail && (!event.target.closest('button') || event.target.closest('button[data-email-detail]'))) {
       openEmailDetail(emailDetail.dataset.emailDetail);
+    }
+  });
+
+  document.addEventListener('change', event => {
+    if (event.target.matches('[data-email-select-all]')) {
+      document.querySelectorAll('#emailList [data-email-select]').forEach(checkbox => {
+        checkbox.checked = event.target.checked;
+      });
+      updateEmailSelectionControls();
+    } else if (event.target.matches('[data-email-select]')) {
+      updateEmailSelectionControls();
     }
   });
 

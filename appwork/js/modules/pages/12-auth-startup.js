@@ -114,7 +114,10 @@
     }
   });
   $('#logoutButton')?.addEventListener('click', async () => {
-    disconnectGmail({ notify: false });
+    if (gmailSyncTimer) {
+      clearInterval(gmailSyncTimer);
+      gmailSyncTimer = null;
+    }
     try {
       if (supabaseClient) {
         const { error } = await supabaseClient.auth.signOut();
@@ -138,10 +141,6 @@
     if (appStateChannel && supabaseClient) {
       supabaseClient.removeChannel(appStateChannel);
       appStateChannel = null;
-    }
-    if (gmailSyncTimer) {
-      clearInterval(gmailSyncTimer);
-      gmailSyncTimer = null;
     }
     if (applyReminderTimer) {
       clearInterval(applyReminderTimer);

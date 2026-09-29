@@ -6,7 +6,7 @@ This version keeps the existing UI and application behavior, but moves app data 
 
 - **Supabase Postgres:** applications, daily tasks and completion history, readable Gmail messages, alerts, and saved email templates.
 - **Supabase Storage (private bucket):** attached PDF/Word files.
-- **Browser storage:** the Supabase login session is kept only in the current browser tab session; closing the tab requires signing in again. The Gmail OAuth token is also kept for the current browser session.
+- **Browser storage:** the Supabase login session is kept only in the current browser tab session; closing the tab requires signing in again. The Gmail OAuth token is kept for the current browser tab session and reused for automatic sync after signing back in. Google may require a new sign-in if that token expires.
 - **Not stored automatically in the browser:** application data and document files.
 - **Excel export:** creates a local `.xlsx` backup with application, client, reminder, tool, and daily task sheets. Email history and document binaries are not placed in the Excel file.
 
@@ -103,4 +103,4 @@ This version does not automatically upload the old browser's localStorage/Indexe
 
 Gmail continues to use Google's browser OAuth flow directly. When Google login is configured with Gmail scopes, the inbox sync starts automatically after login. Your Gmail access token is kept only for the current browser session; it is not uploaded to Supabase by Jeff VA.
 
-Gmail sync and sending require the Gmail API and the OAuth client to allow `https://jeff-va-monitoring.jeffdigi.workers.dev` as an authorized JavaScript origin. Add `http://127.0.0.1:8080` (and optionally `http://localhost:3000`) only for local development. The OAuth consent screen must include your Google account as a test user while the app is in testing mode. After changing origins or enabling email sending, disconnect and reconnect Gmail so Google grants the requested permissions to the production site.
+Gmail sync and sending require the Gmail API and the OAuth client to allow `https://jeff-va-monitoring.jeffdigi.workers.dev` as an authorized JavaScript origin. Add `http://127.0.0.1:8080` (and optionally `http://localhost:3000`) only for local development. The OAuth consent screen must include your Google account as a test user while the app is in testing mode. After changing origins or enabling email sending, sign in with Google so the app receives the requested permissions.

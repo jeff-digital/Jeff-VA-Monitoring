@@ -186,11 +186,6 @@
     $('#accountGmailStatus').textContent = gmailStatus;
     $('#accountLastSignIn').textContent = formatAccountTimestamp(currentUser.last_sign_in_at);
     $('#accountCreatedAt').textContent = formatAccountTimestamp(currentUser.created_at);
-    $('#accountGmailAction').hidden = !gmailConfigured() || !window.google?.accounts?.oauth2 || !navigator.onLine;
-    $('#accountGmailAction').textContent = gmailAccessToken
-      ? gmailNeedsAttention ? 'Reconnect' : 'Disconnect'
-      : sessionStorage.getItem(GMAIL_CONNECTED_KEY) ? 'Reconnect' : 'Connect Gmail';
-
     const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
     const list = $('#accountSignInHistory');
     list.replaceChildren();
@@ -238,9 +233,10 @@
   let data = emptyData();
   let activeView = 'dashboard';
   let emailViewFilter = 'client';
+  let emailSelectionMode = false;
   let applicationDateSort = localStorage.getItem(APPLICATION_WEEK_FILTER_KEY) || '0';
   let hiredDateSort = 'newest';
-  let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || '0';
+  let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
   let applicationDateFilter = '';
   let hiredDateFilter = '';
   let emailDateFilter = '';
@@ -381,7 +377,10 @@
       processContractEndedAlerts();
       renderAll();
       renderAccountPage();
-      if (gmailAccessToken) await syncGmail(true);
+      if (gmailAccessToken) {
+        startGmailSyncTimer();
+        await syncGmail(true);
+      }
       await persist();
       scheduleAutomaticBackup();
       if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });

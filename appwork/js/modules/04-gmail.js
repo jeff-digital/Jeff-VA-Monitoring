@@ -60,6 +60,12 @@
   let composeRequiresConfirmation = false;
   let gmailTokenRequest = null;
   let sentHistoryAddressSignature = '';
+  let sentHistoryPageToken = '';
+  let sentHistoryQueue = [];
+  let sentHistoryLoaded = false;
+  let inboxHistoryLoaded = false;
+  let inboxHistoryPageToken = '';
+  let inboxHistoryQueue = [];
   const GMAIL_CONNECTED_KEY = 'jeff-va-gmail-connected-v1';
   const GMAIL_TOKEN_SESSION_KEY = 'jeff-va-gmail-token-session-v1';
 
@@ -806,55 +812,13 @@
     }
   }
 
-  function disconnectGmail({ notify = true } = {}) {
-    const token = gmailAccessToken;
-    gmailAccessToken = null;
-    sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
-    sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
-    try {
-      if (token && window.google?.accounts?.oauth2?.revoke) google.accounts.oauth2.revoke(token, () => {});
-    } catch (error) {
-      console.warn('Could not revoke Gmail access token:', error);
-    }
-    if (gmailSyncTimer) { clearInterval(gmailSyncTimer); gmailSyncTimer = null; }
-    updateGmailConnectionUI(false);
-    updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
-    setGmailStatus('Gmail ready — log in with Google to sync your inbox');
-    if (notify) showActionResult({ title: 'Gmail disconnected', message: 'Gmail access was disconnected for this browser session.' });
-  }
-
-  $('#accountGmailAction')?.addEventListener('click', async event => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    try {
-      if (gmailAccessToken && button.textContent === 'Disconnect') {
-        disconnectGmail();
-        return;
-      }
-      if (gmailAccessToken) {
-        gmailAccessToken = null;
-        sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
-      }
-      await ensureGmailAccessToken();
-      setGmailStatus('Connected — syncing…');
-      startGmailSyncTimer();
-      await syncGmail(true);
-    } catch (error) {
-      setGmailStatus(`Gmail connection failed: ${error?.message || 'Check your Google authorization.'}`);
-      showActionResult({ title: 'Gmail connection failed', message: error?.message || 'Check your Google authorization and try again.', status: 'error' });
-    } finally {
-      button.disabled = false;
-      renderAccountPage();
-    }
-  });
-
   function handleGmailAuthorizationFailure() {
     gmailAccessToken = null;
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
     if (gmailSyncTimer) { clearInterval(gmailSyncTimer); gmailSyncTimer = null; }
     updateGmailConnectionUI(false);
-    updateLoginGoogleUI(false, 'Google authorization expired. Use Gmail reconnect in the dashboard.');
+    updateLoginGoogleUI(false, 'Google authorization expired. Sign in with Google again to resume Gmail sync.');
     setGmailStatus('Gmail authorization expired — log in with Google again');
   }
 
@@ -887,33 +851,58 @@
         .map(application => String(application.email || '').trim().toLowerCase())
         .filter(isEmailAddress))].sort();
       const directClientEmails = new Set(directClientEmailList);
-      const loadSentHistory = directClientEmails.size > 0
-        && directClientEmailList.join('|') !== sentHistoryAddressSignature;
+      const nextSentHistorySignature = directClientEmailList.join('|');
+      if (nextSentHistorySignature !== sentHistoryAddressSignature) {
+        sentHistoryAddressSignature = nextSentHistorySignature;
+        sentHistoryPageToken = '';
+        sentHistoryQueue = [];
+        sentHistoryLoaded = directClientEmails.size === 0;
+      }
       const inboxParams = new URLSearchParams({ maxResults: '30', labelIds: 'INBOX' });
       const inboxList = await fetchMessageList(inboxParams);
       const listedMessages = [...(inboxList.messages || [])];
+      if (!inboxHistoryLoaded && inboxHistoryQueue.length < 30) {
+        const firstHistoryPage = !inboxHistoryPageToken;
+        const historyParams = new URLSearchParams({ maxResults: '500', labelIds: 'INBOX' });
+        if (inboxHistoryPageToken) historyParams.set('pageToken', inboxHistoryPageToken);
+        const historyList = await fetchMessageList(historyParams);
+        const historyMessages = historyList.messages || [];
+        inboxHistoryQueue.push(...historyMessages.slice(firstHistoryPage ? 30 : 0).map(message => message.id));
+        inboxHistoryPageToken = historyList.nextPageToken || '';
+        inboxHistoryLoaded = !inboxHistoryPageToken;
+      }
+      listedMessages.push(...inboxHistoryQueue.slice(0, 30).map(id => ({ id })));
       if (directClientEmails.size) {
         const sentQuery = `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}`;
-        let pageToken = '';
-        do {
-          const sentParams = new URLSearchParams({ maxResults: loadSentHistory ? '500' : '30', labelIds: 'SENT', q: sentQuery });
-          if (pageToken) sentParams.set('pageToken', pageToken);
-          const sentList = await fetchMessageList(sentParams);
-          listedMessages.push(...(sentList.messages || []));
-          pageToken = loadSentHistory ? sentList.nextPageToken || '' : '';
-        } while (pageToken);
-        sentHistoryAddressSignature = directClientEmailList.join('|');
+        const recentSentParams = new URLSearchParams({ maxResults: '30', labelIds: 'SENT', q: sentQuery });
+        const recentSentList = await fetchMessageList(recentSentParams);
+        listedMessages.push(...(recentSentList.messages || []));
+        if (!sentHistoryLoaded && sentHistoryQueue.length < 30) {
+          const firstHistoryPage = !sentHistoryPageToken;
+          const sentHistoryParams = new URLSearchParams({ maxResults: '500', labelIds: 'SENT', q: sentQuery });
+          if (sentHistoryPageToken) sentHistoryParams.set('pageToken', sentHistoryPageToken);
+          const sentHistoryList = await fetchMessageList(sentHistoryParams);
+          const sentHistoryMessages = sentHistoryList.messages || [];
+          sentHistoryQueue.push(...sentHistoryMessages.slice(firstHistoryPage ? 30 : 0).map(message => message.id));
+          sentHistoryPageToken = sentHistoryList.nextPageToken || '';
+          sentHistoryLoaded = !sentHistoryPageToken;
+        }
+        listedMessages.push(...sentHistoryQueue.slice(0, 30).map(id => ({ id })));
       }
       const deletedGmailIds = new Set(data.deletedGmailIds || []);
       const ids = [...new Set(listedMessages.map(message => message.id))].filter(id => !deletedGmailIds.has(id));
       const previousGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       const newIds = ids.filter(id => !previousGmailIds.has(id));
       let matchedExistingSentMessages = false;
-      const fetchedNewMessages = (await Promise.all(newIds.map(async id => {
+      const fetchedResults = await Promise.allSettled(newIds.map(async id => {
         const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, {
           headers: { Authorization: `Bearer ${gmailAccessToken}` }
         });
-        if (!res.ok) throw new Error(`message fetch failed (${res.status})`);
+        if (!res.ok) {
+          const error = new Error(`message fetch failed (${res.status})`);
+          error.status = res.status;
+          throw error;
+        }
         const msg = await res.json();
         const headers = msg.payload?.headers || [];
         const header = name => headers.find(item => item.name === name)?.value || '';
@@ -951,7 +940,16 @@
           source: 'gmail',
           direction: isSent ? 'sent' : 'received'
         };
-      }))).filter(Boolean);
+      }));
+      if (fetchedResults.some(result => result.status === 'rejected' && [401, 403].includes(result.reason?.status))) {
+        handleGmailAuthorizationFailure();
+        throw new Error('Gmail authorization expired. Log in with Google again.');
+      }
+      const failedMessageFetches = fetchedResults.filter(result => result.status === 'rejected');
+      const fetchedNewMessages = fetchedResults
+        .filter(result => result.status === 'fulfilled')
+        .map(result => result.value)
+        .filter(Boolean);
       // A user can delete an email while this sync is fetching message details.
       // Re-read the deletion list before merging so an older response cannot revive it.
       const currentDeletedGmailIds = new Set(data.deletedGmailIds || []);
@@ -964,14 +962,24 @@
         ...existingGmailMessages,
         ...newOnes
       ]).filter(item => !(item.source === 'gmail' && currentDeletedGmailIds.has(item.gmailId)));
+      const savedGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
+      inboxHistoryQueue = inboxHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
+      sentHistoryQueue = sentHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
       if (newOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge) {
         persist();
         renderAll();
       }
       updateGmailConnectionUI(true);
       sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
-      setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}`);
-      if (!silent && !alertNewMatches(newOnes)) showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
+      setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}${failedMessageFetches.length ? ` · ${plural(failedMessageFetches.length, 'message')} failed to load` : ''}`);
+      if (!silent) {
+        const hasNewMatches = alertNewMatches(newOnes);
+        if (failedMessageFetches.length) {
+          showActionResult({ title: 'Gmail sync incomplete', message: `${plural(failedMessageFetches.length, 'message')} could not be loaded. Gmail will retry on the next sync.`, status: 'error' });
+        } else if (!hasNewMatches) {
+          showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
+        }
+      }
       if (silent) alertNewMatches(newOnes);
     } catch (error) {
       const message = error?.message || 'Unknown Gmail API error';

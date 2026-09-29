@@ -1,6 +1,5 @@
   // --- Client email matching ---
-  // A message must mention the saved company or role/service, and its sender must match
-  // the saved address or a whole-word contact/client name.
+  // A saved sender address is a direct match; name-based matches also require client or role context.
   function extractEmailAddress(fromHeader) {
     const match = (fromHeader || '').match(/<([^>]+)>/);
     return (match ? match[1] : (fromHeader || '')).trim().toLowerCase();
@@ -65,8 +64,8 @@
       const role = (app.role || '').trim().toLowerCase();
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
-      if (!roleReferenced && !companyReferenced) return false;
       if (emailCandidate && emailCandidate === fromAddress) return true;
+      if (!roleReferenced && !companyReferenced) return false;
 
       const nameCandidates = [contact, clientName].filter(name => name.length >= 3);
       return nameCandidates.some(name => containsWholeWord(senderName, name));
@@ -446,8 +445,9 @@
       .filter(item => [item.from, item.to, item.subject, item.body, item.date].join(' ').toLowerCase().includes(query))
       .filter(item => !emailDateFilter || dateKey(item.date) === emailDateFilter)
       .filter(item => emailDateSort === 'all' || isInWeeklyRange(item.date, weekRangeFilter))
-      .filter(item => applicationsRelatedToEmail(item).length > 0
-        || ((item.direction !== 'sent' && item.source !== 'sent') && emailHasApplicationUpdateSignal(item)));
+      .filter(item => emailViewFilter === 'sent'
+        ? (item.direction === 'sent' || item.source === 'sent') && applicationsRelatedToEmail(item).length > 0
+        : item.direction !== 'sent' && item.source !== 'sent');
     const clientEmails = emails.filter(item => item.direction !== 'sent' && item.source !== 'sent');
     const sentEmails = emails.filter(item => item.direction === 'sent');
     const visibleEmails = sortByDate(emailViewFilter === 'sent' ? sentEmails : clientEmails, item => item.date);
@@ -458,31 +458,27 @@
       tab.setAttribute('aria-selected', String(selected));
     });
     const target = $('#emailList');
-    const sectionClass = `email-section${emailViewFilter === 'sent' ? ' email-section-sent' : ''}`;
-    const sectionLabel = emailViewFilter === 'sent' ? 'Your sent messages' : 'Messages from clients';
-    const sectionEyebrow = emailViewFilter === 'sent' ? 'SENT BY YOU' : 'CLIENT EMAILS';
-    const sectionHeading = `<div class="email-section-heading"><div><p class="eyebrow">${sectionEyebrow}</p><h3>${sectionLabel}</h3></div></div>`;
-    const listHead = `<div class="email-list-head"><span aria-hidden="true"></span><span>Subject / sender</span><span>${emailViewFilter === 'sent' ? 'Sent' : 'Received'}</span><span>Actions</span></div>`;
+    const sectionClass = `email-section${emailViewFilter === 'sent' ? ' email-section-sent' : ''}${emailSelectionMode ? ' email-selection-mode' : ''}`;
+    const sectionLabel = emailViewFilter === 'sent' ? 'Your sent messages' : 'All received email';
+    const sectionEyebrow = emailViewFilter === 'sent' ? 'SENT BY YOU' : 'INBOX';
+    const selectionActions = emailSelectionMode
+      ? '<div class="email-bulk-actions"><span class="email-selection-count" data-email-selection-count aria-live="polite">0 selected</span><button class="email-selection-cancel" type="button" data-email-selection-toggle>Cancel</button><button class="button button-danger email-bulk-delete" type="button" data-email-bulk-delete disabled><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button></div>'
+      : '<button class="button button-secondary email-selection-trigger" type="button" data-email-selection-toggle><i class="fa-regular fa-square-check" aria-hidden="true"></i><span>Select emails</span></button>';
+    const sectionHeading = `<div class="email-section-heading"><div><p class="eyebrow">${sectionEyebrow}</p><h3>${sectionLabel}</h3></div>${selectionActions}</div>`;
+    const selectAll = emailSelectionMode ? '<input type="checkbox" data-email-select-all aria-label="Select all visible emails" />' : '<span aria-hidden="true"></span>';
+    const listHead = `<div class="email-list-head">${selectAll}<span aria-hidden="true"></span><span>Subject / sender</span><span>${emailViewFilter === 'sent' ? 'Sent' : 'Received'}</span><span>Actions</span></div>`;
     if (!visibleEmails.length) {
-      const allReceivedEmails = receivedEmails();
-      const hasRelevantReceivedEmails = allReceivedEmails.some(item => applicationsRelatedToEmail(item).length > 0);
       const hasFilters = Boolean(query || emailDateFilter || emailDateSort !== 'all');
       const title = emailViewFilter === 'sent'
         ? (hasFilters ? 'No matching sent emails' : 'No application-linked sent emails yet')
         : hasFilters
           ? 'No matching client emails'
-          : allReceivedEmails.length && !hasRelevantReceivedEmails
-            ? 'No relevant client updates yet'
-            : hasRelevantReceivedEmails
-              ? 'No matching client emails'
-              : 'No client emails yet';
+          : 'No emails received yet';
       const copy = hasFilters
         ? 'Try another search term or date range.'
         : emailViewFilter === 'sent'
           ? 'Sent messages linked to an application or saved client will appear here.'
-          : allReceivedEmails.length && !hasRelevantReceivedEmails
-            ? 'Messages appear here when the sender and email details match an application or client update.'
-            : 'Relevant client messages received through Gmail will appear here.';
+          : 'Received messages from Gmail will appear here.';
       target.innerHTML = `<section class="${sectionClass}">${sectionHeading}${listHead}<div class="email-empty"><h3>${title}</h3><p>${copy}</p></div></section>`;
       return;
     }
@@ -495,7 +491,8 @@
       const sentClass = item.direction === 'sent' ? ' sent' : '';
       const sentBadge = item.direction === 'sent' ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = item.direction === 'sent' ? 'Sent' : 'Received';
-      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}"><span class="email-avatar">${escapeHtml(initial)}</span><div><h3 class="email-subject" title="${escapeHtml(item.subject)}">${escapeHtml(item.subject || '(No subject)')} ${sentBadge}</h3><p class="email-from">${escapeHtml(item.from || 'Unknown sender')}</p>${matchTag}</div><time class="email-date"><span>${dateLabel}</span>${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.subject || 'email')}" />` : '';
+      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div><h3 class="email-subject" title="${escapeHtml(item.subject)}">${escapeHtml(item.subject || '(No subject)')} ${sentBadge}</h3><p class="email-from">${escapeHtml(item.from || 'Unknown sender')}</p>${matchTag}</div><time class="email-date"><span>${dateLabel}</span>${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${sectionHeading}${listHead}${renderEmailRows(visibleEmails)}</section>`;
   }

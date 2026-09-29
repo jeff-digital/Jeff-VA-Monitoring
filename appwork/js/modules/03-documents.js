@@ -1033,12 +1033,12 @@
     } catch (error) {
       console.error('Contract-ended email failed:', error);
       alert.subject = 'Contract ended: email not sent';
-      alert.from = 'Reconnect Gmail to retry';
+      alert.from = 'Sign in with Google to retry';
       alert.emailSent = false;
       persist();
       renderAlerts();
       if (!previousFailureWasReported) {
-        showActionResult({ title: 'Contract email could not be sent', message: 'Reconnect Gmail and review the client alert before retrying.', status: 'error' });
+        showActionResult({ title: 'Contract email could not be sent', message: 'Sign in with Google again and review the client alert before retrying.', status: 'error' });
       }
     } finally {
       contractEndedEmailSending.delete(item.id);
@@ -1215,7 +1215,7 @@
     if (followUpAlertsAdded || automaticEmailsSent) {
       const summary = [
         automaticEmailsSent ? `${plural(automaticEmailsSent, 'automatic follow-up email')} sent` : '',
-        automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} could not be sent; reconnect Gmail and review the alert` : '',
+          automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} could not be sent; sign in with Google again and review the alert` : '',
         followUpsNeedingReview ? `${plural(followUpsNeedingReview, 'follow-up')} need your attention in Applications` : ''
       ].filter(Boolean).join('. ');
       showActionResult({
