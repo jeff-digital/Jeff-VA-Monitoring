@@ -1171,6 +1171,7 @@
     let automaticEmailsFailed = 0;
     let followUpsNeedingReview = 0;
     for (const item of due) {
+      const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
       const body = template.body;
@@ -1188,7 +1189,15 @@
       }
       item.followUpProcessedAt = new Date().toISOString();
       item.followUpSentAt = sent ? item.followUpProcessedAt : '';
-      const alertId = `follow-up|${item.id}|${item.followUpDate}`;
+      if (sent) {
+        item.followUpDate = '';
+        item.automaticFollowUp = false;
+        if (editingId === item.id) {
+          $('#followUpDate').value = '';
+          $('#automaticFollowUp').checked = false;
+        }
+      }
+      const alertId = `follow-up|${item.id}|${scheduledFollowUpDate}`;
       const existingAlert = data.alerts.find(alert => alert.id === alertId);
       const followUpAlert = {
         id: alertId,
@@ -1211,6 +1220,8 @@
     }
     data.alerts = data.alerts.slice(0, 30);
     persist();
+    if (automaticEmailsSent && activeView === 'applications') renderApplications();
+    if (automaticEmailsSent && activeView === 'dashboard') renderDashboard();
     renderAlerts();
     if (followUpAlertsAdded || automaticEmailsSent) {
       const summary = [

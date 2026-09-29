@@ -1,5 +1,7 @@
   const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
   const SUPABASE_BUCKET = 'client-documents';
+  const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
+  const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
@@ -13,6 +15,8 @@
   let persistChain = Promise.resolve();
   let dataReady = false;
   let supabaseDataLoaded = false;
+  let projectStorageUsedBytes = null;
+  let projectStorageFileCount = 0;
   let passwordRecoveryMode = false;
   const STATUS_COLORS = {
     Ongoing: '#1d8a89', Applied: '#8a9b8e', 'To Proceed': '#2f6f8f', Interview: '#c28a52', 'Active client': '#5a956a', 'Not selected': '#c36e73'
@@ -201,6 +205,145 @@
       list.append(item);
     });
   }
+
+  function selectedStorageQuotaBytes() {
+    const plan = $('#accountStoragePlan').value;
+    if (plan === 'free') return 1_000_000_000;
+    if (plan === 'pro-team') return 100_000_000_000;
+    if (plan === 'custom') {
+      const customQuotaGb = Number($('#accountStorageCustomQuota').value);
+      return Number.isFinite(customQuotaGb) && customQuotaGb > 0 ? customQuotaGb * 1_000_000_000 : null;
+    }
+    return null;
+  }
+
+  function formatStorageQuota(bytes) {
+    if (bytes >= 1_000_000_000) {
+      const gigabytes = bytes / 1_000_000_000;
+      const roundedGigabytes = Math.round(gigabytes * 10) / 10;
+      return `${Number.isInteger(roundedGigabytes) ? roundedGigabytes : roundedGigabytes.toFixed(1)} GB`;
+    }
+    if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+    return formatFileSize(bytes);
+  }
+
+  function renderProjectStorageSummary() {
+    const plan = $('#accountStoragePlan').value;
+    const quotaBytes = selectedStorageQuotaBytes();
+    const quotaLabels = { free: '1 GB', 'pro-team': '100 GB' };
+    const quotaLabel = quotaLabels[plan] || (quotaBytes ? formatStorageQuota(quotaBytes) : 'Select plan');
+    $('#accountProjectStorageQuota').textContent = quotaLabel;
+    if (projectStorageUsedBytes === null) {
+      $('#accountProjectStorageUsage').textContent = 'Unavailable';
+    } else if (quotaBytes) {
+      const usedPercent = (projectStorageUsedBytes / quotaBytes) * 100;
+      const percentLabel = usedPercent > 0 && usedPercent < 1 ? '<1%' : `${Math.round(usedPercent)}%`;
+      $('#accountProjectStorageUsage').textContent = `${formatStorageQuota(projectStorageUsedBytes)} / ${quotaLabel} (${percentLabel}) · ${plural(projectStorageFileCount, 'file')}`;
+    } else {
+      $('#accountProjectStorageUsage').textContent = `${formatFileSize(projectStorageUsedBytes)} across ${plural(projectStorageFileCount, 'file')}`;
+    }
+    if (projectStorageUsedBytes === null) {
+      $('#accountProjectStorageAvailable').textContent = 'Usage unavailable';
+    } else if (!quotaBytes) {
+      $('#accountProjectStorageAvailable').textContent = plan === 'custom' ? 'Enter custom quota' : 'Select plan';
+    } else {
+      const remainingBytes = quotaBytes - projectStorageUsedBytes;
+      if (remainingBytes >= 0) {
+        const remainingPercent = Math.max(0, (remainingBytes / quotaBytes) * 100);
+        const percentLabel = remainingPercent > 0 && remainingPercent < 1 ? '<1%' : `${Math.round(remainingPercent)}%`;
+        $('#accountProjectStorageAvailable').textContent = `${formatStorageQuota(remainingBytes)} (${percentLabel})`;
+      } else {
+        $('#accountProjectStorageAvailable').textContent = `${formatStorageQuota(Math.abs(remainingBytes))} over quota`;
+      }
+    }
+  }
+
+  const storagePlanControl = $('#accountStoragePlan');
+  const customStorageQuotaControl = $('#accountStorageCustomQuota');
+  const customStorageQuotaField = $('#accountStorageCustomQuotaField');
+  storagePlanControl.value = localStorage.getItem(STORAGE_PLAN_KEY) || 'free';
+  customStorageQuotaControl.value = localStorage.getItem(CUSTOM_STORAGE_QUOTA_KEY) || '';
+  customStorageQuotaField.hidden = storagePlanControl.value !== 'custom';
+  storagePlanControl.addEventListener('change', () => {
+    if (storagePlanControl.value) localStorage.setItem(STORAGE_PLAN_KEY, storagePlanControl.value);
+    else localStorage.removeItem(STORAGE_PLAN_KEY);
+    customStorageQuotaField.hidden = storagePlanControl.value !== 'custom';
+    renderProjectStorageSummary();
+  });
+  customStorageQuotaControl.addEventListener('input', () => {
+    if (customStorageQuotaControl.value) localStorage.setItem(CUSTOM_STORAGE_QUOTA_KEY, customStorageQuotaControl.value);
+    else localStorage.removeItem(CUSTOM_STORAGE_QUOTA_KEY);
+    renderProjectStorageSummary();
+  });
+  renderProjectStorageSummary();
+
+  async function refreshAccountStorageUsage() {
+    const output = $('#accountStorageUsage');
+    const refreshButton = $('#refreshAccountStorageUsage');
+    if (!currentUser || !output || !refreshButton || refreshButton.disabled) return;
+    const userId = currentUser.id;
+    output.textContent = 'Checking...';
+    $('#accountProjectStorageUsage').textContent = 'Checking...';
+    $('#accountProjectStorageAvailable').textContent = 'Checking...';
+    refreshButton.disabled = true;
+    try {
+      const client = requireSupabase();
+      try {
+        const { data: usage, error } = await client.rpc('get_project_storage_usage');
+        if (error) throw error;
+        const summary = Array.isArray(usage) ? usage[0] : usage;
+        const usedBytes = Number(summary?.total_bytes);
+        const fileCount = Number(summary?.file_count);
+        if (!Number.isFinite(usedBytes) || usedBytes < 0 || !Number.isFinite(fileCount) || fileCount < 0) {
+          throw new Error('The project storage summary is invalid.');
+        }
+        projectStorageUsedBytes = usedBytes;
+        projectStorageFileCount = fileCount;
+      } catch (error) {
+        projectStorageUsedBytes = null;
+        projectStorageFileCount = 0;
+        console.error('Could not load project storage usage:', error);
+      }
+      renderProjectStorageSummary();
+
+      const bucket = client.storage.from(SUPABASE_BUCKET);
+      const folders = [userId];
+      let totalBytes = 0;
+      let fileCount = 0;
+      while (folders.length) {
+        const folder = folders.pop();
+        let offset = 0;
+        while (true) {
+          const { data: entries, error } = await bucket.list(folder, { limit: 100, offset });
+          if (error) throw error;
+          const objects = entries || [];
+          objects.forEach(object => {
+            if (object.id === null && object.metadata === null) {
+              folders.push(`${folder}/${object.name}`);
+              return;
+            }
+            const size = Number(object.metadata?.size);
+            if (!Number.isFinite(size) || size < 0) throw new Error('A stored file size is unavailable.');
+            totalBytes += size;
+            fileCount += 1;
+          });
+          if (objects.length < 100) break;
+          offset += objects.length;
+        }
+      }
+      if (currentUser?.id === userId) output.textContent = `${formatFileSize(totalBytes)} across ${plural(fileCount, 'file')}`;
+    } catch (error) {
+      console.error('Could not load account storage usage:', error);
+      if (currentUser?.id === userId) output.textContent = 'Unavailable';
+      projectStorageUsedBytes = null;
+      projectStorageFileCount = 0;
+      renderProjectStorageSummary();
+    } finally {
+      refreshButton.disabled = false;
+    }
+  }
+
+  $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
 
   function setPasswordRecoveryMode(value) {
     passwordRecoveryMode = Boolean(value);

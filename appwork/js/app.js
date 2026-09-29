@@ -3,6 +3,8 @@
 
   const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
   const SUPABASE_BUCKET = 'client-documents';
+  const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
+  const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
@@ -16,6 +18,8 @@
   let persistChain = Promise.resolve();
   let dataReady = false;
   let supabaseDataLoaded = false;
+  let projectStorageUsedBytes = null;
+  let projectStorageFileCount = 0;
   let passwordRecoveryMode = false;
   const STATUS_COLORS = {
     Ongoing: '#1d8a89', Applied: '#8a9b8e', 'To Proceed': '#2f6f8f', Interview: '#c28a52', 'Active client': '#5a956a', 'Not selected': '#c36e73'
@@ -204,6 +208,145 @@
       list.append(item);
     });
   }
+
+  function selectedStorageQuotaBytes() {
+    const plan = $('#accountStoragePlan').value;
+    if (plan === 'free') return 1_000_000_000;
+    if (plan === 'pro-team') return 100_000_000_000;
+    if (plan === 'custom') {
+      const customQuotaGb = Number($('#accountStorageCustomQuota').value);
+      return Number.isFinite(customQuotaGb) && customQuotaGb > 0 ? customQuotaGb * 1_000_000_000 : null;
+    }
+    return null;
+  }
+
+  function formatStorageQuota(bytes) {
+    if (bytes >= 1_000_000_000) {
+      const gigabytes = bytes / 1_000_000_000;
+      const roundedGigabytes = Math.round(gigabytes * 10) / 10;
+      return `${Number.isInteger(roundedGigabytes) ? roundedGigabytes : roundedGigabytes.toFixed(1)} GB`;
+    }
+    if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+    return formatFileSize(bytes);
+  }
+
+  function renderProjectStorageSummary() {
+    const plan = $('#accountStoragePlan').value;
+    const quotaBytes = selectedStorageQuotaBytes();
+    const quotaLabels = { free: '1 GB', 'pro-team': '100 GB' };
+    const quotaLabel = quotaLabels[plan] || (quotaBytes ? formatStorageQuota(quotaBytes) : 'Select plan');
+    $('#accountProjectStorageQuota').textContent = quotaLabel;
+    if (projectStorageUsedBytes === null) {
+      $('#accountProjectStorageUsage').textContent = 'Unavailable';
+    } else if (quotaBytes) {
+      const usedPercent = (projectStorageUsedBytes / quotaBytes) * 100;
+      const percentLabel = usedPercent > 0 && usedPercent < 1 ? '<1%' : `${Math.round(usedPercent)}%`;
+      $('#accountProjectStorageUsage').textContent = `${formatStorageQuota(projectStorageUsedBytes)} / ${quotaLabel} (${percentLabel}) · ${plural(projectStorageFileCount, 'file')}`;
+    } else {
+      $('#accountProjectStorageUsage').textContent = `${formatFileSize(projectStorageUsedBytes)} across ${plural(projectStorageFileCount, 'file')}`;
+    }
+    if (projectStorageUsedBytes === null) {
+      $('#accountProjectStorageAvailable').textContent = 'Usage unavailable';
+    } else if (!quotaBytes) {
+      $('#accountProjectStorageAvailable').textContent = plan === 'custom' ? 'Enter custom quota' : 'Select plan';
+    } else {
+      const remainingBytes = quotaBytes - projectStorageUsedBytes;
+      if (remainingBytes >= 0) {
+        const remainingPercent = Math.max(0, (remainingBytes / quotaBytes) * 100);
+        const percentLabel = remainingPercent > 0 && remainingPercent < 1 ? '<1%' : `${Math.round(remainingPercent)}%`;
+        $('#accountProjectStorageAvailable').textContent = `${formatStorageQuota(remainingBytes)} (${percentLabel})`;
+      } else {
+        $('#accountProjectStorageAvailable').textContent = `${formatStorageQuota(Math.abs(remainingBytes))} over quota`;
+      }
+    }
+  }
+
+  const storagePlanControl = $('#accountStoragePlan');
+  const customStorageQuotaControl = $('#accountStorageCustomQuota');
+  const customStorageQuotaField = $('#accountStorageCustomQuotaField');
+  storagePlanControl.value = localStorage.getItem(STORAGE_PLAN_KEY) || 'free';
+  customStorageQuotaControl.value = localStorage.getItem(CUSTOM_STORAGE_QUOTA_KEY) || '';
+  customStorageQuotaField.hidden = storagePlanControl.value !== 'custom';
+  storagePlanControl.addEventListener('change', () => {
+    if (storagePlanControl.value) localStorage.setItem(STORAGE_PLAN_KEY, storagePlanControl.value);
+    else localStorage.removeItem(STORAGE_PLAN_KEY);
+    customStorageQuotaField.hidden = storagePlanControl.value !== 'custom';
+    renderProjectStorageSummary();
+  });
+  customStorageQuotaControl.addEventListener('input', () => {
+    if (customStorageQuotaControl.value) localStorage.setItem(CUSTOM_STORAGE_QUOTA_KEY, customStorageQuotaControl.value);
+    else localStorage.removeItem(CUSTOM_STORAGE_QUOTA_KEY);
+    renderProjectStorageSummary();
+  });
+  renderProjectStorageSummary();
+
+  async function refreshAccountStorageUsage() {
+    const output = $('#accountStorageUsage');
+    const refreshButton = $('#refreshAccountStorageUsage');
+    if (!currentUser || !output || !refreshButton || refreshButton.disabled) return;
+    const userId = currentUser.id;
+    output.textContent = 'Checking...';
+    $('#accountProjectStorageUsage').textContent = 'Checking...';
+    $('#accountProjectStorageAvailable').textContent = 'Checking...';
+    refreshButton.disabled = true;
+    try {
+      const client = requireSupabase();
+      try {
+        const { data: usage, error } = await client.rpc('get_project_storage_usage');
+        if (error) throw error;
+        const summary = Array.isArray(usage) ? usage[0] : usage;
+        const usedBytes = Number(summary?.total_bytes);
+        const fileCount = Number(summary?.file_count);
+        if (!Number.isFinite(usedBytes) || usedBytes < 0 || !Number.isFinite(fileCount) || fileCount < 0) {
+          throw new Error('The project storage summary is invalid.');
+        }
+        projectStorageUsedBytes = usedBytes;
+        projectStorageFileCount = fileCount;
+      } catch (error) {
+        projectStorageUsedBytes = null;
+        projectStorageFileCount = 0;
+        console.error('Could not load project storage usage:', error);
+      }
+      renderProjectStorageSummary();
+
+      const bucket = client.storage.from(SUPABASE_BUCKET);
+      const folders = [userId];
+      let totalBytes = 0;
+      let fileCount = 0;
+      while (folders.length) {
+        const folder = folders.pop();
+        let offset = 0;
+        while (true) {
+          const { data: entries, error } = await bucket.list(folder, { limit: 100, offset });
+          if (error) throw error;
+          const objects = entries || [];
+          objects.forEach(object => {
+            if (object.id === null && object.metadata === null) {
+              folders.push(`${folder}/${object.name}`);
+              return;
+            }
+            const size = Number(object.metadata?.size);
+            if (!Number.isFinite(size) || size < 0) throw new Error('A stored file size is unavailable.');
+            totalBytes += size;
+            fileCount += 1;
+          });
+          if (objects.length < 100) break;
+          offset += objects.length;
+        }
+      }
+      if (currentUser?.id === userId) output.textContent = `${formatFileSize(totalBytes)} across ${plural(fileCount, 'file')}`;
+    } catch (error) {
+      console.error('Could not load account storage usage:', error);
+      if (currentUser?.id === userId) output.textContent = 'Unavailable';
+      projectStorageUsedBytes = null;
+      projectStorageFileCount = 0;
+      renderProjectStorageSummary();
+    } finally {
+      refreshButton.disabled = false;
+    }
+  }
+
+  $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
 
   function setPasswordRecoveryMode(value) {
     passwordRecoveryMode = Boolean(value);
@@ -733,7 +876,7 @@
   function matchBadge(app) {
     const matches = matchingEmailsForApplication(app).filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent');
     if (!matches.length) return '';
-    return ` <button class="match-badge" type="button" data-application-emails="${escapeHtml(app.id)}" aria-label="View ${plural(matches.length, 'matching email')} for ${escapeHtml(app.clientName)}" title="View matching application emails"><i class="fa-regular fa-envelope" aria-hidden="true"></i> ${plural(matches.length, 'email')}</button>`;
+    return ` <button class="match-badge" type="button" data-application-emails="${escapeHtml(app.id)}" aria-label="View ${plural(matches.length, 'matching email')} for ${escapeHtml(app.clientName)}" title="View matching application emails">${matches.length}</button>`;
   }
 
   function renderDashboard() {
@@ -1072,12 +1215,12 @@
     const sectionClass = `email-section${emailViewFilter === 'sent' ? ' email-section-sent' : ''}${emailSelectionMode ? ' email-selection-mode' : ''}`;
     const sectionLabel = emailViewFilter === 'sent' ? 'Your sent messages' : 'All received email';
     const sectionEyebrow = emailViewFilter === 'sent' ? 'SENT BY YOU' : 'INBOX';
+    $('#emailSectionLabel').textContent = sectionLabel;
+    $('#emailSectionEyebrow').textContent = sectionEyebrow;
     const selectionActions = emailSelectionMode
-      ? '<div class="email-bulk-actions"><span class="email-selection-count" data-email-selection-count aria-live="polite">0 selected</span><button class="email-selection-cancel" type="button" data-email-selection-toggle>Cancel</button><button class="button button-danger email-bulk-delete" type="button" data-email-bulk-delete disabled><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button></div>'
+      ? '<div class="email-bulk-actions"><label class="email-select-all-control"><input type="checkbox" data-email-select-all aria-label="Select all visible emails" /><span>Select all</span></label><span class="email-selection-count" data-email-selection-count aria-live="polite">0 selected</span><button class="email-selection-cancel" type="button" data-email-selection-toggle>Cancel</button><button class="button button-danger email-bulk-delete" type="button" data-email-bulk-delete disabled><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button></div>'
       : '<button class="button button-secondary email-selection-trigger" type="button" data-email-selection-toggle><i class="fa-regular fa-square-check" aria-hidden="true"></i><span>Select emails</span></button>';
-    const sectionHeading = `<div class="email-section-heading"><div><p class="eyebrow">${sectionEyebrow}</p><h3>${sectionLabel}</h3></div>${selectionActions}</div>`;
-    const selectAll = emailSelectionMode ? '<input type="checkbox" data-email-select-all aria-label="Select all visible emails" />' : '<span aria-hidden="true"></span>';
-    const listHead = `<div class="email-list-head">${selectAll}<span aria-hidden="true"></span><span>Subject / sender</span><span>${emailViewFilter === 'sent' ? 'Sent' : 'Received'}</span><span>Actions</span></div>`;
+    $('#emailSelectionActions').innerHTML = selectionActions;
     if (!visibleEmails.length) {
       const hasFilters = Boolean(query || emailDateFilter || emailDateSort !== 'all');
       const title = emailViewFilter === 'sent'
@@ -1090,22 +1233,29 @@
         : emailViewFilter === 'sent'
           ? 'Sent messages linked to an application or saved client will appear here.'
           : 'Received messages from Gmail will appear here.';
-      target.innerHTML = `<section class="${sectionClass}">${sectionHeading}${listHead}<div class="email-empty"><h3>${title}</h3><p>${copy}</p></div></section>`;
+      target.innerHTML = `<section class="${sectionClass}"><div class="email-empty"><h3>${title}</h3><p>${copy}</p></div></section>`;
       return;
     }
     const renderEmailRows = items => items.map(item => {
       const initial = (item.from || '?').trim().charAt(0).toUpperCase();
       const matches = applicationsRelatedToEmail(item);
-      const matchTag = matches.length ? `<span class="client-match-tag">✉ ${escapeHtml(matches.map(app => `${app.clientName} · Applied ${emailDate(app.appliedDate)}`).join(', '))}</span>` : '';
+      const matchTag = matches.length ? `<span class="client-match-tag" aria-label="${matches.length} application matches" title="Matched to ${matches.length} applications">${matches.length}</span>` : '';
+      const rawSender = (item.from || 'Unknown sender').trim();
+      const sender = rawSender.includes('<')
+        ? rawSender.slice(0, rawSender.indexOf('<')).replace(/["']/g, '').trim() || rawSender
+        : rawSender;
+      const bodyPreview = emailContentText(item.body).replace(/\s+/g, ' ').trim();
+      const preview = bodyPreview.length > 110 ? `${bodyPreview.slice(0, 110).trimEnd()}...` : bodyPreview;
+      const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
       const recipient = extractEmailAddress(item.from);
       const canCompose = matches.length && isEmailAddress(recipient);
       const sentClass = item.direction === 'sent' ? ' sent' : '';
       const sentBadge = item.direction === 'sent' ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = item.direction === 'sent' ? 'Sent' : 'Received';
       const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.subject || 'email')}" />` : '';
-      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div><h3 class="email-subject" title="${escapeHtml(item.subject)}">${escapeHtml(item.subject || '(No subject)')} ${sentBadge}</h3><p class="email-from">${escapeHtml(item.from || 'Unknown sender')}</p>${matchTag}</div><time class="email-date"><span>${dateLabel}</span>${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div><p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p></div><time class="email-date" title="${dateLabel}">${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
-    target.innerHTML = `<section class="${sectionClass}">${sectionHeading}${listHead}${renderEmailRows(visibleEmails)}</section>`;
+    target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
   }
 
   function hiredClients() {
@@ -1309,6 +1459,7 @@
     if (view === 'account') {
       renderPasswordPage();
       renderAccountPage();
+      refreshAccountStorageUsage();
     }
     const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['', 'Daily Task'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     $('#pageEyebrow').textContent = labels[view][0];
@@ -1452,7 +1603,7 @@
       : followUps;
     target.classList.remove('hidden');
     target.innerHTML = `<div class="client-follow-up-history-head"><span>FOLLOW-UPS SENT</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
-      ? `<div class="client-follow-up-history-list">${historicalFollowUp.map(email => `<div><span>${escapeHtml(email.subject || 'Follow-up')}</span><small>${escapeHtml(emailDate(email.date))}</small></div>`).join('')}</div>`
+      ? `<div class="client-follow-up-history-list">${historicalFollowUp.map(email => `<div><span title="${escapeHtml(email.subject || 'Follow-up')}">${escapeHtml(email.subject || 'Follow-up')}</span><small>${escapeHtml(emailDate(email.date))}</small></div>`).join('')}</div>`
       : '<p>No follow-up emails have been sent to this application.</p>'}`;
   }
 
@@ -2790,6 +2941,7 @@
     let automaticEmailsFailed = 0;
     let followUpsNeedingReview = 0;
     for (const item of due) {
+      const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
       const body = template.body;
@@ -2807,7 +2959,15 @@
       }
       item.followUpProcessedAt = new Date().toISOString();
       item.followUpSentAt = sent ? item.followUpProcessedAt : '';
-      const alertId = `follow-up|${item.id}|${item.followUpDate}`;
+      if (sent) {
+        item.followUpDate = '';
+        item.automaticFollowUp = false;
+        if (editingId === item.id) {
+          $('#followUpDate').value = '';
+          $('#automaticFollowUp').checked = false;
+        }
+      }
+      const alertId = `follow-up|${item.id}|${scheduledFollowUpDate}`;
       const existingAlert = data.alerts.find(alert => alert.id === alertId);
       const followUpAlert = {
         id: alertId,
@@ -2830,6 +2990,8 @@
     }
     data.alerts = data.alerts.slice(0, 30);
     persist();
+    if (automaticEmailsSent && activeView === 'applications') renderApplications();
+    if (automaticEmailsSent && activeView === 'dashboard') renderDashboard();
     renderAlerts();
     if (followUpAlertsAdded || automaticEmailsSent) {
       const summary = [
@@ -4981,9 +5143,9 @@
   function updateEmailSelectionControls() {
     const checkboxes = [...document.querySelectorAll('#emailList [data-email-select]')];
     const selectedCount = checkboxes.filter(checkbox => checkbox.checked).length;
-    const selectAll = document.querySelector('#emailList [data-email-select-all]');
-    const deleteButton = document.querySelector('#emailList [data-email-bulk-delete]');
-    const selectionCount = document.querySelector('#emailList [data-email-selection-count]');
+    const selectAll = document.querySelector('#emailSelectionActions [data-email-select-all]');
+    const deleteButton = document.querySelector('#emailSelectionActions [data-email-bulk-delete]');
+    const selectionCount = document.querySelector('#emailSelectionActions [data-email-selection-count]');
     if (selectAll) {
       selectAll.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
       selectAll.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;

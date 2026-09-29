@@ -18,7 +18,7 @@ The frontend uses the Supabase **anon/publishable key** only. Never put a Supaba
 
 1. Create a project at Supabase.
 2. In Supabase, open **SQL Editor** and run the complete contents of `sql/supabase-schema.sql`.
-   This enables Supabase Realtime and configures the private document bucket to accept only PDF/Word files up to 25 MiB. Re-run the script to apply the bucket limits if the bucket already exists.
+   This enables Supabase Realtime, configures the private document bucket to accept only PDF/Word files up to 25 MiB, and adds a secured aggregate-only function for this project's storage totals. Re-run the script when the schema changes; the storage function returns byte/file totals but no object names.
 3. In Supabase, open **Authentication -> Users** and create your private user account. Use the email/password you want to use on the Jeff VA login screen.
 4. In Supabase, open **Project Settings -> API** and copy:
    - **Project URL**

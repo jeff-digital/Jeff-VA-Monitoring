@@ -10,9 +10,9 @@
   function updateEmailSelectionControls() {
     const checkboxes = [...document.querySelectorAll('#emailList [data-email-select]')];
     const selectedCount = checkboxes.filter(checkbox => checkbox.checked).length;
-    const selectAll = document.querySelector('#emailList [data-email-select-all]');
-    const deleteButton = document.querySelector('#emailList [data-email-bulk-delete]');
-    const selectionCount = document.querySelector('#emailList [data-email-selection-count]');
+    const selectAll = document.querySelector('#emailSelectionActions [data-email-select-all]');
+    const deleteButton = document.querySelector('#emailSelectionActions [data-email-bulk-delete]');
+    const selectionCount = document.querySelector('#emailSelectionActions [data-email-selection-count]');
     if (selectAll) {
       selectAll.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
       selectAll.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;

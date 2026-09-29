@@ -102,3 +102,24 @@ create policy "Users can delete their own client documents"
     bucket_id = 'client-documents'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- Authenticated users can read project-wide storage totals without seeing object names.
+create or replace function public.get_project_storage_usage()
+returns table (total_bytes bigint, file_count bigint)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    coalesce(sum(case
+      when (stored_object.metadata->>'size') ~ '^[0-9]+$' then (stored_object.metadata->>'size')::bigint
+      else 0
+    end), 0)::bigint,
+    count(*)::bigint
+  from storage.objects as stored_object;
+$$;
+
+revoke all on function public.get_project_storage_usage() from public;
+revoke all on function public.get_project_storage_usage() from anon;
+grant execute on function public.get_project_storage_usage() to authenticated;

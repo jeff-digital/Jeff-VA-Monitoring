@@ -90,7 +90,9 @@
             <div class="sidebar-utility-panel hidden" id="utilityMenu">
               <button class="sidebar-action" type="button" id="exportButton" aria-label="Export backup" title="Export backup"><span aria-hidden="true"><i class="fa-solid fa-download"></i></span><span class="sidebar-label">Export backup</span></button>
               <label class="sidebar-action import-label" for="backupInput" aria-label="Restore backup" title="Restore backup"><span aria-hidden="true"><i class="fa-solid fa-upload"></i></span><span class="sidebar-label">Restore backup</span></label>
+              <span class="sidebar-utility-separator" role="separator"></span>
               <button class="sidebar-action" type="button" id="settingsButton" aria-label="Settings" title="Settings"><span aria-hidden="true"><i class="fa-solid fa-gear"></i></span><span class="sidebar-label">Settings</span></button>
+              <span class="sidebar-utility-separator" role="separator"></span>
               <button class="sidebar-action" type="button" id="logoutButton" aria-label="Sign out" title="Sign out"><span aria-hidden="true"><i class="fa-solid fa-arrow-right-from-bracket"></i></span><span class="sidebar-label">Sign out</span></button>
             </div>
           </div>
@@ -300,23 +302,30 @@
         </section>
 
         <section class="view" id="inboxView" data-view-panel="inbox" data-page="inbox">
-          <section class="application-workspace-head email-workspace-head">
-            <div class="application-workspace-count">
-              <span><strong id="emailCountLabel">0 emails</strong></span>
-            </div>
-          </section>
-          <section class="application-filters email-filters" aria-label="Email filters">
-            <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>
-            <div class="application-filter-controls email-filter-controls">
-              <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="emailDateFilter" aria-label="Filter emails by exact date" /></label>
-              <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Received week</span><select id="emailDateSort"><option value="0">This week</option></select></label>
-            </div>
-          </section>
-          <div class="email-view-tabs" role="tablist" aria-label="Email list view">
-            <button class="email-view-tab active" type="button" role="tab" aria-selected="true" data-email-view="client"><i class="fa-regular fa-envelope" aria-hidden="true"></i> Client</button>
-            <button class="email-view-tab" type="button" role="tab" aria-selected="false" data-email-view="sent"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i> Sent</button>
-          </div>
           <section class="panel inbox-panel">
+            <header class="email-panel-header">
+              <div class="email-panel-heading">
+                <div class="email-panel-title">
+                  <p class="eyebrow" id="emailSectionEyebrow">INBOX</p>
+                  <h2 id="emailSectionLabel">All received email</h2>
+                </div>
+                <div class="email-panel-heading-actions">
+                  <strong id="emailCountLabel">0 emails</strong>
+                  <div id="emailSelectionActions"></div>
+                </div>
+              </div>
+              <section class="application-filters email-filters" aria-label="Email filters">
+                <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>
+                <div class="application-filter-controls email-filter-controls">
+                  <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="emailDateFilter" aria-label="Filter emails by exact date" /></label>
+                  <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Received week</span><select id="emailDateSort"><option value="0">This week</option></select></label>
+                </div>
+              </section>
+              <div class="email-view-tabs" role="tablist" aria-label="Email list view">
+                <button class="email-view-tab active" type="button" role="tab" aria-selected="true" data-email-view="client"><i class="fa-regular fa-envelope" aria-hidden="true"></i> Client</button>
+                <button class="email-view-tab" type="button" role="tab" aria-selected="false" data-email-view="sent"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i> Sent</button>
+              </div>
+            </header>
             <div class="email-list" id="emailList"></div>
           </section>
           <p class="privacy-note">Gmail connects directly through Google; Jeff VA never sees your password.</p>
@@ -471,10 +480,30 @@
               <div><dt>Last Supabase sign-in</dt><dd id="accountLastSignIn">Not available</dd></div>
               <div><dt>Account created</dt><dd id="accountCreatedAt">Not available</dd></div>
               <div><dt>Account ID</dt><dd id="accountUserId">Not available</dd></div>
-              <div><dt>Data storage</dt><dd>Supabase Postgres and private Storage</dd></div>
+              <div><dt>App data</dt><dd>Supabase Postgres and private document storage</dd></div>
             </dl>
           </section>
           </div>
+          <section class="account-section account-storage-section" aria-labelledby="accountStorageTitle">
+            <div class="account-section-heading">
+              <h2 id="accountStorageTitle">Storage usage</h2>
+              <div class="account-storage-actions">
+                <a class="text-button" href="https://supabase.com/dashboard/org/_/usage" target="_blank" rel="noopener noreferrer">Project usage &amp; quota <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+                <button class="text-button account-storage-refresh" type="button" id="refreshAccountStorageUsage"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
+              </div>
+            </div>
+            <div class="account-storage-plan-controls">
+              <label class="account-storage-plan-field"><span>Supabase plan</span><select id="accountStoragePlan" aria-label="Supabase plan for storage quota"><option value="">Select plan</option><option value="free">Free · 1 GB</option><option value="pro-team">Pro / Team · 100 GB</option><option value="custom">Enterprise / custom</option></select></label>
+              <label class="account-storage-plan-field" id="accountStorageCustomQuotaField" hidden><span>Custom quota (GB)</span><input id="accountStorageCustomQuota" type="number" min="0.01" step="0.1" inputmode="decimal" /></label>
+            </div>
+            <dl class="account-detail-list">
+              <div><dt>Storage used in this project</dt><dd id="accountProjectStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
+              <div><dt>Total plan storage</dt><dd id="accountProjectStorageQuota">Select plan</dd></div>
+              <div><dt>Estimated available</dt><dd id="accountProjectStorageAvailable">Select plan</dd></div>
+              <div><dt>Uploaded documents</dt><dd id="accountStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
+            </dl>
+            <p class="settings-copy account-storage-note">Shows this project's current file total, not the billing-cycle average. Other projects in your organization may share the allowance; use Project usage &amp; quota for the organization-wide total.</p>
+          </section>
           <section class="account-section account-history-section" aria-labelledby="accountSignInHistoryTitle">
             <div class="account-section-heading account-history-heading">
               <h2 id="accountSignInHistoryTitle">Sign-in history</h2>
