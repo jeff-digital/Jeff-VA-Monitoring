@@ -1,18 +1,6 @@
   // --- Client email matching ---
-  // Compares each imported/synced email's "From" header, subject and body against the name,
-  // company, email, and role/service saved on an application, so the match is only counted when
-  // several signals line up rather than a single loose one. Matching runs in stages:
-  //   1) Email address must be an EXACT match to the address saved on the application (a header can
-  //      no longer just "contain" it). This alone used to let one shared address (a job board or
-  //      agency inbox that emails many different applicants) falsely tag every application that had
-  //      that address saved, even the ones that never actually got a reply.
-  //   2) If that exact address is saved on more than one application, the address alone is no longer
-  //      proof of which one replied — the company/client name or the role/service you entered must
-  //      also appear in the sender name, subject, or body before it counts for a specific application.
-  //   3) If there's no saved email to match against (or the sender's address doesn't match), we fall
-  //      back to the sender's display name — but only as a whole word (so "Jan" can't match inside
-  //      "Jandro"), and only when the subject/body also reference the company name or the role, so a
-  //      name that merely resembles the sender, with no other context, is no longer enough on its own.
+  // A message must mention the saved company or role/service, and its sender must match
+  // the saved address or a whole-word contact/client name.
   function extractEmailAddress(fromHeader) {
     const match = (fromHeader || '').match(/<([^>]+)>/);
     return (match ? match[1] : (fromHeader || '')).trim().toLowerCase();
@@ -68,49 +56,20 @@
   function matchApplicationsForEmail(emailItem) {
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
-    const directClientMatches = data.applications.filter(app => {
-      if (!isDirectClientApplication(app)) return false;
-      const emailCandidate = (app.email || '').trim().toLowerCase();
-      const clientName = (app.clientName || '').trim().toLowerCase();
-      const contact = (app.contact || '').trim().toLowerCase();
-
-      if (fromAddress && emailCandidate && emailCandidate === fromAddress) return true;
-      const nameCandidates = [contact, clientName].filter(name => name.length >= 3);
-      return nameCandidates.some(name => containsWholeWord(senderName, name));
-    });
-    if (directClientMatches.length) return directClientMatches;
-
-    if (!emailHasApplicationUpdateSignal(emailItem)) return [];
-
     const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
-
-    // Every application that has this exact address saved — used below to detect a shared/generic
-    // inbox (job board, staffing agency, etc.) that more than one application was given.
-    const exactEmailOwnerCount = fromAddress
-      ? data.applications.filter(app => (app.email || '').trim().toLowerCase() === fromAddress).length
-      : 0;
 
     return data.applications.filter(app => {
       const emailCandidate = (app.email || '').trim().toLowerCase();
-      const clientName = (app.clientName || '').trim().toLowerCase();
       const contact = (app.contact || '').trim().toLowerCase();
+      const clientName = (app.clientName || '').trim().toLowerCase();
       const role = (app.role || '').trim().toLowerCase();
-      const clientNameReferenced = clientName.length >= 3 && (senderName.includes(clientName) || contentLower.includes(clientName));
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
+      const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
+      if (!roleReferenced && !companyReferenced) return false;
+      if (emailCandidate && emailCandidate === fromAddress) return true;
 
-      // Step 1 — is the email address correct?
-      const emailIsExact = Boolean(emailCandidate) && emailCandidate === fromAddress;
-      if (emailIsExact) {
-        // Shared address — step 2 (company/client) or step 3 (role/service) must also match.
-        return (exactEmailOwnerCount <= 1) ? true : (clientNameReferenced || roleReferenced);
-      }
-
-      // No saved email matched this sender — fall back to the display name, but only as a whole
-      // word, and only with subject/body context confirming the company or the role.
       const nameCandidates = [contact, clientName].filter(name => name.length >= 3);
-      const senderNameMatches = nameCandidates.some(name => containsWholeWord(senderName, name));
-      if (!senderNameMatches) return false;
-      return clientNameReferenced || roleReferenced;
+      return nameCandidates.some(name => containsWholeWord(senderName, name));
     });
   }
 
@@ -487,7 +446,8 @@
       .filter(item => [item.from, item.to, item.subject, item.body, item.date].join(' ').toLowerCase().includes(query))
       .filter(item => !emailDateFilter || dateKey(item.date) === emailDateFilter)
       .filter(item => emailDateSort === 'all' || isInWeeklyRange(item.date, weekRangeFilter))
-      .filter(item => applicationsRelatedToEmail(item).length > 0);
+      .filter(item => applicationsRelatedToEmail(item).length > 0
+        || ((item.direction !== 'sent' && item.source !== 'sent') && emailHasApplicationUpdateSignal(item)));
     const clientEmails = emails.filter(item => item.direction !== 'sent' && item.source !== 'sent');
     const sentEmails = emails.filter(item => item.direction === 'sent');
     const visibleEmails = sortByDate(emailViewFilter === 'sent' ? sentEmails : clientEmails, item => item.date);
