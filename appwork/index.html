@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="image/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20260929-6" />
+    <link rel="stylesheet" href="css/styles.css?v=20260929-7" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -331,14 +331,43 @@
           </section>
           <section class="panel documents-page-panel">
             <div class="documents-tabs" role="tablist" aria-label="Tools">
-              <button class="documents-tab active" type="button" role="tab" aria-selected="true" data-documents-tab="scripts"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Scripts</span></button>
+              <button class="documents-tab active" type="button" role="tab" aria-selected="true" data-documents-tab="cover-letter"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Cover letter</span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="scripts"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Scripts</span></button>
               <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="links"><i class="fa-solid fa-link" aria-hidden="true"></i><span>Softcopy links</span></button>
               <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="documents"><i class="fa-regular fa-folder-open" aria-hidden="true"></i><span>Documents</span></button>
               <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="templates"><i class="fa-regular fa-copy" aria-hidden="true"></i><span>Templates</span></button>
               <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="invoices"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Invoices</span></button>
               <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="salary"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span>Salary</span></button>
             </div>
-            <div class="documents-tab-panel" id="scriptsPanel" data-documents-panel="scripts">
+            <div class="documents-tab-panel" id="coverLetterPanel" data-documents-panel="cover-letter">
+              <div class="cover-letter-heading">
+                <div><p class="eyebrow">DOCUMENT BUILDER</p><h3>Cover letter</h3></div>
+                <div class="cover-letter-downloads">
+                  <button class="button button-secondary" type="button" id="downloadCoverLetterWord"><i class="fa-regular fa-file-word" aria-hidden="true"></i> Word</button>
+                  <button class="button button-primary" type="button" id="downloadCoverLetterPdf"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i> PDF</button>
+                </div>
+              </div>
+              <div class="cover-letter-workspace">
+                <section class="cover-letter-editor" aria-label="Cover letter details">
+                  <div class="cover-letter-editor-heading"><h4>Letter details</h4><span>Edits save on this device</span></div>
+                  <div class="cover-letter-editor-fields">
+                    <label class="form-field">Hiring manager<input data-cover-letter-field="recipient" maxlength="120" /></label>
+                    <label class="form-field">Company<input data-cover-letter-field="company" maxlength="120" placeholder="Company name" /></label>
+                    <label class="form-field">Position<input data-cover-letter-field="role" maxlength="140" /></label>
+                    <label class="form-field">Email<input data-cover-letter-field="email" type="email" maxlength="140" /></label>
+                    <label class="form-field">Phone<input data-cover-letter-field="phone" maxlength="50" /></label>
+                    <label class="form-field">Location<input data-cover-letter-field="location" maxlength="100" /></label>
+                    <label class="form-field">Website<input data-cover-letter-field="website" maxlength="160" /></label>
+                    <label class="form-field cover-letter-body-field">Letter body<textarea data-cover-letter-field="body" rows="16" maxlength="8000"></textarea></label>
+                  </div>
+                </section>
+                <section class="cover-letter-preview-area" aria-label="Cover letter preview">
+                  <div class="cover-letter-preview-label"><span>PREVIEW</span><span>A4 · Portrait</span></div>
+                  <article class="cover-letter-page" id="coverLetterPreview"></article>
+                </section>
+              </div>
+            </div>
+            <div class="documents-tab-panel hidden" id="scriptsPanel" data-documents-panel="scripts">
               <div class="scripts-section">
                 <div class="documents-subsection-head">
                   <div><p class="eyebrow">TEXT SCRIPTS</p><h3>Reusable scripts</h3></div>
@@ -880,10 +909,11 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js" integrity="sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js" integrity="sha384-4xaIisuLEy2lo2HkB2C4rEf7v8jbTb2kuogX6TkuEt9feTWKBSFSOzsqNNbV+sKh" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.13.0/mammoth.browser.min.js" integrity="sha384-8NWE3bZDrmRI4IePMoQaEoLhAQ1MmRMJkdNgnGiHRFanTqsFKr0TmK6aSZvFJ/PO" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20260929-8"></script>
+    <script src="js/app.js?v=20260929-21"></script>
   </body>
 </html>
