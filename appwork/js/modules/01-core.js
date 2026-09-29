@@ -117,7 +117,8 @@
   }
 
   function renderAccountAccess() {
-    $('#accountNavGroup').hidden = !hasAccountSettingsAccess();
+    const settingsButton = $('#settingsButton');
+    if (settingsButton) settingsButton.disabled = !hasAccountSettingsAccess();
   }
 
   function renderPasswordPage() {
@@ -188,6 +189,7 @@
     $('#accountSupabaseProject').textContent = projectHost;
     $('#accountNetworkStatus').textContent = navigator.onLine ? 'Online' : 'Offline';
     $('#accountGmailStatus').textContent = gmailStatus;
+    updateGmailConnectionUI(Boolean(gmailAccessToken && !gmailReconnectRequired));
     $('#accountLastSignIn').textContent = formatAccountTimestamp(currentUser.last_sign_in_at);
     $('#accountCreatedAt').textContent = formatAccountTimestamp(currentUser.created_at);
     const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
@@ -345,6 +347,16 @@
 
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
 
+  function openWorkspaceSettings() {
+    const accountView = $('#accountView');
+    $('#settingsAccountContent').append(accountView);
+    accountView.classList.add('active');
+    renderPasswordPage();
+    renderAccountPage();
+    refreshAccountStorageUsage();
+    if (!$('#settingsModal').open) $('#settingsModal').showModal();
+  }
+
   function setPasswordRecoveryMode(value) {
     passwordRecoveryMode = Boolean(value);
   }
@@ -413,10 +425,38 @@
   function requireSupabase() {
     if (!supabaseConfigured()) throw new Error('Account sign-in is unavailable. Check the app configuration.');
     if (!supabaseClient) {
+      const authStorage = {
+        getItem(key) {
+          try {
+            const storedValue = window.localStorage.getItem(key);
+            if (storedValue !== null) return storedValue;
+          } catch {}
+          const sessionValue = window.sessionStorage.getItem(key);
+          if (sessionValue !== null) {
+            try {
+              window.localStorage.setItem(key, sessionValue);
+              window.sessionStorage.removeItem(key);
+            } catch {}
+          }
+          return sessionValue;
+        },
+        setItem(key, value) {
+          try {
+            window.localStorage.setItem(key, value);
+            window.sessionStorage.removeItem(key);
+          } catch {
+            window.sessionStorage.setItem(key, value);
+          }
+        },
+        removeItem(key) {
+          try { window.localStorage.removeItem(key); } catch {}
+          window.sessionStorage.removeItem(key);
+        }
+      };
       supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
         auth: {
           persistSession: true,
-          storage: window.sessionStorage,
+          storage: authStorage,
           autoRefreshToken: true,
           detectSessionInUrl: true
         }
@@ -583,6 +623,8 @@
           gmailAccessToken = session.provider_token;
           sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+          sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+          gmailReconnectRequired = false;
         }
         const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
         initializeSupabaseForUser(session.user, {
@@ -612,6 +654,8 @@
         gmailAccessToken = sessionData.session.provider_token;
         sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
         sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+        sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+        gmailReconnectRequired = false;
         startGmailSyncTimer();
       }
       if (sessionData.session?.user) {

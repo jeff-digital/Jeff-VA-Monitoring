@@ -120,7 +120,8 @@
   }
 
   function renderAccountAccess() {
-    $('#accountNavGroup').hidden = !hasAccountSettingsAccess();
+    const settingsButton = $('#settingsButton');
+    if (settingsButton) settingsButton.disabled = !hasAccountSettingsAccess();
   }
 
   function renderPasswordPage() {
@@ -191,6 +192,7 @@
     $('#accountSupabaseProject').textContent = projectHost;
     $('#accountNetworkStatus').textContent = navigator.onLine ? 'Online' : 'Offline';
     $('#accountGmailStatus').textContent = gmailStatus;
+    updateGmailConnectionUI(Boolean(gmailAccessToken && !gmailReconnectRequired));
     $('#accountLastSignIn').textContent = formatAccountTimestamp(currentUser.last_sign_in_at);
     $('#accountCreatedAt').textContent = formatAccountTimestamp(currentUser.created_at);
     const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
@@ -348,6 +350,16 @@
 
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
 
+  function openWorkspaceSettings() {
+    const accountView = $('#accountView');
+    $('#settingsAccountContent').append(accountView);
+    accountView.classList.add('active');
+    renderPasswordPage();
+    renderAccountPage();
+    refreshAccountStorageUsage();
+    if (!$('#settingsModal').open) $('#settingsModal').showModal();
+  }
+
   function setPasswordRecoveryMode(value) {
     passwordRecoveryMode = Boolean(value);
   }
@@ -416,10 +428,38 @@
   function requireSupabase() {
     if (!supabaseConfigured()) throw new Error('Account sign-in is unavailable. Check the app configuration.');
     if (!supabaseClient) {
+      const authStorage = {
+        getItem(key) {
+          try {
+            const storedValue = window.localStorage.getItem(key);
+            if (storedValue !== null) return storedValue;
+          } catch {}
+          const sessionValue = window.sessionStorage.getItem(key);
+          if (sessionValue !== null) {
+            try {
+              window.localStorage.setItem(key, sessionValue);
+              window.sessionStorage.removeItem(key);
+            } catch {}
+          }
+          return sessionValue;
+        },
+        setItem(key, value) {
+          try {
+            window.localStorage.setItem(key, value);
+            window.sessionStorage.removeItem(key);
+          } catch {
+            window.sessionStorage.setItem(key, value);
+          }
+        },
+        removeItem(key) {
+          try { window.localStorage.removeItem(key); } catch {}
+          window.sessionStorage.removeItem(key);
+        }
+      };
       supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
         auth: {
           persistSession: true,
-          storage: window.sessionStorage,
+          storage: authStorage,
           autoRefreshToken: true,
           detectSessionInUrl: true
         }
@@ -586,6 +626,8 @@
           gmailAccessToken = session.provider_token;
           sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+          sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+          gmailReconnectRequired = false;
         }
         const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
         initializeSupabaseForUser(session.user, {
@@ -615,6 +657,8 @@
         gmailAccessToken = sessionData.session.provider_token;
         sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
         sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+        sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+        gmailReconnectRequired = false;
         startGmailSyncTimer();
       }
       if (sessionData.session?.user) {
@@ -1448,6 +1492,13 @@
     const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
+    else if (view === 'account') {
+      if (updateUrl && window.location.hash !== '#account') {
+        window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#account`);
+      }
+      openWorkspaceSettings();
+      return;
+    }
     if (updateUrl && window.location.hash !== `#${view}`) {
       window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
     }
@@ -3094,6 +3145,8 @@
   let composeDocumentUpdateClientId = null;
   let composeRequiresConfirmation = false;
   let gmailTokenRequest = null;
+  let gmailAuthorizationRecovery = null;
+  let gmailReconnectRequired = false;
   let sentHistoryAddressSignature = '';
   let sentHistoryPageToken = '';
   let sentHistoryQueue = [];
@@ -3103,6 +3156,7 @@
   let inboxHistoryQueue = [];
   const GMAIL_CONNECTED_KEY = 'jeff-va-gmail-connected-v1';
   const GMAIL_TOKEN_SESSION_KEY = 'jeff-va-gmail-token-session-v1';
+  const GMAIL_RECONNECT_REQUIRED_KEY = 'jeff-va-gmail-reconnect-required-v1';
 
   function renderDocumentTemplateOptions(selectedId = 'contract-signing') {
     const select = $('#documentTemplateSelect');
@@ -3593,6 +3647,8 @@
           gmailAccessToken = response.access_token;
           sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, response.access_token);
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+          sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+          gmailReconnectRequired = false;
           updateGmailConnectionUI(true);
           updateLoginGoogleUI(true, 'Google account connected for this browser session.');
           resolve(response.access_token);
@@ -3741,7 +3797,13 @@
     return Boolean(clientId && !clientId.includes('YOUR_CLIENT_ID'));
   }
 
-  function updateGmailConnectionUI() {}
+  function updateGmailConnectionUI(connected) {
+    const reconnectButton = $('#gmailReconnectButton');
+    if (reconnectButton) {
+      reconnectButton.hidden = connected || !currentUser || !gmailConfigured();
+      reconnectButton.textContent = gmailReconnectRequired ? 'Reconnect Gmail' : 'Connect Gmail';
+    }
+  }
 
   function updateLoginGoogleUI(connected, message) {
     const button = $('#loginGoogleButton');
@@ -3763,6 +3825,7 @@
   }
 
   function initGmail() {
+    gmailReconnectRequired = sessionStorage.getItem(GMAIL_RECONNECT_REQUIRED_KEY) === '1';
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
     const loginGoogleButton = $('#loginGoogleButton');
@@ -3776,6 +3839,22 @@
       loginGoogleButton.disabled = !supabaseConfigured();
       return;
     }
+    $('#gmailReconnectButton').onclick = async () => {
+      const reconnectButton = $('#gmailReconnectButton');
+      reconnectButton.disabled = true;
+      setGmailStatus('Reconnecting Gmail…');
+      try {
+        await requestGmailAccessToken('');
+        gmailReconnectRequired = false;
+        sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+        startGmailSyncTimer();
+        await syncGmail(true);
+      } catch (error) {
+        handleGmailAuthorizationFailure(error);
+      } finally {
+        reconnectButton.disabled = false;
+      }
+    };
     gmailTokenClient = google.accounts.oauth2.initTokenClient({
       client_id: window.GMAIL_CLIENT_ID,
       scope: GMAIL_SCOPE,
@@ -3789,6 +3868,8 @@
         gmailAccessToken = response.access_token;
         sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, response.access_token);
         sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+        sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+        gmailReconnectRequired = false;
         updateLoginGoogleUI(true, 'Google account selected. Log in to load your Gmail inbox.');
         setGmailStatus('Connected — syncing…');
         processContractEndedAlerts();
@@ -3810,7 +3891,9 @@
       return;
     }
     if (sessionStorage.getItem(GMAIL_CONNECTED_KEY)) {
-      setGmailStatus('Gmail authorized previously — log in with Google to sync');
+      setGmailStatus(gmailReconnectRequired
+        ? 'Gmail needs to reconnect. Use the Reconnect Gmail button; your dashboard session is still active.'
+        : 'Gmail authorized previously — log in with Google to sync');
     } else {
       setGmailStatus('Gmail ready — log in with Google to sync your inbox');
     }
@@ -3857,36 +3940,59 @@
   function handleGmailAuthorizationFailure() {
     gmailAccessToken = null;
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
-    sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
-    if (gmailSyncTimer) { clearInterval(gmailSyncTimer); gmailSyncTimer = null; }
+    gmailReconnectRequired = true;
+    sessionStorage.setItem(GMAIL_RECONNECT_REQUIRED_KEY, '1');
     updateGmailConnectionUI(false);
-    updateLoginGoogleUI(false, 'Google authorization expired. Sign in with Google again to resume Gmail sync.');
-    setGmailStatus('Gmail authorization expired — log in with Google again');
+    updateLoginGoogleUI(false, 'Gmail needs to reconnect. Your dashboard session is still active.');
+    setGmailStatus('Gmail needs to reconnect. Use the Reconnect Gmail button; your dashboard session is still active.');
   }
 
   function startGmailSyncTimer() {
     if (gmailSyncTimer) clearInterval(gmailSyncTimer);
     gmailSyncTimer = setInterval(() => {
-      if (currentUser && gmailAccessToken) syncGmail(true);
-    }, 10000);
+      if (currentUser && gmailAccessToken && !gmailReconnectRequired) syncGmail(true);
+    }, 30000);
+  }
+
+  async function refreshGmailAuthorization() {
+    if (gmailAuthorizationRecovery) return gmailAuthorizationRecovery;
+    gmailAuthorizationRecovery = requestGmailAccessToken('')
+      .catch(error => {
+        handleGmailAuthorizationFailure(error);
+        throw error;
+      })
+      .finally(() => { gmailAuthorizationRecovery = null; });
+    return gmailAuthorizationRecovery;
+  }
+
+  async function fetchGmailJson(url) {
+    const makeRequest = () => fetch(url, {
+      headers: { Authorization: `Bearer ${gmailAccessToken}` }
+    });
+    let response = await makeRequest();
+    if (response.status === 401) {
+      await refreshGmailAuthorization();
+      response = await makeRequest();
+    }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.error?.message || `Gmail returned ${response.status}`);
+      error.status = response.status;
+      error.reason = errorData.error?.errors?.[0]?.reason || '';
+      if (response.status === 401) handleGmailAuthorizationFailure(error);
+      throw error;
+    }
+    return response.json();
   }
 
   async function syncGmail(silent = false) {
     // Do not let a restored Gmail session sync against the empty startup state.
     // The authenticated startup flow triggers the first sync after saved deletions load.
-    if (gmailSyncInFlight || !gmailAccessToken || !currentUser || !dataReady || !supabaseDataLoaded) return;
+    if (gmailSyncInFlight || !gmailAccessToken || gmailReconnectRequired || !currentUser || !dataReady || !supabaseDataLoaded) return;
     gmailSyncInFlight = true;
     try {
       const fetchMessageList = async params => {
-        const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
-          headers: { Authorization: `Bearer ${gmailAccessToken}` }
-        });
-        if (response.status === 401 || response.status === 403) {
-          handleGmailAuthorizationFailure();
-          throw new Error('Gmail authorization expired. Log in with Google again.');
-        }
-        if (!response.ok) throw new Error('list failed');
-        return response.json();
+        return fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`);
       };
       const directClientEmailList = [...new Set(data.applications
         .filter(isDirectClientApplication)
@@ -3937,15 +4043,7 @@
       const newIds = ids.filter(id => !previousGmailIds.has(id));
       let matchedExistingSentMessages = false;
       const fetchedResults = await Promise.allSettled(newIds.map(async id => {
-        const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, {
-          headers: { Authorization: `Bearer ${gmailAccessToken}` }
-        });
-        if (!res.ok) {
-          const error = new Error(`message fetch failed (${res.status})`);
-          error.status = res.status;
-          throw error;
-        }
-        const msg = await res.json();
+        const msg = await fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`);
         const headers = msg.payload?.headers || [];
         const header = name => headers.find(item => item.name === name)?.value || '';
         const rawDate = header('Date');
@@ -3983,9 +4081,9 @@
           direction: isSent ? 'sent' : 'received'
         };
       }));
-      if (fetchedResults.some(result => result.status === 'rejected' && [401, 403].includes(result.reason?.status))) {
+      if (fetchedResults.some(result => result.status === 'rejected' && result.reason?.status === 401)) {
         handleGmailAuthorizationFailure();
-        throw new Error('Gmail authorization expired. Log in with Google again.');
+        throw new Error('Gmail authorization needs to be refreshed.');
       }
       const failedMessageFetches = fetchedResults.filter(result => result.status === 'rejected');
       const fetchedNewMessages = fetchedResults
@@ -4025,12 +4123,22 @@
       if (silent) alertNewMatches(newOnes);
     } catch (error) {
       const message = error?.message || 'Unknown Gmail API error';
-      setGmailStatus(`Gmail sync failed: ${message}`);
+      if (!gmailReconnectRequired) setGmailStatus(`Gmail sync failed: ${message}`);
       if (!silent) showActionResult({ title: 'Gmail sync failed', message, status: 'error' });
     } finally {
       gmailSyncInFlight = false;
     }
   }
+
+  window.addEventListener('online', () => {
+    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
+  });
+  window.addEventListener('focus', () => {
+    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
+  });
 
 
   // --- Excel export/restore ---
@@ -4405,7 +4513,9 @@
 
   $('#exportButton').addEventListener('click', exportBackup);
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
-  $('#settingsButton').addEventListener('click', () => $('#settingsModal').showModal());
+  $('#settingsButton').addEventListener('click', openWorkspaceSettings);
+  $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
+  $('#settingsDoneButton').addEventListener('click', () => $('#settingsModal').close());
   $('#autoBackupFrequency').addEventListener('change', event => {
     localStorage.setItem('jeff-va-auto-backup-frequency-v1', event.target.value);
     localStorage.removeItem('jeff-va-auto-backup-last-run-v1');
@@ -4764,6 +4874,8 @@
       </div>
       ${task.notes ? `<section class="daily-task-detail-notes"><span>Notes or content</span><p>${escapeHtml(task.notes)}</p></section>` : ''}
       <button class="button ${completed ? 'button-secondary' : 'button-primary'} daily-task-detail-complete" type="button" data-daily-task-toggle="${escapeHtml(task.id)}"><i class="fa-solid ${completed ? 'fa-rotate-left' : 'fa-check'}" aria-hidden="true"></i> ${completed ? 'Reopen task' : 'Complete task'}</button>`;
+    $('#dailyTaskChecklistForm').hidden = completed;
+    $('#dailyTaskChecklistLocked').hidden = !completed;
     renderDailyTaskChecklist(task);
   }
 
@@ -4782,15 +4894,14 @@
     const actionLabel = completed ? 'Reopen' : 'Complete';
     const actionIcon = completed ? 'fa-rotate-left' : 'fa-check';
     return `
-      <article class="daily-task-item${completed ? ' is-complete' : ''}">
+      <article class="daily-task-item${completed ? ' is-complete' : ''}${history ? ' is-history' : ''}">
         <button class="daily-task-row-open" type="button" data-daily-task-open="${escapeHtml(task.id)}" aria-label="View details for ${escapeHtml(task.title || 'task')}">
           <span class="daily-task-item-number" aria-hidden="true">${String(number).padStart(2, '0')}</span>
           <span class="daily-task-item-copy">
-            <span class="daily-task-item-title">${escapeHtml(task.title || 'Untitled task')}</span>
-            <span class="daily-task-item-meta"><span class="daily-task-type daily-task-type-${escapeHtml(task.type || 'task')}">${escapeHtml(DAILY_TASK_TYPES[task.type] || DAILY_TASK_TYPES.task)}</span>${relatedName ? `<span><i class="fa-solid ${task.relatedType === 'client' ? 'fa-user-tie' : 'fa-briefcase'}" aria-hidden="true"></i> ${relationLabel}: ${escapeHtml(relatedName)}</span>` : ''}${task.destination ? `<span><i class="fa-solid fa-location-arrow" aria-hidden="true"></i> ${escapeHtml(task.destination)}</span>` : ''}</span>
-            ${task.checklist?.length ? `<span class="daily-task-checklist-progress"><i class="fa-solid fa-list-check" aria-hidden="true"></i> ${task.checklist.filter(item => item.completed).length}/${task.checklist.length} checked</span>` : ''}
-            ${task.notes ? `<span class="daily-task-item-notes">${escapeHtml(task.notes)}</span>` : ''}
-            ${history ? `<time datetime="${escapeHtml(task.completedAt || '')}">Completed ${escapeHtml(relativeDate(task.completedAt))}</time>` : ''}
+            <span class="daily-task-item-topline"><span class="daily-task-item-title">${escapeHtml(task.title || 'Untitled task')}</span><span class="daily-task-status${completed ? ' is-complete' : ''}">${completed ? 'Completed' : 'To do'}</span></span>
+            <span class="daily-task-item-meta"><span class="daily-task-type daily-task-type-${escapeHtml(task.type || 'task')}">${escapeHtml(DAILY_TASK_TYPES[task.type] || DAILY_TASK_TYPES.task)}</span>${relatedName ? `<span class="daily-task-meta-detail"><i class="fa-solid ${task.relatedType === 'client' ? 'fa-user-tie' : 'fa-briefcase'}" aria-hidden="true"></i><span>${relationLabel}:</span> ${escapeHtml(relatedName)}</span>` : ''}${task.destination ? `<span class="daily-task-meta-detail"><i class="fa-solid fa-location-arrow" aria-hidden="true"></i><span>Destination:</span> ${escapeHtml(task.destination)}</span>` : ''}</span>
+            ${task.notes ? `<span class="daily-task-item-notes"><span>Notes</span>${escapeHtml(task.notes)}</span>` : ''}
+            <span class="daily-task-item-bottomline">${task.checklist?.length ? `<span class="daily-task-checklist-progress"><i class="fa-solid fa-list-check" aria-hidden="true"></i> ${task.checklist.filter(item => item.completed).length} of ${task.checklist.length} steps</span>` : ''}${history ? `<time datetime="${escapeHtml(task.completedAt || '')}">Completed ${escapeHtml(relativeDate(task.completedAt))}</time>` : ''}</span>
           </span>
         </button>
         <div class="daily-task-item-actions"><button class="daily-task-action" type="button" data-daily-task-toggle="${escapeHtml(task.id)}" aria-label="${actionLabel}: ${escapeHtml(task.title || 'task')}" title="${actionLabel}"><i class="fa-solid ${actionIcon}" aria-hidden="true"></i></button><button class="daily-task-delete" type="button" data-daily-task-delete="${escapeHtml(task.id)}" aria-label="Delete: ${escapeHtml(task.title || 'task')}" title="Delete task"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button></div>
@@ -4816,6 +4927,7 @@
 
     const historyTasks = (data.dailyTasks || []).filter(task => task.completedAt && dateKey(task.completedAt) === historyDate.value)
       .sort((first, second) => String(second.completedAt).localeCompare(String(first.completedAt)));
+    $('#dailyTaskHistoryCount').textContent = plural(historyTasks.length, 'completed task');
     $('#dailyTaskHistoryList').innerHTML = historyTasks.length
       ? historyTasks.map((task, index) => renderDailyTaskItem(task, true, index + 1)).join('')
       : '<div class="daily-task-history-empty">No completed tasks for this date.</div>';
@@ -4879,7 +4991,7 @@
     event.preventDefault();
     const task = (data.dailyTasks || []).find(item => item.id === activeDailyTaskId);
     const text = $('#dailyTaskChecklistItemInput').value.trim();
-    if (!task || !text) return;
+    if (!task || task.completedAt || !text) return;
     task.checklist = task.checklist || [];
     task.checklist.push({ id: uid(), text, completed: false });
     persist();
@@ -5943,6 +6055,11 @@
       clearInterval(gmailSyncTimer);
       gmailSyncTimer = null;
     }
+    gmailAccessToken = null;
+    gmailReconnectRequired = false;
+    sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
+    sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
+    sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
     try {
       if (supabaseClient) {
         const { error } = await supabaseClient.auth.signOut();

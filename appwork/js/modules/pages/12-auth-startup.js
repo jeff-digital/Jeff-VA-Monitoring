@@ -118,6 +118,11 @@
       clearInterval(gmailSyncTimer);
       gmailSyncTimer = null;
     }
+    gmailAccessToken = null;
+    gmailReconnectRequired = false;
+    sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
+    sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
+    sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
     try {
       if (supabaseClient) {
         const { error } = await supabaseClient.auth.signOut();

@@ -83,6 +83,8 @@
       </div>
       ${task.notes ? `<section class="daily-task-detail-notes"><span>Notes or content</span><p>${escapeHtml(task.notes)}</p></section>` : ''}
       <button class="button ${completed ? 'button-secondary' : 'button-primary'} daily-task-detail-complete" type="button" data-daily-task-toggle="${escapeHtml(task.id)}"><i class="fa-solid ${completed ? 'fa-rotate-left' : 'fa-check'}" aria-hidden="true"></i> ${completed ? 'Reopen task' : 'Complete task'}</button>`;
+    $('#dailyTaskChecklistForm').hidden = completed;
+    $('#dailyTaskChecklistLocked').hidden = !completed;
     renderDailyTaskChecklist(task);
   }
 
@@ -101,15 +103,14 @@
     const actionLabel = completed ? 'Reopen' : 'Complete';
     const actionIcon = completed ? 'fa-rotate-left' : 'fa-check';
     return `
-      <article class="daily-task-item${completed ? ' is-complete' : ''}">
+      <article class="daily-task-item${completed ? ' is-complete' : ''}${history ? ' is-history' : ''}">
         <button class="daily-task-row-open" type="button" data-daily-task-open="${escapeHtml(task.id)}" aria-label="View details for ${escapeHtml(task.title || 'task')}">
           <span class="daily-task-item-number" aria-hidden="true">${String(number).padStart(2, '0')}</span>
           <span class="daily-task-item-copy">
-            <span class="daily-task-item-title">${escapeHtml(task.title || 'Untitled task')}</span>
-            <span class="daily-task-item-meta"><span class="daily-task-type daily-task-type-${escapeHtml(task.type || 'task')}">${escapeHtml(DAILY_TASK_TYPES[task.type] || DAILY_TASK_TYPES.task)}</span>${relatedName ? `<span><i class="fa-solid ${task.relatedType === 'client' ? 'fa-user-tie' : 'fa-briefcase'}" aria-hidden="true"></i> ${relationLabel}: ${escapeHtml(relatedName)}</span>` : ''}${task.destination ? `<span><i class="fa-solid fa-location-arrow" aria-hidden="true"></i> ${escapeHtml(task.destination)}</span>` : ''}</span>
-            ${task.checklist?.length ? `<span class="daily-task-checklist-progress"><i class="fa-solid fa-list-check" aria-hidden="true"></i> ${task.checklist.filter(item => item.completed).length}/${task.checklist.length} checked</span>` : ''}
-            ${task.notes ? `<span class="daily-task-item-notes">${escapeHtml(task.notes)}</span>` : ''}
-            ${history ? `<time datetime="${escapeHtml(task.completedAt || '')}">Completed ${escapeHtml(relativeDate(task.completedAt))}</time>` : ''}
+            <span class="daily-task-item-topline"><span class="daily-task-item-title">${escapeHtml(task.title || 'Untitled task')}</span><span class="daily-task-status${completed ? ' is-complete' : ''}">${completed ? 'Completed' : 'To do'}</span></span>
+            <span class="daily-task-item-meta"><span class="daily-task-type daily-task-type-${escapeHtml(task.type || 'task')}">${escapeHtml(DAILY_TASK_TYPES[task.type] || DAILY_TASK_TYPES.task)}</span>${relatedName ? `<span class="daily-task-meta-detail"><i class="fa-solid ${task.relatedType === 'client' ? 'fa-user-tie' : 'fa-briefcase'}" aria-hidden="true"></i><span>${relationLabel}:</span> ${escapeHtml(relatedName)}</span>` : ''}${task.destination ? `<span class="daily-task-meta-detail"><i class="fa-solid fa-location-arrow" aria-hidden="true"></i><span>Destination:</span> ${escapeHtml(task.destination)}</span>` : ''}</span>
+            ${task.notes ? `<span class="daily-task-item-notes"><span>Notes</span>${escapeHtml(task.notes)}</span>` : ''}
+            <span class="daily-task-item-bottomline">${task.checklist?.length ? `<span class="daily-task-checklist-progress"><i class="fa-solid fa-list-check" aria-hidden="true"></i> ${task.checklist.filter(item => item.completed).length} of ${task.checklist.length} steps</span>` : ''}${history ? `<time datetime="${escapeHtml(task.completedAt || '')}">Completed ${escapeHtml(relativeDate(task.completedAt))}</time>` : ''}</span>
           </span>
         </button>
         <div class="daily-task-item-actions"><button class="daily-task-action" type="button" data-daily-task-toggle="${escapeHtml(task.id)}" aria-label="${actionLabel}: ${escapeHtml(task.title || 'task')}" title="${actionLabel}"><i class="fa-solid ${actionIcon}" aria-hidden="true"></i></button><button class="daily-task-delete" type="button" data-daily-task-delete="${escapeHtml(task.id)}" aria-label="Delete: ${escapeHtml(task.title || 'task')}" title="Delete task"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button></div>
@@ -135,6 +136,7 @@
 
     const historyTasks = (data.dailyTasks || []).filter(task => task.completedAt && dateKey(task.completedAt) === historyDate.value)
       .sort((first, second) => String(second.completedAt).localeCompare(String(first.completedAt)));
+    $('#dailyTaskHistoryCount').textContent = plural(historyTasks.length, 'completed task');
     $('#dailyTaskHistoryList').innerHTML = historyTasks.length
       ? historyTasks.map((task, index) => renderDailyTaskItem(task, true, index + 1)).join('')
       : '<div class="daily-task-history-empty">No completed tasks for this date.</div>';
@@ -198,7 +200,7 @@
     event.preventDefault();
     const task = (data.dailyTasks || []).find(item => item.id === activeDailyTaskId);
     const text = $('#dailyTaskChecklistItemInput').value.trim();
-    if (!task || !text) return;
+    if (!task || task.completedAt || !text) return;
     task.checklist = task.checklist || [];
     task.checklist.push({ id: uid(), text, completed: false });
     persist();

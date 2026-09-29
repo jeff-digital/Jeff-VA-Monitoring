@@ -115,7 +115,9 @@
 
   $('#exportButton').addEventListener('click', exportBackup);
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
-  $('#settingsButton').addEventListener('click', () => $('#settingsModal').showModal());
+  $('#settingsButton').addEventListener('click', openWorkspaceSettings);
+  $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
+  $('#settingsDoneButton').addEventListener('click', () => $('#settingsModal').close());
   $('#autoBackupFrequency').addEventListener('change', event => {
     localStorage.setItem('jeff-va-auto-backup-frequency-v1', event.target.value);
     localStorage.removeItem('jeff-va-auto-backup-last-run-v1');

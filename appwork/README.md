@@ -6,7 +6,7 @@ This version keeps the existing UI and application behavior, but moves app data 
 
 - **Supabase Postgres:** applications, daily tasks and completion history, readable Gmail messages, alerts, and saved email templates.
 - **Supabase Storage (private bucket):** attached PDF/Word files.
-- **Browser storage:** the Supabase login session is kept only in the current browser tab session; closing the tab requires signing in again. The Gmail OAuth token is kept for the current browser tab session and reused for automatic sync after signing back in. Google may require a new sign-in if that token expires.
+- **Browser storage:** the Supabase login session persists in this browser and is cleared when you sign out. Existing tab sessions are migrated automatically. The Gmail OAuth access token remains tab-scoped; the app retries authorization when Google rejects it and provides a Connect/Reconnect Gmail control in Account if Google requires user interaction.
 - **Not stored automatically in the browser:** application data and document files.
 - **Excel export:** creates a local `.xlsx` backup with application, client, reminder, tool, and daily task sheets. Email history and document binaries are not placed in the Excel file.
 
@@ -71,7 +71,7 @@ The browser loads the generated `js/app.js` bundle. Edit the ordered source modu
 - `pages/09-active-clients-page.js` — active-client details, contracts, documents, and invoices.
 - `pages/10-inbox-page.js` — inbox and email-composer controls.
 - `pages/11-tools-page.js` — personal documents, scripts, and work links.
-- `pages/12-auth-startup.js` — unchanged login/logout behavior and application startup.
+- `pages/12-auth-startup.js` — login/logout behavior and application startup; explicit logout clears both app and Gmail session state.
 
 `start-jeff-va.bat` rebuilds `js/app.js` from these modules before starting the server. The build preserves one shared JavaScript closure, so splitting the source does not change runtime behavior or data access. The application activation flow is isolated in the Applications page module: Next remains disabled until its selected contract has uploaded, and cancelling the document or email step restores the original application and removes the staged upload. The app also refuses to save until Supabase has successfully loaded the current user's state, preventing a failed startup from overwriting cloud data with an empty application list.
 

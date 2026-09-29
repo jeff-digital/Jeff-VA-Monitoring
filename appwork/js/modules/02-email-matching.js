@@ -694,6 +694,13 @@
     const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
+    else if (view === 'account') {
+      if (updateUrl && window.location.hash !== '#account') {
+        window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#account`);
+      }
+      openWorkspaceSettings();
+      return;
+    }
     if (updateUrl && window.location.hash !== `#${view}`) {
       window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
     }
