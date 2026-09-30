@@ -213,14 +213,14 @@
               <div class="daily-task-section-heading daily-task-list-heading"><div><h3 id="dailyTaskListTitle">Tasks</h3></div><div class="daily-task-plan-actions"><span class="daily-task-count" id="dailyTaskCount">0 tasks</span><button class="button button-primary" type="button" id="openDailyTaskAddModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add task</button></div></div>
               <div class="daily-task-list" id="dailyTaskList" aria-live="polite"></div>
             </section>
-          </section>
-          <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
-            <div class="daily-task-section-heading daily-task-history-heading"><div><h3 id="dailyTaskHistoryTitle">Completed task history</h3><p>Review the work you finished on a selected date.</p></div><span class="daily-task-count" id="dailyTaskHistoryCount">0 completed tasks</span></div>
-            <div class="daily-task-history-controls">
-              <label class="daily-task-date-field"><span>Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" /></label>
-              <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Same day last week</button></div>
-            </div>
-            <div class="daily-task-history-list" id="dailyTaskHistoryList" aria-live="polite"></div>
+            <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
+              <div class="daily-task-section-heading daily-task-history-heading"><div><h3 id="dailyTaskHistoryTitle">Completed task history</h3><p>Review the work you finished on a selected date.</p></div><span class="daily-task-count" id="dailyTaskHistoryCount">0 completed tasks</span></div>
+              <div class="daily-task-history-controls">
+                <label class="daily-task-date-field"><span>Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" /></label>
+                <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Same day last week</button></div>
+              </div>
+              <div class="daily-task-history-list" id="dailyTaskHistoryList" aria-live="polite"></div>
+            </section>
           </section>
         </section>
 
@@ -268,7 +268,8 @@
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
           <section class="application-workspace-head hired-workspace-head">
             <div class="application-workspace-count">
-              <span><strong id="hiredCountLabel">0 clients</strong></span>
+              <span class="application-workspace-count-icon" aria-hidden="true"><i class="fa-solid fa-users"></i></span>
+              <span><small>CLIENT PORTFOLIO</small><strong id="hiredCountLabel">0 clients</strong></span>
             </div>
           </section>
           <section class="toolbar">
@@ -286,9 +287,18 @@
                 <h2 id="hiredDetailTitle">Client details</h2>
                 <p class="hired-detail-subtitle" id="hiredDetailSubtitle"></p>
               </div>
-              <button class="button button-secondary" type="button" id="closeHiredDetail">← All clients</button>
+              <div class="hired-detail-heading-actions">
+                <div class="hired-actions-menu">
+                  <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton" aria-haspopup="true" aria-expanded="false">Actions</button>
+                  <div class="document-menu hired-actions-dropdown hidden">
+                    <button type="button" id="sendActiveClientEmailButton">Send email</button>
+                    <button type="button" id="editActiveClientButton">Edit details</button>
+                  </div>
+                </div>
+                <button class="button button-secondary" type="button" id="closeHiredDetail">← All clients</button>
+              </div>
             </div>
-            <dl class="hired-detail-grid hired-detail-grid-large" id="hiredDetailGrid"></dl>
+            <div class="hired-detail-grid hired-detail-sections" id="hiredDetailGrid"></div>
             <div class="hired-upload-section" id="hiredUploadSection">
               <div id="hiredDocumentWorkspace"></div>
               <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are kept in this browser for preview. No save-file dialog is used.</div>
