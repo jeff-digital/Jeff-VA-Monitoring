@@ -135,7 +135,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     with ThreadingHTTPServer((HOST, PORT), JeffVARequestHandler) as server:
-        print(f"Jeff VA is running at http://127.0.0.1:{PORT}/")
+        print(f"Jeff VA is running at http://localhost:{PORT}/")
         print(f"Automatic Excel backup: Documents\\{BACKUP_FILENAME}")
         try:
             server.serve_forever()

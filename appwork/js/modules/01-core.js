@@ -1,4 +1,6 @@
   const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
+  const ACTIVE_VIEW_KEY = 'jeff-va-active-view-v1';
+  const APPLICATION_DRAFT_KEY = 'jeff-va-new-application-draft-v1';
   const SUPABASE_BUCKET = 'client-documents';
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
@@ -591,6 +593,7 @@
       await persist();
       scheduleAutomaticBackup();
       if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
+      if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
       console.error(error);
       data = emptyData();
@@ -654,7 +657,7 @@
         initializeSupabaseForUser(session.user, {
           showSuccess: isAuthenticationCallback && !isPasswordRecovery || activeAuthProvider === 'email',
           recordSignIn: isFreshSignIn,
-          showOverview: isFreshSignIn
+          showOverview: false
         });
       });
       const accessToken = callbackParams.get('access_token');

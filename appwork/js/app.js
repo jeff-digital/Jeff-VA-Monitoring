@@ -2,6 +2,8 @@
   'use strict';
 
   const STORAGE_KEY = 'client-compass-data-v1'; // Legacy key name retained only for migration detection; app data is no longer stored in localStorage.
+  const ACTIVE_VIEW_KEY = 'jeff-va-active-view-v1';
+  const APPLICATION_DRAFT_KEY = 'jeff-va-new-application-draft-v1';
   const SUPABASE_BUCKET = 'client-documents';
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
@@ -594,6 +596,7 @@
       await persist();
       scheduleAutomaticBackup();
       if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
+      if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
       console.error(error);
       data = emptyData();
@@ -657,7 +660,7 @@
         initializeSupabaseForUser(session.user, {
           showSuccess: isAuthenticationCallback && !isPasswordRecovery || activeAuthProvider === 'email',
           recordSignIn: isFreshSignIn,
-          showOverview: isFreshSignIn
+          showOverview: false
         });
       });
       const accessToken = callbackParams.get('access_token');
@@ -1516,6 +1519,7 @@
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     else if (view === 'account') {
+      localStorage.setItem(ACTIVE_VIEW_KEY, view);
       if (updateUrl && window.location.hash !== '#account') {
         window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#account`);
       }
@@ -1525,6 +1529,7 @@
     if (updateUrl && window.location.hash !== `#${view}`) {
       window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
     }
+    localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
     if (view === 'applications') {
       renderApplications();
@@ -1557,6 +1562,47 @@
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (view === 'inbox' && currentUser && gmailAccessToken) syncGmail(true);
+  }
+
+  function saveNewClientApplicationDraft() {
+    const draft = {};
+    $$('#clientForm input[id], #clientForm select[id], #clientForm textarea[id]').forEach(field => {
+      if (field.id === 'clientId' || field.type === 'file') return;
+      draft[field.id] = field.type === 'checkbox' ? field.checked : field.value;
+    });
+    localStorage.setItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`, JSON.stringify(draft));
+  }
+
+  function restoreNewClientApplicationDraft() {
+    const savedDraft = localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
+    if (!savedDraft) return false;
+
+    let draft;
+    try {
+      draft = JSON.parse(savedDraft);
+    } catch (error) {
+      console.error('Could not restore the unfinished application:', error);
+      showActionResult({ title: 'Unfinished application could not be restored', message: 'The saved draft is invalid and has been kept in browser storage.', status: 'error' });
+      return false;
+    }
+    if (!draft || typeof draft !== 'object' || Array.isArray(draft)) {
+      console.error('Could not restore the unfinished application: saved draft has an invalid format.');
+      showActionResult({ title: 'Unfinished application could not be restored', message: 'The saved draft has an invalid format and has been kept in browser storage.', status: 'error' });
+      return false;
+    }
+
+    Object.entries(draft).forEach(([id, value]) => {
+      const field = document.getElementById(id);
+      if (!field || field.closest('#clientForm') !== $('#clientForm')) return;
+      if (field.type === 'checkbox') field.checked = value === true;
+      else field.value = String(value ?? '');
+    });
+    $('#clientPlatform').dispatchEvent(new Event('change'));
+    $('#clientCountry').dispatchEvent(new Event('change'));
+    if ($('#clientRegion').value) $('#clientRegion').dispatchEvent(new Event('change'));
+    updateSalaryFields();
+    updateClientActionLabel();
+    return true;
   }
 
   function openClientModal(id = null, viewOnly = false, activeClientOnly = false) {
@@ -1645,6 +1691,7 @@
         updateSalaryFields();
       }
     }
+    if (!id && !viewOnly) restoreNewClientApplicationDraft();
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = viewOnly; });
     if (activeClientOnly) {
       $('#clientStatus').value = 'Active client';
@@ -1745,7 +1792,10 @@
 
   async function saveClient(event) {
     const submitter = event.submitter;
-    if (submitter?.value === 'cancel') return;
+    if (submitter?.value === 'cancel') {
+      if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
+      return;
+    }
     event.preventDefault();
     const form = $('#clientForm');
     if (!form.reportValidity()) return;
@@ -1807,6 +1857,7 @@
       data.applications.push(application);
     }
     persist();
+    if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
     $('#clientModal').close();
     renderAll();
     if (application.status === 'Active client' && application.activePendingDocument) {
@@ -1840,7 +1891,6 @@
     renderAll();
     showActionResult({ title: 'Client deleted', message: 'The client and its attached documents were removed.' });
   }
-
 
   // --- Active client documents ---
   // Document binaries are stored in the private Supabase Storage bucket; only metadata and
@@ -4731,6 +4781,11 @@
   $('#clientCountry').addEventListener('change', updateClientLocation);
   $('#clientRegion').addEventListener('change', updateClientLocation);
   $('#clientForm').addEventListener('submit', saveClient);
+  ['input', 'change'].forEach(eventName => {
+    $('#clientForm').addEventListener(eventName, () => {
+      if ($('#clientModal').open && !editingId && !viewingClientDetails) saveNewClientApplicationDraft();
+    });
+  });
   $('#deleteClientButton').addEventListener('click', () => deleteClient(editingId));
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
   $('#automaticFollowUp').addEventListener('change', event => {
@@ -5669,18 +5724,29 @@
   });
   function updateSalaryCalculator() {
     const currency = $('#salaryCalculatorCurrency')?.value || 'USD';
-    const hourlyRate = Number($('#salaryCalculatorRate')?.value || 0);
+    const payType = $('#salaryCalculatorPayType')?.value || 'hourly';
+    const enteredRate = Number($('#salaryCalculatorRate')?.value || 0);
     const hoursPerWeek = Number($('#salaryCalculatorHours')?.value || 0);
     const daysPerWeek = Number($('#salaryCalculatorDays')?.value || 0);
     const monthlyDays = daysPerWeek * (52 / 12);
-    const monthlyTotal = hourlyRate * hoursPerWeek * (52 / 12);
+    const monthlyTotal = payType === 'monthly' ? enteredRate : enteredRate * hoursPerWeek * (52 / 12);
+    const hourlyRate = payType === 'monthly'
+      ? (hoursPerWeek > 0 ? monthlyTotal / (hoursPerWeek * (52 / 12)) : 0)
+      : enteredRate;
     const convertedTotal = currency === 'USD' ? monthlyTotal * 58 : monthlyTotal / 58;
     const convertedHourly = currency === 'USD' ? hourlyRate * 58 : hourlyRate / 58;
+    const convertedCurrency = currency === 'USD' ? 'PHP' : 'USD';
     const money = (amount, code) => code === 'USD'
       ? `$${Math.round(amount).toLocaleString()}`
       : `₱${Math.round(amount).toLocaleString()}`;
+    $('#salaryCalculatorRateLabel').textContent = payType === 'monthly' ? 'Monthly salary' : 'Hourly rate';
+    $('#salaryCalculatorRate').placeholder = currency === 'USD'
+      ? (payType === 'monthly' ? 'e.g. 1,700' : 'e.g. 10')
+      : (payType === 'monthly' ? 'e.g. 98,600' : 'e.g. 580');
     $('#salaryCalculatorMonthlyDays').textContent = `${monthlyDays.toFixed(1)} days`;
     $('#salaryCalculatorMonthlyTotal').textContent = money(monthlyTotal, currency);
+    $('#salaryCalculatorConversionLabel').textContent = `Converted monthly (${convertedCurrency})`;
+    $('#salaryCalculatorHourlyLabel').textContent = `Hourly equivalent (${convertedCurrency})`;
     $('#salaryCalculatorConversion').textContent = currency === 'USD'
       ? money(convertedTotal, 'PHP')
       : money(convertedTotal, 'USD');
@@ -5689,7 +5755,7 @@
       : money(convertedHourly, 'USD');
   }
 
-  ['salaryCalculatorCurrency', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays'].forEach(id => {
+  ['salaryCalculatorCurrency', 'salaryCalculatorPayType', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays'].forEach(id => {
     $(`#${id}`)?.addEventListener('input', updateSalaryCalculator);
     $(`#${id}`)?.addEventListener('change', updateSalaryCalculator);
   });
@@ -6128,7 +6194,7 @@
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);
-  const initialView = window.location.hash.slice(1) || 'dashboard';
+  const initialView = window.location.hash.slice(1) || localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard';
   showView(initialView, { updateUrl: false });
   window.addEventListener('popstate', () => {
     showView(window.location.hash.slice(1) || 'dashboard', { updateUrl: false });

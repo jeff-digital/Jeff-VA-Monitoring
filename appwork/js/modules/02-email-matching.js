@@ -695,6 +695,7 @@
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     else if (view === 'account') {
+      localStorage.setItem(ACTIVE_VIEW_KEY, view);
       if (updateUrl && window.location.hash !== '#account') {
         window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#account`);
       }
@@ -704,6 +705,7 @@
     if (updateUrl && window.location.hash !== `#${view}`) {
       window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
     }
+    localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
     if (view === 'applications') {
       renderApplications();
@@ -736,6 +738,47 @@
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (view === 'inbox' && currentUser && gmailAccessToken) syncGmail(true);
+  }
+
+  function saveNewClientApplicationDraft() {
+    const draft = {};
+    $$('#clientForm input[id], #clientForm select[id], #clientForm textarea[id]').forEach(field => {
+      if (field.id === 'clientId' || field.type === 'file') return;
+      draft[field.id] = field.type === 'checkbox' ? field.checked : field.value;
+    });
+    localStorage.setItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`, JSON.stringify(draft));
+  }
+
+  function restoreNewClientApplicationDraft() {
+    const savedDraft = localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
+    if (!savedDraft) return false;
+
+    let draft;
+    try {
+      draft = JSON.parse(savedDraft);
+    } catch (error) {
+      console.error('Could not restore the unfinished application:', error);
+      showActionResult({ title: 'Unfinished application could not be restored', message: 'The saved draft is invalid and has been kept in browser storage.', status: 'error' });
+      return false;
+    }
+    if (!draft || typeof draft !== 'object' || Array.isArray(draft)) {
+      console.error('Could not restore the unfinished application: saved draft has an invalid format.');
+      showActionResult({ title: 'Unfinished application could not be restored', message: 'The saved draft has an invalid format and has been kept in browser storage.', status: 'error' });
+      return false;
+    }
+
+    Object.entries(draft).forEach(([id, value]) => {
+      const field = document.getElementById(id);
+      if (!field || field.closest('#clientForm') !== $('#clientForm')) return;
+      if (field.type === 'checkbox') field.checked = value === true;
+      else field.value = String(value ?? '');
+    });
+    $('#clientPlatform').dispatchEvent(new Event('change'));
+    $('#clientCountry').dispatchEvent(new Event('change'));
+    if ($('#clientRegion').value) $('#clientRegion').dispatchEvent(new Event('change'));
+    updateSalaryFields();
+    updateClientActionLabel();
+    return true;
   }
 
   function openClientModal(id = null, viewOnly = false, activeClientOnly = false) {
@@ -824,6 +867,7 @@
         updateSalaryFields();
       }
     }
+    if (!id && !viewOnly) restoreNewClientApplicationDraft();
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = viewOnly; });
     if (activeClientOnly) {
       $('#clientStatus').value = 'Active client';
@@ -924,7 +968,10 @@
 
   async function saveClient(event) {
     const submitter = event.submitter;
-    if (submitter?.value === 'cancel') return;
+    if (submitter?.value === 'cancel') {
+      if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
+      return;
+    }
     event.preventDefault();
     const form = $('#clientForm');
     if (!form.reportValidity()) return;
@@ -986,6 +1033,7 @@
       data.applications.push(application);
     }
     persist();
+    if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
     $('#clientModal').close();
     renderAll();
     if (application.status === 'Active client' && application.activePendingDocument) {
@@ -1019,4 +1067,3 @@
     renderAll();
     showActionResult({ title: 'Client deleted', message: 'The client and its attached documents were removed.' });
   }
-

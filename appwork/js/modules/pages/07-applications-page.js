@@ -123,6 +123,11 @@
   $('#clientCountry').addEventListener('change', updateClientLocation);
   $('#clientRegion').addEventListener('change', updateClientLocation);
   $('#clientForm').addEventListener('submit', saveClient);
+  ['input', 'change'].forEach(eventName => {
+    $('#clientForm').addEventListener(eventName, () => {
+      if ($('#clientModal').open && !editingId && !viewingClientDetails) saveNewClientApplicationDraft();
+    });
+  });
   $('#deleteClientButton').addEventListener('click', () => deleteClient(editingId));
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
   $('#automaticFollowUp').addEventListener('change', event => {

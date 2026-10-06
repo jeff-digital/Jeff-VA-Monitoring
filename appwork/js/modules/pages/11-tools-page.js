@@ -244,18 +244,29 @@
   });
   function updateSalaryCalculator() {
     const currency = $('#salaryCalculatorCurrency')?.value || 'USD';
-    const hourlyRate = Number($('#salaryCalculatorRate')?.value || 0);
+    const payType = $('#salaryCalculatorPayType')?.value || 'hourly';
+    const enteredRate = Number($('#salaryCalculatorRate')?.value || 0);
     const hoursPerWeek = Number($('#salaryCalculatorHours')?.value || 0);
     const daysPerWeek = Number($('#salaryCalculatorDays')?.value || 0);
     const monthlyDays = daysPerWeek * (52 / 12);
-    const monthlyTotal = hourlyRate * hoursPerWeek * (52 / 12);
+    const monthlyTotal = payType === 'monthly' ? enteredRate : enteredRate * hoursPerWeek * (52 / 12);
+    const hourlyRate = payType === 'monthly'
+      ? (hoursPerWeek > 0 ? monthlyTotal / (hoursPerWeek * (52 / 12)) : 0)
+      : enteredRate;
     const convertedTotal = currency === 'USD' ? monthlyTotal * 58 : monthlyTotal / 58;
     const convertedHourly = currency === 'USD' ? hourlyRate * 58 : hourlyRate / 58;
+    const convertedCurrency = currency === 'USD' ? 'PHP' : 'USD';
     const money = (amount, code) => code === 'USD'
       ? `$${Math.round(amount).toLocaleString()}`
       : `₱${Math.round(amount).toLocaleString()}`;
+    $('#salaryCalculatorRateLabel').textContent = payType === 'monthly' ? 'Monthly salary' : 'Hourly rate';
+    $('#salaryCalculatorRate').placeholder = currency === 'USD'
+      ? (payType === 'monthly' ? 'e.g. 1,700' : 'e.g. 10')
+      : (payType === 'monthly' ? 'e.g. 98,600' : 'e.g. 580');
     $('#salaryCalculatorMonthlyDays').textContent = `${monthlyDays.toFixed(1)} days`;
     $('#salaryCalculatorMonthlyTotal').textContent = money(monthlyTotal, currency);
+    $('#salaryCalculatorConversionLabel').textContent = `Converted monthly (${convertedCurrency})`;
+    $('#salaryCalculatorHourlyLabel').textContent = `Hourly equivalent (${convertedCurrency})`;
     $('#salaryCalculatorConversion').textContent = currency === 'USD'
       ? money(convertedTotal, 'PHP')
       : money(convertedTotal, 'USD');
@@ -264,7 +275,7 @@
       : money(convertedHourly, 'USD');
   }
 
-  ['salaryCalculatorCurrency', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays'].forEach(id => {
+  ['salaryCalculatorCurrency', 'salaryCalculatorPayType', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays'].forEach(id => {
     $(`#${id}`)?.addEventListener('input', updateSalaryCalculator);
     $(`#${id}`)?.addEventListener('change', updateSalaryCalculator);
   });

@@ -162,7 +162,7 @@
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);
-  const initialView = window.location.hash.slice(1) || 'dashboard';
+  const initialView = window.location.hash.slice(1) || localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard';
   showView(initialView, { updateUrl: false });
   window.addEventListener('popstate', () => {
     showView(window.location.hash.slice(1) || 'dashboard', { updateUrl: false });
