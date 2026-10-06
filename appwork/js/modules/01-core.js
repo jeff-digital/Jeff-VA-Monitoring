@@ -64,14 +64,14 @@
     if (nextResult) setTimeout(() => showActionResult(nextResult), 0);
   });
 
-  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null } = {}) {
+  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null, details = [] } = {}) {
     const modal = $('#emailActionResultModal');
     if (!modal) {
       toast(message);
       return;
     }
     if (modal.open) {
-      actionResultQueue.push({ title, message, status, label, actionLabel, onAction });
+      actionResultQueue.push({ title, message, status, label, actionLabel, onAction, details });
       return;
     }
     const isError = status === 'error';
@@ -80,6 +80,30 @@
     $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
     $('#emailActionResultTitle').textContent = title;
     $('#emailActionResultMessage').textContent = message;
+    const detailList = $('#emailActionResultDetails');
+    detailList.replaceChildren(...details.map(detail => {
+      const item = document.createElement('article');
+      item.className = 'client-email-alert-item';
+      item.setAttribute('role', 'listitem');
+
+      const heading = document.createElement('div');
+      heading.className = 'client-email-alert-heading';
+      const client = document.createElement('strong');
+      client.textContent = detail.clientName || 'Client';
+      const date = document.createElement('time');
+      date.textContent = detail.date ? emailDate(detail.date) : '';
+      heading.append(client, date);
+
+      const subject = document.createElement('span');
+      subject.className = 'client-email-alert-subject';
+      subject.textContent = detail.subject || '(No subject)';
+
+      const sender = document.createElement('small');
+      sender.textContent = `From ${detail.from || 'Unknown sender'}`;
+      item.append(heading, subject, sender);
+      return item;
+    }));
+    detailList.hidden = details.length === 0;
     const badge = $('#emailActionResultBadge');
     badge.classList.toggle('error', isError);
     badge.classList.toggle('info', isInfo);
@@ -791,4 +815,3 @@
   function sortedPipelineApplications() {
     return sortByDate(pipelineApplications(), item => item.appliedDate || applicationAddedDate(item));
   }
-

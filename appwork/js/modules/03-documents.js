@@ -878,9 +878,6 @@
       app.interviewAlert = sameDay ? 'Interview date confirmed by another client email' : 'Interview requested or scheduled';
     });
 
-    const preview = unique.slice(0, 3).map(({ emailItem, app }) => `${app.clientName}: ${emailItem.subject || '(No subject)'}`).join('\n');
-    const extra = unique.length > 3 ? `\n+${unique.length - 3} more matching emails` : '';
-
     data.alerts = data.alerts || [];
     unique.forEach(({ emailItem, app }) => {
       const alertId = `${emailItem.gmailId || emailItem.id}|${app.id}`;
@@ -905,10 +902,16 @@
 
     showActionResult({
       title: 'New client email',
-      message: `${plural(unique.length, 'new email')} matched to your applications.\n${preview}${extra}`,
+      message: `${plural(unique.length, 'new email')} matched to your applications.`,
       status: 'info',
       label: 'CLIENT EMAIL ALERT',
       actionLabel: 'Open inbox',
+      details: unique.map(({ emailItem, app }) => ({
+        clientName: app.clientName,
+        subject: emailItem.subject || '(No subject)',
+        from: emailItem.from || 'Unknown sender',
+        date: emailItem.date || ''
+      })),
       onAction: () => showView('inbox')
     });
     return true;
@@ -1265,4 +1268,3 @@
     persist();
     renderAlerts();
   }
-

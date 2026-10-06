@@ -67,14 +67,14 @@
     if (nextResult) setTimeout(() => showActionResult(nextResult), 0);
   });
 
-  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null } = {}) {
+  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null, details = [] } = {}) {
     const modal = $('#emailActionResultModal');
     if (!modal) {
       toast(message);
       return;
     }
     if (modal.open) {
-      actionResultQueue.push({ title, message, status, label, actionLabel, onAction });
+      actionResultQueue.push({ title, message, status, label, actionLabel, onAction, details });
       return;
     }
     const isError = status === 'error';
@@ -83,6 +83,30 @@
     $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
     $('#emailActionResultTitle').textContent = title;
     $('#emailActionResultMessage').textContent = message;
+    const detailList = $('#emailActionResultDetails');
+    detailList.replaceChildren(...details.map(detail => {
+      const item = document.createElement('article');
+      item.className = 'client-email-alert-item';
+      item.setAttribute('role', 'listitem');
+
+      const heading = document.createElement('div');
+      heading.className = 'client-email-alert-heading';
+      const client = document.createElement('strong');
+      client.textContent = detail.clientName || 'Client';
+      const date = document.createElement('time');
+      date.textContent = detail.date ? emailDate(detail.date) : '';
+      heading.append(client, date);
+
+      const subject = document.createElement('span');
+      subject.className = 'client-email-alert-subject';
+      subject.textContent = detail.subject || '(No subject)';
+
+      const sender = document.createElement('small');
+      sender.textContent = `From ${detail.from || 'Unknown sender'}`;
+      item.append(heading, subject, sender);
+      return item;
+    }));
+    detailList.hidden = details.length === 0;
     const badge = $('#emailActionResultBadge');
     badge.classList.toggle('error', isError);
     badge.classList.toggle('info', isInfo);
@@ -540,7 +564,7 @@
     dataReady = false;
     supabaseDataLoaded = false;
     setAuthenticated(true);
-    if (showOverview && (!window.location.hash || window.location.hash === '#dashboard')) showView('dashboard');
+    if (showOverview) showView('dashboard');
     subscribeToAppState(user.id);
     if (!applyReminderTimer) applyReminderTimer = setInterval(() => {
       if (!currentUser) return;
@@ -794,7 +818,6 @@
   function sortedPipelineApplications() {
     return sortByDate(pipelineApplications(), item => item.appliedDate || applicationAddedDate(item));
   }
-
 
   // --- Client email matching ---
   // A saved sender address is a direct match; name-based matches also require client or role context.
@@ -1358,9 +1381,8 @@
       const docs = item.documents || [];
       const contractEnded = isContractEnded(item);
       const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
-      const inactiveClient = contractEnded || contractStatus === 'Not active';
       const statusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
-      return `<article class="hired-card${inactiveClient ? ' inactive-client-card' : ''}${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
+      return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
         <span class="hired-card-head"><span><strong class="client-card-title">${escapeHtml(item.clientName)}</strong><span class="client-card-subtitle">${escapeHtml(item.role || 'No role added')}</span></span><span class="hired-card-arrow" aria-hidden="true">→</span></span>
         <span class="client-contract-status ${statusClass}">${escapeHtml(contractStatus)}${item.contractEndDate ? ` · ends ${escapeHtml(formatDate(item.contractEndDate))}` : ''}</span>
         ${matchBadge(item) ? `<span>${matchBadge(item)}</span>` : ''}
@@ -1390,41 +1412,31 @@
     $('#hiredDetailSubtitle').textContent = item.role || 'Active client';
     const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
     $('#hiredDetailGrid').innerHTML = `
-      <section class="hired-detail-section">
-        <h3>Client Information</h3>
-        <dl class="hired-detail-fields">
-          <div><dt><i class="fa-regular fa-address-card" aria-hidden="true"></i> Contact</dt><dd>${item.contact ? escapeHtml(item.contact) : '—'}</dd></div>
-          <div><dt><i class="fa-regular fa-envelope" aria-hidden="true"></i> Email</dt><dd>${item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '—'}</dd></div>
-          <div><dt><i class="fa-solid fa-phone" aria-hidden="true"></i> Phone</dt><dd>${item.phone ? escapeHtml(item.phone) : '—'}</dd></div>
-          <div><dt><i class="fa-solid fa-globe" aria-hidden="true"></i> Website</dt><dd>${item.website ? `<a href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>` : '—'}</dd></div>
-          <div><dt><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Social</dt><dd>${item.socialMedia ? escapeHtml(item.socialMedia) : '—'}</dd></div>
-          <div><dt><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Location</dt><dd>${item.location ? escapeHtml(item.location) : '—'}</dd></div>
-          <div><dt><i class="fa-solid fa-laptop" aria-hidden="true"></i> Platform</dt><dd>${item.platform ? escapeHtml(item.platform) : '—'}</dd></div>
-        </dl>
-      </section>
-      <section class="hired-detail-section">
-        <h3>Employment Type</h3>
-        <dl class="hired-detail-fields">
-          <div><dt><i class="fa-solid fa-users" aria-hidden="true"></i> Employment type</dt><dd>${item.employmentType ? escapeHtml(item.employmentType) : '—'}</dd></div>
-          <div><dt><i class="fa-regular fa-calendar-check" aria-hidden="true"></i> Applied</dt><dd>${escapeHtml(emailDate(item.appliedDate))}</dd></div>
-          <div><dt><i class="fa-regular fa-calendar-plus" aria-hidden="true"></i> Added</dt><dd>${escapeHtml(emailDate(applicationAddedDate(item)))}</dd></div>
-          <div><dt><i class="fa-regular fa-clock" aria-hidden="true"></i> Active since</dt><dd>${escapeHtml(emailDate(activeSinceDate(item)))}</dd></div>
-        </dl>
-      </section>
-      <section class="hired-detail-section">
-        <h3>Contract Information</h3>
-        <dl class="hired-detail-fields">
-          <div><dt><i class="fa-solid fa-briefcase" aria-hidden="true"></i> Application</dt><dd><span class="status-pill active-client">Active client</span></dd></div>
-          <div><dt><i class="fa-solid fa-file-contract" aria-hidden="true"></i> Contract status</dt><dd><span class="status-pill ${contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active')}">${escapeHtml(contractStatus)}</span></dd></div>
-          ${contractEnded ? `<div><dt><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Contract Ended Email Sent</dt><dd><span class="status-pill ${item.contractEndedEmailSentAt ? 'contract-active' : 'not-active'}">${item.contractEndedEmailSentAt ? 'Done' : 'Not sent'}</span></dd></div>` : ''}
-          <div><dt><i class="fa-regular fa-calendar-xmark" aria-hidden="true"></i> Contract end</dt><dd>${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : 'No end date'}</dd></div>
-        </dl>
-      </section>
-      <section class="hired-detail-wide hired-detail-notes">
-        <h3><i class="fa-regular fa-note-sticky" aria-hidden="true"></i> Notes</h3>
-        <p class="hired-notes">${item.notes ? escapeHtml(item.notes) : '—'}</p>
-      </section>
-      `;
+      <div><dt>Contact</dt><dd>${item.contact ? escapeHtml(item.contact) : '—'}</dd></div>
+      <div><dt>Application</dt><dd><span class="status-pill active-client">Active client</span></dd></div>
+      <div><dt>Contract status</dt><dd><span class="status-pill ${contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active')}" >${escapeHtml(contractStatus)}</span></dd></div>
+      ${contractEnded ? `<div><dt>Contract Ended Email Sent</dt><dd><span class="status-pill ${item.contractEndedEmailSentAt ? 'contract-active' : 'not-active'}">${item.contractEndedEmailSentAt ? 'Done' : 'Not sent'}</span></dd></div>` : ''}
+      <div><dt>Contract end</dt><dd>${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : 'No end date'}</dd></div>
+      <div><dt>Email</dt><dd>${item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '—'}</dd></div>
+      <div><dt>Phone</dt><dd>${item.phone ? escapeHtml(item.phone) : '—'}</dd></div>
+      <div><dt>Website</dt><dd>${item.website ? `<a href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>` : '—'}</dd></div>
+      <div><dt>Social</dt><dd>${item.socialMedia ? escapeHtml(item.socialMedia) : '—'}</dd></div>
+      <div><dt>Location</dt><dd>${item.location ? escapeHtml(item.location) : '—'}</dd></div>
+      <div><dt>Platform</dt><dd>${item.platform ? escapeHtml(item.platform) : '—'}</dd></div>
+      <div><dt>Employment type</dt><dd>${item.employmentType ? escapeHtml(item.employmentType) : '—'}</dd></div>
+      <div><dt>Applied</dt><dd>${escapeHtml(emailDate(item.appliedDate))}</dd></div>
+      <div><dt>Added</dt><dd>${escapeHtml(emailDate(applicationAddedDate(item)))}</dd></div>
+      <div><dt>Active since</dt><dd>${escapeHtml(emailDate(activeSinceDate(item)))}</dd></div>
+      <div class="hired-detail-wide"><dt>Notes</dt><dd class="hired-notes">${item.notes ? escapeHtml(item.notes) : '—'}</dd></div>
+      <div class="hired-detail-wide hired-client-actions">
+        <div class="hired-actions-menu">
+          <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton" aria-haspopup="true" aria-expanded="false">Actions</button>
+          <div class="document-menu hired-actions-dropdown hidden">
+            <button type="button" id="sendActiveClientEmailButton">Send email</button>
+            <button type="button" id="editActiveClientButton">Edit details</button>
+          </div>
+        </div>
+      </div>`;
     const invoiceRows = (data.invoices || []).filter(invoice => invoice.clientId === item.id).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
     $('#hiredUploadSection').innerHTML = `
       <div class="active-client-two-column">
@@ -2710,9 +2722,6 @@
       app.interviewAlert = sameDay ? 'Interview date confirmed by another client email' : 'Interview requested or scheduled';
     });
 
-    const preview = unique.slice(0, 3).map(({ emailItem, app }) => `${app.clientName}: ${emailItem.subject || '(No subject)'}`).join('\n');
-    const extra = unique.length > 3 ? `\n+${unique.length - 3} more matching emails` : '';
-
     data.alerts = data.alerts || [];
     unique.forEach(({ emailItem, app }) => {
       const alertId = `${emailItem.gmailId || emailItem.id}|${app.id}`;
@@ -2737,10 +2746,16 @@
 
     showActionResult({
       title: 'New client email',
-      message: `${plural(unique.length, 'new email')} matched to your applications.\n${preview}${extra}`,
+      message: `${plural(unique.length, 'new email')} matched to your applications.`,
       status: 'info',
       label: 'CLIENT EMAIL ALERT',
       actionLabel: 'Open inbox',
+      details: unique.map(({ emailItem, app }) => ({
+        clientName: app.clientName,
+        subject: emailItem.subject || '(No subject)',
+        from: emailItem.from || 'Unknown sender',
+        date: emailItem.date || ''
+      })),
       onAction: () => showView('inbox')
     });
     return true;
@@ -3097,7 +3112,6 @@
     persist();
     renderAlerts();
   }
-
 
   // --- Gmail sync ---
   // Runs entirely in the browser via Google's own sign-in (Google Identity Services) and calls
