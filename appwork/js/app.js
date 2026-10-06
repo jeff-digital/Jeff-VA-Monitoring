@@ -2795,8 +2795,12 @@
         <div class="notification-section-title">${section.label}</div>
         ${section.items.map(alert => `
           <button type="button" class="notification-item ${alert.unread ? 'unread' : ''}" data-alert-open="${escapeHtml(alert.id)}">
-            <span class="notification-item-dot"></span>
-            <span class="notification-item-copy"><strong>${escapeHtml(alert.clientName)}</strong><span>${escapeHtml(alert.subject)}</span><small>${escapeHtml(alert.from)} · ${relativeDate(alert.date)}</small></span>
+            <span class="notification-item-dot" aria-hidden="true"></span>
+            <span class="notification-item-copy">
+              <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName)}</strong><time>${relativeDate(alert.date)}</time></span>
+              <span class="notification-item-subject">${escapeHtml(alert.subject || '(No subject)')}</span>
+              <small>From ${escapeHtml(alert.from || 'Unknown sender')}</small>
+            </span>
           </button>
         `).join('')}
       </div>
