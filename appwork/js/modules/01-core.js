@@ -409,16 +409,15 @@
   const uid = () => (crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
   const SESSION_KEY = 'jeff-va-session-v1';
-  const APPLICATION_WEEK_FILTER_KEY = 'jeff-va-application-week-filter-v1';
   const EMAIL_WEEK_FILTER_KEY = 'jeff-va-email-week-filter-v1';
   let data = emptyData();
   let activeView = 'dashboard';
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
-  let applicationDateSort = localStorage.getItem(APPLICATION_WEEK_FILTER_KEY) || '0';
+  let applicationDateSort = '0';
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
-  let applicationDateFilter = '';
+  let applicationDateFilter = today();
   let hiredDateFilter = '';
   let emailDateFilter = '';
   let interviewCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -741,6 +740,12 @@
     if (!value) return 'No date';
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+  }
+
+  function emailTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
   }
 
   function applicationAddedDate(item) {

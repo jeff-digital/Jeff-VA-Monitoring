@@ -613,6 +613,9 @@ td:first-child { color: #242522; font-weight: 650; }
 .application-workspace-count-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 6px; background: #edf4ef; color: #476c53; font-size: 14px; }
 .application-workspace-count small { display: block; margin-bottom: 3px; color: #777d77; font-size: 10px; }
 #applicationListLabel, #emailCountLabel, #toApplyCountLabel { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; color: #2e3931; font-size: 13px; font-weight: 700; letter-spacing: 0; text-transform: capitalize; }
+.application-workspace-count-summary { display: grid; gap: 6px; min-width: 0; }
+#applicationPlatformCounts { display: flex; flex-wrap: wrap; gap: 5px; }
+.application-platform-count { padding: 3px 7px; border: 1px solid #dce5de; border-radius: 999px; background: #f5f8f5; color: #53675a; font-size: 10px; font-weight: 600; white-space: nowrap; }
 .to-apply-head-actions { display: flex; align-items: center; gap: 10px; }
 .to-apply-workspace-count-icon { background: #f3f2e9; color: #7a7045; }
 .to-apply-head-actions > .button { white-space: nowrap; }
@@ -914,8 +917,8 @@ code { background: #f0f1ed; padding: 1px 4px; border-radius: 3px; font-size: .9e
 .client-match-tag { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border: 1px solid #f3dfb8; border-radius: 20px; background: #fef3e2; color: #a3733d; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .client-match-tag.neutral { background: #edf0f2; color: #5f6368; }
 .email-from { min-width: 0; margin: 0; overflow: hidden; color: #33342f; font-size: 12px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
-.email-date { color: #777873; font-size: 11px; white-space: nowrap; text-align: right; }
-.email-date span { display: block; color: #a0a19c; font-size: 9px; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .06em; }
+.email-date { display: grid; gap: 2px; color: #777873; font-size: 11px; white-space: nowrap; text-align: right; }
+.email-time { color: #a0a19c; font-size: 10px; }
 .email-row-actions { display: flex; align-items: center; justify-content: flex-end; }
 .email-action-menu { position: relative; }
 .email-actions-trigger {
@@ -2149,6 +2152,13 @@ body.authenticated .login-screen { display: none; }
 #hiredView .view-details-label { margin-top: auto; padding-top: 11px; border-top: 1px solid #e9eeeb; color: var(--workspace-accent); font-size: 11px; }
 #hiredView .hired-detail-panel { margin-top: 14px; padding: 16px; border-radius: 5px; }
 #hiredView .hired-detail-heading { padding-bottom: 12px; }
+#hiredView .active-client-onboarding { margin: 4px 0 16px; padding: 15px; border: 1px solid var(--workspace-line); border-radius: 5px; background: #fff; }
+#hiredView .active-client-onboarding-heading h3 { margin: 3px 0 12px; color: var(--workspace-ink); font-size: 14px; }
+#hiredView .active-client-onboarding-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin: 0; }
+#hiredView .active-client-onboarding-details > div { min-width: 0; }
+#hiredView .active-client-onboarding-details dt { margin-bottom: 4px; color: var(--workspace-muted); font-size: 10px; font-weight: 700; }
+#hiredView .active-client-onboarding-details dd { margin: 0; color: var(--workspace-ink); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+#hiredView .active-client-onboarding-submitted { margin: 0 0 12px; color: var(--workspace-muted); font-size: 11px; }
 #hiredDetailGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px 0; align-items: stretch; }
 #hiredDetailGrid .hired-detail-section { min-width: 0; padding: 14px; border: 1px solid var(--workspace-line); border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(32, 39, 36, .06); }
 #hiredDetailGrid .hired-detail-section h3,
@@ -2173,6 +2183,7 @@ body.authenticated .login-screen { display: none; }
 
 @media (max-width: 900px) {
   #hiredDetailGrid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  #hiredView .active-client-onboarding-details { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 1300px) {

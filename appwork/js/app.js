@@ -412,16 +412,15 @@
   const uid = () => (crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
   const SESSION_KEY = 'jeff-va-session-v1';
-  const APPLICATION_WEEK_FILTER_KEY = 'jeff-va-application-week-filter-v1';
   const EMAIL_WEEK_FILTER_KEY = 'jeff-va-email-week-filter-v1';
   let data = emptyData();
   let activeView = 'dashboard';
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
-  let applicationDateSort = localStorage.getItem(APPLICATION_WEEK_FILTER_KEY) || '0';
+  let applicationDateSort = '0';
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
-  let applicationDateFilter = '';
+  let applicationDateFilter = today();
   let hiredDateFilter = '';
   let emailDateFilter = '';
   let interviewCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -746,6 +745,12 @@
     return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
   }
 
+  function emailTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+  }
+
   function applicationAddedDate(item) {
     return item.createdAt || item.updatedAt || item.appliedDate;
   }
@@ -1060,7 +1065,7 @@
       const range = weekRange(offset);
       return `<option value="${offset}">${escapeHtml(weeklyRangeLabel(range).replace(' – ', ' to '))}</option>`;
     }).join('');
-    return `<option value="all">All weeks</option><option value="0">This week</option>${options}`;
+    return `<option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option>${options}`;
   }
 
   function renderApplications() {
@@ -1070,8 +1075,10 @@
     const dateFilter = $('#applicationDateFilter').value;
     updatePlatformFilter();
     const weekOffset = Number(applicationDateSort);
-    const weekRangeFilter = applicationDateSort === 'all' ? null : weekRange(weekOffset);
-    $('#applicationWeekDate').textContent = applicationDateSort === 'all' ? 'All weeks' : weeklyRangeLabel(weekRangeFilter).replace(' – ', ' to ');
+    const weekRangeFilter = applicationDateSort && applicationDateSort !== 'all' ? weekRange(weekOffset) : null;
+    $('#applicationWeekDate').textContent = !applicationDateSort
+      ? 'Select a week'
+      : applicationDateSort === 'all' ? 'All weeks' : weeklyRangeLabel(weekRangeFilter).replace(' – ', ' to ');
     $('#applicationDateSort').innerHTML = applicationWeekOptions();
     $('#applicationDateSort').value = applicationDateSort;
     const pipeline = pipelineApplications();
@@ -1082,10 +1089,19 @@
         : item.status !== 'Not selected';
       const alwaysVisibleStatus = isToProceedStatus(item) || item.status === 'Interview' || item.status === 'Ongoing';
       const dateMatches = alwaysVisibleStatus || !dateFilter || dateKey(item.appliedDate) === dateFilter;
-      const weekMatches = alwaysVisibleStatus || applicationDateSort === 'all' || isInWeeklyRange(applicationAddedDate(item), weekRangeFilter);
+      const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAddedDate(item), weekRangeFilter);
       return (!query || text.includes(query)) && statusMatches && (!platform || item.platform === platform) && dateMatches && weekMatches;
     });
     $('#applicationListLabel').textContent = `${plural(filtered.length, 'application')}${filtered.length !== pipeline.length ? ` of ${pipeline.length}` : ''}`;
+    const platformCounts = new Map();
+    filtered.forEach(item => {
+      const name = String(item.platform || 'Unspecified').trim() || 'Unspecified';
+      platformCounts.set(name, (platformCounts.get(name) || 0) + 1);
+    });
+    $('#applicationPlatformCounts').innerHTML = [...platformCounts]
+      .sort(([first], [second]) => first.localeCompare(second, undefined, { sensitivity: 'base' }))
+      .map(([name, count]) => `<span class="application-platform-count">${escapeHtml(name)} - ${count}</span>`)
+      .join('');
     const target = $('#applicationList');
     if (!filtered.length) {
       const isFiltered = pipeline.length > 0;
@@ -1322,8 +1338,9 @@
       const sentClass = item.direction === 'sent' ? ' sent' : '';
       const sentBadge = item.direction === 'sent' ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = item.direction === 'sent' ? 'Sent' : 'Received';
+      const sentTime = emailTime(item.date);
       const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.subject || 'email')}" />` : '';
-      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div><p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p></div><time class="email-date" title="${dateLabel}">${emailDate(item.date)}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div><p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p></div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
   }
@@ -1435,6 +1452,7 @@
         <div class="hired-actions-menu">
           <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton" aria-haspopup="true" aria-expanded="false">Actions</button>
           <div class="document-menu hired-actions-dropdown hidden">
+            <button type="button" id="sendClientOnboardingLinkButton">Send onboarding form</button>
             <button type="button" id="sendActiveClientEmailButton">Send email</button>
             <button type="button" id="editActiveClientButton">Edit details</button>
           </div>
@@ -1460,7 +1478,69 @@
       ${renderHiredEmailHistory(item)}
       <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in your account.</div>`;
     renderHiredDocumentWorkspace(item);
+    loadClientOnboardingSubmission(item);
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function loadClientOnboardingSubmission(item) {
+    const target = $('#activeOnboardingResponse');
+    if (!target) return;
+    target.dataset.clientId = item.id;
+    target.textContent = 'Loading onboarding status...';
+    try {
+      const { data: { session }, error: sessionError } = await requireSupabase().auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session?.access_token) throw new Error('Sign in again to view client onboarding.');
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action: 'getSubmission', clientId: item.id }),
+        cache: 'no-store',
+        credentials: 'same-origin'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not load this onboarding response.');
+      if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
+      if (!result.submission) {
+        target.textContent = 'No onboarding response has been submitted yet. Use Actions → Send onboarding form to invite this client.';
+        return;
+      }
+      const submission = result.submission;
+      const details = [
+        ['Client contact', submission.contact_name],
+        ['Email', submission.client_email],
+        ['Phone', submission.phone],
+        ['Time zone', submission.timezone],
+        ['Availability and preferred working hours', submission.availability],
+        ['Tools or platforms', submission.tools],
+        ['First-week priorities', submission.priorities]
+      ];
+      target.replaceChildren();
+      const submittedAt = document.createElement('p');
+      submittedAt.className = 'active-client-onboarding-submitted';
+      submittedAt.textContent = `Submitted ${new Date(submission.submitted_at).toLocaleString()}`;
+      const list = document.createElement('dl');
+      list.className = 'active-client-onboarding-details';
+      details.forEach(([label, value]) => {
+        const wrapper = document.createElement('div');
+        const term = document.createElement('dt');
+        const description = document.createElement('dd');
+        term.textContent = label;
+        description.textContent = value || 'Not provided';
+        wrapper.append(term, description);
+        list.append(wrapper);
+      });
+      target.append(submittedAt, list);
+      document.querySelectorAll('#sendClientOnboardingLinkButton').forEach(button => { button.hidden = true; });
+    } catch (error) {
+      console.error('Could not load client onboarding response:', error);
+      if (target.dataset.clientId === item.id && hiredEditingId === item.id) {
+        target.textContent = 'Could not load onboarding status. Check your connection and try again.';
+      }
+    }
   }
 
   function closeHiredDetail(render = true) {
@@ -1471,10 +1551,10 @@
   }
 
   function updateWeekNavigationCounts() {
-    const applicationRange = applicationDateSort === 'all' ? null : weekRange(Number(applicationDateSort));
+    const applicationRange = applicationDateSort && applicationDateSort !== 'all' ? weekRange(Number(applicationDateSort)) : null;
     const emailRange = emailDateSort === 'all' ? null : weekRange(Number(emailDateSort));
     const relevantReceivedEmails = receivedEmails().filter(item => matchApplicationsForEmail(item).length > 0);
-    $('#navApplicationCount').textContent = applicationDateSort === 'all'
+    $('#navApplicationCount').textContent = !applicationDateSort || applicationDateSort === 'all'
       ? pipelineApplications().length
       : pipelineApplications().filter(item => isInWeeklyRange(applicationAddedDate(item), applicationRange)).length;
     $('#navEmailCount').textContent = emailDateSort === 'all'
@@ -4814,11 +4894,16 @@
   $('#applicationSearch').addEventListener('input', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {
     applicationDateFilter = event.target.value;
+    applicationDateSort = '';
     renderApplications();
+    updateWeekNavigationCounts();
   });
   $('#applicationDateSort').addEventListener('change', event => {
     applicationDateSort = event.target.value;
-    localStorage.setItem(APPLICATION_WEEK_FILTER_KEY, applicationDateSort);
+    if (applicationDateSort === 'all') {
+      applicationDateFilter = '';
+      $('#applicationDateFilter').value = '';
+    }
     renderApplications();
     updateWeekNavigationCounts();
   });
@@ -5160,12 +5245,13 @@
     renderDailyTaskDraftChecklist();
   });
   // Active Clients page controls, including its document and invoice tools.
-  document.addEventListener('click', event => {
+  document.addEventListener('click', async event => {
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
     const editActiveButton = event.target.closest('#editActiveClientButton');
     const closeHiredDetailAction = event.target.closest('#closeHiredDetailAction');
     const sendActiveClientEmailButton = event.target.closest('#sendActiveClientEmailButton');
+    const sendClientOnboardingLinkButton = event.target.closest('#sendClientOnboardingLinkButton');
     const sendInvoiceButton = event.target.closest('#sendInvoiceButton');
     const hiredSelectButton = event.target.closest('[data-hired-select]');
     const docOpenButton = event.target.closest('[data-doc-open]');
@@ -5198,6 +5284,11 @@
     if (sendActiveClientEmailButton) {
       const item = data.applications.find(application => application.id === hiredEditingId);
       if (item) openPlainClientEmailComposer(item);
+      return;
+    }
+    if (sendClientOnboardingLinkButton) {
+      const item = data.applications.find(application => application.id === hiredEditingId);
+      if (item) await sendClientOnboardingInvite(item, sendClientOnboardingLinkButton);
       return;
     }
     if (sendInvoiceButton) {
@@ -5249,6 +5340,40 @@
   });
   $('#hiredStatusFilter').addEventListener('change', renderHired);
   $('#closeHiredDetail').addEventListener('click', () => closeHiredDetail());
+
+  async function sendClientOnboardingInvite(item, button) {
+    if (!item.email) {
+      showActionResult({ title: 'Client email required', message: 'Add an email address to this active client before sending an onboarding invitation.', status: 'error' });
+      return;
+    }
+    button.disabled = true;
+    try {
+      const { data: { session }, error: sessionError } = await requireSupabase().auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session?.access_token) throw new Error('Sign in again before creating an onboarding link.');
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action: 'createInvite', clientId: item.id }),
+        cache: 'no-store',
+        credentials: 'same-origin'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not create an onboarding invitation.');
+      openPlainClientEmailComposer(item);
+      $('#composeSubject').value = 'Please complete your client onboarding';
+      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete this onboarding form so I can prepare for our work together:\n\n${result.url}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
+      toast('Review the onboarding invitation and send it through Gmail.');
+    } catch (error) {
+      console.error('Could not create client onboarding invitation:', error);
+      showActionResult({ title: 'Onboarding link could not be created', message: error.message || 'Check your connection and try again.', status: 'error' });
+    } finally {
+      button.disabled = false;
+    }
+  }
 
   function openDocumentEmailReminder(item) {
     const modal = $('#documentEmailReminderModal');
@@ -6207,10 +6332,14 @@
     supabaseDataLoaded = false;
     data = emptyData();
     setAuthenticated(false);
+    applicationDateFilter = today();
+    $('#applicationDateFilter').value = applicationDateFilter;
     renderAll();
     $('#loginUsername').focus();
   });
 
+  applicationDateFilter = today();
+  $('#applicationDateFilter').value = applicationDateFilter;
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);

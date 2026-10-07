@@ -1,10 +1,11 @@
   // Active Clients page controls, including its document and invoice tools.
-  document.addEventListener('click', event => {
+  document.addEventListener('click', async event => {
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
     const editActiveButton = event.target.closest('#editActiveClientButton');
     const closeHiredDetailAction = event.target.closest('#closeHiredDetailAction');
     const sendActiveClientEmailButton = event.target.closest('#sendActiveClientEmailButton');
+    const sendClientOnboardingLinkButton = event.target.closest('#sendClientOnboardingLinkButton');
     const sendInvoiceButton = event.target.closest('#sendInvoiceButton');
     const hiredSelectButton = event.target.closest('[data-hired-select]');
     const docOpenButton = event.target.closest('[data-doc-open]');
@@ -37,6 +38,11 @@
     if (sendActiveClientEmailButton) {
       const item = data.applications.find(application => application.id === hiredEditingId);
       if (item) openPlainClientEmailComposer(item);
+      return;
+    }
+    if (sendClientOnboardingLinkButton) {
+      const item = data.applications.find(application => application.id === hiredEditingId);
+      if (item) await sendClientOnboardingInvite(item, sendClientOnboardingLinkButton);
       return;
     }
     if (sendInvoiceButton) {
@@ -88,6 +94,40 @@
   });
   $('#hiredStatusFilter').addEventListener('change', renderHired);
   $('#closeHiredDetail').addEventListener('click', () => closeHiredDetail());
+
+  async function sendClientOnboardingInvite(item, button) {
+    if (!item.email) {
+      showActionResult({ title: 'Client email required', message: 'Add an email address to this active client before sending an onboarding invitation.', status: 'error' });
+      return;
+    }
+    button.disabled = true;
+    try {
+      const { data: { session }, error: sessionError } = await requireSupabase().auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session?.access_token) throw new Error('Sign in again before creating an onboarding link.');
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action: 'createInvite', clientId: item.id }),
+        cache: 'no-store',
+        credentials: 'same-origin'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not create an onboarding invitation.');
+      openPlainClientEmailComposer(item);
+      $('#composeSubject').value = 'Please complete your client onboarding';
+      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete this onboarding form so I can prepare for our work together:\n\n${result.url}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
+      toast('Review the onboarding invitation and send it through Gmail.');
+    } catch (error) {
+      console.error('Could not create client onboarding invitation:', error);
+      showActionResult({ title: 'Onboarding link could not be created', message: error.message || 'Check your connection and try again.', status: 'error' });
+    } finally {
+      button.disabled = false;
+    }
+  }
 
   function openDocumentEmailReminder(item) {
     const modal = $('#documentEmailReminderModal');

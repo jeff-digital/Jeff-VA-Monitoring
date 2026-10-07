@@ -227,14 +227,14 @@
         <section class="view" id="applicationsView" data-view-panel="applications" data-page="applications">
           <section class="application-workspace-head">
             <div class="application-workspace-count">
-              <span><strong id="applicationListLabel">0 applications</strong></span>
+              <span class="application-workspace-count-summary"><strong id="applicationListLabel">0 applications</strong><span id="applicationPlatformCounts" aria-label="Applications by source"></span></span>
             </div>
           </section>
           <section class="application-filters" aria-label="Application filters">
             <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="applicationSearch" aria-label="Search applications" placeholder="Search applications" /></label>
             <div class="application-filter-controls">
-              <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="applicationDateFilter" aria-label="Filter applications by exact date" /></label>
-              <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Added week</span><select id="applicationDateSort"><option value="0">This week</option></select></label>
+              <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Application Date</span><input type="date" id="applicationDateFilter" aria-label="Filter applications by application date" /></label>
+              <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Select week</span><select id="applicationDateSort"><option value="">- Select -</option><option value="0">This week</option></select></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i> Stage</span><select id="statusFilter"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-globe" aria-hidden="true"></i> Source</span><select id="platformFilter"><option value="">All sources</option></select></label>
             </div>
@@ -291,6 +291,7 @@
                 <div class="hired-actions-menu">
                   <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton" aria-haspopup="true" aria-expanded="false">Actions</button>
                   <div class="document-menu hired-actions-dropdown hidden">
+                    <button type="button" id="sendClientOnboardingLinkButton">Send onboarding form</button>
                     <button type="button" id="sendActiveClientEmailButton">Send email</button>
                     <button type="button" id="editActiveClientButton">Edit details</button>
                   </div>
@@ -299,6 +300,12 @@
               </div>
             </div>
             <div class="hired-detail-grid hired-detail-sections" id="hiredDetailGrid"></div>
+            <section class="active-client-onboarding" aria-labelledby="activeClientOnboardingTitle">
+              <div class="active-client-onboarding-heading">
+                <div><p class="eyebrow">CLIENT INTAKE</p><h3 id="activeClientOnboardingTitle">Onboarding response</h3></div>
+              </div>
+              <div id="activeOnboardingResponse" aria-live="polite">Loading onboarding status...</div>
+            </section>
             <div class="hired-upload-section" id="hiredUploadSection">
               <div id="hiredDocumentWorkspace"></div>
               <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are kept in this browser for preview. No save-file dialog is used.</div>

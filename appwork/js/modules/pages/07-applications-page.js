@@ -156,11 +156,16 @@
   $('#applicationSearch').addEventListener('input', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {
     applicationDateFilter = event.target.value;
+    applicationDateSort = '';
     renderApplications();
+    updateWeekNavigationCounts();
   });
   $('#applicationDateSort').addEventListener('change', event => {
     applicationDateSort = event.target.value;
-    localStorage.setItem(APPLICATION_WEEK_FILTER_KEY, applicationDateSort);
+    if (applicationDateSort === 'all') {
+      applicationDateFilter = '';
+      $('#applicationDateFilter').value = '';
+    }
     renderApplications();
     updateWeekNavigationCounts();
   });

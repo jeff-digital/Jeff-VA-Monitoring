@@ -45,9 +45,20 @@ For Windows, you can double-click `start-jeff-va.bat` in the project folder. It 
 
 ## Cloudflare Pages deployment
 
-Connect the private GitHub repository to Cloudflare Pages with production branch `main`, build command `bash ./build-cloudflare.sh`, and output directory `dist`. The build copies only `index.html`, CSS, the favicon, browser JavaScript/config, and Cloudflare response headers. Do not set `appwork` itself as the output directory; that would also publish the local server, SQL schema, README, and source modules. The Pages output includes a Content Security Policy and standard security headers.
+Connect the private GitHub repository to Cloudflare Pages with production branch `main`, build command `bash ./build-cloudflare.sh`, and output directory `dist`. The build copies only the app assets, the public onboarding page, browser JavaScript/config, and Cloudflare response headers. The Pages Function source in the repository-root `functions/` directory must be deployed with the Pages site; do not deploy `dist` as a standalone static site or set `appwork` itself as the output directory.
 
 The local Python server and its automatic Documents backup are not included in the Pages output. Supabase records and private document storage continue to work online.
+
+### Client onboarding form
+
+The Active Clients detail page can create a private, one-time onboarding link and prepare an invitation email in Gmail. The public form collects contact name, phone, time zone, availability, tools/platforms, and first-week priorities. It shows the complete response in a confirmation dialog before submission. Each link expires after 14 days; sending a replacement invalidates the previous link, and a completed client onboarding cannot be submitted again.
+
+On the Cloudflare Pages project, configure these runtime variables for production (and previews only if preview deployments should be allowed to create links):
+
+- `SUPABASE_URL`: the Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY`: the Supabase service-role key, configured as an encrypted Cloudflare secret. Never place this key in any file under `appwork/`, in frontend settings, or in Git.
+
+After adding the onboarding schema and function, run the updated `sql/supabase-schema.sql` in the Supabase SQL Editor and deploy the Pages project with both `dist/` and the repository-root `functions/` directory. The onboarding tables have RLS enabled and no `anon` or `authenticated` table grants. Only the server-side Pages Function uses the service-role secret; it checks the signed-in dashboard user's ownership of the active client, while public links can only retrieve that invitation's limited form details and submit one response. Onboarding responses are stored in a separate private table and shown separately in Active Client details. A link is a bearer credential, so send it only to the intended client.
 
 ## Automatic Documents backup
 

@@ -155,10 +155,14 @@
     supabaseDataLoaded = false;
     data = emptyData();
     setAuthenticated(false);
+    applicationDateFilter = today();
+    $('#applicationDateFilter').value = applicationDateFilter;
     renderAll();
     $('#loginUsername').focus();
   });
 
+  applicationDateFilter = today();
+  $('#applicationDateFilter').value = applicationDateFilter;
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);
