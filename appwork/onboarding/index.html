@@ -14,20 +14,31 @@
     .eyebrow { margin: 0 0 8px; color: #57735e; font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
     h1 { margin: 0; color: #203b2d; font-size: clamp(25px, 5vw, 34px); }
     .intro { margin: 10px 0 24px; color: #69756c; font-size: 14px; line-height: 1.55; }
-    form { display: grid; gap: 17px; }
-    label { display: grid; gap: 7px; color: #37443a; font-size: 13px; font-weight: 650; }
+    form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; }
+    label { display: grid; align-content: start; gap: 7px; min-width: 0; color: #37443a; font-size: 13px; font-weight: 650; }
     label small { color: #79837b; font-size: 11px; font-weight: 400; line-height: 1.45; }
     input, select, textarea { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #cfd9d0; border-radius: 7px; background: #fff; color: #26332b; font: inherit; font-size: 14px; }
     input[readonly] { background: #f5f7f5; color: #657067; }
     textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
     input:focus, select:focus, textarea:focus { outline: 3px solid #d8e8da; border-color: #52765a; }
-    .phone-number-fields { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1.3fr); gap: 9px; }
+    .phone-number-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .form-field-wide, .privacy, .error, #reviewButton { grid-column: 1 / -1; }
+    .phone-number-fields select, .phone-number-fields input { min-width: 0; padding-inline: 10px; }
+    .preview-notice { margin: 0 0 20px; padding: 11px 13px; border: 1px solid #d7e5d8; border-radius: 7px; background: #f2f7f2; color: #4e6953; font-size: 12px; line-height: 1.5; }
+    @media (max-width: 560px) {
+      body { padding: 16px 10px; }
+      main { padding: 22px 18px; }
+      form { grid-template-columns: minmax(0, 1fr); }
+      .form-field-wide, .privacy, .error, #reviewButton { grid-column: auto; }
+      .phone-number-fields { grid-template-columns: minmax(0, 1fr); }
+    }
     .privacy { padding: 12px 14px; border-radius: 7px; background: #f4f7f4; color: #5f6f62; font-size: 12px; line-height: 1.5; }
     button { min-height: 44px; padding: 10px 18px; border: 0; border-radius: 7px; background: #294d34; color: white; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
     button:hover { background: #203b2d; }
     button:disabled { cursor: wait; opacity: .65; }
     .error { margin: 0; color: #a2323e; font-size: 13px; line-height: 1.5; }
     .success { padding: 20px 0 4px; color: #42654b; line-height: 1.6; }
+    .preview-restart { margin-top: 14px; }
     [hidden] { display: none !important; }
     dialog { width: min(560px, calc(100vw - 28px)); max-height: 85vh; overflow: auto; padding: 24px; border: 1px solid #d8e1d9; border-radius: 12px; color: #26332b; box-shadow: 0 18px 60px #17251b45; }
     dialog::backdrop { background: #15231999; }
@@ -55,6 +66,7 @@
       <p class="eyebrow">Jeff VA · Client onboarding</p>
       <h1 id="welcomeTitle">Welcome</h1>
       <p class="intro">Please share a few details to help us prepare for working together. Your answers are sent securely and kept separate from the dashboard.</p>
+      <p class="preview-notice" id="previewNotice" hidden>Preview mode · Sample details only. Nothing will be sent or saved.</p>
       <form id="onboardingForm">
         <label>Your name
           <input name="contactName" autocomplete="name" maxlength="120" required />
@@ -63,8 +75,7 @@
           <input id="clientEmail" name="email" type="email" readonly />
           <small>This is the address this invitation was sent to.</small>
         </label>
-        <label>Phone number <small>Optional</small>
-          <span>International dialing code</span>
+        <label>Phone number <small>Optional · International dialing code</small>
           <span class="phone-number-fields">
             <select name="phoneCountryCode" aria-label="International dialing code">
               <option value="">Select country code</option>
@@ -72,18 +83,18 @@
             <input name="phone" type="tel" autocomplete="tel-national" maxlength="32" placeholder="Phone number" />
           </span>
         </label>
-        <label>Time zone
+        <label>Time zone <small>Choose your local time zone.</small>
           <select name="timezone" required>
             <option value="">Select your time zone</option>
           </select>
         </label>
-        <label>Availability and preferred working hours
+        <label class="form-field-wide">Availability and preferred working hours
           <textarea name="availability" maxlength="2000" required></textarea>
         </label>
         <label>Tools or platforms you currently use <small>Do not include passwords, access codes, or other account credentials.</small>
           <textarea name="tools" maxlength="2000"></textarea>
         </label>
-        <label>First-week priorities
+        <label class="form-field-wide">First-week priorities
           <textarea name="priorities" maxlength="2000" required></textarea>
         </label>
         <p class="privacy">Please do not enter passwords, payment details, government ID numbers, or other sensitive credentials in this form.</p>
@@ -94,7 +105,9 @@
     <section id="successPanel" hidden>
       <p class="eyebrow">Client onboarding</p>
       <h1>Thank you</h1>
-      <p class="success">Your onboarding details were submitted successfully. This one-time form has been completed, and the link can’t be submitted again.</p>
+      <p class="success" id="successMessage">Your onboarding details were submitted successfully. This one-time form has been completed, and the link can’t be submitted again.</p>
+      <p class="success" id="previewSuccessMessage" hidden>Preview complete. No information was sent or saved.</p>
+      <button class="preview-restart" id="restartPreviewButton" type="button" hidden>Preview again</button>
     </section>
     <section id="unavailablePanel" hidden>
       <p class="eyebrow">Client onboarding</p>

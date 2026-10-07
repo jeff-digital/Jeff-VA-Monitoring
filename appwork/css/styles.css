@@ -508,7 +508,7 @@ td:first-child { color: #242522; font-weight: 650; }
 .documents-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .documents-page-heading h2 { margin: 5px 0 0; font-size: 24px; }
 .documents-page-heading p:not(.eyebrow) { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
-.documents-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 7px; border-bottom: 1px solid #e5e8e3; background: #f4f6f3; }
+.documents-tabs { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; margin: 0; padding: 7px; border-bottom: 1px solid #e5e8e3; background: #f4f6f3; }
 .documents-tab { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #656d66; font-size: 11px; font-weight: 650; cursor: pointer; white-space: nowrap; }
 .documents-tab i { color: #748078; font-size: 12px; }
 .documents-tab:hover { background: rgba(255,255,255,.65); color: #35473a; }
@@ -516,6 +516,10 @@ td:first-child { color: #242522; font-weight: 650; }
 .documents-tab.active i { color: #54745b; }
 .documents-tab-panel { padding: 22px 24px 25px; }
 .documents-tab-panel[hidden], .documents-tab-panel.hidden { display: none; }
+.onboarding-preview-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
+.onboarding-preview-heading h3 { margin: 4px 0 0; color: #303631; font-size: 18px; }
+.onboarding-preview-heading > p { max-width: 440px; margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.onboarding-preview-frame { display: block; width: 100%; height: 980px; border: 1px solid #dfe6df; border-radius: 10px; background: #f3f6f3; }
 .cover-letter-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 0 16px; border-bottom: 1px solid #e7ebe7; }
 .cover-letter-heading h3 { margin: 4px 0 0; color: #303631; font-size: 18px; }
 .cover-letter-downloads { display: flex; gap: 8px; }

@@ -2,6 +2,7 @@
   'use strict';
 
   const $ = selector => document.querySelector(selector);
+  const previewMode = new URLSearchParams(location.search).get('preview') === '1';
   let token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
   if (token) history.replaceState(null, '', location.pathname);
   const countries = [
@@ -72,7 +73,7 @@
   countries.forEach(([country, code]) => {
     const option = document.createElement('option');
     option.value = code;
-    option.textContent = `${country} (${code})`;
+    option.textContent = `${code} ${country}`;
     $('[name="phoneCountryCode"]').append(option);
   });
   const timeZones = typeof Intl.supportedValuesOf === 'function'
@@ -142,6 +143,18 @@
     };
   }
 
+  function fillPreviewExample() {
+    $('#welcomeTitle').textContent = 'Welcome, Jordan';
+    $('#clientEmail').value = 'jordan@example.com';
+    $('[name="contactName"]').value = 'Jordan Lee';
+    $('[name="phoneCountryCode"]').value = '+63';
+    $('[name="phone"]').value = '917 123 4567';
+    $('[name="timezone"]').value = 'Asia/Manila';
+    $('[name="availability"]').value = 'Monday to Friday, 9:00 AM–5:00 PM (UTC+08:00)';
+    $('[name="tools"]').value = 'Google Workspace, Slack, Canva';
+    $('[name="priorities"]').value = 'Organize the content calendar and prepare the first week of social media posts.';
+  }
+
   function showReview(answers) {
     const details = [
       ['Name', answers.contactName],
@@ -180,6 +193,15 @@
 
   $('#confirmSubmitButton').addEventListener('click', async event => {
     const button = event.currentTarget;
+    if (previewMode) {
+      $('#reviewDialog').close();
+      $('#formPanel').hidden = true;
+      $('#successPanel').hidden = false;
+      $('#successMessage').hidden = true;
+      $('#previewSuccessMessage').hidden = false;
+      $('#restartPreviewButton').hidden = false;
+      return;
+    }
     const answers = currentAnswers();
     button.disabled = true;
     $('#reviewError').hidden = true;
@@ -206,7 +228,22 @@
     }
   });
 
+  $('#restartPreviewButton').addEventListener('click', () => {
+    $('#successPanel').hidden = true;
+    $('#formPanel').hidden = false;
+    $('#previewSuccessMessage').hidden = true;
+    $('#restartPreviewButton').hidden = true;
+    fillPreviewExample();
+  });
+
   async function loadForm() {
+    if (previewMode) {
+      fillPreviewExample();
+      $('#previewNotice').hidden = false;
+      $('#loadingPanel').hidden = true;
+      $('#formPanel').hidden = false;
+      return;
+    }
     if (!token) {
       showUnavailable();
       return;
