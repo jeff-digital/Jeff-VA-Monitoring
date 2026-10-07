@@ -18,7 +18,7 @@ Jeff VA Monitoring is a web app for organizing job applications and virtual-assi
 - Supabase for hosted data and file storage
 - Google Identity and Gmail API integrations
 - Python standard library for the optional local development server
-- Cloudflare Pages-compatible static build
+- Cloudflare Workers static-asset deployment
 
 ## Project structure
 
@@ -27,9 +27,9 @@ src/
   frontend/       Web app, styles, assets, and onboarding pages
   backend/        Supabase setup files
 templates/        Reusable document and email templates
-functions/        Cloudflare Pages Functions location
 scripts/          Build tools and local development server
 dist/             Generated site output; do not edit manually
+wrangler.jsonc    Cloudflare Workers deployment configuration
 start-jeff-va.bat Windows startup shortcut
 ```
 
@@ -67,13 +67,13 @@ Then open <http://localhost:8080>. The local server requires Python and uses the
 
 - **Supabase:** project URL, publishable browser key, and database setup.
 - **Google/Gmail (optional):** OAuth client configuration for sign-in and Gmail features.
-- **Cloudflare Pages (optional):** hosting configuration for deploying the generated site.
+- **Cloudflare Workers:** hosting configuration is defined in `wrangler.jsonc`; Workers Builds runs the static-site build before deploying.
 
 Use your own service accounts and credentials. Keep private values outside the repository, for example in local environment configuration, and ensure they are excluded from version control.
 
 ## Build
 
-Build the Cloudflare Pages-compatible static site from Git Bash or another Bash environment:
+Build the Cloudflare Workers static assets from Git Bash or another Bash environment:
 
 ```bash
 bash ./scripts/build-cloudflare.sh
@@ -83,7 +83,7 @@ The generated site is written to `dist/`. This directory is build output, is ign
 
 ## Deployment
 
-Build the site, then deploy the contents of `dist/` using your configured static hosting provider. For Cloudflare Pages, use `dist/` as the build output directory. Hosting-provider credentials and project settings should be managed outside this repository.
+For the Cloudflare Workers Git integration, set the root directory to `/`, the build command to `bash ./scripts/build-cloudflare.sh`, and the deploy command to `npx wrangler deploy`. The Wrangler configuration publishes the generated `dist/` directory; a root-level `index.html` is not needed. Keep hosting-provider credentials and project settings outside the repository.
 
 ## Security
 
@@ -94,7 +94,7 @@ Build the site, then deploy the contents of `dist/` using your configured static
 
 ## Development
 
-Edit frontend source in `src/frontend/`; do not edit the generated `dist/` output. The Windows startup shortcut is `start-jeff-va.bat`. To rebuild the Cloudflare Pages output, run `bash ./scripts/build-cloudflare.sh`.
+Edit frontend source in `src/frontend/`; do not edit the generated `dist/` output. The Windows startup shortcut is `start-jeff-va.bat`. To rebuild the Cloudflare Workers output, run `bash ./scripts/build-cloudflare.sh`.
 
 ## License
 
