@@ -102,24 +102,21 @@
     }
     button.disabled = true;
     try {
-      const { data: { session }, error: sessionError } = await requireSupabase().auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!session?.access_token) throw new Error('Sign in again before creating an onboarding link.');
-      const response = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'createInvite', clientId: item.id }),
-        cache: 'no-store',
-        credentials: 'same-origin'
+      const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+      const token = [...randomBytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+      const tokenHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+      const { data: issued, error } = await requireSupabase().rpc('issue_client_onboarding_invite', {
+        p_client_id: item.id,
+        p_token_hash: tokenHash
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Could not create an onboarding invitation.');
+      if (error) throw error;
+      if (issued !== true) throw new Error('This client has already submitted onboarding. A second submission is not allowed.');
+      const onboardingUrl = new URL('/onboarding/', window.location.origin);
+      onboardingUrl.hash = `token=${token}`;
       openPlainClientEmailComposer(item);
       $('#composeSubject').value = 'Please complete your client onboarding';
-      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete this onboarding form so I can prepare for our work together:\n\n${result.url}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
+      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete this onboarding form so I can prepare for our work together:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
       toast('Review the onboarding invitation and send it through Gmail.');
     } catch (error) {
       console.error('Could not create client onboarding invitation:', error);

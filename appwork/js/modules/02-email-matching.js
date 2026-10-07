@@ -659,27 +659,15 @@
     target.dataset.clientId = item.id;
     target.textContent = 'Loading onboarding status...';
     try {
-      const { data: { session }, error: sessionError } = await requireSupabase().auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!session?.access_token) throw new Error('Sign in again to view client onboarding.');
-      const response = await fetch('/api/onboarding', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action: 'getSubmission', clientId: item.id }),
-        cache: 'no-store',
-        credentials: 'same-origin'
+      const { data: submission, error } = await requireSupabase().rpc('get_client_onboarding_submission', {
+        p_client_id: item.id
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Could not load this onboarding response.');
+      if (error) throw error;
       if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
-      if (!result.submission) {
+      if (!submission) {
         target.textContent = 'No onboarding response has been submitted yet. Use Actions → Send onboarding form to invite this client.';
         return;
       }
-      const submission = result.submission;
       const details = [
         ['Client contact', submission.contact_name],
         ['Email', submission.client_email],
