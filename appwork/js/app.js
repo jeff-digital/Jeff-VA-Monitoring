@@ -1448,16 +1448,7 @@
       <div><dt>Added</dt><dd>${escapeHtml(emailDate(applicationAddedDate(item)))}</dd></div>
       <div><dt>Active since</dt><dd>${escapeHtml(emailDate(activeSinceDate(item)))}</dd></div>
       <div class="hired-detail-wide"><dt>Notes</dt><dd class="hired-notes">${item.notes ? escapeHtml(item.notes) : '—'}</dd></div>
-      <div class="hired-detail-wide hired-client-actions">
-        <div class="hired-actions-menu">
-          <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton" aria-haspopup="true" aria-expanded="false">Actions</button>
-          <div class="document-menu hired-actions-dropdown hidden">
-            <button type="button" id="sendClientOnboardingLinkButton">Send onboarding form</button>
-            <button type="button" id="sendActiveClientEmailButton">Send email</button>
-            <button type="button" id="editActiveClientButton">Edit details</button>
-          </div>
-        </div>
-      </div>`;
+      `;
     const invoiceRows = (data.invoices || []).filter(invoice => invoice.clientId === item.id).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
     $('#hiredUploadSection').innerHTML = `
       <div class="active-client-two-column">
