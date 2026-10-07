@@ -2,7 +2,8 @@
   'use strict';
 
   const $ = selector => document.querySelector(selector);
-  const previewMode = new URLSearchParams(location.search).get('preview') === '1';
+  const previewMode = document.documentElement.dataset.designTest === 'true'
+    || new URLSearchParams(location.search).get('preview') === '1';
   let token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
   if (token) history.replaceState(null, '', location.pathname);
   const countries = [
@@ -70,12 +71,6 @@
     ['Zambia', '+260'], ['Zimbabwe', '+263']
   ];
   countries.sort((first, second) => first[0].localeCompare(second[0], 'en'));
-  countries.forEach(([country, code]) => {
-    const option = document.createElement('option');
-    option.value = code;
-    option.textContent = `${code} ${country}`;
-    $('[name="phoneCountryCode"]').append(option);
-  });
   const timeZones = typeof Intl.supportedValuesOf === 'function'
     ? ['UTC', ...Intl.supportedValuesOf('timeZone').filter(zone => zone !== 'UTC')]
     : ['UTC', 'Africa/Cairo', 'Africa/Johannesburg', 'America/Chicago', 'America/Denver',
@@ -91,12 +86,154 @@
     }).formatToParts(new Date()).find(part => part.type === 'timeZoneName')?.value || 'GMT';
     return offset === 'GMT' ? 'UTC+00:00' : offset.replace(/^GMT/, 'UTC');
   };
-  timeZones.forEach(zone => {
-    const option = document.createElement('option');
-    option.value = zone;
-    option.textContent = `${zone} (${currentUtcOffset(zone)})`;
-    $('[name="timezone"]').append(option);
-  });
+  function setupSearchablePicker(rootSelector, name, options, placeholder) {
+    const root = $(rootSelector);
+    const input = root.querySelector('.searchable-picker-input');
+    const valueInput = root.querySelector(`[name="${name}"]`);
+    const menu = root.querySelector('.searchable-picker-menu');
+    const optionsContainer = root.querySelector('.searchable-picker-options');
+    let filteredOptions = options;
+    let activeIndex = -1;
+    let selectedOption = null;
+
+    function closeMenu(restoreSelection = true) {
+      menu.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+      activeIndex = -1;
+      if (restoreSelection) input.value = selectedOption?.label || '';
+    }
+
+    function selectOption(option) {
+      selectedOption = option;
+      valueInput.value = option.value;
+      input.value = option.label;
+      input.setCustomValidity('');
+      closeMenu(false);
+    }
+
+    function renderOptions(query = '') {
+      const normalizedQuery = query.trim().toLocaleLowerCase();
+      filteredOptions = options.filter(option => !normalizedQuery || option.search.includes(normalizedQuery));
+      optionsContainer.replaceChildren();
+      activeIndex = filteredOptions.length ? 0 : -1;
+      if (!filteredOptions.length) {
+        const empty = document.createElement('span');
+        empty.className = 'searchable-picker-empty';
+        empty.textContent = 'No matching options';
+        optionsContainer.append(empty);
+        return;
+      }
+      filteredOptions.forEach((option, index) => {
+        const button = document.createElement('button');
+        button.className = 'searchable-picker-option';
+        button.type = 'button';
+        button.id = `${name}-option-${index}`;
+        button.setAttribute('role', 'option');
+        button.setAttribute('aria-selected', String(index === activeIndex));
+        const primary = document.createElement('span');
+        primary.className = 'searchable-picker-option-primary';
+        primary.textContent = option.primary;
+        const secondary = document.createElement('span');
+        secondary.className = 'searchable-picker-option-secondary';
+        secondary.textContent = option.secondary;
+        button.append(primary, secondary);
+        button.addEventListener('mousedown', event => event.preventDefault());
+        button.addEventListener('click', () => selectOption(option));
+        optionsContainer.append(button);
+      });
+      input.setAttribute('aria-activedescendant', `${name}-option-0`);
+    }
+
+    function openMenu(query = '') {
+      menu.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      renderOptions(query);
+    }
+
+    input.placeholder = placeholder;
+    input.addEventListener('focus', () => {
+      if (selectedOption && input.value === selectedOption.label) input.select();
+      openMenu(input.value === selectedOption?.label ? '' : input.value);
+    });
+    input.addEventListener('click', () => {
+      if (menu.hidden) {
+        if (selectedOption && input.value === selectedOption.label) input.select();
+        openMenu('');
+      }
+    });
+    input.addEventListener('input', () => {
+      valueInput.value = '';
+      selectedOption = null;
+      input.setCustomValidity('');
+      openMenu(input.value);
+    });
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeMenu();
+        return;
+      }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (menu.hidden) openMenu();
+        else if (filteredOptions.length) {
+          const delta = event.key === 'ArrowDown' ? 1 : -1;
+          activeIndex = (activeIndex + delta + filteredOptions.length) % filteredOptions.length;
+          optionsContainer.querySelectorAll('[role="option"]').forEach((option, index) => {
+            option.setAttribute('aria-selected', String(index === activeIndex));
+          });
+          input.setAttribute('aria-activedescendant', `${name}-option-${activeIndex}`);
+          optionsContainer.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+        }
+      }
+      if (event.key === 'Enter' && !menu.hidden && filteredOptions.length) {
+        event.preventDefault();
+        selectOption(filteredOptions[Math.max(activeIndex, 0)]);
+      }
+    });
+    input.addEventListener('blur', () => {
+      window.setTimeout(() => {
+        if (!root.contains(document.activeElement)) closeMenu();
+      }, 0);
+    });
+    document.addEventListener('click', event => {
+      if (!root.contains(event.target)) closeMenu();
+    });
+
+    return {
+      validate(required, message) {
+        input.setCustomValidity(required && !valueInput.value ? message : '');
+      }
+    };
+  }
+
+  const countryPicker = setupSearchablePicker(
+    '#phoneCountryPicker',
+    'phoneCountryCode',
+    countries.map(([country, code]) => ({
+      value: code,
+      primary: code,
+      secondary: country,
+      label: `${code} ${country}`,
+      search: `${code} ${country}`.toLocaleLowerCase()
+    })),
+    'Search country'
+  );
+  const timeZonePicker = setupSearchablePicker(
+    '#timezonePicker',
+    'timezone',
+    timeZones.map(zone => {
+      const offset = currentUtcOffset(zone);
+      return {
+        value: zone,
+        primary: zone,
+        secondary: offset,
+        label: `${zone} (${offset})`,
+        search: `${zone} ${zone.split('/').pop().replace(/_/g, ' ')} ${offset}`.toLocaleLowerCase()
+      };
+    }),
+    'Type a city or time zone'
+  );
 
   async function tokenHash(value) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -104,6 +241,7 @@
   }
 
   async function rpc(name, body) {
+    if (previewMode) throw new Error('Submission is disabled in the design preview.');
     if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
       throw new Error('The secure onboarding form is not configured.');
     }
@@ -124,10 +262,10 @@
   }
 
   function showUnavailable() {
-    $('#loadingPanel').hidden = true;
-    $('#formPanel').hidden = true;
-    $('#successPanel').hidden = true;
-    $('#unavailablePanel').hidden = false;
+    if ($('#loadingPanel')) $('#loadingPanel').hidden = true;
+    if ($('#formPanel')) $('#formPanel').hidden = true;
+    if ($('#successPanel')) $('#successPanel').hidden = true;
+    if ($('#unavailablePanel')) $('#unavailablePanel').hidden = false;
   }
 
   function currentAnswers() {
@@ -141,18 +279,6 @@
       tools: String(formData.get('tools') || '').trim(),
       priorities: String(formData.get('priorities') || '').trim()
     };
-  }
-
-  function fillPreviewExample() {
-    $('#welcomeTitle').textContent = 'Welcome, Jordan';
-    $('#clientEmail').value = 'jordan@example.com';
-    $('[name="contactName"]').value = 'Jordan Lee';
-    $('[name="phoneCountryCode"]').value = '+63';
-    $('[name="phone"]').value = '917 123 4567';
-    $('[name="timezone"]').value = 'Asia/Manila';
-    $('[name="availability"]').value = 'Monday to Friday, 9:00 AM–5:00 PM (UTC+08:00)';
-    $('[name="tools"]').value = 'Google Workspace, Slack, Canva';
-    $('[name="priorities"]').value = 'Organize the content calendar and prepare the first week of social media posts.';
   }
 
   function showReview(answers) {
@@ -180,28 +306,21 @@
 
   $('#onboardingForm').addEventListener('submit', event => {
     event.preventDefault();
+    if (previewMode) return;
     const form = event.currentTarget;
     const answers = currentAnswers();
-    $('[name="phoneCountryCode"]').required = Boolean(answers.phone);
+    countryPicker.validate(Boolean(answers.phone), 'Select an international dialing code.');
+    timeZonePicker.validate(true, 'Select a time zone from the options.');
     if (!form.reportValidity()) return;
     showReview(answers);
     $('#reviewError').hidden = true;
     $('#reviewDialog').showModal();
   });
 
-  $('#editAnswersButton').addEventListener('click', () => $('#reviewDialog').close());
+  $('#editAnswersButton')?.addEventListener('click', () => $('#reviewDialog').close());
 
-  $('#confirmSubmitButton').addEventListener('click', async event => {
+  $('#confirmSubmitButton')?.addEventListener('click', async event => {
     const button = event.currentTarget;
-    if (previewMode) {
-      $('#reviewDialog').close();
-      $('#formPanel').hidden = true;
-      $('#successPanel').hidden = false;
-      $('#successMessage').hidden = true;
-      $('#previewSuccessMessage').hidden = false;
-      $('#restartPreviewButton').hidden = false;
-      return;
-    }
     const answers = currentAnswers();
     button.disabled = true;
     $('#reviewError').hidden = true;
@@ -228,20 +347,14 @@
     }
   });
 
-  $('#restartPreviewButton').addEventListener('click', () => {
-    $('#successPanel').hidden = true;
-    $('#formPanel').hidden = false;
-    $('#previewSuccessMessage').hidden = true;
-    $('#restartPreviewButton').hidden = true;
-    fillPreviewExample();
-  });
-
   async function loadForm() {
     if (previewMode) {
-      fillPreviewExample();
-      $('#previewNotice').hidden = false;
-      $('#loadingPanel').hidden = true;
-      $('#formPanel').hidden = false;
+      if ($('#welcomeTitle')) $('#welcomeTitle').textContent = 'Welcome, Jordan';
+      if ($('#clientEmail')) $('#clientEmail').value = 'jordan@example.com';
+      if ($('#previewNotice')) $('#previewNotice').hidden = false;
+      if ($('#reviewButton')) $('#reviewButton').hidden = true;
+      if ($('#loadingPanel')) $('#loadingPanel').hidden = true;
+      if ($('#formPanel')) $('#formPanel').hidden = false;
       return;
     }
     if (!token) {

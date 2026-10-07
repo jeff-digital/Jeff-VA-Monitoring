@@ -23,7 +23,7 @@ BACKUP_PATH = "/api/automatic-backup"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
 CONTENT_SECURITY_POLICY = (
-    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; "
     "script-src 'self' https://accounts.google.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; "
     "script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
     "img-src 'self' data: blob:; font-src 'self' data: https://cdnjs.cloudflare.com; "
@@ -82,7 +82,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
         self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         super().end_headers()
 
