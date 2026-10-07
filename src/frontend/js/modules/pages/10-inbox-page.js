@@ -25,6 +25,15 @@
   }
 
   document.addEventListener('click', async event => {
+    if (event.target.closest('[data-email-refresh]')) {
+      if (!gmailAccessToken) {
+        showActionResult({ title: 'Gmail not connected', message: 'Connect Gmail from Account settings before refreshing your inbox.', status: 'error' });
+        return;
+      }
+      await syncGmail(false);
+      return;
+    }
+
     if (event.target.closest('[data-email-selection-toggle]')) {
       emailSelectionMode = !emailSelectionMode;
       renderEmails();
@@ -114,8 +123,8 @@
     renderEmails();
     updateWeekNavigationCounts();
   });
-  $$('[data-email-view]').forEach(tab => tab.addEventListener('click', () => {
-    emailViewFilter = tab.dataset.emailView;
+  $$('.email-summary-item').forEach(button => button.addEventListener('click', () => {
+    emailViewFilter = button.dataset.emailView;
     renderEmails();
   }));
   $('#emailTemplateSelect').addEventListener('change', event => applyEmailTemplate(event.target.value));

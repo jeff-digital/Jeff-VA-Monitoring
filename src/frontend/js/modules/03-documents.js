@@ -1027,7 +1027,7 @@
     const baseTitle = 'Jeff VA';
     document.title = unread ? `(${unread > 9 ? '9+' : unread}) ${baseTitle}` : baseTitle;
     if (!unread) {
-      favicon.href = 'image/tab.png';
+      favicon.href = 'images/tab.png';
       return;
     }
     const canvas = document.createElement('canvas');

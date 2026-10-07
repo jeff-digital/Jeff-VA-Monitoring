@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import ipaddress
 import os
+from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,6 +20,7 @@ from urllib.parse import urlparse
 
 HOST = "127.0.0.1"
 PORT = 8080
+FRONTEND_ROOT = Path(__file__).resolve().parents[1] / "src" / "frontend"
 BACKUP_PATH = "/api/automatic-backup"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
@@ -134,7 +136,8 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    with ThreadingHTTPServer((HOST, PORT), JeffVARequestHandler) as server:
+    handler = partial(JeffVARequestHandler, directory=str(FRONTEND_ROOT))
+    with ThreadingHTTPServer((HOST, PORT), handler) as server:
         print(f"Jeff VA is running at http://localhost:{PORT}/")
         print(f"Automatic Excel backup: Documents\\{BACKUP_FILENAME}")
         try:

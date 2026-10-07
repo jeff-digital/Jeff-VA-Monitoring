@@ -577,33 +577,58 @@
     if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
     try {
       data = await loadDataFromSupabase();
-      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
-      supabaseDataLoaded = true;
+    } catch (error) {
+      console.error('Could not load workspace data from Supabase:', error);
+      data = emptyData();
+      supabaseDataLoaded = false;
       dataReady = true;
+      showActionResult({
+        title: 'Could not load workspace data',
+        message: `The request for your saved account data failed${error?.message ? `: ${error.message}` : '.'} Check the service connection and try again.`,
+        status: 'error'
+      });
+      initializingUserId = null;
+      renderAll();
+      renderAccountPage();
+      return;
+    }
+
+    supabaseDataLoaded = true;
+    dataReady = true;
+    let startupStage = 'preparing workspace data';
+    try {
+      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+      startupStage = 'rendering the workspace';
+      renderAll();
+      renderAccountPage();
+      startupStage = 'processing workspace reminders';
       await processDueFollowUps();
       processDueApplyReminders();
       processDueInterviews();
       processDueDocumentEmailReminders();
       processContractEndedAlerts();
+      startupStage = 'rendering updated workspace data';
       renderAll();
       renderAccountPage();
+      startupStage = 'refreshing client onboarding alerts';
       await refreshClientOnboardingAlerts();
       if (gmailAccessToken) {
+        startupStage = 'syncing Gmail';
         startGmailSyncTimer();
         await syncGmail(true);
       }
+      startupStage = 'saving workspace changes';
       await persist();
       scheduleAutomaticBackup();
       if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
       if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
-      console.error(error);
-      data = emptyData();
-      supabaseDataLoaded = false;
-      showActionResult({ title: 'Could not load workspace', message: 'Your account data could not be loaded. Check your connection and try again.', status: 'error' });
-      dataReady = true;
-      renderAll();
-      renderAccountPage();
+      console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
+      showActionResult({
+        title: 'Workspace startup incomplete',
+        message: `Your saved data was loaded, but ${startupStage} failed${error?.message ? `: ${error.message}` : '.'}`,
+        status: 'error'
+      });
     } finally {
       initializingUserId = null;
     }
@@ -728,14 +753,18 @@
 
   function formatDate(value) {
     if (!value) return 'No date';
-    const date = new Date(`${value}T12:00:00`);
-    return Number.isNaN(date) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+      ? new Date(`${value}T12:00:00`)
+      : new Date(value);
+    return Number.isNaN(date.getTime())
+      ? String(value)
+      : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
   }
 
   function relativeDate(value) {
     if (!value) return 'No date';
     const date = new Date(value);
-    if (Number.isNaN(date)) return value;
+    if (Number.isNaN(date.getTime())) return String(value);
     return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
   }
 

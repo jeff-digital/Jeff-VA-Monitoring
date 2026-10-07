@@ -33,7 +33,7 @@
     const recipientAddress = recipientName && recipientName.toLowerCase() !== defaultRecipient.toLowerCase() ? recipientName : '';
     $('#coverLetterPreview').innerHTML = `
       <header class="cover-letter-page-header">
-        <img src="image/tab.png" alt="Jeff VA logo" />
+        <img src="images/tab.png" alt="Jeff VA logo" />
         <div><h1>Jeffrey S. Almocera</h1><div class="cover-letter-contact">${escapeHtml(contact)}</div></div>
       </header>
       <p class="cover-letter-date">${coverLetterDate()}</p>
@@ -127,7 +127,7 @@
     button.disabled = true;
     try {
       const values = coverLetterValues();
-      const logoResponse = await fetch('image/tab.png');
+      const logoResponse = await fetch('images/tab.png');
       if (!logoResponse.ok) throw new Error('The logo image could not be loaded.');
       const logoData = new Uint8Array(await logoResponse.arrayBuffer());
       const { AlignmentType, BorderStyle, Document, ImageRun, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlign, WidthType } = docx;

@@ -1,5 +1,10 @@
   // Active Clients page controls, including its document and invoice tools.
   document.addEventListener('click', async event => {
+    const clientDetailTab = event.target.closest('#hiredDetailPanel [data-client-detail-tab]');
+    if (clientDetailTab) {
+      selectClientDetailTab(clientDetailTab.dataset.clientDetailTab);
+      return;
+    }
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
     const editActiveButton = event.target.closest('#editActiveClientButton');
@@ -36,6 +41,9 @@
       return;
     }
     if (sendActiveClientEmailButton) {
+      const actionsMenu = sendActiveClientEmailButton.closest('.hired-actions-dropdown');
+      actionsMenu?.classList.add('hidden');
+      $('#activeClientActionsButton')?.setAttribute('aria-expanded', 'false');
       const item = data.applications.find(application => application.id === hiredEditingId);
       if (item) openPlainClientEmailComposer(item);
       return;
@@ -81,6 +89,21 @@
       document.querySelectorAll('.document-menu-button').forEach(item => item.setAttribute('aria-expanded', 'false'));
       $('#activeClientActionsButton')?.setAttribute('aria-expanded', 'false');
     }
+  });
+
+  document.addEventListener('keydown', event => {
+    const currentTab = event.target.closest('#hiredDetailPanel [role="tab"][data-client-detail-tab]');
+    if (!currentTab) return;
+    const tabs = [...$('#hiredDetailPanel').querySelectorAll('[role="tab"][data-client-detail-tab]')];
+    const currentIndex = tabs.indexOf(currentTab);
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    selectClientDetailTab(tabs[nextIndex].dataset.clientDetailTab, true);
   });
 
   $('#hiredSearch').addEventListener('input', renderHired);

@@ -1,5 +1,20 @@
-  // --- Client email matching ---
-  // A saved sender address is a direct match; name-based matches also require client or role context.
+  // --- Application/email matching ---
+  const PLATFORM_SENDER_EMAILS = Object.freeze({
+    '20four7va': 'info@20four7va.com',
+    indeed: 'donotreply@jobalert.indeed.com',
+    jobstreet: 'noreply@e.jobstreet.com',
+    multiplymii: 'info@multiplymii.com',
+    'onlinejobs.ph': 'support@onlinejobs.ph',
+    'remote work ph': 'support@remotework.ph',
+    zirtual: 'noreply@candidates.workablemail.com'
+  });
+  let applicationEmailMatchesCache = new WeakMap();
+  let applicationEmailSummaryCache = null;
+
+  function platformSenderEmail(platform) {
+    return PLATFORM_SENDER_EMAILS[String(platform || '').trim().toLowerCase()] || '';
+  }
+
   function extractEmailAddress(fromHeader) {
     const match = (fromHeader || '').match(/<([^>]+)>/);
     return (match ? match[1] : (fromHeader || '')).trim().toLowerCase();
@@ -13,63 +28,37 @@
     return (fromHeader || '').split('<')[0].replace(/["']/g, '').trim().toLowerCase();
   }
 
-  function escapeForRegExp(value) {
-    return (value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  function containsWholeWord(haystack, needle) {
-    if (!needle) return false;
-    return new RegExp(`\\b${escapeForRegExp(needle)}\\b`, 'i').test(haystack || '');
-  }
-
   function isDirectClientApplication(application) {
     const platform = String(application.platform || '').trim().toLowerCase();
     return platform === 'direct client' || platform === 'direct apply';
   }
 
-  function emailHasApplicationUpdateSignal(emailItem) {
-    const source = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
-    if (!source.trim()) return false;
-    const submissionReceipt = [
-      /\bapplication(?: form)?\s+(?:(?:has|was)\s+)?(?:been\s+)?(?:successfully\s+)?submitted\b/,
-      /\b(?:successfully\s+)?submitted\s+(?:your|the|an?)\s+application(?: form)?\b/,
-      /\b(?:we(?:'ve| have)?\s+)?received\s+your\s+application\b/,
-      /\bapplication(?: form)?\s+(?:has been\s+|was\s+)?received\b/,
-      /\bapplication submission\s+(?:was\s+)?(?:successful|received|confirmed)\b/
-    ].some(pattern => pattern.test(source));
-    const actionableSignals = [
-      /\b(interview|screening|phone call|video call|meeting|recruiter call)\b/,
-      /\b(next steps?|proceed|moving forward|move forward|shortlist(?:ed)?|offer|assessment|test task|assignment)\b/,
-      /\b(schedule(?:d)?|availability|available for|time slot|calendar invite|proposed time|set up (?:a|an) (?:call|meeting|interview)|confirm (?:a|the) time)\b/,
-      /\b(additional information|more information|questions?|follow[- ]?up)\b/
-    ];
-    if (submissionReceipt && !actionableSignals.some(pattern => pattern.test(source))) return false;
-    const strongSignals = [
-      /application\s+(status|update|review|progress|decision|process)/,
-      /status\s+update/,
-      ...actionableSignals
-    ];
-    return strongSignals.some(pattern => pattern.test(source));
+  function containsWholeWord(haystack, needle) {
+    if (!needle) return false;
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(haystack || '');
   }
 
   function matchApplicationsForEmail(emailItem) {
+    const cachedMatches = applicationEmailMatchesCache.get(emailItem);
+    if (cachedMatches) return cachedMatches;
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
     const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
-
-    return data.applications.filter(app => {
-      const emailCandidate = (app.email || '').trim().toLowerCase();
-      const contact = (app.contact || '').trim().toLowerCase();
-      const clientName = (app.clientName || '').trim().toLowerCase();
-      const role = (app.role || '').trim().toLowerCase();
+    const matches = data.applications.filter(application => {
+      const emailCandidate = (application.email || '').trim().toLowerCase();
+      const contact = (application.contact || '').trim().toLowerCase();
+      const clientName = (application.clientName || '').trim().toLowerCase();
+      const role = (application.role || '').trim().toLowerCase();
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
       if (emailCandidate && emailCandidate === fromAddress) return true;
       if (!roleReferenced && !companyReferenced) return false;
-
-      const nameCandidates = [contact, clientName].filter(name => name.length >= 3);
-      return nameCandidates.some(name => containsWholeWord(senderName, name));
+      return [contact, clientName].filter(name => name.length >= 3)
+        .some(name => containsWholeWord(senderName, name));
     });
+    applicationEmailMatchesCache.set(emailItem, matches);
+    return matches;
   }
 
   function applicationsRelatedToEmail(emailItem) {
@@ -82,8 +71,19 @@
       : [];
   }
 
-  function matchingEmailsForApplication(app) {
-    return data.emails.filter(emailItem => matchApplicationsForEmail(emailItem).some(match => match.id === app.id));
+  function buildApplicationEmailSummary() {
+    const summary = new Map((data.applications || []).map(application => [application.id, []]));
+    for (const emailItem of data.emails || []) {
+      for (const application of matchApplicationsForEmail(emailItem)) {
+        summary.get(application.id)?.push(emailItem);
+      }
+    }
+    return summary;
+  }
+
+  function matchingEmailsForApplication(application) {
+    if (!applicationEmailSummaryCache) applicationEmailSummaryCache = buildApplicationEmailSummary();
+    return applicationEmailSummaryCache.get(application.id) || [];
   }
 
   function openApplicationEmailsModal(applicationId) {
@@ -120,7 +120,8 @@
   }
 
   function matchBadge(app) {
-    const matches = matchingEmailsForApplication(app).filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent');
+    const matches = matchingEmailsForApplication(app)
+      .filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent');
     if (!matches.length) return '';
     return ` <button class="match-badge" type="button" data-application-emails="${escapeHtml(app.id)}" aria-label="View ${plural(matches.length, 'matching email')} for ${escapeHtml(app.clientName)}" title="View matching application emails">${matches.length}</button>`;
   }
@@ -452,6 +453,11 @@
     $('#emailWeekDate').textContent = emailDateSort === 'all' ? 'All weeks' : weeklyRangeLabel(weekRangeFilter).replace(' – ', ' to ');
     $('#emailDateSort').innerHTML = emailWeekOptions();
     $('#emailDateSort').value = emailDateSort;
+    const received = receivedEmails();
+    const sent = data.emails.filter(item => (item.direction === 'sent' || item.source === 'sent')
+      && applicationsRelatedToEmail(item).length > 0);
+    $('#emailReceivedCount').textContent = received.length;
+    $('#emailSentCount').textContent = sent.length;
     const emails = data.emails
       .filter(item => [item.from, item.to, item.subject, item.body, item.date].join(' ').toLowerCase().includes(query))
       .filter(item => !emailDateFilter || dateKey(item.date) === emailDateFilter)
@@ -463,17 +469,13 @@
     const sentEmails = emails.filter(item => item.direction === 'sent');
     const visibleEmails = sortByDate(emailViewFilter === 'sent' ? sentEmails : clientEmails, item => item.date);
     $('#emailCountLabel').textContent = `${plural(visibleEmails.length, 'email')}${query ? ' shown' : ''}`;
-    $$('.email-view-tab').forEach(tab => {
-      const selected = tab.dataset.emailView === emailViewFilter;
-      tab.classList.toggle('active', selected);
-      tab.setAttribute('aria-selected', String(selected));
+    $$('.email-summary-item').forEach(button => {
+      const selected = button.dataset.emailView === emailViewFilter;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-pressed', String(selected));
     });
     const target = $('#emailList');
     const sectionClass = `email-section${emailViewFilter === 'sent' ? ' email-section-sent' : ''}${emailSelectionMode ? ' email-selection-mode' : ''}`;
-    const sectionLabel = emailViewFilter === 'sent' ? 'Your sent messages' : 'All received email';
-    const sectionEyebrow = emailViewFilter === 'sent' ? 'SENT BY YOU' : 'INBOX';
-    $('#emailSectionLabel').textContent = sectionLabel;
-    $('#emailSectionEyebrow').textContent = sectionEyebrow;
     const selectionActions = emailSelectionMode
       ? '<div class="email-bulk-actions"><label class="email-select-all-control"><input type="checkbox" data-email-select-all aria-label="Select all visible emails" /><span>Select all</span></label><span class="email-selection-count" data-email-selection-count aria-live="polite">0 selected</span><button class="email-selection-cancel" type="button" data-email-selection-toggle>Cancel</button><button class="button button-danger email-bulk-delete" type="button" data-email-bulk-delete disabled><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button></div>'
       : '<button class="button button-secondary email-selection-trigger" type="button" data-email-selection-toggle><i class="fa-regular fa-square-check" aria-hidden="true"></i><span>Select emails</span></button>';
@@ -505,7 +507,7 @@
       const preview = bodyPreview.length > 110 ? `${bodyPreview.slice(0, 110).trimEnd()}...` : bodyPreview;
       const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
       const recipient = extractEmailAddress(item.from);
-      const canCompose = matches.length && isEmailAddress(recipient);
+      const canCompose = matches.length > 0 && isEmailAddress(recipient);
       const sentClass = item.direction === 'sent' ? ' sent' : '';
       const sentBadge = item.direction === 'sent' ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = item.direction === 'sent' ? 'Sent' : 'Received';
@@ -590,55 +592,102 @@
     hiredEditingId = item.id;
     $('#hiredView').classList.add('client-focused');
     $('#hiredList').innerHTML = '';
-    $('#hiredDetailPanel').classList.remove('hidden');
+    const detailPanel = $('#hiredDetailPanel');
+    detailPanel.classList.remove('hidden');
+    if (detailPanel.dataset.clientId !== item.id) {
+      detailPanel.dataset.clientId = item.id;
+      selectClientDetailTab('overview');
+    }
     const contractEnded = isContractEnded(item);
+    const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
+    const contractStatusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
     const salaryLabel = item.salaryType === 'monthly' && Number(item.salaryAmount) > 0
       ? `$${Number(item.salaryAmount).toLocaleString()} / month`
       : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0 && Number(item.hoursPerWeek) > 0
         ? `$${Math.round(Number(item.salaryAmount) * Number(item.hoursPerWeek) * 4).toLocaleString()} / month`
         : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0
           ? `$${Number(item.salaryAmount).toLocaleString()} / hour`
-          : 'Salary not set';
-    $('#hiredDetailTitle').innerHTML = `${escapeHtml(contractEnded ? `${item.clientName} | Contract Ended` : item.clientName)} <span class="hired-detail-salary">${escapeHtml(salaryLabel)}</span>`;
-    $('#hiredDetailSubtitle').textContent = item.role || 'Active client';
-    const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
+          : '';
+    $('#hiredDetailTitle').textContent = item.clientName || 'Active client';
+    $('#hiredDetailSubtitle').textContent = item.role || 'Client workspace';
+    $('#hiredDetailStatus').className = `status-pill ${contractStatusClass}`;
+    $('#hiredDetailStatus').textContent = contractStatus;
+    const contactDetails = [
+      item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '',
+      item.phone ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>` : ''
+    ].filter(Boolean);
+    $('#hiredDetailContact').innerHTML = contactDetails.length
+      ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
+      : '';
+    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    const sentEmails = sentEmailsForApplication(item);
+    const latestInvoice = invoices[0];
+    const latestEmail = sentEmails[0];
+    $('#clientOverviewSummary').innerHTML = `
+      <div class="client-overview-summary-item"><span>Contract</span><strong>${escapeHtml(contractStatus)}</strong><small>${item.contractEndDate ? `Ends ${escapeHtml(formatDate(item.contractEndDate))}` : 'No end date set'}</small></div>
+      <div class="client-overview-summary-item"><span>Onboarding</span><strong id="clientOverviewOnboardingStatus">Checking status</strong><small>Client form response</small></div>
+      <div class="client-overview-summary-item"><span>Invoices</span><strong>${escapeHtml(plural(invoices.length, 'invoice'))}</strong><small>${latestInvoice ? `Last sent ${escapeHtml(emailDate(latestInvoice.sentAt))}` : 'No invoices sent yet'}</small></div>
+      <div class="client-overview-summary-item"><span>Email History</span><strong>${escapeHtml(plural(sentEmails.length, 'email'))}</strong><small>${latestEmail ? `Last sent ${escapeHtml(emailDate(latestEmail.date))}` : 'No emails sent yet'}</small></div>`;
+    const detailsMarkup = fields => fields.filter(([, value]) => value).map(([label, value]) => `
+      <div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('');
+    const contactFields = detailsMarkup([
+      ['Contact', item.contact && escapeHtml(item.contact)],
+      ['Email', item.email && `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>`],
+      ['Phone', item.phone && `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`],
+      ['Website', item.website && `<a href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>`],
+      ['Social', item.socialMedia && escapeHtml(item.socialMedia)],
+      ['Location', item.location && escapeHtml(item.location)]
+    ]);
+    const workFields = detailsMarkup([
+      ['Position', item.role && escapeHtml(item.role)],
+      ['Platform', item.platform && escapeHtml(item.platform)],
+      ['Employment type', item.employmentType && escapeHtml(item.employmentType)],
+      ['Compensation', salaryLabel && escapeHtml(salaryLabel)],
+      ['Hours per week', Number(item.hoursPerWeek) > 0 && escapeHtml(String(item.hoursPerWeek))]
+    ]);
     $('#hiredDetailGrid').innerHTML = `
-      <div><dt>Contact</dt><dd>${item.contact ? escapeHtml(item.contact) : '—'}</dd></div>
-      <div><dt>Application</dt><dd><span class="status-pill active-client">Active client</span></dd></div>
-      <div><dt>Contract status</dt><dd><span class="status-pill ${contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active')}" >${escapeHtml(contractStatus)}</span></dd></div>
-      ${contractEnded ? `<div><dt>Contract Ended Email Sent</dt><dd><span class="status-pill ${item.contractEndedEmailSentAt ? 'contract-active' : 'not-active'}">${item.contractEndedEmailSentAt ? 'Done' : 'Not sent'}</span></dd></div>` : ''}
-      <div><dt>Contract end</dt><dd>${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : 'No end date'}</dd></div>
-      <div><dt>Email</dt><dd>${item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '—'}</dd></div>
-      <div><dt>Phone</dt><dd>${item.phone ? escapeHtml(item.phone) : '—'}</dd></div>
-      <div><dt>Website</dt><dd>${item.website ? `<a href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>` : '—'}</dd></div>
-      <div><dt>Social</dt><dd>${item.socialMedia ? escapeHtml(item.socialMedia) : '—'}</dd></div>
-      <div><dt>Location</dt><dd>${item.location ? escapeHtml(item.location) : '—'}</dd></div>
-      <div><dt>Platform</dt><dd>${item.platform ? escapeHtml(item.platform) : '—'}</dd></div>
-      <div><dt>Employment type</dt><dd>${item.employmentType ? escapeHtml(item.employmentType) : '—'}</dd></div>
-      <div><dt>Applied</dt><dd>${escapeHtml(emailDate(item.appliedDate))}</dd></div>
-      <div><dt>Added</dt><dd>${escapeHtml(emailDate(applicationAddedDate(item)))}</dd></div>
-      <div><dt>Active since</dt><dd>${escapeHtml(emailDate(activeSinceDate(item)))}</dd></div>
-      <div class="hired-detail-wide"><dt>Notes</dt><dd class="hired-notes">${item.notes ? escapeHtml(item.notes) : '—'}</dd></div>
-      `;
-    const invoiceRows = (data.invoices || []).filter(invoice => invoice.clientId === item.id).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
-    $('#hiredUploadSection').innerHTML = `
-      <div class="active-client-two-column">
-        <section class="invoice-send-panel${contractEnded ? ' contract-ended-readonly' : ''}">
-          <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3>Send invoice</h3></div><span class="invoice-sent-count" aria-label="${plural(invoiceRows.length, 'invoice')} sent">${plural(invoiceRows.length, 'invoice')} sent</span></div>
-          <p>${contractEnded ? 'Invoice sending is unavailable while this contract is ended.' : 'Upload an invoice, check the detected invoice number, and send it through Gmail.'}</p>
-          ${contractEnded ? '' : '<button class="button button-primary" type="button" id="sendInvoiceButton">Upload and send invoice</button>'}
-          <div class="client-invoice-history">
-            <p class="eyebrow">SENT INVOICES</p>
-            <div class="client-invoice-list">${invoiceRows.length ? invoiceRows.map(invoice => `<div class="client-invoice-item"><strong>${escapeHtml(invoice.invoiceNumber)}</strong><span>${escapeHtml(invoice.fileName)}</span><small>${emailDate(invoice.sentAt)} · ${escapeHtml(invoice.service || 'Invoice')}</small></div>`).join('') : '<p class="client-invoice-empty">No invoices sent yet.</p>'}</div>
-          </div>
-        </section>
-        <section class="active-document-box${contractEnded ? ' contract-ended-readonly' : ''}">
-          <div class="active-document-box-head"><div><p class="eyebrow">CLIENT FILES</p><h3>Documents</h3></div>${contractEnded ? '<span class="details-readonly-label">Read only</span>' : '<div><button class="button button-secondary active-document-upload-button" type="button" id="hiredDetailUploadButton">Upload file</button><input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></div>'}</div>
-          <div id="hiredDocumentWorkspace"></div>
-        </section>
-      </div>
-      ${renderHiredEmailHistory(item)}
-      <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in your account.</div>`;
+      <section class="hired-detail-info-group">
+        <h4>Contact Information</h4>
+        ${contactFields ? `<dl>${contactFields}</dl>` : '<p class="client-detail-empty-copy">No contact information has been added.</p>'}
+      </section>
+      <section class="hired-detail-info-group">
+        <h4>Work Information</h4>
+        ${workFields ? `<dl>${workFields}</dl>` : '<p class="client-detail-empty-copy">No work information has been added.</p>'}
+      </section>
+      <section class="hired-detail-info-group hired-detail-timeline">
+        <h4>Client History</h4>
+        <dl>${detailsMarkup([
+          ['Applied', item.appliedDate && escapeHtml(emailDate(item.appliedDate))],
+          ['Added', escapeHtml(emailDate(applicationAddedDate(item)))],
+          ['Active since', escapeHtml(emailDate(activeSinceDate(item)))]
+        ])}</dl>
+      </section>
+      ${item.notes ? `<section class="hired-detail-info-group hired-detail-notes"><h4>Notes</h4><p>${escapeHtml(item.notes)}</p></section>` : ''}`;
+    $('#clientContractSummary').innerHTML = `
+      <dl class="client-contract-facts">
+        <div><dt>Status</dt><dd><span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span></dd></div>
+        <div><dt>Active since</dt><dd>${escapeHtml(emailDate(activeSinceDate(item)))}</dd></div>
+        <div><dt>End date</dt><dd>${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : 'No end date set'}</dd></div>
+        ${item.contractEndDate && contractDuration(item) ? `<div><dt>Duration</dt><dd>${escapeHtml(contractDuration(item))}</dd></div>` : ''}
+        ${contractEnded ? `<div><dt>Contract ended email</dt><dd><span class="status-pill ${item.contractEndedEmailSentAt ? 'contract-active' : 'not-active'}">${item.contractEndedEmailSentAt ? 'Sent' : 'Not sent'}</span></dd></div>` : ''}
+      </dl>`;
+    $('#clientInvoiceWorkspace').innerHTML = `
+      <section class="invoice-send-panel client-invoice-panel${contractEnded ? ' contract-ended-readonly' : ''}" aria-labelledby="clientInvoicesTitle">
+        <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))} sent</span></div>
+        <div class="client-invoice-actions">${contractEnded ? '<p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p>' : '<p>Invoices sent to this client appear here.</p><button class="button button-primary" type="button" id="sendInvoiceButton">Send Invoice</button>'}</div>
+        ${invoices.length ? `<div class="client-invoice-list" role="list">${invoices.map(invoice => `
+          <article class="client-invoice-item" role="listitem">
+            <div class="client-invoice-main"><strong>${escapeHtml(invoice.invoiceNumber || 'Invoice')}</strong><span>${escapeHtml(invoice.fileName || 'Invoice document')}</span></div>
+            <div class="client-invoice-meta"><span>${escapeHtml(invoice.service || 'Invoice')}</span>${invoice.billingPeriod ? `<span>${escapeHtml(invoice.billingPeriod)}</span>` : ''}${invoice.dueDate ? `<span>Due ${escapeHtml(formatDate(invoice.dueDate))}</span>` : ''}</div>
+            <div class="client-invoice-date"><span class="status-pill contract-active">Sent</span><time>${escapeHtml(emailDate(invoice.sentAt))}</time></div>
+          </article>`).join('')}</div>` : `<div class="client-section-empty"><h4>No invoices yet</h4><p>${contractEnded ? 'No invoices have been sent to this client.' : 'Send an invoice to keep billing history together.'}</p>${contractEnded ? '' : '<button class="button button-secondary" type="button" id="sendInvoiceButton">Send Invoice</button>'}</div>`}
+      </section>`;
+    $('#clientEmailHistoryWorkspace').innerHTML = renderHiredEmailHistory(item);
+    $('#clientDocumentActions').innerHTML = contractEnded
+      ? '<span class="details-readonly-label">Read only</span>'
+      : '<button class="button button-secondary active-document-upload-button" type="button" id="hiredDetailUploadButton">Upload file</button><input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />';
+    $('#clientDocumentBox').classList.toggle('contract-ended-readonly', contractEnded);
+    $('#documentsFolderStatus').textContent = 'Files are stored securely in your account.';
     renderHiredDocumentWorkspace(item);
     loadClientOnboardingSubmission(item);
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -650,7 +699,8 @@
     const inviteButton = $('#sendClientOnboardingLinkButton');
     if (inviteButton) inviteButton.textContent = 'Send onboarding form';
     target.dataset.clientId = item.id;
-    target.textContent = 'Loading onboarding status...';
+    updateClientOnboardingStatus('Checking status', 'pending');
+    target.innerHTML = '<p class="client-onboarding-loading">Loading onboarding details…</p>';
     try {
       const { data: submission, error } = await requireSupabase().rpc('get_client_onboarding_submission', {
         p_client_id: item.id
@@ -658,19 +708,18 @@
       if (error) throw error;
       if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
       if (!submission) {
-        target.textContent = 'No onboarding response has been submitted yet. Use Actions → Send onboarding form to invite this client.';
+        updateClientOnboardingStatus('Not submitted', 'empty');
+        target.innerHTML = '<div class="client-section-empty"><h4>No onboarding submission yet</h4><p>Use Actions → Send onboarding form to invite this client.</p></div>';
         return;
       }
       const details = [
         ['Client contact', submission.contact_name],
         ['Email', submission.client_email],
         ['Phone', submission.phone],
-        ['Time zone', submission.timezone],
-        ['Availability and preferred working hours', submission.availability],
-        ['Tools or platforms', submission.tools],
-        ['First-week priorities', submission.priorities]
+        ['Time zone', submission.timezone]
       ];
       target.replaceChildren();
+      updateClientOnboardingStatus('Submitted', 'complete');
       const submittedAt = document.createElement('p');
       submittedAt.className = 'active-client-onboarding-submitted';
       submittedAt.textContent = `Submitted ${new Date(submission.submitted_at).toLocaleString()}`;
@@ -685,28 +734,75 @@
         wrapper.append(term, description);
         list.append(wrapper);
       });
-      target.append(submittedAt, list);
+      const additionalDetails = [
+        ['Availability and preferred working hours', submission.availability],
+        ['Tools or platforms', submission.tools],
+        ['First-week priorities', submission.priorities]
+      ];
+      const detailsDisclosure = document.createElement('details');
+      detailsDisclosure.className = 'client-onboarding-additional';
+      const detailsSummary = document.createElement('summary');
+      detailsSummary.textContent = 'Availability, tools and priorities';
+      const additionalList = document.createElement('dl');
+      additionalList.className = 'active-client-onboarding-details';
+      additionalDetails.forEach(([label, value]) => {
+        const wrapper = document.createElement('div');
+        const term = document.createElement('dt');
+        const description = document.createElement('dd');
+        term.textContent = label;
+        description.textContent = value || 'Not provided';
+        wrapper.append(term, description);
+        additionalList.append(wrapper);
+      });
+      detailsDisclosure.append(detailsSummary, additionalList);
+      target.append(submittedAt, list, detailsDisclosure);
       const inviteButton = $('#sendClientOnboardingLinkButton');
       if (inviteButton) inviteButton.textContent = 'Request corrected onboarding details';
     } catch (error) {
       console.error('Could not load client onboarding response:', error);
       if (target.dataset.clientId === item.id && hiredEditingId === item.id) {
-        target.textContent = 'Could not load onboarding status. Check your connection and try again.';
+        updateClientOnboardingStatus('Unavailable', 'error');
+        target.innerHTML = '<div class="client-section-empty"><h4>Onboarding could not be loaded</h4><p>Check your connection and try again.</p></div>';
       }
     }
+  }
+
+  function updateClientOnboardingStatus(label, state) {
+    ['#clientOverviewOnboardingStatus', '#clientOnboardingStatus'].forEach(selector => {
+      const status = $(selector);
+      if (!status) return;
+      status.className = `client-onboarding-status ${state}`;
+      status.textContent = label;
+    });
+  }
+
+  function selectClientDetailTab(tabName, focus = false) {
+    const detailPanel = $('#hiredDetailPanel');
+    if (!detailPanel) return;
+    detailPanel.querySelectorAll('[data-client-detail-tab]').forEach(tab => {
+      const isSelected = tab.dataset.clientDetailTab === tabName;
+      tab.classList.toggle('active', isSelected);
+      tab.setAttribute('aria-selected', String(isSelected));
+      tab.tabIndex = isSelected ? 0 : -1;
+      if (isSelected && focus) tab.focus();
+    });
+    detailPanel.querySelectorAll('[data-client-detail-panel]').forEach(panel => {
+      panel.hidden = panel.dataset.clientDetailPanel !== tabName;
+    });
   }
 
   function closeHiredDetail(render = true) {
     hiredEditingId = null;
     $('#hiredView').classList.remove('client-focused');
     $('#hiredDetailPanel').classList.add('hidden');
+    $('#hiredDetailPanel').dataset.clientId = '';
     if (render) renderHired();
   }
 
   function updateWeekNavigationCounts() {
     const applicationRange = applicationDateSort && applicationDateSort !== 'all' ? weekRange(Number(applicationDateSort)) : null;
     const emailRange = emailDateSort === 'all' ? null : weekRange(Number(emailDateSort));
-    const relevantReceivedEmails = receivedEmails().filter(item => matchApplicationsForEmail(item).length > 0);
+    const relevantReceivedEmails = receivedEmails();
     $('#navApplicationCount').textContent = !applicationDateSort || applicationDateSort === 'all'
       ? pipelineApplications().length
       : pipelineApplications().filter(item => isInWeeklyRange(applicationAddedDate(item), applicationRange)).length;
@@ -723,6 +819,8 @@
   }
 
   function renderAll() {
+    applicationEmailMatchesCache = new WeakMap();
+    applicationEmailSummaryCache = null;
     processContractEndedAlerts();
     renderDashboard();
     renderApplications();
@@ -773,7 +871,7 @@
       renderAccountPage();
       refreshAccountStorageUsage();
     }
-    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['', 'Daily Task'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    const labels = { dashboard: ['YOUR PIPELINE', 'Client overview'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];
@@ -982,14 +1080,14 @@
 
   function renderSentEmailHistoryItems(sentEmails, emptyMessage) {
     return sentEmails.length
-      ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}"><span><strong>${escapeHtml(email.subject || '(No subject)')}</strong><small>${escapeHtml(emailContentText(email.body).slice(0, 150) || 'No message preview')}</small></span><time>${escapeHtml(emailDate(email.date))}</time></button>`).join('')
+      ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}" aria-label="Open email: ${escapeHtml(email.subject || 'No subject')}, sent ${escapeHtml(emailDate(email.date))}"><span class="client-email-history-copy"><strong title="${escapeHtml(email.subject || '(No subject)')}">${escapeHtml(email.subject || '(No subject)')}</strong><small>To ${escapeHtml(email.to || 'client')}</small><small class="client-email-history-preview">${escapeHtml(emailContentText(email.body).slice(0, 150) || 'No message preview')}</small></span><span class="client-email-history-meta"><span class="client-email-direction">Sent</span><time>${escapeHtml(emailDate(email.date))}</time></span></button>`).join('')
       : `<p>${emptyMessage}</p>`;
   }
 
   function renderHiredEmailHistory(item) {
     const sentEmails = sentEmailsForApplication(item);
     return `<section class="client-email-history hired-email-history" aria-live="polite">
-      <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this client</h3></div><strong>${plural(sentEmails.length, 'email')}</strong></div>
+      <div class="client-email-history-head"><div><p class="eyebrow">CLIENT COMMUNICATION</p><h3>Email History</h3><span>Sent to this client</span></div><strong>${plural(sentEmails.length, 'email')}</strong></div>
       <div class="client-email-history-list">${renderSentEmailHistoryItems(sentEmails, 'No emails have been sent to this client.')}</div>
     </section>`;
   }

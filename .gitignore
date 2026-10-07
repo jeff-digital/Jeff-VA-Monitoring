@@ -1,9 +1,13 @@
 __pycache__/
 *.py[cod]
 *.xlsx
-dist/
-appwork/documents/*
-!appwork/documents/.gitkeep
+/dist/
+/.venv/
+/src/frontend/documents/*
+!/src/frontend/documents/.gitkeep
 .env
 .env.*
 !.env.example
+*.local
+credentials.json
+service-account*.json

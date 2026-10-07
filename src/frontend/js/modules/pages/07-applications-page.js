@@ -116,19 +116,10 @@
     $('#customPlatform').required = isOther;
     if (!isOther) $('#customPlatform').value = '';
     if (!editingId && !viewingClientDetails) {
-      const senderEmails = {
-        '20four7va': 'info@20four7va.com',
-        indeed: 'donotreply@jobalert.indeed.com',
-        jobstreet: 'noreply@e.jobstreet.com',
-        multiplymii: 'info@multiplymii.com',
-        'onlinejobs.ph': 'support@onlinejobs.ph',
-        'remote work ph': 'support@remotework.ph',
-        zirtual: 'noreply@candidates.workablemail.com'
-      };
       const email = $('#hiredEmail');
-      const knownSenderEmails = Object.values(senderEmails);
+      const knownSenderEmails = Object.keys(PLATFORM_SENDER_EMAILS).map(platformSenderEmail);
       const currentEmail = email.value.trim().toLowerCase();
-      const senderEmail = senderEmails[event.target.value.trim().toLowerCase()];
+      const senderEmail = platformSenderEmail(event.target.value);
       if (senderEmail && (!currentEmail || knownSenderEmails.includes(currentEmail))) {
         email.value = senderEmail;
       } else if (!senderEmail && knownSenderEmails.includes(currentEmail)) {

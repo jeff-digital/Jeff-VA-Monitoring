@@ -1,8 +1,7 @@
 @echo off
 setlocal
-cd /d "%~dp0appwork"
 cd /d "%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-app.ps1"
-cd /d "%~dp0appwork"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\build-app.ps1"
+if errorlevel 1 exit /b 1
 start "" "http://localhost:8080/"
-python local_server.py
+python "%~dp0scripts\local_server.py"

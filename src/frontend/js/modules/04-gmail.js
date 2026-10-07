@@ -429,6 +429,8 @@
   function openEmailDetail(emailId) {
     const emailItem = data.emails.find(item => item.id === emailId);
     if (!emailItem) return;
+    if ($('#applicationEmailsModal').open) $('#applicationEmailsModal').close();
+    if ($('#clientModal').open) $('#clientModal').close();
     const isSent = emailItem.direction === 'sent';
     const recipient = isSent ? emailItem.to : extractEmailAddress(emailItem.from);
     $('#emailDetailEyebrow').textContent = isSent ? 'SENT EMAIL' : 'EMAIL DETAILS';
@@ -616,6 +618,7 @@
     const sendButton = $('#sendEmailButton');
     sendButton.disabled = true;
     setEmailComposeStatus('Sending through Gmail...');
+    let gmailAccepted = false;
     try {
       let rawMessage;
       if (composeAttachment || composeAttachmentFile) {
@@ -636,6 +639,7 @@
         rawMessage = buildRawEmailMessage({ to, subject, body });
       }
       const gmailMessage = await sendGmailRaw(rawMessage);
+      gmailAccepted = true;
       const gmailId = gmailMessage?.id || '';
       const sentEmailRecord = {
         id: gmailId ? `gmail-${gmailId}` : uid(),
@@ -669,25 +673,29 @@
         updatingClient.documentEmailReminderAlertedDate = '';
         updatingClient.updatedAt = new Date().toISOString();
       }
-      persist();
+      const savePromise = persist();
+      let successMessage = 'Email sent successfully through Gmail.';
+      if (activatingClient) {
+        successMessage = 'Email sent successfully. Client moved to Active Clients.';
+      } else if (updatingClient) {
+        successMessage = 'Updated document email sent successfully.';
+      }
+      if (composeInvoiceDraft) successMessage = 'Invoice sent successfully and added to this client\'s history.';
+      savePromise.catch(error => {
+        console.error('Gmail accepted the email, but the app could not save its history:', error);
+      });
       renderAll();
       if ($('#clientModal').open && sentEmailRecord.applicationId === editingId) {
         const application = data.applications.find(item => item.id === editingId);
         if (application) renderClientEmailHistory(application);
       }
       $('#emailComposeModal').close();
-      let successMessage = 'Email sent successfully through Gmail.';
       if (activatingClient) {
         showView('hired');
         renderHiredDetail(activatingClient);
-        successMessage = 'Email sent successfully. Client moved to Active Clients.';
       } else if (updatingClient) {
         showView('hired');
         renderHiredDetail(updatingClient);
-        successMessage = 'Updated document email sent successfully.';
-      }
-      if (composeInvoiceDraft) {
-        successMessage = 'Invoice sent successfully and added to this client\'s history.';
       }
       showEmailActionResult({ title: 'Email sent successfully', message: successMessage });
       composeAttachmentFile = null;
@@ -698,10 +706,27 @@
       composeRequiresConfirmation = false;
     } catch (error) {
       console.error(error);
-      const failureMessage = `${error.message} Google authorization may be required.`;
-      setEmailComposeStatus(failureMessage, 'error');
-      showEmailActionResult({ title: 'Email could not be sent', message: failureMessage, status: 'error' });
+      if (gmailAccepted) {
+        $('#emailComposeModal').close();
+        showEmailActionResult({
+          title: 'Email sent, but history could not update',
+          message: 'Gmail accepted the message. Reload the app to refresh the email and invoice history.',
+          status: 'error'
+        });
+      } else {
+        const failureMessage = `${error.message} Google authorization may be required.`;
+        setEmailComposeStatus(failureMessage, 'error');
+        showEmailActionResult({ title: 'Email could not be sent', message: failureMessage, status: 'error' });
+      }
     } finally {
+      if (gmailAccepted) {
+        composeAttachmentFile = null;
+        composeInvoiceDraft = null;
+        composeClientId = null;
+        composeActivationClientId = null;
+        composeDocumentUpdateClientId = null;
+        composeRequiresConfirmation = false;
+      }
       sendButton.disabled = false;
     }
   }
@@ -1053,4 +1078,3 @@
   document.addEventListener('visibilitychange', () => {
     if (currentUser && document.visibilityState === 'visible') syncGmail(true);
   });
-
