@@ -978,6 +978,49 @@
     `).join('');
   }
 
+  let onboardingAlertsRefreshInFlight = false;
+  async function refreshClientOnboardingAlerts() {
+    if (!currentUser || !dataReady || !supabaseDataLoaded || onboardingAlertsRefreshInFlight) return;
+    const userId = currentUser.id;
+    onboardingAlertsRefreshInFlight = true;
+    try {
+      const { data: submissions, error } = await requireSupabase().rpc('get_client_onboarding_submissions');
+      if (error) throw error;
+      if (!currentUser || currentUser.id !== userId || !dataReady || !supabaseDataLoaded) return;
+      if (!Array.isArray(submissions)) throw new Error('The onboarding notifications response was invalid.');
+      data.onboardingSubmissionIds = data.onboardingSubmissionIds || [];
+      data.alerts = data.alerts || [];
+      const seen = new Set(data.onboardingSubmissionIds);
+      let changed = false;
+      submissions.forEach(submission => {
+        const submissionId = `onboarding|${submission.client_id}|${submission.submitted_at}`;
+        if (seen.has(submissionId)) return;
+        seen.add(submissionId);
+        data.onboardingSubmissionIds.push(submissionId);
+        data.alerts.unshift({
+          id: submissionId,
+          type: 'onboarding-submission',
+          applicationId: submission.client_id,
+          clientName: submission.client_name || 'Client',
+          subject: 'Submitted onboarding form',
+          from: submission.client_email || 'Client',
+          date: submission.submitted_at,
+          unread: true
+        });
+        changed = true;
+      });
+      if (changed) {
+        data.alerts = data.alerts.slice(0, 30);
+        persist();
+        renderAlerts();
+      }
+    } catch (error) {
+      console.error('Could not refresh client onboarding notifications:', error);
+    } finally {
+      onboardingAlertsRefreshInFlight = false;
+    }
+  }
+
   function updateTabNotification(unread) {
     const favicon = $('#tabFavicon');
     if (!favicon) return;

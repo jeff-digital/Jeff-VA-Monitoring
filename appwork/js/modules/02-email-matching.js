@@ -647,6 +647,8 @@
   async function loadClientOnboardingSubmission(item) {
     const target = $('#activeOnboardingResponse');
     if (!target) return;
+    const inviteButton = $('#sendClientOnboardingLinkButton');
+    if (inviteButton) inviteButton.textContent = 'Send onboarding form';
     target.dataset.clientId = item.id;
     target.textContent = 'Loading onboarding status...';
     try {
@@ -684,7 +686,8 @@
         list.append(wrapper);
       });
       target.append(submittedAt, list);
-      document.querySelectorAll('#sendClientOnboardingLinkButton').forEach(button => { button.hidden = true; });
+      const inviteButton = $('#sendClientOnboardingLinkButton');
+      if (inviteButton) inviteButton.textContent = 'Request corrected onboarding details';
     } catch (error) {
       console.error('Could not load client onboarding response:', error);
       if (target.dataset.clientId === item.id && hiredEditingId === item.id) {

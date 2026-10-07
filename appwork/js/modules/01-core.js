@@ -5,7 +5,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -522,6 +522,7 @@
       deletedGmailIds,
       accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],
       alerts: Array.isArray(saved.alerts) ? saved.alerts : [],
+      onboardingSubmissionIds: Array.isArray(saved.onboardingSubmissionIds) ? saved.onboardingSubmissionIds : [],
       emailTemplates: Array.isArray(saved.emailTemplates) ? saved.emailTemplates : [],
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
       invoices: Array.isArray(saved.invoices) ? saved.invoices : [],
@@ -570,6 +571,7 @@
       processDueInterviews();
       processDueDocumentEmailReminders();
       processContractEndedAlerts();
+      refreshClientOnboardingAlerts();
     }, 60000);
     const loginStatus = $('#loginGoogleStatus');
     if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
@@ -585,6 +587,7 @@
       processContractEndedAlerts();
       renderAll();
       renderAccountPage();
+      await refreshClientOnboardingAlerts();
       if (gmailAccessToken) {
         startGmailSyncTimer();
         await syncGmail(true);

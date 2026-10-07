@@ -85,6 +85,7 @@ revoke all on public.client_onboarding_submissions from public, anon, authentica
 drop function if exists public.issue_client_onboarding_invite(uuid, text, text, text, text, timestamptz);
 drop function if exists public.get_client_onboarding_submission(text);
 drop function if exists public.lookup_client_onboarding_invite(text);
+drop function if exists public.get_client_onboarding_submissions();
 
 create or replace function public.issue_client_onboarding_invite(p_client_id text, p_token_hash text)
 returns boolean
@@ -127,9 +128,9 @@ begin
     client_email = excluded.client_email,
     token_hash = excluded.token_hash,
     expires_at = excluded.expires_at,
+    submitted_at = null,
     revoked_at = null,
     created_at = now()
-  where public.client_onboarding_invites.submitted_at is null
   returning true into issued;
 
   return coalesce(issued, false);
@@ -160,6 +161,41 @@ begin
       cross join lateral jsonb_array_elements(coalesce(state.data->'applications', '[]'::jsonb)) as applications(application)
       where state.user_id = auth.uid()
         and applications.application->>'id' = p_client_id
+        and applications.application->>'status' = 'Active client'
+    );
+
+  return result;
+end;
+$$;
+
+create or replace function public.get_client_onboarding_submissions()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  result jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in to view client onboarding.';
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'client_id', submission.client_id,
+    'client_name', submission.client_name,
+    'client_email', submission.client_email,
+    'submitted_at', submission.submitted_at
+  ) order by submission.submitted_at desc), '[]'::jsonb)
+  into result
+  from public.client_onboarding_submissions as submission
+  where submission.user_id = auth.uid()
+    and exists (
+      select 1
+      from public.app_state as state
+      cross join lateral jsonb_array_elements(coalesce(state.data->'applications', '[]'::jsonb)) as applications(application)
+      where state.user_id = auth.uid()
+        and applications.application->>'id' = submission.client_id
         and applications.application->>'status' = 'Active client'
     );
 
@@ -239,7 +275,16 @@ begin
     btrim(p_contact_name), coalesce(btrim(p_phone), ''), btrim(p_timezone),
     btrim(p_availability), coalesce(btrim(p_tools), ''), btrim(p_priorities)
   )
-  on conflict (user_id, client_id) do nothing;
+  on conflict (user_id, client_id) do update set
+    client_name = excluded.client_name,
+    client_email = excluded.client_email,
+    contact_name = excluded.contact_name,
+    phone = excluded.phone,
+    timezone = excluded.timezone,
+    availability = excluded.availability,
+    tools = excluded.tools,
+    priorities = excluded.priorities,
+    submitted_at = now();
 
   get diagnostics inserted_count = row_count;
   if inserted_count = 0 then
@@ -256,10 +301,12 @@ $$;
 
 revoke all on function public.issue_client_onboarding_invite(text, text) from public, anon, authenticated;
 revoke all on function public.get_client_onboarding_submission(text) from public, anon, authenticated;
+revoke all on function public.get_client_onboarding_submissions() from public, anon, authenticated;
 revoke all on function public.lookup_client_onboarding_invite(text) from public, anon, authenticated;
 revoke all on function public.submit_client_onboarding(text, text, text, text, text, text, text) from public, anon, authenticated;
 grant execute on function public.issue_client_onboarding_invite(text, text) to authenticated;
 grant execute on function public.get_client_onboarding_submission(text) to authenticated;
+grant execute on function public.get_client_onboarding_submissions() to authenticated;
 grant execute on function public.lookup_client_onboarding_invite(text) to anon, authenticated;
 grant execute on function public.submit_client_onboarding(text, text, text, text, text, text, text) to anon, authenticated;
 

@@ -17,10 +17,11 @@
     form { display: grid; gap: 17px; }
     label { display: grid; gap: 7px; color: #37443a; font-size: 13px; font-weight: 650; }
     label small { color: #79837b; font-size: 11px; font-weight: 400; line-height: 1.45; }
-    input, textarea { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #cfd9d0; border-radius: 7px; background: #fff; color: #26332b; font: inherit; font-size: 14px; }
+    input, select, textarea { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #cfd9d0; border-radius: 7px; background: #fff; color: #26332b; font: inherit; font-size: 14px; }
     input[readonly] { background: #f5f7f5; color: #657067; }
     textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
-    input:focus, textarea:focus { outline: 3px solid #d8e8da; border-color: #52765a; }
+    input:focus, select:focus, textarea:focus { outline: 3px solid #d8e8da; border-color: #52765a; }
+    .phone-number-fields { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1.3fr); gap: 9px; }
     .privacy { padding: 12px 14px; border-radius: 7px; background: #f4f7f4; color: #5f6f62; font-size: 12px; line-height: 1.5; }
     button { min-height: 44px; padding: 10px 18px; border: 0; border-radius: 7px; background: #294d34; color: white; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
     button:hover { background: #203b2d; }
@@ -63,10 +64,17 @@
           <small>This is the address this invitation was sent to.</small>
         </label>
         <label>Phone number <small>Optional</small>
-          <input name="phone" type="tel" autocomplete="tel" maxlength="80" />
+          <span class="phone-number-fields">
+            <select name="phoneCountryCode" aria-label="International dialing code">
+              <option value="">Country code</option>
+            </select>
+            <input name="phone" type="tel" autocomplete="tel-national" maxlength="32" placeholder="Phone number" />
+          </span>
         </label>
         <label>Time zone
-          <input name="timezone" autocomplete="off" maxlength="120" placeholder="For example, Manila (UTC+8)" required />
+          <select name="timezone" required>
+            <option value="">Select your time zone</option>
+          </select>
         </label>
         <label>Availability and preferred working hours
           <textarea name="availability" maxlength="2000" required></textarea>

@@ -111,12 +111,12 @@
         p_token_hash: tokenHash
       });
       if (error) throw error;
-      if (issued !== true) throw new Error('This client has already submitted onboarding. A second submission is not allowed.');
+      if (issued !== true) throw new Error('The onboarding invitation could not be created.');
       const onboardingUrl = new URL('/onboarding/', window.location.origin);
       onboardingUrl.hash = `token=${token}`;
       openPlainClientEmailComposer(item);
-      $('#composeSubject').value = 'Please complete your client onboarding';
-      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete this onboarding form so I can prepare for our work together:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
+      $('#composeSubject').value = 'Please review your client onboarding details';
+      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete or update your onboarding details using this private form:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. Submitting this form will replace any onboarding details previously provided. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
       toast('Review the onboarding invitation and send it through Gmail.');
     } catch (error) {
       console.error('Could not create client onboarding invitation:', error);

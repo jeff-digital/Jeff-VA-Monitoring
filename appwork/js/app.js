@@ -8,7 +8,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -525,6 +525,7 @@
       deletedGmailIds,
       accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],
       alerts: Array.isArray(saved.alerts) ? saved.alerts : [],
+      onboardingSubmissionIds: Array.isArray(saved.onboardingSubmissionIds) ? saved.onboardingSubmissionIds : [],
       emailTemplates: Array.isArray(saved.emailTemplates) ? saved.emailTemplates : [],
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
       invoices: Array.isArray(saved.invoices) ? saved.invoices : [],
@@ -573,6 +574,7 @@
       processDueInterviews();
       processDueDocumentEmailReminders();
       processContractEndedAlerts();
+      refreshClientOnboardingAlerts();
     }, 60000);
     const loginStatus = $('#loginGoogleStatus');
     if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
@@ -588,6 +590,7 @@
       processContractEndedAlerts();
       renderAll();
       renderAccountPage();
+      await refreshClientOnboardingAlerts();
       if (gmailAccessToken) {
         startGmailSyncTimer();
         await syncGmail(true);
@@ -1476,6 +1479,8 @@
   async function loadClientOnboardingSubmission(item) {
     const target = $('#activeOnboardingResponse');
     if (!target) return;
+    const inviteButton = $('#sendClientOnboardingLinkButton');
+    if (inviteButton) inviteButton.textContent = 'Send onboarding form';
     target.dataset.clientId = item.id;
     target.textContent = 'Loading onboarding status...';
     try {
@@ -1513,7 +1518,8 @@
         list.append(wrapper);
       });
       target.append(submittedAt, list);
-      document.querySelectorAll('#sendClientOnboardingLinkButton').forEach(button => { button.hidden = true; });
+      const inviteButton = $('#sendClientOnboardingLinkButton');
+      if (inviteButton) inviteButton.textContent = 'Request corrected onboarding details';
     } catch (error) {
       console.error('Could not load client onboarding response:', error);
       if (target.dataset.clientId === item.id && hiredEditingId === item.id) {
@@ -2929,6 +2935,49 @@
         `).join('')}
       </div>
     `).join('');
+  }
+
+  let onboardingAlertsRefreshInFlight = false;
+  async function refreshClientOnboardingAlerts() {
+    if (!currentUser || !dataReady || !supabaseDataLoaded || onboardingAlertsRefreshInFlight) return;
+    const userId = currentUser.id;
+    onboardingAlertsRefreshInFlight = true;
+    try {
+      const { data: submissions, error } = await requireSupabase().rpc('get_client_onboarding_submissions');
+      if (error) throw error;
+      if (!currentUser || currentUser.id !== userId || !dataReady || !supabaseDataLoaded) return;
+      if (!Array.isArray(submissions)) throw new Error('The onboarding notifications response was invalid.');
+      data.onboardingSubmissionIds = data.onboardingSubmissionIds || [];
+      data.alerts = data.alerts || [];
+      const seen = new Set(data.onboardingSubmissionIds);
+      let changed = false;
+      submissions.forEach(submission => {
+        const submissionId = `onboarding|${submission.client_id}|${submission.submitted_at}`;
+        if (seen.has(submissionId)) return;
+        seen.add(submissionId);
+        data.onboardingSubmissionIds.push(submissionId);
+        data.alerts.unshift({
+          id: submissionId,
+          type: 'onboarding-submission',
+          applicationId: submission.client_id,
+          clientName: submission.client_name || 'Client',
+          subject: 'Submitted onboarding form',
+          from: submission.client_email || 'Client',
+          date: submission.submitted_at,
+          unread: true
+        });
+        changed = true;
+      });
+      if (changed) {
+        data.alerts = data.alerts.slice(0, 30);
+        persist();
+        renderAlerts();
+      }
+    } catch (error) {
+      console.error('Could not refresh client onboarding notifications:', error);
+    } finally {
+      onboardingAlertsRefreshInFlight = false;
+    }
   }
 
   function updateTabNotification(unread) {
@@ -4623,6 +4672,9 @@
       } else if ((alert?.type === 'contract-ended' || alert?.type === 'document-email-reminder') && alert.applicationId) {
         showView('hired');
         renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
+      } else if (alert?.type === 'onboarding-submission' && alert.applicationId) {
+        showView('hired');
+        renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
       } else {
         showView('inbox');
       }
@@ -5336,12 +5388,12 @@
         p_token_hash: tokenHash
       });
       if (error) throw error;
-      if (issued !== true) throw new Error('This client has already submitted onboarding. A second submission is not allowed.');
+      if (issued !== true) throw new Error('The onboarding invitation could not be created.');
       const onboardingUrl = new URL('/onboarding/', window.location.origin);
       onboardingUrl.hash = `token=${token}`;
       openPlainClientEmailComposer(item);
-      $('#composeSubject').value = 'Please complete your client onboarding';
-      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete this onboarding form so I can prepare for our work together:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
+      $('#composeSubject').value = 'Please review your client onboarding details';
+      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete or update your onboarding details using this private form:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. Submitting this form will replace any onboarding details previously provided. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
       toast('Review the onboarding invitation and send it through Gmail.');
     } catch (error) {
       console.error('Could not create client onboarding invitation:', error);

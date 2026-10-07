@@ -87,6 +87,9 @@
       } else if ((alert?.type === 'contract-ended' || alert?.type === 'document-email-reminder') && alert.applicationId) {
         showView('hired');
         renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
+      } else if (alert?.type === 'onboarding-submission' && alert.applicationId) {
+        showView('hired');
+        renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
       } else {
         showView('inbox');
       }
