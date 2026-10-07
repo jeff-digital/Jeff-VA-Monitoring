@@ -276,7 +276,7 @@
     const target = $('#applicationList');
     if (!filtered.length) {
       const isFiltered = pipeline.length > 0;
-      target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>+ Add your first client</button>'}</div>`;
+      target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>Add your first client</button>'}</div>`;
       return;
     }
     const renderRows = items => items.map(item => {
@@ -626,14 +626,14 @@
         <section class="invoice-send-panel${contractEnded ? ' contract-ended-readonly' : ''}">
           <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3>Send invoice</h3></div><span class="invoice-sent-count" aria-label="${plural(invoiceRows.length, 'invoice')} sent">${plural(invoiceRows.length, 'invoice')} sent</span></div>
           <p>${contractEnded ? 'Invoice sending is unavailable while this contract is ended.' : 'Upload an invoice, check the detected invoice number, and send it through Gmail.'}</p>
-          ${contractEnded ? '' : '<button class="button button-primary" type="button" id="sendInvoiceButton">+ Upload and send invoice</button>'}
+          ${contractEnded ? '' : '<button class="button button-primary" type="button" id="sendInvoiceButton">Upload and send invoice</button>'}
           <div class="client-invoice-history">
             <p class="eyebrow">SENT INVOICES</p>
             <div class="client-invoice-list">${invoiceRows.length ? invoiceRows.map(invoice => `<div class="client-invoice-item"><strong>${escapeHtml(invoice.invoiceNumber)}</strong><span>${escapeHtml(invoice.fileName)}</span><small>${emailDate(invoice.sentAt)} · ${escapeHtml(invoice.service || 'Invoice')}</small></div>`).join('') : '<p class="client-invoice-empty">No invoices sent yet.</p>'}</div>
           </div>
         </section>
         <section class="active-document-box${contractEnded ? ' contract-ended-readonly' : ''}">
-          <div class="active-document-box-head"><div><p class="eyebrow">CLIENT FILES</p><h3>Documents</h3></div>${contractEnded ? '<span class="details-readonly-label">Read only</span>' : '<div><button class="button button-secondary active-document-upload-button" type="button" id="hiredDetailUploadButton">+ Upload file</button><input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></div>'}</div>
+          <div class="active-document-box-head"><div><p class="eyebrow">CLIENT FILES</p><h3>Documents</h3></div>${contractEnded ? '<span class="details-readonly-label">Read only</span>' : '<div><button class="button button-secondary active-document-upload-button" type="button" id="hiredDetailUploadButton">Upload file</button><input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></div>'}</div>
           <div id="hiredDocumentWorkspace"></div>
         </section>
       </div>

@@ -115,7 +115,7 @@
               </div>
             </div>
             <button class="button button-secondary" type="button" id="openFollowUpTemplate" hidden aria-hidden="true">Follow-up template</button>
-            <button class="button button-primary" type="button" id="openAddModal" hidden aria-hidden="true"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add application</button>
+            <button class="button button-primary" type="button" id="openAddModal" hidden aria-hidden="true">Add application</button>
           </div>
         </header>
 
@@ -210,7 +210,7 @@
           </section>
           <section class="daily-task-layout">
             <section class="panel daily-task-list-panel" aria-labelledby="dailyTaskListTitle">
-              <div class="daily-task-section-heading daily-task-list-heading"><div><h3 id="dailyTaskListTitle">Tasks</h3></div><div class="daily-task-plan-actions"><span class="daily-task-count" id="dailyTaskCount">0 tasks</span><button class="button button-primary" type="button" id="openDailyTaskAddModal"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add task</button></div></div>
+              <div class="daily-task-section-heading daily-task-list-heading"><div><h3 id="dailyTaskListTitle">Tasks</h3></div><div class="daily-task-plan-actions"><span class="daily-task-count" id="dailyTaskCount">0 tasks</span><button class="button button-primary" type="button" id="openDailyTaskAddModal">Add task</button></div></div>
               <div class="daily-task-list" id="dailyTaskList" aria-live="polite"></div>
             </section>
             <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
@@ -251,7 +251,7 @@
               <div class="application-workspace-count">
                 <span><strong id="toApplyCountLabel">0 reminders</strong></span>
               </div>
-              <button class="button button-primary" type="button" id="addToApplyButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add reminder</button>
+              <button class="button button-primary" type="button" id="addToApplyButton">Add reminder</button>
             </div>
           </section>
           <section class="application-filters to-apply-filters" aria-label="Reminder filters">
@@ -392,7 +392,7 @@
               <div class="scripts-section">
                 <div class="documents-subsection-head">
                   <div><p class="eyebrow">TEXT SCRIPTS</p><h3>Reusable scripts</h3></div>
-                  <button class="button button-secondary" type="button" id="addScriptButton">+ Add script</button>
+                  <button class="button button-secondary" type="button" id="addScriptButton">Add script</button>
                 </div>
                 <div class="script-list" id="scriptList"></div>
               </div>
@@ -400,7 +400,7 @@
             <div class="documents-tab-panel hidden" id="personalDocumentsPanel" data-documents-panel="documents">
               <div class="documents-subsection-head">
                 <div><p class="eyebrow">PERSONAL DOCUMENTS</p><h3>Saved documents</h3></div>
-                <label class="button button-secondary import-label" id="uploadDocumentButton" for="personalDocumentInput" hidden>+ Upload document</label>
+                <label class="button button-secondary import-label" id="uploadDocumentButton" for="personalDocumentInput" hidden>Upload document</label>
               </div>
               <input id="personalDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
               <div class="personal-document-list" id="personalDocumentList"></div>
@@ -412,7 +412,7 @@
                     <p class="eyebrow">SOFTCOPY LINKS</p>
                     <h3>Google Docs, Sheets, and other softcopy links</h3>
                   </div>
-                  <button class="button button-secondary" type="button" id="addWorkLinkButton">+ Add softcopy link</button>
+                  <button class="button button-secondary" type="button" id="addWorkLinkButton">Add softcopy link</button>
                 </div>
                 <div class="work-link-list" id="workLinkList"></div>
               </div>
@@ -563,10 +563,10 @@
         <label class="form-field">Notes or content<textarea id="dailyTaskNotes" maxlength="2000" rows="3" placeholder="Add a brief, ideas, or anything to remember"></textarea></label>
         <section class="daily-task-checklist-editor" aria-labelledby="dailyTaskChecklistEditorTitle">
           <div class="daily-task-checklist-heading"><div><h3 id="dailyTaskChecklistEditorTitle">Checklist</h3></div><span id="dailyTaskDraftChecklistCount">0 items</span></div>
-          <div class="daily-task-checklist-add-row"><label class="form-field" for="dailyTaskChecklistInput">Checklist item<input id="dailyTaskChecklistInput" maxlength="180" placeholder="e.g. Update the application" /></label><button class="button button-secondary" type="button" id="dailyTaskAddChecklistButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add checklist</button></div>
+          <div class="daily-task-checklist-add-row"><label class="form-field" for="dailyTaskChecklistInput">Checklist item<input id="dailyTaskChecklistInput" maxlength="180" placeholder="e.g. Update the application" /></label><button class="button button-secondary" type="button" id="dailyTaskAddChecklistButton">Add checklist</button></div>
           <ol class="daily-task-draft-checklist" id="dailyTaskDraftChecklist"></ol>
         </section>
-        <div class="modal-actions daily-task-form-actions"><button class="button button-secondary" type="button" id="cancelDailyTaskAddModal">Cancel</button><button class="button button-primary daily-task-add-button" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add task</button></div>
+        <div class="modal-actions daily-task-form-actions"><button class="button button-secondary" type="button" id="cancelDailyTaskAddModal">Cancel</button><button class="button button-primary daily-task-add-button" type="submit">Add task</button></div>
       </form>
     </dialog>
 
@@ -583,7 +583,7 @@
           <p class="daily-task-checklist-locked" id="dailyTaskChecklistLocked" role="status" hidden>Reopen this task to add checklist items.</p>
           <form class="daily-task-checklist-form" id="dailyTaskChecklistForm">
             <label class="form-field">Checklist item<input id="dailyTaskChecklistItemInput" maxlength="180" required placeholder="e.g. Confirm the final link" /></label>
-            <button class="button button-secondary" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add checklist</button>
+            <button class="button button-secondary" type="submit">Add checklist</button>
           </form>
         </section>
         <div class="modal-actions"><button class="button button-secondary" type="button" id="closeDailyTaskDetailsAction">Close</button></div>
@@ -746,7 +746,7 @@
         </div>
         <p class="settings-copy">Upload the contract file for this client. It will be attached to the client for this one-time email and will not be saved in Tools.</p>
         <div class="activation-file-info hidden" id="activationFileInfo"></div>
-        <label class="button button-primary import-label picker-upload" id="uploadActivationFileButton" for="clientPickerUploadInput">+ Upload contract file</label>
+        <label class="button button-primary import-label picker-upload" id="uploadActivationFileButton" for="clientPickerUploadInput">Upload contract file</label>
         <input id="clientPickerUploadInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
         <p class="compose-status" id="clientDocumentPickerStatus" role="status"></p>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" id="cancelActivationDocumentButton">Cancel</button><button class="button button-primary" type="button" id="continueActivationEmailButton" disabled>Next</button></div>
@@ -781,7 +781,7 @@
           <label class="form-field">Task ends <span class="required">*</span><input id="invoiceEndDate" type="date" required /></label>
         </div>
         <p class="settings-copy" id="invoiceDocumentPickerDescription">Upload the invoice you want to send. It will be used once and will not be saved to the Documents page.</p>
-        <label class="button button-primary import-label picker-upload" for="invoicePickerUploadInput">+ Choose invoice file</label>
+        <label class="button button-primary import-label picker-upload" for="invoicePickerUploadInput">Choose invoice file</label>
         <input id="invoicePickerUploadInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
         <p class="compose-status" id="invoiceDocumentPickerStatus" role="status"></p>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button><button class="button button-primary" type="button" id="useInvoiceFileButton" disabled>Continue with this file</button></div>
@@ -840,7 +840,7 @@
         <div class="hired-documents-field hired-documents-field-standalone">
           <div class="hired-documents-field-head">
             <span>Contract &amp; documents</span>
-            <label class="text-button import-label" for="hiredDocumentInput">+ Attach file</label>
+            <label class="text-button import-label" for="hiredDocumentInput">Attach file</label>
             <input id="hiredDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden />
           </div>
           <div class="doc-list" id="hiredDocumentList"></div>

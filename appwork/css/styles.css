@@ -1037,6 +1037,58 @@ dialog[open] { overscroll-behavior: contain; }
 .modal-heading h2 { margin: 5px 0 0; font-size: 25px; letter-spacing: -.02em; font-weight: 650; }
 .icon-button { border: 0; border-radius: 6px; color: #676963; background: transparent; font-size: 25px; line-height: 1; padding: 1px 5px 5px; }
 .icon-button:hover { background: #f2f2ef; }
+.modal .modal-heading > .icon-button,
+.settings-modal-heading > .icon-button {
+  display: grid;
+  position: relative;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d5ddd6;
+  border-radius: 9px;
+  background: #f5f8f5;
+  font-size: 0;
+  line-height: 1;
+  color: transparent;
+}
+.modal .modal-heading > .icon-button::before,
+.settings-modal-heading > .icon-button::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  height: 2px;
+  border-radius: 2px;
+  background: #3e5946;
+  transform: translate(-50%, -50%) rotate(45deg);
+  pointer-events: none;
+}
+.modal .modal-heading > .icon-button::after,
+.settings-modal-heading > .icon-button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  height: 2px;
+  border-radius: 2px;
+  background: #3e5946;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  pointer-events: none;
+}
+.modal .modal-heading > .icon-button:hover,
+.settings-modal-heading > .icon-button:hover {
+  border-color: #d5ddd6;
+  background: #f5f8f5;
+}
+.modal .modal-heading > .icon-button:focus-visible,
+.settings-modal-heading > .icon-button:focus-visible {
+  outline: 3px solid rgba(71, 108, 83, .28);
+  outline-offset: 2px;
+}
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 13px; }
 .form-field { display: grid; gap: 6px; color: #4e504c; font-weight: 700; font-size: 12px; }
 .form-field-wide { grid-column: 1 / -1; }
