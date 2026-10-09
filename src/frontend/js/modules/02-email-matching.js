@@ -10,6 +10,43 @@
   });
   let applicationEmailMatchesCache = new WeakMap();
   let applicationEmailSummaryCache = null;
+  let applicationMatchIndex = [];
+  let applicationMatchIndexSignature = '';
+
+  function applicationMatchSignature(applications = data.applications || []) {
+    return (applications || []).map(application => [
+      application.id || '',
+      application.updatedAt || '',
+      application.email || '',
+      application.contact || '',
+      application.clientName || '',
+      application.role || ''
+    ].join('|')).join('~');
+  }
+
+  // perf: precompute the application fields used by matching once per application snapshot instead of rescanning every row on each email.
+  function buildApplicationMatchIndex(applications = data.applications || []) {
+    const signature = applicationMatchSignature(applications);
+    if (signature === applicationMatchIndexSignature && applicationMatchIndex.length === applications.length) return applicationMatchIndex;
+    applicationMatchIndex = (applications || []).map(application => {
+      const email = String(application.email || '').trim().toLowerCase();
+      const contact = String(application.contact || '').trim().toLowerCase();
+      const clientName = String(application.clientName || '').trim().toLowerCase();
+      const role = String(application.role || '').trim().toLowerCase();
+      return { application, email, contact, clientName, role };
+    });
+    applicationMatchIndexSignature = signature;
+    return applicationMatchIndex;
+  }
+
+  function invalidateApplicationMatchCaches(applications = data.applications || []) {
+    const nextSignature = applicationMatchSignature(applications);
+    if (nextSignature !== applicationMatchIndexSignature) {
+      applicationEmailMatchesCache = new WeakMap();
+      applicationEmailSummaryCache = null;
+      buildApplicationMatchIndex(applications);
+    }
+  }
 
   function platformSenderEmail(platform) {
     return PLATFORM_SENDER_EMAILS[String(platform || '').trim().toLowerCase()] || '';
@@ -45,18 +82,20 @@
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
     const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
-    const matches = data.applications.filter(application => {
-      const emailCandidate = (application.email || '').trim().toLowerCase();
-      const contact = (application.contact || '').trim().toLowerCase();
-      const clientName = (application.clientName || '').trim().toLowerCase();
-      const role = (application.role || '').trim().toLowerCase();
+    const matches = [];
+    for (const item of buildApplicationMatchIndex(data.applications)) {
+      const { application, email, contact, clientName, role } = item;
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
-      if (emailCandidate && emailCandidate === fromAddress) return true;
-      if (!roleReferenced && !companyReferenced) return false;
-      return [contact, clientName].filter(name => name.length >= 3)
-        .some(name => containsWholeWord(senderName, name));
-    });
+      if (email && email === fromAddress) {
+        matches.push(application);
+        continue;
+      }
+      if (!roleReferenced && !companyReferenced) continue;
+      if ([contact, clientName].filter(name => name.length >= 3).some(name => containsWholeWord(senderName, name))) {
+        matches.push(application);
+      }
+    }
     applicationEmailMatchesCache.set(emailItem, matches);
     return matches;
   }
@@ -537,6 +576,66 @@
     return Boolean(item.contractEndDate && dateKey(item.contractEndDate) < today());
   }
 
+  function clientOnlineStatus(item, now = new Date()) {
+    const timeZone = clientTimeZones.get(item.id);
+    if (!timeZone) return { className: 'unknown', text: 'Time zone not set' };
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        weekday: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(now);
+      const part = type => parts.find(value => value.type === type)?.value;
+      const weekday = part('weekday');
+      const hour = Number(part('hour'));
+      if (!weekday || !Number.isInteger(hour)) return { className: 'unknown', text: 'Time zone not set' };
+      const localTime = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(now);
+      const offsetLabel = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        timeZoneName: 'longOffset'
+      }).formatToParts(now).find(value => value.type === 'timeZoneName')?.value || 'GMT';
+      const utcOffset = offsetLabel === 'GMT' || offsetLabel === 'UTC'
+        ? 'UTC+00:00'
+        : offsetLabel.replace(/^GMT/, 'UTC');
+      const isOnline = !['Sat', 'Sun'].includes(weekday) && hour >= 9 && hour < 17;
+      return {
+        className: isOnline ? 'online' : 'offline',
+        text: `${isOnline ? 'Online now' : 'Offline'} · ${localTime} · ${utcOffset}`
+      };
+    } catch (error) {
+      if (error instanceof RangeError) return { className: 'unknown', text: 'Time zone not set' };
+      throw error;
+    }
+  }
+
+  function renderClientOnlineStatus(item) {
+    const status = clientOnlineStatus(item);
+    return `<span class="client-online-status ${status.className}" title="Estimated from weekdays, 9 AM–5 PM client local time" data-client-online-status="${escapeHtml(item.id)}">${escapeHtml(status.text)}</span>`;
+  }
+
+  function updateClientOnlineIndicators() {
+    document.querySelectorAll('[data-client-online-status]').forEach(indicator => {
+      const item = data.applications.find(application => application.id === indicator.dataset.clientOnlineStatus);
+      if (!item) return;
+      const status = clientOnlineStatus(item);
+      indicator.className = `client-online-status ${status.className}`;
+      indicator.textContent = status.text;
+      indicator.title = 'Estimated from weekdays, 9 AM–5 PM client local time';
+    });
+  }
+
+  setInterval(updateClientOnlineIndicators, 60000);
+  window.addEventListener('focus', updateClientOnlineIndicators);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) updateClientOnlineIndicators();
+  });
+
   function renderHired() {
     const query = $('#hiredSearch').value.trim().toLowerCase();
     const filter = $('#hiredStatusFilter')?.value || 'all';
@@ -577,6 +676,7 @@
       const statusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
       return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
         <span class="hired-card-head"><span><strong class="client-card-title">${escapeHtml(item.clientName)}</strong><span class="client-card-subtitle">${escapeHtml(item.role || 'No role added')}</span></span><span class="hired-card-arrow" aria-hidden="true">→</span></span>
+        ${renderClientOnlineStatus(item)}
         <span class="client-contract-status ${statusClass}">${escapeHtml(contractStatus)}${item.contractEndDate ? ` · ends ${escapeHtml(formatDate(item.contractEndDate))}` : ''}</span>
         ${matchBadge(item) ? `<span>${matchBadge(item)}</span>` : ''}
         <span class="hired-card-meta">${item.email ? escapeHtml(item.email) : 'No email added'} · ${escapeHtml(item.employmentType || 'Employment type not set')} · Active since ${emailDate(activeSinceDate(item))} · Added ${emailDate(applicationAddedDate(item))}${docs.length ? ` · ${plural(docs.length, 'file')}` : ''}</span>
@@ -612,6 +712,12 @@
     $('#hiredDetailSubtitle').textContent = item.role || 'Client workspace';
     $('#hiredDetailStatus').className = `status-pill ${contractStatusClass}`;
     $('#hiredDetailStatus').textContent = contractStatus;
+    const onlineStatus = $('#hiredDetailOnlineStatus');
+    onlineStatus.dataset.clientOnlineStatus = item.id;
+    const clientStatus = clientOnlineStatus(item);
+    onlineStatus.className = `client-online-status ${clientStatus.className}`;
+    onlineStatus.textContent = clientStatus.text;
+    onlineStatus.title = 'Estimated from weekdays, 9 AM–5 PM client local time';
     const contactDetails = [
       item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '',
       item.phone ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>` : ''
@@ -708,10 +814,15 @@
       if (error) throw error;
       if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
       if (!submission) {
+        clientTimeZones.delete(item.id);
+        updateClientOnlineIndicators();
         updateClientOnboardingStatus('Not submitted', 'empty');
         target.innerHTML = '<div class="client-section-empty"><h4>No onboarding submission yet</h4><p>Use Actions → Send onboarding form to invite this client.</p></div>';
         return;
       }
+      if (submission.timezone) clientTimeZones.set(item.id, submission.timezone);
+      else clientTimeZones.delete(item.id);
+      updateClientOnlineIndicators();
       const details = [
         ['Client contact', submission.contact_name],
         ['Email', submission.client_email],
@@ -818,20 +929,43 @@
     link.setAttribute('aria-label', hasUnfinishedApplications ? 'To Apply - action needed' : 'To Apply');
   }
 
+  function renderCurrentView() {
+    const viewName = typeof activeView !== 'undefined' ? activeView : (localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard');
+    switch (viewName) {
+      case 'daily-task':
+        renderDailyTasks();
+        break;
+      case 'applications':
+        renderApplications();
+        break;
+      case 'to-apply':
+        renderToApplyList();
+        break;
+      case 'hired':
+        renderHired();
+        break;
+      case 'inbox':
+        renderEmails();
+        break;
+      case 'documents':
+        renderPersonalDocuments();
+        renderScripts();
+        renderWorkLinks();
+        renderInvoiceList();
+        break;
+      case 'account':
+        renderAccountPage();
+        break;
+      default:
+        renderDashboard();
+    }
+  }
+
   function renderAll() {
-    applicationEmailMatchesCache = new WeakMap();
-    applicationEmailSummaryCache = null;
+    // perf: keep match caches until the application snapshot changes, instead of blowing them away on every rerender.
+    invalidateApplicationMatchCaches();
     processContractEndedAlerts();
-    renderDashboard();
-    renderApplications();
-    renderToApplyList();
-    renderDailyTasks();
-    renderHired();
-    renderEmails();
-    renderScripts();
-    renderWorkLinks();
-    renderPersonalDocuments();
-    renderInvoiceList();
+    renderCurrentView();
     updateWeekNavigationCounts();
     $('#navToApplyCount').textContent = (data.toApply || []).filter(item => item.dueDate === today()).length;
     updateToApplyAttention();
@@ -862,10 +996,8 @@
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
-    if (view === 'applications') {
-      renderApplications();
-    }
-    if (view === 'daily-task') renderDailyTasks();
+    // perf: render the requested view on entry while renderAll skips inactive pages.
+    renderCurrentView();
     if (view === 'account') {
       renderPasswordPage();
       renderAccountPage();
@@ -878,9 +1010,6 @@
     $('#pageTitle').hidden = false;
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';
-    if (view === 'inbox') {
-      renderEmails();
-    }
     $$('.view').forEach(panel => panel.classList.toggle('active', panel.dataset.viewPanel === view));
     $$('.nav-link').forEach(link => link.classList.toggle('active', link.dataset.view === view));
     // The header Add client action belongs exclusively to the Applications view.

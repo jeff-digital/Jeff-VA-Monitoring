@@ -61,6 +61,7 @@
   let gmailTokenRequest = null;
   let gmailAuthorizationRecovery = null;
   let gmailReconnectRequired = false;
+  let gmailSyncTriggerTimer = null;
   let sentHistoryAddressSignature = '';
   let sentHistoryPageToken = '';
   let sentHistoryQueue = [];
@@ -893,6 +894,15 @@
     }, 30000);
   }
 
+  function scheduleGmailSync({ silent = true } = {}) {
+    if (!currentUser || !gmailAccessToken || gmailReconnectRequired || gmailSyncInFlight) return;
+    if (gmailSyncTriggerTimer) clearTimeout(gmailSyncTriggerTimer);
+    gmailSyncTriggerTimer = setTimeout(() => {
+      gmailSyncTriggerTimer = null;
+      syncGmail(silent);
+    }, 200);
+  }
+
   async function refreshGmailAuthorization() {
     if (gmailAuthorizationRecovery) return gmailAuthorizationRecovery;
     gmailAuthorizationRecovery = requestGmailAccessToken('')
@@ -946,13 +956,24 @@
         sentHistoryLoaded = directClientEmails.size === 0;
       }
       const inboxParams = new URLSearchParams({ maxResults: '30', labelIds: 'INBOX' });
-      const inboxList = await fetchMessageList(inboxParams);
+      const historyParams = new URLSearchParams({ maxResults: '500', labelIds: 'INBOX' });
+      const recentSentParams = directClientEmails.size
+        ? new URLSearchParams({ maxResults: '30', labelIds: 'SENT', q: `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}` })
+        : null;
+      const sentHistoryParams = directClientEmails.size && !sentHistoryLoaded && sentHistoryQueue.length < 30
+        ? new URLSearchParams({ maxResults: '500', labelIds: 'SENT', q: `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}` })
+        : null;
+      if (inboxHistoryPageToken) historyParams.set('pageToken', inboxHistoryPageToken);
+      if (sentHistoryPageToken && sentHistoryParams) sentHistoryParams.set('pageToken', sentHistoryPageToken);
+      const [inboxList, historyList, recentSentList, sentHistoryList] = await Promise.all([
+        fetchMessageList(inboxParams),
+        !inboxHistoryLoaded && inboxHistoryQueue.length < 30 ? fetchMessageList(historyParams) : Promise.resolve({ messages: [] }),
+        recentSentParams ? fetchMessageList(recentSentParams) : Promise.resolve({ messages: [] }),
+        sentHistoryParams ? fetchMessageList(sentHistoryParams) : Promise.resolve({ messages: [] })
+      ]);
       const listedMessages = [...(inboxList.messages || [])];
       if (!inboxHistoryLoaded && inboxHistoryQueue.length < 30) {
         const firstHistoryPage = !inboxHistoryPageToken;
-        const historyParams = new URLSearchParams({ maxResults: '500', labelIds: 'INBOX' });
-        if (inboxHistoryPageToken) historyParams.set('pageToken', inboxHistoryPageToken);
-        const historyList = await fetchMessageList(historyParams);
         const historyMessages = historyList.messages || [];
         inboxHistoryQueue.push(...historyMessages.slice(firstHistoryPage ? 30 : 0).map(message => message.id));
         inboxHistoryPageToken = historyList.nextPageToken || '';
@@ -960,15 +981,9 @@
       }
       listedMessages.push(...inboxHistoryQueue.slice(0, 30).map(id => ({ id })));
       if (directClientEmails.size) {
-        const sentQuery = `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}`;
-        const recentSentParams = new URLSearchParams({ maxResults: '30', labelIds: 'SENT', q: sentQuery });
-        const recentSentList = await fetchMessageList(recentSentParams);
         listedMessages.push(...(recentSentList.messages || []));
         if (!sentHistoryLoaded && sentHistoryQueue.length < 30) {
           const firstHistoryPage = !sentHistoryPageToken;
-          const sentHistoryParams = new URLSearchParams({ maxResults: '500', labelIds: 'SENT', q: sentQuery });
-          if (sentHistoryPageToken) sentHistoryParams.set('pageToken', sentHistoryPageToken);
-          const sentHistoryList = await fetchMessageList(sentHistoryParams);
           const sentHistoryMessages = sentHistoryList.messages || [];
           sentHistoryQueue.push(...sentHistoryMessages.slice(firstHistoryPage ? 30 : 0).map(message => message.id));
           sentHistoryPageToken = sentHistoryList.nextPageToken || '';
@@ -1069,12 +1084,9 @@
     }
   }
 
-  window.addEventListener('online', () => {
-    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
-  });
-  window.addEventListener('focus', () => {
-    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
-  });
+  // perf: debounce visibility, focus, and online events so one queued Gmail sync replaces a burst of duplicate triggers.
+  window.addEventListener('online', () => scheduleGmailSync({ silent: true }));
+  window.addEventListener('focus', () => scheduleGmailSync({ silent: true }));
   document.addEventListener('visibilitychange', () => {
-    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
+    if (currentUser && document.visibilityState === 'visible') scheduleGmailSync({ silent: true });
   });

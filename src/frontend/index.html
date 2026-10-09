@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261007-20" />
+    <link rel="stylesheet" href="css/styles.css?v=20261007-22" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -308,6 +308,7 @@
                 <div class="hired-detail-header-meta">
                   <p class="hired-detail-subtitle" id="hiredDetailSubtitle"></p>
                   <span class="status-pill contract-active" id="hiredDetailStatus">Active</span>
+                  <span class="client-online-status unknown" id="hiredDetailOnlineStatus">Time zone not set</span>
                   <span id="hiredDetailContact"></span>
                 </div>
               </div>
@@ -705,6 +706,17 @@
       </form>
     </dialog>
 
+    <dialog class="modal script-detail-modal" id="scriptDetailDialog" aria-labelledby="scriptDetailTitle">
+      <div class="script-detail-shell">
+        <div class="modal-heading">
+          <div><p class="eyebrow">SCRIPT DETAILS</p><h2 id="scriptDetailTitle">Script</h2><p class="script-detail-updated" id="scriptDetailUpdated"></p></div>
+          <button class="icon-button" type="button" data-script-detail-close aria-label="Close script details">×</button>
+        </div>
+        <pre class="script-detail-content" id="scriptDetailContent"></pre>
+        <div class="modal-actions"><button class="button button-secondary" type="button" data-script-detail-close>Close</button><button class="button button-primary" type="button" id="scriptDetailEdit">Edit script</button></div>
+      </div>
+    </dialog>
+
     <dialog class="modal small-modal" id="workLinkDialog" aria-labelledby="workLinkDialogTitle">
       <form method="dialog" id="workLinkForm" class="work-link-form">
         <div class="modal-heading">
@@ -1034,6 +1046,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261007-36"></script>
+    <script src="js/app.js?v=20261007-39"></script>
   </body>
 </html>

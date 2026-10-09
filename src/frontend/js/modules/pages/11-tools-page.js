@@ -291,9 +291,11 @@
   document.addEventListener('click', event => {
     const personalDeleteButton = event.target.closest('[data-personal-delete]');
     const personalOpenButton = event.target.closest('[data-personal-open]');
-    const scriptViewButton = event.target.closest('[data-script-view]');
     const scriptEditButton = event.target.closest('[data-script-edit]');
     const scriptDeleteButton = event.target.closest('[data-script-delete]');
+    const scriptDetailEditButton = event.target.closest('[data-script-detail-edit]');
+    const scriptDetailCloseButton = event.target.closest('[data-script-detail-close]');
+    const scriptRow = event.target.closest('[data-script-open]');
     const workLinkEditButton = event.target.closest('[data-work-link-edit]');
     const workLinkDeleteButton = event.target.closest('[data-work-link-delete]');
     const addWorkLinkButton = event.target.closest('#addWorkLinkButton');
@@ -311,18 +313,25 @@
       if (event.detail >= 2) openPersonalDocument(personalOpenButton.dataset.personalOpen);
       return;
     }
-    if (scriptViewButton) {
-      const content = $(`[data-script-content="${scriptViewButton.dataset.scriptView}"]`);
-      const isHidden = content?.classList.toggle('hidden');
-      scriptViewButton.textContent = isHidden ? 'View' : 'Hide';
-      return;
-    }
     if (scriptEditButton) {
       openScriptForm(scriptEditButton.dataset.scriptEdit);
       return;
     }
     if (scriptDeleteButton) {
       deleteScript(scriptDeleteButton.dataset.scriptDelete);
+      return;
+    }
+    if (scriptDetailEditButton) {
+      $('#scriptDetailDialog').close();
+      openScriptForm(scriptDetailEditButton.dataset.scriptDetailEdit);
+      return;
+    }
+    if (scriptDetailCloseButton) {
+      $('#scriptDetailDialog').close();
+      return;
+    }
+    if (scriptRow) {
+      openScriptDetails(scriptRow.dataset.scriptOpen);
       return;
     }
     if (workLinkEditButton) {
@@ -352,6 +361,13 @@
       $$('[data-documents-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.documentsPanel !== selectedPanel));
       $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
     }
+  });
+
+  document.addEventListener('keydown', event => {
+    const scriptRow = event.target.closest('[data-script-open]');
+    if (!scriptRow || event.target !== scriptRow || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    openScriptDetails(scriptRow.dataset.scriptOpen);
   });
   document.addEventListener('keydown', event => {
     const personalDocument = event.target.closest?.('[data-personal-open]');

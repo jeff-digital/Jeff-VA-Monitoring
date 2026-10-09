@@ -18,6 +18,9 @@
   let applyReminderTimer = null;
   let initializingUserId = null;
   let persistChain = Promise.resolve();
+  let persistWritePending = false;
+  const MAX_LOCAL_WRITE_STAMPS = 20;
+  const lastLocalWriteStamps = new Set();
   let dataReady = false;
   let supabaseDataLoaded = false;
   let projectStorageUsedBytes = null;
@@ -104,7 +107,12 @@
       subject.textContent = detail.subject || '(No subject)';
 
       const sender = document.createElement('small');
-      sender.textContent = `From ${detail.from || 'Unknown sender'}`;
+      if (detail.kind === 'application-rejection') {
+        date.textContent = detail.date ? `Applied ${emailDate(detail.date)}` : '';
+        sender.textContent = 'Status changed to Rejected after one calendar month';
+      } else {
+        sender.textContent = `From ${detail.from || 'Unknown sender'}`;
+      }
       item.append(heading, subject, sender);
       return item;
     }));
@@ -127,6 +135,21 @@
 
   function showEmailActionResult(options = {}) {
     showActionResult({ ...options, label: 'EMAIL STATUS' });
+  }
+
+  function showApplicationRejectionNotice(applications) {
+    showActionResult({
+      title: 'Applications automatically rejected',
+      message: 'These applications were still marked Ongoing or Applied one calendar month after their Applied date.',
+      status: 'info',
+      label: 'APPLICATION STATUS',
+      details: applications.map(application => ({
+        kind: 'application-rejection',
+        clientName: application.clientName || 'Untitled application',
+        date: application.appliedDate,
+        subject: application.role || 'Role not specified'
+      }))
+    });
   }
 
   function userHasPasswordIdentity(user = currentUser) {
@@ -414,6 +437,7 @@
   const SESSION_KEY = 'jeff-va-session-v1';
   const EMAIL_WEEK_FILTER_KEY = 'jeff-va-email-week-filter-v1';
   let data = emptyData();
+  let clientTimeZones = new Map();
   let activeView = 'dashboard';
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
@@ -534,24 +558,39 @@
     };
   }
 
+  function rememberLocalWriteStamp(updatedAt) {
+    if (!updatedAt) return;
+    lastLocalWriteStamps.add(updatedAt);
+    if (lastLocalWriteStamps.size > MAX_LOCAL_WRITE_STAMPS) {
+      const oldestStamp = lastLocalWriteStamps.values().next().value;
+      if (oldestStamp !== undefined) lastLocalWriteStamps.delete(oldestStamp);
+    }
+  }
+
   function persist() {
     if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) return Promise.resolve();
     const snapshot = JSON.parse(JSON.stringify(data));
     const userId = currentUser.id;
     const client = supabaseClient;
+    const updatedAt = new Date().toISOString();
+    // perf: remember our own writes so repeat realtime echoes do not trigger a reload loop.
+    rememberLocalWriteStamp(updatedAt);
+    persistWritePending = true;
     persistChain = persistChain.then(async () => {
       if (!client || !userId) return;
       const { error } = await client.from('app_state').upsert({
         user_id: userId,
         data: snapshot,
-        updated_at: new Date().toISOString()
+        updated_at: updatedAt
       }, { onConflict: 'user_id' });
       if (error) {
         console.error('Supabase save failed:', error);
         showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
         throw error;
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      persistWritePending = false;
+    });
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
     queueDocumentsBackup({ immediate: true });
@@ -562,6 +601,7 @@
     if (!user || initializingUserId === user.id) return;
     initializingUserId = user.id;
     currentUser = user;
+    clientTimeZones.clear();
     renderAccountAccess();
     dataReady = false;
     supabaseDataLoaded = false;
@@ -570,6 +610,14 @@
     subscribeToAppState(user.id);
     if (!applyReminderTimer) applyReminderTimer = setInterval(() => {
       if (!currentUser) return;
+      if (dataReady && supabaseDataLoaded) {
+        const autoRejectedApplications = processStaleApplications();
+        if (autoRejectedApplications.length) {
+          renderAll();
+          persist();
+          showApplicationRejectionNotice(autoRejectedApplications);
+        }
+      }
       processDueApplyReminders();
       processDueInterviews();
       processDueDocumentEmailReminders();
@@ -601,6 +649,7 @@
     let startupStage = 'preparing workspace data';
     try {
       if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+      const autoRejectedApplications = processStaleApplications();
       startupStage = 'rendering the workspace';
       renderAll();
       renderAccountPage();
@@ -623,7 +672,8 @@
       startupStage = 'saving workspace changes';
       await persist();
       scheduleAutomaticBackup();
-      if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
+      if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
+      else if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
       if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
       console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
@@ -642,8 +692,12 @@
     if (appStateChannel) supabaseClient.removeChannel(appStateChannel);
     appStateChannel = supabaseClient.channel(`app-state-${userId}`).on('postgres_changes', {
       event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}`
-    }, async () => {
+    }, async (payload) => {
       if (!dataReady || !currentUser || currentUser.id !== userId) return;
+      const updatedAt = payload?.new?.updated_at;
+      // perf: ignore the realtime echo from our own local write and any queued local save still in flight.
+      if (updatedAt && lastLocalWriteStamps.has(updatedAt)) return;
+      if (persistWritePending) return;
       try {
         data = await loadDataFromSupabase();
         renderAll();
@@ -855,6 +909,31 @@
     return data.applications.filter(item => item.status !== 'Active client' || item.activePendingDocument || item.activePendingEmail);
   }
 
+  function processStaleApplications() {
+    const todayDate = new Date(`${today()}T00:00:00`);
+    const updatedAt = new Date().toISOString();
+    const changedApplications = [];
+    for (const application of data.applications) {
+      if (!['Ongoing', 'Applied'].includes(application.status)) continue;
+      const appliedDateKey = dateKey(application.appliedDate);
+      if (!appliedDateKey) continue;
+      const [year, month, day] = appliedDateKey.split('-').map(Number);
+      const appliedDate = new Date(year, month - 1, day);
+      if (Number.isNaN(appliedDate.getTime())
+        || appliedDate.getFullYear() !== year
+        || appliedDate.getMonth() !== month - 1
+        || appliedDate.getDate() !== day) continue;
+      const nextMonth = month;
+      const lastDayOfNextMonth = new Date(year, nextMonth + 1, 0).getDate();
+      const rejectionDate = new Date(year, nextMonth, Math.min(day, lastDayOfNextMonth));
+      if (todayDate < rejectionDate) continue;
+      application.status = 'Not selected';
+      application.updatedAt = updatedAt;
+      changedApplications.push(application);
+    }
+    return changedApplications;
+  }
+
   function sortedPipelineApplications() {
     return sortByDate(pipelineApplications(), item => item.appliedDate || applicationAddedDate(item));
   }
@@ -871,6 +950,43 @@
   });
   let applicationEmailMatchesCache = new WeakMap();
   let applicationEmailSummaryCache = null;
+  let applicationMatchIndex = [];
+  let applicationMatchIndexSignature = '';
+
+  function applicationMatchSignature(applications = data.applications || []) {
+    return (applications || []).map(application => [
+      application.id || '',
+      application.updatedAt || '',
+      application.email || '',
+      application.contact || '',
+      application.clientName || '',
+      application.role || ''
+    ].join('|')).join('~');
+  }
+
+  // perf: precompute the application fields used by matching once per application snapshot instead of rescanning every row on each email.
+  function buildApplicationMatchIndex(applications = data.applications || []) {
+    const signature = applicationMatchSignature(applications);
+    if (signature === applicationMatchIndexSignature && applicationMatchIndex.length === applications.length) return applicationMatchIndex;
+    applicationMatchIndex = (applications || []).map(application => {
+      const email = String(application.email || '').trim().toLowerCase();
+      const contact = String(application.contact || '').trim().toLowerCase();
+      const clientName = String(application.clientName || '').trim().toLowerCase();
+      const role = String(application.role || '').trim().toLowerCase();
+      return { application, email, contact, clientName, role };
+    });
+    applicationMatchIndexSignature = signature;
+    return applicationMatchIndex;
+  }
+
+  function invalidateApplicationMatchCaches(applications = data.applications || []) {
+    const nextSignature = applicationMatchSignature(applications);
+    if (nextSignature !== applicationMatchIndexSignature) {
+      applicationEmailMatchesCache = new WeakMap();
+      applicationEmailSummaryCache = null;
+      buildApplicationMatchIndex(applications);
+    }
+  }
 
   function platformSenderEmail(platform) {
     return PLATFORM_SENDER_EMAILS[String(platform || '').trim().toLowerCase()] || '';
@@ -906,18 +1022,20 @@
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
     const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
-    const matches = data.applications.filter(application => {
-      const emailCandidate = (application.email || '').trim().toLowerCase();
-      const contact = (application.contact || '').trim().toLowerCase();
-      const clientName = (application.clientName || '').trim().toLowerCase();
-      const role = (application.role || '').trim().toLowerCase();
+    const matches = [];
+    for (const item of buildApplicationMatchIndex(data.applications)) {
+      const { application, email, contact, clientName, role } = item;
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
-      if (emailCandidate && emailCandidate === fromAddress) return true;
-      if (!roleReferenced && !companyReferenced) return false;
-      return [contact, clientName].filter(name => name.length >= 3)
-        .some(name => containsWholeWord(senderName, name));
-    });
+      if (email && email === fromAddress) {
+        matches.push(application);
+        continue;
+      }
+      if (!roleReferenced && !companyReferenced) continue;
+      if ([contact, clientName].filter(name => name.length >= 3).some(name => containsWholeWord(senderName, name))) {
+        matches.push(application);
+      }
+    }
     applicationEmailMatchesCache.set(emailItem, matches);
     return matches;
   }
@@ -1398,6 +1516,66 @@
     return Boolean(item.contractEndDate && dateKey(item.contractEndDate) < today());
   }
 
+  function clientOnlineStatus(item, now = new Date()) {
+    const timeZone = clientTimeZones.get(item.id);
+    if (!timeZone) return { className: 'unknown', text: 'Time zone not set' };
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        weekday: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(now);
+      const part = type => parts.find(value => value.type === type)?.value;
+      const weekday = part('weekday');
+      const hour = Number(part('hour'));
+      if (!weekday || !Number.isInteger(hour)) return { className: 'unknown', text: 'Time zone not set' };
+      const localTime = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(now);
+      const offsetLabel = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        timeZoneName: 'longOffset'
+      }).formatToParts(now).find(value => value.type === 'timeZoneName')?.value || 'GMT';
+      const utcOffset = offsetLabel === 'GMT' || offsetLabel === 'UTC'
+        ? 'UTC+00:00'
+        : offsetLabel.replace(/^GMT/, 'UTC');
+      const isOnline = !['Sat', 'Sun'].includes(weekday) && hour >= 9 && hour < 17;
+      return {
+        className: isOnline ? 'online' : 'offline',
+        text: `${isOnline ? 'Online now' : 'Offline'} · ${localTime} · ${utcOffset}`
+      };
+    } catch (error) {
+      if (error instanceof RangeError) return { className: 'unknown', text: 'Time zone not set' };
+      throw error;
+    }
+  }
+
+  function renderClientOnlineStatus(item) {
+    const status = clientOnlineStatus(item);
+    return `<span class="client-online-status ${status.className}" title="Estimated from weekdays, 9 AM–5 PM client local time" data-client-online-status="${escapeHtml(item.id)}">${escapeHtml(status.text)}</span>`;
+  }
+
+  function updateClientOnlineIndicators() {
+    document.querySelectorAll('[data-client-online-status]').forEach(indicator => {
+      const item = data.applications.find(application => application.id === indicator.dataset.clientOnlineStatus);
+      if (!item) return;
+      const status = clientOnlineStatus(item);
+      indicator.className = `client-online-status ${status.className}`;
+      indicator.textContent = status.text;
+      indicator.title = 'Estimated from weekdays, 9 AM–5 PM client local time';
+    });
+  }
+
+  setInterval(updateClientOnlineIndicators, 60000);
+  window.addEventListener('focus', updateClientOnlineIndicators);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) updateClientOnlineIndicators();
+  });
+
   function renderHired() {
     const query = $('#hiredSearch').value.trim().toLowerCase();
     const filter = $('#hiredStatusFilter')?.value || 'all';
@@ -1438,6 +1616,7 @@
       const statusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
       return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
         <span class="hired-card-head"><span><strong class="client-card-title">${escapeHtml(item.clientName)}</strong><span class="client-card-subtitle">${escapeHtml(item.role || 'No role added')}</span></span><span class="hired-card-arrow" aria-hidden="true">→</span></span>
+        ${renderClientOnlineStatus(item)}
         <span class="client-contract-status ${statusClass}">${escapeHtml(contractStatus)}${item.contractEndDate ? ` · ends ${escapeHtml(formatDate(item.contractEndDate))}` : ''}</span>
         ${matchBadge(item) ? `<span>${matchBadge(item)}</span>` : ''}
         <span class="hired-card-meta">${item.email ? escapeHtml(item.email) : 'No email added'} · ${escapeHtml(item.employmentType || 'Employment type not set')} · Active since ${emailDate(activeSinceDate(item))} · Added ${emailDate(applicationAddedDate(item))}${docs.length ? ` · ${plural(docs.length, 'file')}` : ''}</span>
@@ -1473,6 +1652,12 @@
     $('#hiredDetailSubtitle').textContent = item.role || 'Client workspace';
     $('#hiredDetailStatus').className = `status-pill ${contractStatusClass}`;
     $('#hiredDetailStatus').textContent = contractStatus;
+    const onlineStatus = $('#hiredDetailOnlineStatus');
+    onlineStatus.dataset.clientOnlineStatus = item.id;
+    const clientStatus = clientOnlineStatus(item);
+    onlineStatus.className = `client-online-status ${clientStatus.className}`;
+    onlineStatus.textContent = clientStatus.text;
+    onlineStatus.title = 'Estimated from weekdays, 9 AM–5 PM client local time';
     const contactDetails = [
       item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '',
       item.phone ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>` : ''
@@ -1569,10 +1754,15 @@
       if (error) throw error;
       if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
       if (!submission) {
+        clientTimeZones.delete(item.id);
+        updateClientOnlineIndicators();
         updateClientOnboardingStatus('Not submitted', 'empty');
         target.innerHTML = '<div class="client-section-empty"><h4>No onboarding submission yet</h4><p>Use Actions → Send onboarding form to invite this client.</p></div>';
         return;
       }
+      if (submission.timezone) clientTimeZones.set(item.id, submission.timezone);
+      else clientTimeZones.delete(item.id);
+      updateClientOnlineIndicators();
       const details = [
         ['Client contact', submission.contact_name],
         ['Email', submission.client_email],
@@ -1679,20 +1869,43 @@
     link.setAttribute('aria-label', hasUnfinishedApplications ? 'To Apply - action needed' : 'To Apply');
   }
 
+  function renderCurrentView() {
+    const viewName = typeof activeView !== 'undefined' ? activeView : (localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard');
+    switch (viewName) {
+      case 'daily-task':
+        renderDailyTasks();
+        break;
+      case 'applications':
+        renderApplications();
+        break;
+      case 'to-apply':
+        renderToApplyList();
+        break;
+      case 'hired':
+        renderHired();
+        break;
+      case 'inbox':
+        renderEmails();
+        break;
+      case 'documents':
+        renderPersonalDocuments();
+        renderScripts();
+        renderWorkLinks();
+        renderInvoiceList();
+        break;
+      case 'account':
+        renderAccountPage();
+        break;
+      default:
+        renderDashboard();
+    }
+  }
+
   function renderAll() {
-    applicationEmailMatchesCache = new WeakMap();
-    applicationEmailSummaryCache = null;
+    // perf: keep match caches until the application snapshot changes, instead of blowing them away on every rerender.
+    invalidateApplicationMatchCaches();
     processContractEndedAlerts();
-    renderDashboard();
-    renderApplications();
-    renderToApplyList();
-    renderDailyTasks();
-    renderHired();
-    renderEmails();
-    renderScripts();
-    renderWorkLinks();
-    renderPersonalDocuments();
-    renderInvoiceList();
+    renderCurrentView();
     updateWeekNavigationCounts();
     $('#navToApplyCount').textContent = (data.toApply || []).filter(item => item.dueDate === today()).length;
     updateToApplyAttention();
@@ -1723,10 +1936,8 @@
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
-    if (view === 'applications') {
-      renderApplications();
-    }
-    if (view === 'daily-task') renderDailyTasks();
+    // perf: render the requested view on entry while renderAll skips inactive pages.
+    renderCurrentView();
     if (view === 'account') {
       renderPasswordPage();
       renderAccountPage();
@@ -1739,9 +1950,6 @@
     $('#pageTitle').hidden = false;
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';
-    if (view === 'inbox') {
-      renderEmails();
-    }
     $$('.view').forEach(panel => panel.classList.toggle('active', panel.dataset.viewPanel === view));
     $$('.nav-link').forEach(link => link.classList.toggle('active', link.dataset.view === view));
     // The header Add client action belongs exclusively to the Applications view.
@@ -2177,10 +2385,19 @@
     if (!target) return;
     const scripts = [...(data.scripts || [])].sort((first, second) => new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0));
     target.innerHTML = scripts.length ? scripts.map(script => `
-      <article class="script-item">
-        <div class="script-item-head"><div><h3>${escapeHtml(script.title)}</h3><small>Updated ${emailDate(script.updatedAt || script.createdAt)}</small></div><div class="script-item-actions"><button class="button button-secondary" type="button" data-script-view="${escapeHtml(script.id)}">View</button><button class="button button-secondary" type="button" data-script-edit="${escapeHtml(script.id)}">Edit</button><button class="icon-button" type="button" data-script-delete="${escapeHtml(script.id)}" aria-label="Delete ${escapeHtml(script.title)}" title="Delete script">×</button></div></div>
-        <pre class="script-content hidden" data-script-content="${escapeHtml(script.id)}">${escapeHtml(script.content)}</pre>
+      <article class="script-item" data-script-open="${escapeHtml(script.id)}" tabindex="0" aria-label="Open script: ${escapeHtml(script.title)}">
+        <div class="script-item-head"><div><h3>${escapeHtml(script.title)}</h3><small>Updated ${emailDate(script.updatedAt || script.createdAt)}</small></div><div class="script-item-actions"><button class="button button-secondary" type="button" data-script-edit="${escapeHtml(script.id)}">Edit</button><button class="icon-button" type="button" data-script-delete="${escapeHtml(script.id)}" aria-label="Delete ${escapeHtml(script.title)}" title="Delete script">×</button></div></div>
       </article>`).join('') : '<div class="application-empty"><h3>No scripts yet</h3><p>Add a reusable script for outreach, follow-ups, or client communication.</p></div>';
+  }
+
+  function openScriptDetails(id) {
+    const script = (data.scripts || []).find(item => item.id === id);
+    if (!script) return;
+    $('#scriptDetailTitle').textContent = script.title;
+    $('#scriptDetailUpdated').textContent = `Updated ${emailDate(script.updatedAt || script.createdAt)}`;
+    $('#scriptDetailContent').textContent = script.content;
+    $('#scriptDetailEdit').dataset.scriptDetailEdit = script.id;
+    $('#scriptDetailDialog').showModal();
   }
 
   function resetScriptForm() {
@@ -3074,6 +3291,11 @@
       if (error) throw error;
       if (!currentUser || currentUser.id !== userId || !dataReady || !supabaseDataLoaded) return;
       if (!Array.isArray(submissions)) throw new Error('The onboarding notifications response was invalid.');
+      submissions.forEach(submission => {
+        if (!submission.client_id) return;
+        if (submission.timezone) clientTimeZones.set(submission.client_id, submission.timezone);
+      });
+      updateClientOnlineIndicators();
       data.onboardingSubmissionIds = data.onboardingSubmissionIds || [];
       data.alerts = data.alerts || [];
       const seen = new Set(data.onboardingSubmissionIds);
@@ -3150,6 +3372,12 @@
     if (!gmailAccessToken || !isEmailAddress(item.email) || item.contractEndedEmailSentAt || contractEndedEmailSending.has(item.id)) return;
     contractEndedEmailSending.add(item.id);
     const previousFailureWasReported = alert.emailSent === false;
+    const previousAlertState = {
+      subject: alert.subject,
+      from: alert.from,
+      emailSent: alert.emailSent,
+      date: alert.date
+    };
     const template = buildDocumentEmailTemplate('contract-ended', item, { duration: contractDuration(item) || 'the project period' });
     const subject = template.subject;
     const body = template.body;
@@ -3171,7 +3399,12 @@
       alert.subject = 'Contract ended: email not sent';
       alert.from = 'Sign in with Google to retry';
       alert.emailSent = false;
-      persist();
+      const alertChanged = previousAlertState.subject !== alert.subject
+        || previousAlertState.from !== alert.from
+        || previousAlertState.emailSent !== alert.emailSent
+        || previousAlertState.date !== alert.date;
+      // perf: avoid persist churn when a retry failure leaves the alert unchanged.
+      if (alertChanged) persist();
       renderAlerts();
       if (!previousFailureWasReported) {
         showActionResult({ title: 'Contract email could not be sent', message: 'Sign in with Google again and review the client alert before retrying.', status: 'error' });
@@ -3219,7 +3452,8 @@
     }
     ended.forEach(item => {
       const alert = data.alerts.find(candidate => candidate.id === `contract-ended|${item.id}|${dateKey(item.contractEndDate)}`);
-      if (alert && !item.contractEndedEmailSentAt) sendContractEndedEmail(item, alert);
+      // perf: never auto-retry a recorded failure; only retry when the user intentionally opens the alert again.
+      if (alert && alert.emailSent !== false && !item.contractEndedEmailSentAt) sendContractEndedEmail(item, alert);
     });
   }
 
@@ -3461,6 +3695,7 @@
   let gmailTokenRequest = null;
   let gmailAuthorizationRecovery = null;
   let gmailReconnectRequired = false;
+  let gmailSyncTriggerTimer = null;
   let sentHistoryAddressSignature = '';
   let sentHistoryPageToken = '';
   let sentHistoryQueue = [];
@@ -4293,6 +4528,15 @@
     }, 30000);
   }
 
+  function scheduleGmailSync({ silent = true } = {}) {
+    if (!currentUser || !gmailAccessToken || gmailReconnectRequired || gmailSyncInFlight) return;
+    if (gmailSyncTriggerTimer) clearTimeout(gmailSyncTriggerTimer);
+    gmailSyncTriggerTimer = setTimeout(() => {
+      gmailSyncTriggerTimer = null;
+      syncGmail(silent);
+    }, 200);
+  }
+
   async function refreshGmailAuthorization() {
     if (gmailAuthorizationRecovery) return gmailAuthorizationRecovery;
     gmailAuthorizationRecovery = requestGmailAccessToken('')
@@ -4346,13 +4590,24 @@
         sentHistoryLoaded = directClientEmails.size === 0;
       }
       const inboxParams = new URLSearchParams({ maxResults: '30', labelIds: 'INBOX' });
-      const inboxList = await fetchMessageList(inboxParams);
+      const historyParams = new URLSearchParams({ maxResults: '500', labelIds: 'INBOX' });
+      const recentSentParams = directClientEmails.size
+        ? new URLSearchParams({ maxResults: '30', labelIds: 'SENT', q: `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}` })
+        : null;
+      const sentHistoryParams = directClientEmails.size && !sentHistoryLoaded && sentHistoryQueue.length < 30
+        ? new URLSearchParams({ maxResults: '500', labelIds: 'SENT', q: `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}` })
+        : null;
+      if (inboxHistoryPageToken) historyParams.set('pageToken', inboxHistoryPageToken);
+      if (sentHistoryPageToken && sentHistoryParams) sentHistoryParams.set('pageToken', sentHistoryPageToken);
+      const [inboxList, historyList, recentSentList, sentHistoryList] = await Promise.all([
+        fetchMessageList(inboxParams),
+        !inboxHistoryLoaded && inboxHistoryQueue.length < 30 ? fetchMessageList(historyParams) : Promise.resolve({ messages: [] }),
+        recentSentParams ? fetchMessageList(recentSentParams) : Promise.resolve({ messages: [] }),
+        sentHistoryParams ? fetchMessageList(sentHistoryParams) : Promise.resolve({ messages: [] })
+      ]);
       const listedMessages = [...(inboxList.messages || [])];
       if (!inboxHistoryLoaded && inboxHistoryQueue.length < 30) {
         const firstHistoryPage = !inboxHistoryPageToken;
-        const historyParams = new URLSearchParams({ maxResults: '500', labelIds: 'INBOX' });
-        if (inboxHistoryPageToken) historyParams.set('pageToken', inboxHistoryPageToken);
-        const historyList = await fetchMessageList(historyParams);
         const historyMessages = historyList.messages || [];
         inboxHistoryQueue.push(...historyMessages.slice(firstHistoryPage ? 30 : 0).map(message => message.id));
         inboxHistoryPageToken = historyList.nextPageToken || '';
@@ -4360,15 +4615,9 @@
       }
       listedMessages.push(...inboxHistoryQueue.slice(0, 30).map(id => ({ id })));
       if (directClientEmails.size) {
-        const sentQuery = `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}`;
-        const recentSentParams = new URLSearchParams({ maxResults: '30', labelIds: 'SENT', q: sentQuery });
-        const recentSentList = await fetchMessageList(recentSentParams);
         listedMessages.push(...(recentSentList.messages || []));
         if (!sentHistoryLoaded && sentHistoryQueue.length < 30) {
           const firstHistoryPage = !sentHistoryPageToken;
-          const sentHistoryParams = new URLSearchParams({ maxResults: '500', labelIds: 'SENT', q: sentQuery });
-          if (sentHistoryPageToken) sentHistoryParams.set('pageToken', sentHistoryPageToken);
-          const sentHistoryList = await fetchMessageList(sentHistoryParams);
           const sentHistoryMessages = sentHistoryList.messages || [];
           sentHistoryQueue.push(...sentHistoryMessages.slice(firstHistoryPage ? 30 : 0).map(message => message.id));
           sentHistoryPageToken = sentHistoryList.nextPageToken || '';
@@ -4469,14 +4718,11 @@
     }
   }
 
-  window.addEventListener('online', () => {
-    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
-  });
-  window.addEventListener('focus', () => {
-    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
-  });
+  // perf: debounce visibility, focus, and online events so one queued Gmail sync replaces a burst of duplicate triggers.
+  window.addEventListener('online', () => scheduleGmailSync({ silent: true }));
+  window.addEventListener('focus', () => scheduleGmailSync({ silent: true }));
   document.addEventListener('visibilitychange', () => {
-    if (currentUser && document.visibilityState === 'visible') syncGmail(true);
+    if (currentUser && document.visibilityState === 'visible') scheduleGmailSync({ silent: true });
   });
 
   // --- Excel export/restore ---
@@ -4820,10 +5066,19 @@
       if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');
         openClientModal(alert.applicationId, true);
-      } else if ((alert?.type === 'contract-ended' || alert?.type === 'document-email-reminder') && alert.applicationId) {
+      } else if (alert?.type === 'contract-ended' && alert.applicationId) {
+        const item = data.applications.find(candidate => candidate.id === alert.applicationId);
+        // perf: let the manual review flow retry a prior failure instead of auto-retrying on every render.
+        if (item && alert.emailSent === false && !item.contractEndedEmailSentAt) {
+          alert.emailSent = undefined;
+          showView('hired');
+          renderHiredDetail(item);
+          sendContractEndedEmail(item, alert);
+          return;
+        }
         showView('hired');
-        renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
-      } else if (alert?.type === 'onboarding-submission' && alert.applicationId) {
+        renderHiredDetail(item);
+      } else if ((alert?.type === 'document-email-reminder' || alert?.type === 'onboarding-submission') && alert.applicationId) {
         showView('hired');
         renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
       } else {
@@ -6166,9 +6421,11 @@
   document.addEventListener('click', event => {
     const personalDeleteButton = event.target.closest('[data-personal-delete]');
     const personalOpenButton = event.target.closest('[data-personal-open]');
-    const scriptViewButton = event.target.closest('[data-script-view]');
     const scriptEditButton = event.target.closest('[data-script-edit]');
     const scriptDeleteButton = event.target.closest('[data-script-delete]');
+    const scriptDetailEditButton = event.target.closest('[data-script-detail-edit]');
+    const scriptDetailCloseButton = event.target.closest('[data-script-detail-close]');
+    const scriptRow = event.target.closest('[data-script-open]');
     const workLinkEditButton = event.target.closest('[data-work-link-edit]');
     const workLinkDeleteButton = event.target.closest('[data-work-link-delete]');
     const addWorkLinkButton = event.target.closest('#addWorkLinkButton');
@@ -6186,18 +6443,25 @@
       if (event.detail >= 2) openPersonalDocument(personalOpenButton.dataset.personalOpen);
       return;
     }
-    if (scriptViewButton) {
-      const content = $(`[data-script-content="${scriptViewButton.dataset.scriptView}"]`);
-      const isHidden = content?.classList.toggle('hidden');
-      scriptViewButton.textContent = isHidden ? 'View' : 'Hide';
-      return;
-    }
     if (scriptEditButton) {
       openScriptForm(scriptEditButton.dataset.scriptEdit);
       return;
     }
     if (scriptDeleteButton) {
       deleteScript(scriptDeleteButton.dataset.scriptDelete);
+      return;
+    }
+    if (scriptDetailEditButton) {
+      $('#scriptDetailDialog').close();
+      openScriptForm(scriptDetailEditButton.dataset.scriptDetailEdit);
+      return;
+    }
+    if (scriptDetailCloseButton) {
+      $('#scriptDetailDialog').close();
+      return;
+    }
+    if (scriptRow) {
+      openScriptDetails(scriptRow.dataset.scriptOpen);
       return;
     }
     if (workLinkEditButton) {
@@ -6227,6 +6491,13 @@
       $$('[data-documents-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.documentsPanel !== selectedPanel));
       $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
     }
+  });
+
+  document.addEventListener('keydown', event => {
+    const scriptRow = event.target.closest('[data-script-open]');
+    if (!scriptRow || event.target !== scriptRow || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    openScriptDetails(scriptRow.dataset.scriptOpen);
   });
   document.addEventListener('keydown', event => {
     const personalDocument = event.target.closest?.('[data-personal-open]');

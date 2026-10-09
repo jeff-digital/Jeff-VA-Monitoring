@@ -185,6 +185,7 @@ begin
     'client_id', submission.client_id,
     'client_name', submission.client_name,
     'client_email', submission.client_email,
+    'timezone', submission.timezone,
     'submitted_at', submission.submitted_at
   ) order by submission.submitted_at desc), '[]'::jsonb)
   into result

@@ -84,10 +84,19 @@
       if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');
         openClientModal(alert.applicationId, true);
-      } else if ((alert?.type === 'contract-ended' || alert?.type === 'document-email-reminder') && alert.applicationId) {
+      } else if (alert?.type === 'contract-ended' && alert.applicationId) {
+        const item = data.applications.find(candidate => candidate.id === alert.applicationId);
+        // perf: let the manual review flow retry a prior failure instead of auto-retrying on every render.
+        if (item && alert.emailSent === false && !item.contractEndedEmailSentAt) {
+          alert.emailSent = undefined;
+          showView('hired');
+          renderHiredDetail(item);
+          sendContractEndedEmail(item, alert);
+          return;
+        }
         showView('hired');
-        renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
-      } else if (alert?.type === 'onboarding-submission' && alert.applicationId) {
+        renderHiredDetail(item);
+      } else if ((alert?.type === 'document-email-reminder' || alert?.type === 'onboarding-submission') && alert.applicationId) {
         showView('hired');
         renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
       } else {

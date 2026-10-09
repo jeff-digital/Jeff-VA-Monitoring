@@ -91,10 +91,19 @@
     if (!target) return;
     const scripts = [...(data.scripts || [])].sort((first, second) => new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0));
     target.innerHTML = scripts.length ? scripts.map(script => `
-      <article class="script-item">
-        <div class="script-item-head"><div><h3>${escapeHtml(script.title)}</h3><small>Updated ${emailDate(script.updatedAt || script.createdAt)}</small></div><div class="script-item-actions"><button class="button button-secondary" type="button" data-script-view="${escapeHtml(script.id)}">View</button><button class="button button-secondary" type="button" data-script-edit="${escapeHtml(script.id)}">Edit</button><button class="icon-button" type="button" data-script-delete="${escapeHtml(script.id)}" aria-label="Delete ${escapeHtml(script.title)}" title="Delete script">×</button></div></div>
-        <pre class="script-content hidden" data-script-content="${escapeHtml(script.id)}">${escapeHtml(script.content)}</pre>
+      <article class="script-item" data-script-open="${escapeHtml(script.id)}" tabindex="0" aria-label="Open script: ${escapeHtml(script.title)}">
+        <div class="script-item-head"><div><h3>${escapeHtml(script.title)}</h3><small>Updated ${emailDate(script.updatedAt || script.createdAt)}</small></div><div class="script-item-actions"><button class="button button-secondary" type="button" data-script-edit="${escapeHtml(script.id)}">Edit</button><button class="icon-button" type="button" data-script-delete="${escapeHtml(script.id)}" aria-label="Delete ${escapeHtml(script.title)}" title="Delete script">×</button></div></div>
       </article>`).join('') : '<div class="application-empty"><h3>No scripts yet</h3><p>Add a reusable script for outreach, follow-ups, or client communication.</p></div>';
+  }
+
+  function openScriptDetails(id) {
+    const script = (data.scripts || []).find(item => item.id === id);
+    if (!script) return;
+    $('#scriptDetailTitle').textContent = script.title;
+    $('#scriptDetailUpdated').textContent = `Updated ${emailDate(script.updatedAt || script.createdAt)}`;
+    $('#scriptDetailContent').textContent = script.content;
+    $('#scriptDetailEdit').dataset.scriptDetailEdit = script.id;
+    $('#scriptDetailDialog').showModal();
   }
 
   function resetScriptForm() {
@@ -988,6 +997,11 @@
       if (error) throw error;
       if (!currentUser || currentUser.id !== userId || !dataReady || !supabaseDataLoaded) return;
       if (!Array.isArray(submissions)) throw new Error('The onboarding notifications response was invalid.');
+      submissions.forEach(submission => {
+        if (!submission.client_id) return;
+        if (submission.timezone) clientTimeZones.set(submission.client_id, submission.timezone);
+      });
+      updateClientOnlineIndicators();
       data.onboardingSubmissionIds = data.onboardingSubmissionIds || [];
       data.alerts = data.alerts || [];
       const seen = new Set(data.onboardingSubmissionIds);
@@ -1064,6 +1078,12 @@
     if (!gmailAccessToken || !isEmailAddress(item.email) || item.contractEndedEmailSentAt || contractEndedEmailSending.has(item.id)) return;
     contractEndedEmailSending.add(item.id);
     const previousFailureWasReported = alert.emailSent === false;
+    const previousAlertState = {
+      subject: alert.subject,
+      from: alert.from,
+      emailSent: alert.emailSent,
+      date: alert.date
+    };
     const template = buildDocumentEmailTemplate('contract-ended', item, { duration: contractDuration(item) || 'the project period' });
     const subject = template.subject;
     const body = template.body;
@@ -1085,7 +1105,12 @@
       alert.subject = 'Contract ended: email not sent';
       alert.from = 'Sign in with Google to retry';
       alert.emailSent = false;
-      persist();
+      const alertChanged = previousAlertState.subject !== alert.subject
+        || previousAlertState.from !== alert.from
+        || previousAlertState.emailSent !== alert.emailSent
+        || previousAlertState.date !== alert.date;
+      // perf: avoid persist churn when a retry failure leaves the alert unchanged.
+      if (alertChanged) persist();
       renderAlerts();
       if (!previousFailureWasReported) {
         showActionResult({ title: 'Contract email could not be sent', message: 'Sign in with Google again and review the client alert before retrying.', status: 'error' });
@@ -1133,7 +1158,8 @@
     }
     ended.forEach(item => {
       const alert = data.alerts.find(candidate => candidate.id === `contract-ended|${item.id}|${dateKey(item.contractEndDate)}`);
-      if (alert && !item.contractEndedEmailSentAt) sendContractEndedEmail(item, alert);
+      // perf: never auto-retry a recorded failure; only retry when the user intentionally opens the alert again.
+      if (alert && alert.emailSent !== false && !item.contractEndedEmailSentAt) sendContractEndedEmail(item, alert);
     });
   }
 

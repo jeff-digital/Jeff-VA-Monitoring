@@ -15,6 +15,9 @@
   let applyReminderTimer = null;
   let initializingUserId = null;
   let persistChain = Promise.resolve();
+  let persistWritePending = false;
+  const MAX_LOCAL_WRITE_STAMPS = 20;
+  const lastLocalWriteStamps = new Set();
   let dataReady = false;
   let supabaseDataLoaded = false;
   let projectStorageUsedBytes = null;
@@ -101,7 +104,12 @@
       subject.textContent = detail.subject || '(No subject)';
 
       const sender = document.createElement('small');
-      sender.textContent = `From ${detail.from || 'Unknown sender'}`;
+      if (detail.kind === 'application-rejection') {
+        date.textContent = detail.date ? `Applied ${emailDate(detail.date)}` : '';
+        sender.textContent = 'Status changed to Rejected after one calendar month';
+      } else {
+        sender.textContent = `From ${detail.from || 'Unknown sender'}`;
+      }
       item.append(heading, subject, sender);
       return item;
     }));
@@ -124,6 +132,21 @@
 
   function showEmailActionResult(options = {}) {
     showActionResult({ ...options, label: 'EMAIL STATUS' });
+  }
+
+  function showApplicationRejectionNotice(applications) {
+    showActionResult({
+      title: 'Applications automatically rejected',
+      message: 'These applications were still marked Ongoing or Applied one calendar month after their Applied date.',
+      status: 'info',
+      label: 'APPLICATION STATUS',
+      details: applications.map(application => ({
+        kind: 'application-rejection',
+        clientName: application.clientName || 'Untitled application',
+        date: application.appliedDate,
+        subject: application.role || 'Role not specified'
+      }))
+    });
   }
 
   function userHasPasswordIdentity(user = currentUser) {
@@ -411,6 +434,7 @@
   const SESSION_KEY = 'jeff-va-session-v1';
   const EMAIL_WEEK_FILTER_KEY = 'jeff-va-email-week-filter-v1';
   let data = emptyData();
+  let clientTimeZones = new Map();
   let activeView = 'dashboard';
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
@@ -531,24 +555,39 @@
     };
   }
 
+  function rememberLocalWriteStamp(updatedAt) {
+    if (!updatedAt) return;
+    lastLocalWriteStamps.add(updatedAt);
+    if (lastLocalWriteStamps.size > MAX_LOCAL_WRITE_STAMPS) {
+      const oldestStamp = lastLocalWriteStamps.values().next().value;
+      if (oldestStamp !== undefined) lastLocalWriteStamps.delete(oldestStamp);
+    }
+  }
+
   function persist() {
     if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) return Promise.resolve();
     const snapshot = JSON.parse(JSON.stringify(data));
     const userId = currentUser.id;
     const client = supabaseClient;
+    const updatedAt = new Date().toISOString();
+    // perf: remember our own writes so repeat realtime echoes do not trigger a reload loop.
+    rememberLocalWriteStamp(updatedAt);
+    persistWritePending = true;
     persistChain = persistChain.then(async () => {
       if (!client || !userId) return;
       const { error } = await client.from('app_state').upsert({
         user_id: userId,
         data: snapshot,
-        updated_at: new Date().toISOString()
+        updated_at: updatedAt
       }, { onConflict: 'user_id' });
       if (error) {
         console.error('Supabase save failed:', error);
         showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
         throw error;
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      persistWritePending = false;
+    });
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
     queueDocumentsBackup({ immediate: true });
@@ -559,6 +598,7 @@
     if (!user || initializingUserId === user.id) return;
     initializingUserId = user.id;
     currentUser = user;
+    clientTimeZones.clear();
     renderAccountAccess();
     dataReady = false;
     supabaseDataLoaded = false;
@@ -567,6 +607,14 @@
     subscribeToAppState(user.id);
     if (!applyReminderTimer) applyReminderTimer = setInterval(() => {
       if (!currentUser) return;
+      if (dataReady && supabaseDataLoaded) {
+        const autoRejectedApplications = processStaleApplications();
+        if (autoRejectedApplications.length) {
+          renderAll();
+          persist();
+          showApplicationRejectionNotice(autoRejectedApplications);
+        }
+      }
       processDueApplyReminders();
       processDueInterviews();
       processDueDocumentEmailReminders();
@@ -598,6 +646,7 @@
     let startupStage = 'preparing workspace data';
     try {
       if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+      const autoRejectedApplications = processStaleApplications();
       startupStage = 'rendering the workspace';
       renderAll();
       renderAccountPage();
@@ -620,7 +669,8 @@
       startupStage = 'saving workspace changes';
       await persist();
       scheduleAutomaticBackup();
-      if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
+      if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
+      else if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
       if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
       console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
@@ -639,8 +689,12 @@
     if (appStateChannel) supabaseClient.removeChannel(appStateChannel);
     appStateChannel = supabaseClient.channel(`app-state-${userId}`).on('postgres_changes', {
       event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}`
-    }, async () => {
+    }, async (payload) => {
       if (!dataReady || !currentUser || currentUser.id !== userId) return;
+      const updatedAt = payload?.new?.updated_at;
+      // perf: ignore the realtime echo from our own local write and any queued local save still in flight.
+      if (updatedAt && lastLocalWriteStamps.has(updatedAt)) return;
+      if (persistWritePending) return;
       try {
         data = await loadDataFromSupabase();
         renderAll();
@@ -850,6 +904,31 @@
   // the Applications page itself pull from, so they stay in sync with each other.
   function pipelineApplications() {
     return data.applications.filter(item => item.status !== 'Active client' || item.activePendingDocument || item.activePendingEmail);
+  }
+
+  function processStaleApplications() {
+    const todayDate = new Date(`${today()}T00:00:00`);
+    const updatedAt = new Date().toISOString();
+    const changedApplications = [];
+    for (const application of data.applications) {
+      if (!['Ongoing', 'Applied'].includes(application.status)) continue;
+      const appliedDateKey = dateKey(application.appliedDate);
+      if (!appliedDateKey) continue;
+      const [year, month, day] = appliedDateKey.split('-').map(Number);
+      const appliedDate = new Date(year, month - 1, day);
+      if (Number.isNaN(appliedDate.getTime())
+        || appliedDate.getFullYear() !== year
+        || appliedDate.getMonth() !== month - 1
+        || appliedDate.getDate() !== day) continue;
+      const nextMonth = month;
+      const lastDayOfNextMonth = new Date(year, nextMonth + 1, 0).getDate();
+      const rejectionDate = new Date(year, nextMonth, Math.min(day, lastDayOfNextMonth));
+      if (todayDate < rejectionDate) continue;
+      application.status = 'Not selected';
+      application.updatedAt = updatedAt;
+      changedApplications.push(application);
+    }
+    return changedApplications;
   }
 
   function sortedPipelineApplications() {

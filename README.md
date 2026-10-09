@@ -5,6 +5,7 @@ Jeff VA Monitoring is a web app for organizing job applications and virtual-assi
 ## Features
 
 - Track job applications, platforms, status, and follow-up dates.
+- Automatically mark pending applications as rejected after one calendar month and show a sign-in notice listing the applications that changed.
 - Manage active clients, contracts, documents, invoices, and reminders.
 - Organize tasks, reusable scripts, and helpful links.
 - Connect Gmail to view and manage work-related email.
