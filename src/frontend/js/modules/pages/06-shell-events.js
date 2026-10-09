@@ -53,11 +53,26 @@
   $('#openAddModal').addEventListener('click', () => openClientModal());
 
   document.addEventListener('click', event => {
+    const dashboardTab = event.target.closest('[data-dashboard-tab]');
     const previousInterviewMonth = event.target.closest('#previousInterviewMonth');
     const nextInterviewMonth = event.target.closest('#nextInterviewMonth');
     const calendarClientButton = event.target.closest('[data-calendar-client]');
     const alertOpenButton = event.target.closest('[data-alert-open]');
 
+    if (dashboardTab) {
+      activeDashboardTab = dashboardTab.dataset.dashboardTab;
+      $$('[data-dashboard-tab]').forEach(tab => {
+        const selected = tab === dashboardTab;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', String(selected));
+      });
+      $$('[data-dashboard-panel]').forEach(panel => {
+        panel.hidden = panel.dataset.dashboardPanel !== activeDashboardTab;
+      });
+      $('#pageEyebrow').textContent = activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE';
+      $('#pageTitle').textContent = activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard';
+      return;
+    }
     if (previousInterviewMonth) {
       interviewCalendarMonth = new Date(interviewCalendarMonth.getFullYear(), interviewCalendarMonth.getMonth() - 1, 1);
       renderInterviewCalendar();

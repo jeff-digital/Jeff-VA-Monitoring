@@ -42,8 +42,8 @@
         <nav class="main-nav">
           <div class="nav-group">
             <p class="nav-group-label">WORKSPACE</p>
-            <a class="nav-link active" href="#dashboard" data-view="dashboard" title="Overview">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span><span class="nav-label">Overview</span>
+            <a class="nav-link active" href="#dashboard" data-view="dashboard" title="Dashboards">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span><span class="nav-label">Dashboards</span>
             </a>
             <a class="nav-link" href="#daily-task" data-view="daily-task" title="Daily Task">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-list-check"></i></span><span class="nav-label">Daily Task</span><span class="nav-count" id="navDailyTaskCount">0</span>
@@ -97,14 +97,21 @@
       <main class="content">
         <header class="topbar">
           <button class="mobile-menu" type="button" id="mobileMenu" aria-label="Open navigation" aria-controls="mainSidebar" aria-expanded="false">☰</button>
-          <div>
-            <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
-            <h1 id="pageTitle">Client overview</h1>
-            <p class="page-context" id="applicationWeekDate" hidden></p>
-            <p class="page-context" id="emailWeekDate" hidden></p>
+          <div class="topbar-title-area">
+            <div class="topbar-copy">
+              <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
+              <h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0</span>
+              <p class="page-context" id="applicationWeekDate" hidden></p>
+              <p class="page-context" id="emailWeekDate" hidden></p>
+              <p class="page-context daily-task-header-date" id="dailyTaskHeaderDate" hidden></p>
+            </div>
+            <div class="dashboard-switcher" role="tablist" aria-label="Dashboard views">
+              <button class="dashboard-switcher-tab active" type="button" role="tab" aria-selected="true" aria-controls="clientDashboardPanel" data-dashboard-tab="client">Client Dashboard</button>
+              <button class="dashboard-switcher-tab" type="button" role="tab" aria-selected="false" aria-controls="applicationDashboardPanel" data-dashboard-tab="application">Application Dashboard</button>
+            </div>
           </div>
           <div class="topbar-actions">
-            <p class="local-indicator"><span></span> Stored securely</p>
+            <p class="local-indicator"><span></span> Saved</p>
             <div class="notification-menu" id="notificationMenu">
               <button class="notification-button" type="button" id="notificationButton" aria-label="Recent client alerts" aria-haspopup="true" aria-expanded="false">
                 <span aria-hidden="true"><i class="fa-solid fa-bell"></i></span><span class="notification-badge" id="notificationBadge" hidden>0</span>
@@ -120,28 +127,43 @@
         </header>
 
         <section class="view active" id="dashboardView" data-view-panel="dashboard" data-page="dashboard">
-          <section class="weekly-report-banner" aria-label="Weekly report">
-            <div><p class="eyebrow">WEEKLY REVIEW</p><h2>Track this week’s progress</h2><p id="weeklyReportPeriod">A summary of your current work week.</p></div>
-            <button class="button button-secondary" type="button" id="openWeeklyReport">View weekly report</button>
+          <section id="clientDashboardPanel" class="dashboard-tab-panel" role="tabpanel" aria-label="Client Dashboard" data-dashboard-panel="client">
+            <section class="stat-grid client-dashboard-stat-grid" aria-label="Client summary">
+              <button class="stat-card stat-card-primary stat-card-link" type="button" data-go-to="hired" aria-label="View active clients">
+                <div class="stat-label"><span class="stat-icon" aria-hidden="true">✓</span> Active clients</div>
+                <strong id="clientDashboardCount">0</strong>
+                <p id="clientDashboardDetail">Clients with an active contract</p>
+              </button>
+              <article class="stat-card client-dashboard-ended-card">
+                <div class="stat-label"><span class="stat-icon" aria-hidden="true">◷</span> Contract ended</div>
+                <strong id="clientDashboardEndedCount">0</strong>
+                <p id="clientDashboardEndedDetail">No ended contracts</p>
+              </article>
+            </section>
           </section>
+          <section id="applicationDashboardPanel" class="dashboard-tab-panel" role="tabpanel" aria-label="Application Dashboard" data-dashboard-panel="application" hidden>
+            <section class="weekly-report-banner" aria-label="Weekly report">
+              <div><h2>This week</h2><p id="weeklyReportPeriod">Current week: Oct 5 – Oct 9</p></div>
+              <button class="text-button" type="button" id="openWeeklyReport">View weekly report</button>
+            </section>
           <section class="stat-grid" aria-label="Pipeline summary">
             <article class="stat-card stat-card-primary">
-              <div class="stat-label"><span class="stat-icon">◎</span> Applications</div>
+              <div class="stat-label">Applications</div>
               <strong id="totalApplications">0</strong>
               <p id="applicationsDetail">No applications tracked yet</p>
             </article>
             <article class="stat-card stat-card-link" data-go-to="hired">
-              <div class="stat-label"><span class="stat-icon">✓</span> Active clients</div>
+              <div class="stat-label">Active clients</div>
               <strong id="activeClients">0</strong>
               <p id="activeDetail">Clients currently in progress</p>
             </article>
             <article class="stat-card">
-              <div class="stat-label"><span class="stat-icon">↗</span> Applied today</div>
+              <div class="stat-label">Applied today</div>
               <strong id="conversationClients">0</strong>
               <p id="conversationDetail">Applications submitted today</p>
             </article>
             <article class="stat-card">
-              <div class="stat-label"><span class="stat-icon">◴</span> Follow up</div>
+              <div class="stat-label">Follow-ups</div>
               <strong id="followUpClients">0</strong>
               <p id="followUpDetail">Applications to revisit soon</p>
             </article>
@@ -151,8 +173,7 @@
             <article class="panel platform-panel">
               <div class="panel-heading">
                 <div>
-                  <p class="eyebrow">APPLICATION SOURCES</p>
-                  <h2>Where you applied</h2>
+                  <h2>Sources</h2>
                 </div>
                 <button class="text-button" type="button" data-go-to="applications">View all</button>
               </div>
@@ -162,8 +183,7 @@
             <article class="panel status-panel">
               <div class="panel-heading">
                 <div>
-                  <p class="eyebrow">PIPELINE STATUS</p>
-                  <h2>At a glance</h2>
+                  <h2>Pipeline</h2>
                 </div>
               </div>
               <div class="status-donut-row">
@@ -176,8 +196,7 @@
           <section class="panel interview-calendar-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">INTERVIEWS ONLY</p>
-                <h2>Interview calendar</h2>
+              <h2>Interviews</h2>
               </div>
               <div class="calendar-controls"><button class="icon-button" type="button" id="previousInterviewMonth" aria-label="Previous month">‹</button><strong id="interviewCalendarMonth"></strong><button class="icon-button" type="button" id="nextInterviewMonth" aria-label="Next month">›</button></div>
             </div>
@@ -187,8 +206,7 @@
           <section class="panel recent-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">RECENTLY ADDED</p>
-                <h2>Latest applications</h2>
+                <h2>Recent applications</h2>
               </div>
               <button class="text-button" type="button" data-go-to="applications">View all</button>
             </div>
@@ -201,42 +219,33 @@
               </table>
             </div>
           </section>
+          </section>
         </section>
 
         <section class="view daily-task-view" id="dailyTaskView" data-view-panel="daily-task" data-page="daily-task">
-          <section class="daily-task-heading" aria-label="Daily task planner">
-            <div class="daily-task-heading-copy">
-              <p class="eyebrow">DAILY PLANNER</p>
-              <h2 id="dailyTaskDateHeading">Today</h2>
-              <p id="dailyTaskDateDescription">Plan your work and keep track of what needs to get done.</p>
-            </div>
-            <div class="daily-task-heading-actions">
-              <label class="daily-task-date-field"><span>Plan date</span><input id="dailyTaskDate" type="date" aria-label="Plan date" /></label>
-              <button class="button button-primary" type="button" id="openDailyTaskAddModal">Add Task</button>
-            </div>
+          <section class="daily-task-toolbar" aria-label="Daily task controls">
+            <label class="daily-task-date-field"><span class="sr-only">Plan date</span><input id="dailyTaskDate" type="date" aria-label="Plan date" title="Plan date" /></label>
+            <label class="daily-task-filter-field"><span class="sr-only">Show</span><select id="dailyTaskFilter" aria-label="Show tasks"><option value="all">All tasks</option><option value="remaining">Remaining</option><option value="completed">Completed</option><option value="overdue">Overdue</option></select></label>
+            <button class="button button-primary" type="button" id="openDailyTaskAddModal">Add Task</button>
           </section>
           <section class="daily-task-summary" aria-label="Task summary">
-            <div><span id="dailyTaskScheduledLabel">Today's Tasks</span><strong id="dailyTaskScheduledCount">0</strong></div>
-            <div><span>Completed</span><strong id="dailyTaskCompletedCount">0</strong></div>
-            <div><span>Remaining</span><strong id="dailyTaskRemainingCount">0</strong></div>
-            <div class="daily-task-summary-overdue"><span>Overdue</span><strong id="dailyTaskOverdueCount">0</strong></div>
+            <div><span>Tasks</span><strong id="dailyTaskScheduledCount">0</strong></div>
+            <div><span>Done</span><strong id="dailyTaskCompletedCount">0</strong></div>
+            <div><span>Left</span><strong id="dailyTaskRemainingCount">0</strong></div>
+            <button class="daily-task-summary-overdue" type="button" id="dailyTaskOverdueFilter" aria-label="Filter to overdue tasks"><span>Overdue</span><strong id="dailyTaskOverdueCount">0</strong></button>
           </section>
           <section class="daily-task-layout">
             <section class="panel daily-task-list-panel" aria-labelledby="dailyTaskListTitle">
               <div class="daily-task-section-heading daily-task-list-heading">
-                <div><p class="eyebrow">YOUR PLAN</p><h3 id="dailyTaskListTitle">Today's tasks</h3></div>
-                <div class="daily-task-plan-actions">
-                  <span class="daily-task-count" id="dailyTaskCount">0 tasks</span>
-                  <label class="daily-task-filter-field"><span>Show</span><select id="dailyTaskFilter" aria-label="Filter tasks"><option value="all">All tasks</option><option value="remaining">Remaining</option><option value="completed">Completed</option><option value="overdue">Overdue</option></select></label>
-                </div>
+                <h3 id="dailyTaskListTitle">Tasks</h3>
               </div>
               <div class="daily-task-list" id="dailyTaskList" aria-live="polite"></div>
             </section>
             <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
-              <div class="daily-task-section-heading daily-task-history-heading"><div><p class="eyebrow">PAST WORK</p><h3 id="dailyTaskHistoryTitle">Task History</h3><p>Review tasks completed on a selected date.</p></div><span class="daily-task-count" id="dailyTaskHistoryCount">0 completed tasks</span></div>
+              <div class="daily-task-section-heading daily-task-history-heading"><div><h3 id="dailyTaskHistoryTitle">History</h3></div><span class="daily-task-count" id="dailyTaskHistoryCount">0</span></div>
               <div class="daily-task-history-controls">
-                <label class="daily-task-date-field"><span>Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" /></label>
-                <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Same day last week</button></div>
+                <label class="daily-task-date-field"><span class="sr-only">Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" title="Completed on" /></label>
+                <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Last week</button></div>
               </div>
               <div class="daily-task-history-list" id="dailyTaskHistoryList" aria-live="polite"></div>
             </section>
@@ -285,15 +294,9 @@
         </section>
 
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
-          <section class="application-workspace-head hired-workspace-head">
-            <div class="application-workspace-count">
-              <span class="application-workspace-count-icon" aria-hidden="true"><i class="fa-solid fa-users"></i></span>
-              <span><small>CLIENT PORTFOLIO</small><strong id="hiredCountLabel">0 clients</strong></span>
-            </div>
-          </section>
           <section class="toolbar">
             <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="hiredSearch" aria-label="Search clients" placeholder="Search clients" /></label>
-            <label class="date-filter"><span class="sr-only">Filter active clients by date</span><input type="date" id="hiredDateFilter" aria-label="Filter active clients by exact date" /></label>
+            <label class="date-filter hired-date-filter"><span class="hired-filter-label">Start date</span><input type="date" id="hiredDateFilter" aria-label="Filter active clients by start date" /></label>
             <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
             <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
           </section>
@@ -313,24 +316,16 @@
                 </div>
               </div>
               <div class="hired-detail-heading-actions">
-                <div class="hired-actions-menu">
-                  <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton" aria-haspopup="true" aria-expanded="false">Actions</button>
-                  <div class="document-menu hired-actions-dropdown hidden" role="menu">
-                    <button type="button" role="menuitem" id="sendActiveClientEmailButton">Send email</button>
-                    <button type="button" role="menuitem" id="sendClientOnboardingLinkButton">Send onboarding form</button>
-                    <button type="button" role="menuitem" id="editActiveClientButton">Edit details</button>
-                  </div>
-                </div>
+                <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton">Actions</button>
                 <button class="button button-secondary" type="button" id="closeHiredDetail">All clients</button>
               </div>
             </div>
             <div class="client-detail-tabs" role="tablist" aria-label="Client details">
               <button class="client-detail-tab active" id="clientOverviewTab" type="button" role="tab" aria-selected="true" aria-controls="clientOverviewPanel" data-client-detail-tab="overview">Overview</button>
               <button class="client-detail-tab" id="clientOnboardingTab" type="button" role="tab" aria-selected="false" aria-controls="clientOnboardingPanel" data-client-detail-tab="onboarding">Onboarding</button>
-              <button class="client-detail-tab" id="clientContractsTab" type="button" role="tab" aria-selected="false" aria-controls="clientContractsPanel" data-client-detail-tab="contracts">Contracts</button>
+              <button class="client-detail-tab" id="clientContractInfoTab" type="button" role="tab" aria-selected="false" aria-controls="clientContractsPanel" data-client-detail-tab="contract-info">Contract Info</button>
               <button class="client-detail-tab" id="clientInvoicesTab" type="button" role="tab" aria-selected="false" aria-controls="clientInvoicesPanel" data-client-detail-tab="invoices">Invoices</button>
               <button class="client-detail-tab" id="clientEmailHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="clientEmailHistoryPanel" data-client-detail-tab="email-history">Email History</button>
-              <button class="client-detail-tab" id="clientDocumentsTab" type="button" role="tab" aria-selected="false" aria-controls="clientDocumentsPanel" data-client-detail-tab="documents">Documents</button>
             </div>
             <div class="client-detail-panels" id="hiredUploadSection">
               <section class="client-detail-panel" id="clientOverviewPanel" role="tabpanel" tabindex="0" aria-labelledby="clientOverviewTab" data-client-detail-panel="overview">
@@ -349,27 +344,25 @@
                   <div id="activeOnboardingResponse" aria-live="polite">Loading onboarding status...</div>
                 </section>
               </section>
-              <section class="client-detail-panel" id="clientContractsPanel" role="tabpanel" tabindex="0" aria-labelledby="clientContractsTab" data-client-detail-panel="contracts" hidden>
+              <section class="client-detail-panel" id="clientContractsPanel" role="tabpanel" tabindex="0" aria-labelledby="clientContractInfoTab" data-client-detail-panel="contract-info" hidden>
                 <section class="client-contract-section" aria-labelledby="clientContractsTitle">
-                  <div class="client-detail-section-heading"><div><p class="eyebrow">ENGAGEMENT</p><h3 id="clientContractsTitle">Contracts</h3></div></div>
+                  <div class="client-detail-section-heading"><div><p class="eyebrow">ENGAGEMENT</p><h3 id="clientContractsTitle">Contract Duration</h3></div></div>
                   <div id="clientContractSummary"></div>
                 </section>
+                <section class="active-document-box" id="clientDocumentBox" aria-labelledby="clientDocumentsTitle">
+                  <div class="active-document-box-head">
+                    <div><p class="eyebrow">CLIENT FILES</p><h3 id="clientDocumentsTitle">Contract Document</h3></div>
+                    <div id="clientDocumentActions"></div>
+                  </div>
+                  <div id="hiredDocumentWorkspace"></div>
+                </section>
+                <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in your account.</div>
               </section>
               <section class="client-detail-panel" id="clientInvoicesPanel" role="tabpanel" tabindex="0" aria-labelledby="clientInvoicesTab" data-client-detail-panel="invoices" hidden>
                 <div id="clientInvoiceWorkspace"></div>
               </section>
               <section class="client-detail-panel" id="clientEmailHistoryPanel" role="tabpanel" tabindex="0" aria-labelledby="clientEmailHistoryTab" data-client-detail-panel="email-history" hidden>
                 <div id="clientEmailHistoryWorkspace"></div>
-              </section>
-              <section class="client-detail-panel" id="clientDocumentsPanel" role="tabpanel" tabindex="0" aria-labelledby="clientDocumentsTab" data-client-detail-panel="documents" hidden>
-                <section class="active-document-box" id="clientDocumentBox" aria-labelledby="clientDocumentsTitle">
-                  <div class="active-document-box-head">
-                    <div><p class="eyebrow">CLIENT FILES</p><h3 id="clientDocumentsTitle">Documents</h3></div>
-                    <div id="clientDocumentActions"></div>
-                  </div>
-                  <div id="hiredDocumentWorkspace"></div>
-                </section>
-                <div class="documents-folder-status" id="documentsFolderStatus" aria-live="polite">Files are stored securely in your account.</div>
               </section>
             </div>
           </section>
@@ -929,6 +922,32 @@
       </form>
     </dialog>
 
+    <dialog class="modal active-client-actions-modal" id="activeClientActionsModal" aria-labelledby="activeClientActionsTitle" aria-describedby="activeClientActionsDescription">
+      <form method="dialog">
+        <div class="modal-heading">
+          <div><p class="eyebrow">ACTIVE CLIENT</p><h2 id="activeClientActionsTitle">Choose an action</h2><p id="activeClientActionsDescription">What would you like to do?</p></div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close actions">×</button>
+        </div>
+        <div class="active-client-action-cards">
+          <button class="active-client-action-card" type="button" id="sendActiveClientEmailButton">
+            <span class="active-client-action-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
+            <strong>Send email</strong>
+            <span>Write a message to this client.</span>
+          </button>
+          <button class="active-client-action-card" type="button" id="sendClientOnboardingLinkButton">
+            <span class="active-client-action-icon" aria-hidden="true"><i class="fa-regular fa-clipboard"></i></span>
+            <strong>Send onboarding form</strong>
+            <span>Create a private form link for this client.</span>
+          </button>
+          <button class="active-client-action-card" type="button" id="editActiveClientButton">
+            <span class="active-client-action-icon" aria-hidden="true"><i class="fa-regular fa-pen-to-square"></i></span>
+            <strong>Edit details</strong>
+            <span>Update this client's information.</span>
+          </button>
+        </div>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button></div>
+      </form>
+    </dialog>
 
     <dialog class="modal document-viewer-modal" id="documentViewerModal" aria-labelledby="documentViewerTitle">
       <form method="dialog">

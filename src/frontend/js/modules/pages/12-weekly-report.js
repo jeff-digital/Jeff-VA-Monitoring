@@ -87,7 +87,7 @@
   function renderWeeklyReport() {
     const report = weeklyReportData();
     $('#weeklyReportDate').textContent = `${weeklyReportOffset === 0 ? 'Week in progress' : 'Selected week'} ${weeklyRangeLabel(report.range)}`;
-    $('#weeklyReportPeriod').textContent = `${weeklyReportOffset === 0 ? 'Current week' : 'Selected week'}: ${weeklyRangeLabel(report.range)}`;
+    $('#weeklyReportPeriod').textContent = weeklyRangeLabel(report.range);
     $('#showCurrentWeeklyReport').disabled = weeklyReportOffset === 0;
     $('#weeklyReportHistory').innerHTML = weeklyHistoryOptions();
     $('#weeklyReportHistory').value = String(weeklyReportOffset);
@@ -120,7 +120,7 @@
   function renderWeeklyReportAvailability() {
     const range = weekRange();
     const period = $('#weeklyReportPeriod');
-    if (period) period.textContent = `Current week: ${weeklyRangeLabel(range)}`;
+    if (period) period.textContent = weeklyRangeLabel(range);
     const reportKey = `${range.start}|${range.end}`;
     if (!currentUser || !dataReady || !supabaseDataLoaded || localStorage.getItem(WEEKLY_REPORT_SEEN_KEY) === reportKey) return;
     localStorage.setItem(WEEKLY_REPORT_SEEN_KEY, reportKey);

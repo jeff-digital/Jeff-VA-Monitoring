@@ -9,13 +9,6 @@
   let pendingDailyTaskChecklist = [];
   let dailyTaskFilter = 'all';
 
-  function dailyTaskDateLabel(value) {
-    const date = new Date(`${value}T12:00:00`);
-    return Number.isNaN(date.getTime())
-      ? value
-      : new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(date);
-  }
-
   function dailyTaskDateStatus(task) {
     if (task.completedAt) {
       return `<span class="daily-task-status is-complete">Completed</span>`;
@@ -151,39 +144,48 @@
     const overdueTasks = allTasks.filter(task => !task.completedAt && task.taskDate < today());
     const completedCount = dateTasks.filter(task => task.completedAt).length;
     const remainingCount = dateTasks.length - completedCount;
-    const dateLabel = dailyTaskDateLabel(selectedDate);
-    $('#dailyTaskDateHeading').textContent = selectedDate === today() ? 'Today' : dateLabel;
-    $('#dailyTaskDateDescription').textContent = selectedDate === today()
-      ? dateLabel
-      : 'Viewing the plan for this date.';
-    $('#dailyTaskScheduledLabel').textContent = selectedDate === today() ? "Today's Tasks" : 'Scheduled';
+    const headerDate = new Date(`${selectedDate}T12:00:00`);
+    $('#dailyTaskHeaderDate').textContent = Number.isNaN(headerDate.getTime())
+      ? selectedDate
+      : new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(headerDate);
     $('#dailyTaskScheduledCount').textContent = dateTasks.length;
     $('#dailyTaskCompletedCount').textContent = completedCount;
     $('#dailyTaskRemainingCount').textContent = remainingCount;
     $('#dailyTaskOverdueCount').textContent = overdueTasks.length;
-    const tasks = (dailyTaskFilter === 'overdue'
-      ? overdueTasks
-      : dateTasks.filter(task => dailyTaskFilter === 'completed'
-        ? Boolean(task.completedAt)
-        : dailyTaskFilter === 'remaining'
-          ? !task.completedAt
-          : true))
-      .sort((first, second) => Number(Boolean(first.completedAt)) - Number(Boolean(second.completedAt)) || String(first.createdAt || '').localeCompare(String(second.createdAt || '')));
+    const overdueButton = $('#dailyTaskOverdueFilter');
+    overdueButton.classList.toggle('has-overdue', overdueTasks.length > 0);
+    overdueButton.classList.toggle('is-active', dailyTaskFilter === 'overdue');
+    const overdueIds = new Set(overdueTasks.map(task => task.id));
+    const sortTasks = tasks => tasks.sort((first, second) => String(first.createdAt || '').localeCompare(String(second.createdAt || '')));
+    const selectedTasks = dateTasks.filter(task => dailyTaskFilter === 'completed'
+      ? Boolean(task.completedAt)
+      : dailyTaskFilter === 'remaining'
+        ? !task.completedAt
+        : true);
+    const tasks = dailyTaskFilter === 'overdue'
+      ? sortTasks([...overdueTasks])
+      : dailyTaskFilter === 'all'
+        ? [...sortTasks([...overdueTasks]), ...sortTasks(selectedTasks.filter(task => !overdueIds.has(task.id)))]
+        : sortTasks(selectedTasks);
     $('#navDailyTaskCount').textContent = allTasks.filter(task => task.taskDate === today()).length;
-    $('#dailyTaskListTitle').textContent = dailyTaskFilter === 'overdue'
-      ? 'Overdue tasks'
-      : `${selectedDate === today() ? "Today's" : formatDate(selectedDate)} tasks`;
-    $('#dailyTaskCount').textContent = dailyTaskFilter === 'all' ? plural(tasks.length, 'task') : `${plural(tasks.length, 'task')} shown`;
+    $('#dailyTaskListTitle').textContent = 'Tasks';
+    const overdueGroup = dailyTaskFilter === 'all' && overdueTasks.length
+      ? `<h4 class="daily-task-overdue-heading">Overdue</h4>${sortTasks([...overdueTasks]).map(task => renderDailyTaskItem(task)).join('')}`
+      : '';
+    const nonOverdueTasks = dailyTaskFilter === 'all'
+      ? tasks.filter(task => !overdueIds.has(task.id))
+      : dailyTaskFilter === 'overdue' ? [] : tasks;
+    const taskMarkup = `${overdueGroup}${nonOverdueTasks.map(task => renderDailyTaskItem(task)).join('')}`;
     $('#dailyTaskList').innerHTML = tasks.length
-      ? tasks.map(task => renderDailyTaskItem(task)).join('')
-      : `<div class="daily-task-empty"><strong>${dailyTaskFilter === 'overdue' ? 'No overdue tasks' : dailyTaskFilter === 'completed' ? 'No completed tasks' : dailyTaskFilter === 'remaining' ? 'No remaining tasks' : 'No tasks for this date'}</strong><p>${dailyTaskFilter === 'all' && selectedDate === today() ? "You're all caught up." : dailyTaskFilter === 'all' ? 'Add a task for this date to get your list started.' : 'There are no tasks in this view.'}</p></div>`;
+      ? taskMarkup
+      : `<div class="daily-task-empty">${dailyTaskFilter === 'all' && selectedDate === today() || dailyTaskFilter === 'overdue' ? 'All caught up' : dailyTaskFilter === 'completed' ? 'No completed tasks' : dailyTaskFilter === 'remaining' ? 'No remaining tasks' : 'No tasks for this date'}</div>`;
 
     const historyTasks = (data.dailyTasks || []).filter(task => task.completedAt && dateKey(task.completedAt) === historyDate.value)
       .sort((first, second) => String(second.completedAt).localeCompare(String(first.completedAt)));
-    $('#dailyTaskHistoryCount').textContent = plural(historyTasks.length, 'completed task');
+    $('#dailyTaskHistoryCount').textContent = historyTasks.length;
     $('#dailyTaskHistoryList').innerHTML = historyTasks.length
       ? historyTasks.map(task => renderDailyTaskItem(task, true)).join('')
-      : '<div class="daily-task-history-empty">No completed tasks for this date.</div>';
+      : '<div class="daily-task-history-empty">No completed tasks</div>';
     if ($('#dailyTaskDetailModal').open) {
       const activeTask = (data.dailyTasks || []).find(task => task.id === activeDailyTaskId);
       if (activeTask) renderDailyTaskDetails(activeTask);
@@ -213,6 +215,11 @@
   $('#dailyTaskHistoryDate').addEventListener('change', renderDailyTasks);
   $('#dailyTaskFilter').addEventListener('change', event => {
     dailyTaskFilter = event.target.value;
+    renderDailyTasks();
+  });
+  $('#dailyTaskOverdueFilter').addEventListener('click', () => {
+    dailyTaskFilter = 'overdue';
+    $('#dailyTaskFilter').value = 'overdue';
     renderDailyTasks();
   });
   $('#dailyTaskForm').addEventListener('submit', event => {

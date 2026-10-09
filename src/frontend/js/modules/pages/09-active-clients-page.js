@@ -19,12 +19,7 @@
     const documentMenuButton = event.target.closest('.document-menu-button');
 
     if (activeClientActionsButton) {
-      const menu = activeClientActionsButton.nextElementSibling;
-      const willOpen = menu.classList.contains('hidden');
-      document.querySelectorAll('.document-menu').forEach(item => item.classList.add('hidden'));
-      document.querySelectorAll('[aria-haspopup="true"]').forEach(item => item.setAttribute('aria-expanded', 'false'));
-      menu.classList.toggle('hidden', !willOpen);
-      activeClientActionsButton.setAttribute('aria-expanded', String(willOpen));
+      $('#activeClientActionsModal').showModal();
       return;
     }
 
@@ -33,6 +28,7 @@
       return;
     }
     if (editActiveButton) {
+      $('#activeClientActionsModal').close();
       openClientModal(hiredEditingId, false, true);
       return;
     }
@@ -41,14 +37,13 @@
       return;
     }
     if (sendActiveClientEmailButton) {
-      const actionsMenu = sendActiveClientEmailButton.closest('.hired-actions-dropdown');
-      actionsMenu?.classList.add('hidden');
-      $('#activeClientActionsButton')?.setAttribute('aria-expanded', 'false');
+      $('#activeClientActionsModal').close();
       const item = data.applications.find(application => application.id === hiredEditingId);
       if (item) openPlainClientEmailComposer(item);
       return;
     }
     if (sendClientOnboardingLinkButton) {
+      $('#activeClientActionsModal').close();
       const item = data.applications.find(application => application.id === hiredEditingId);
       if (item) await sendClientOnboardingInvite(item, sendClientOnboardingLinkButton);
       return;
@@ -84,10 +79,9 @@
       documentMenuButton.setAttribute('aria-expanded', String(willOpen));
       return;
     }
-    if (!event.target.closest('.document-row-menu, .hired-actions-menu')) {
+    if (!event.target.closest('.document-row-menu')) {
       document.querySelectorAll('.document-menu').forEach(item => item.classList.add('hidden'));
       document.querySelectorAll('.document-menu-button').forEach(item => item.setAttribute('aria-expanded', 'false'));
-      $('#activeClientActionsButton')?.setAttribute('aria-expanded', 'false');
     }
   });
 

@@ -436,6 +436,7 @@
   let data = emptyData();
   let clientTimeZones = new Map();
   let activeView = 'dashboard';
+  let activeDashboardTab = 'client';
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
   let applicationDateSort = '0';
