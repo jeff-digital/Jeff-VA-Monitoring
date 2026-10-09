@@ -862,6 +862,30 @@
     }
   }
 
+  function alertPortfolioSubmissionEmails(emails) {
+    data.alerts = data.alerts || [];
+    let added = false;
+    (emails || []).forEach(emailItem => {
+      const fromHeader = String(emailItem.from || '');
+      const bracketAddress = fromHeader.match(/<([^>]+)>/);
+      const senderAddress = (bracketAddress?.[1] || fromHeader.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '').trim().toLowerCase();
+      if (senderAddress !== 'submissions@formsubmit.co') return;
+      const alertId = `portfolio-submission|${emailItem.gmailId || emailItem.id}`;
+      if (data.alerts.some(alert => alert.id === alertId)) return;
+      data.alerts.unshift({
+        id: alertId,
+        clientName: 'Portfolio submission',
+        subject: `Portfolio inquiry: ${emailItem.subject || '(No subject)'}`,
+        from: fromHeader || 'submissions@formsubmit.co',
+        date: emailItem.date || new Date().toISOString(),
+        unread: true
+      });
+      added = true;
+    });
+    if (added) data.alerts = data.alerts.slice(0, 30);
+    return added;
+  }
+
   function alertNewMatches(newEmails) {
     const matches = [];
     newEmails.forEach(emailItem => {
@@ -887,7 +911,6 @@
       app.interviewAlert = sameDay ? 'Interview date confirmed by another client email' : 'Interview requested or scheduled';
     });
 
-    data.alerts = data.alerts || [];
     unique.forEach(({ emailItem, app }) => {
       const alertId = `${emailItem.gmailId || emailItem.id}|${app.id}`;
       if (!data.alerts.some(alert => alert.id === alertId)) {

@@ -3156,6 +3156,30 @@
     }
   }
 
+  function alertPortfolioSubmissionEmails(emails) {
+    data.alerts = data.alerts || [];
+    let added = false;
+    (emails || []).forEach(emailItem => {
+      const fromHeader = String(emailItem.from || '');
+      const bracketAddress = fromHeader.match(/<([^>]+)>/);
+      const senderAddress = (bracketAddress?.[1] || fromHeader.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '').trim().toLowerCase();
+      if (senderAddress !== 'submissions@formsubmit.co') return;
+      const alertId = `portfolio-submission|${emailItem.gmailId || emailItem.id}`;
+      if (data.alerts.some(alert => alert.id === alertId)) return;
+      data.alerts.unshift({
+        id: alertId,
+        clientName: 'Portfolio submission',
+        subject: `Portfolio inquiry: ${emailItem.subject || '(No subject)'}`,
+        from: fromHeader || 'submissions@formsubmit.co',
+        date: emailItem.date || new Date().toISOString(),
+        unread: true
+      });
+      added = true;
+    });
+    if (added) data.alerts = data.alerts.slice(0, 30);
+    return added;
+  }
+
   function alertNewMatches(newEmails) {
     const matches = [];
     newEmails.forEach(emailItem => {
@@ -3181,7 +3205,6 @@
       app.interviewAlert = sameDay ? 'Interview date confirmed by another client email' : 'Interview requested or scheduled';
     });
 
-    data.alerts = data.alerts || [];
     unique.forEach(({ emailItem, app }) => {
       const alertId = `${emailItem.gmailId || emailItem.id}|${app.id}`;
       if (!data.alerts.some(alert => alert.id === alertId)) {
@@ -4591,6 +4614,10 @@
       }
       const inboxParams = new URLSearchParams({ maxResults: '30', labelIds: 'INBOX' });
       const historyParams = new URLSearchParams({ maxResults: '500', labelIds: 'INBOX' });
+      const portfolioSubmissionParams = new URLSearchParams({
+        maxResults: '30',
+        q: 'from:submissions@formsubmit.co'
+      });
       const recentSentParams = directClientEmails.size
         ? new URLSearchParams({ maxResults: '30', labelIds: 'SENT', q: `{${[...directClientEmails].map(email => `to:${email}`).join(' ')}}` })
         : null;
@@ -4599,13 +4626,14 @@
         : null;
       if (inboxHistoryPageToken) historyParams.set('pageToken', inboxHistoryPageToken);
       if (sentHistoryPageToken && sentHistoryParams) sentHistoryParams.set('pageToken', sentHistoryPageToken);
-      const [inboxList, historyList, recentSentList, sentHistoryList] = await Promise.all([
+      const [inboxList, historyList, portfolioSubmissionList, recentSentList, sentHistoryList] = await Promise.all([
         fetchMessageList(inboxParams),
         !inboxHistoryLoaded && inboxHistoryQueue.length < 30 ? fetchMessageList(historyParams) : Promise.resolve({ messages: [] }),
+        fetchMessageList(portfolioSubmissionParams),
         recentSentParams ? fetchMessageList(recentSentParams) : Promise.resolve({ messages: [] }),
         sentHistoryParams ? fetchMessageList(sentHistoryParams) : Promise.resolve({ messages: [] })
       ]);
-      const listedMessages = [...(inboxList.messages || [])];
+      const listedMessages = [...(inboxList.messages || []), ...(portfolioSubmissionList.messages || [])];
       if (!inboxHistoryLoaded && inboxHistoryQueue.length < 30) {
         const firstHistoryPage = !inboxHistoryPageToken;
         const historyMessages = historyList.messages || [];
@@ -4690,10 +4718,11 @@
         ...existingGmailMessages,
         ...newOnes
       ]).filter(item => !(item.source === 'gmail' && currentDeletedGmailIds.has(item.gmailId)));
+      const portfolioAlertsAdded = alertPortfolioSubmissionEmails(data.emails);
       const savedGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       inboxHistoryQueue = inboxHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
       sentHistoryQueue = sentHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
-      if (newOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge) {
+      if (newOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded) {
         persist();
         renderAll();
       }
