@@ -25,7 +25,10 @@ cp "$source_dir/js/gmail-config.js" "$output_dir/js/gmail-config.js"
 cp "$source_dir/js/supabase-config.js" "$output_dir/js/supabase-config.js"
 cp "$source_dir/onboarding/index.html" "$output_dir/onboarding/index.html"
 cp "$source_dir/onboarding/change-test.html" "$output_dir/onboarding/change-test.html"
+cp "$source_dir/onboarding/onboarding.css" "$output_dir/onboarding/onboarding.css"
 cp "$source_dir/onboarding/onboarding.js" "$output_dir/onboarding/onboarding.js"
+cp "$source_dir/onboarding/country-flags.svg" "$output_dir/onboarding/country-flags.svg"
+cp "$source_dir/onboarding/country-flags-LICENSE.txt" "$output_dir/onboarding/country-flags-LICENSE.txt"
 
 {
   printf "(() => {\n  'use strict';\n\n"

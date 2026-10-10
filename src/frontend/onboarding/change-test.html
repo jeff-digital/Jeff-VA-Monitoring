@@ -3,98 +3,306 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Preview the Jeff VA client onboarding form. Nothing is sent to a server; drafts stay in this browser." />
   <meta name="referrer" content="no-referrer" />
-  <meta name="theme-color" content="#203b2d" />
-  <title>Onboarding design test</title>
-  <style>
-    :root { color-scheme: light; font-family: Inter, "Segoe UI", Arial, sans-serif; color: #26332b; background: #1a2340; }
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 32px 16px; }
-    main { width: min(760px, 100%); margin: 0 auto; padding: clamp(22px, 5vw, 42px); border: 1px solid #dfe6df; border-radius: 14px; background: #fff; box-shadow: 0 14px 40px #203b2d12; }
-    .eyebrow { margin: 0 0 8px; color: #57735e; font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-    h1 { margin: 0; color: #203b2d; font-size: clamp(25px, 5vw, 34px); }
-    .intro { margin: 10px 0 24px; color: #69756c; font-size: 14px; line-height: 1.55; }
-    form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; }
-    label { display: grid; align-content: start; gap: 7px; min-width: 0; color: #37443a; font-size: 13px; font-weight: 650; }
-    label small { color: #79837b; font-size: 11px; font-weight: 400; line-height: 1.45; }
-    input, textarea { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #cfd9d0; border-radius: 7px; background: #fff; color: #26332b; font: inherit; font-size: 14px; }
-    input[readonly] { background: #f5f7f5; color: #657067; }
-    textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
-    input:focus, textarea:focus { outline: 3px solid #d8e8da; border-color: #52765a; }
-    .phone-number-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-    .searchable-picker { position: relative; min-width: 0; }
-    .searchable-picker-input { padding-right: 34px; }
-    .searchable-picker::after { position: absolute; top: 13px; right: 13px; color: #718076; content: "▾"; pointer-events: none; }
-    .searchable-picker-menu { position: absolute; z-index: 5; top: calc(100% + 5px); left: 0; width: max(100%, 440px); max-width: calc(100vw - 32px); max-height: 310px; overflow: auto; padding: 8px; border: 1px solid #d5ded6; border-radius: 9px; background: #fff; box-shadow: 0 12px 28px #203b2d20; }
-    .searchable-picker-menu[hidden] { display: none; }
-    .searchable-picker-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-    .searchable-picker-option { display: grid; grid-template-columns: 4ch minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; min-height: 34px; padding: 7px 8px; border: 0; border-radius: 6px; background: #fff; color: #34463a; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
-    #timezoneOptions .searchable-picker-option { grid-template-columns: minmax(0, 1fr) 9ch; }
-    .searchable-picker-option:hover, .searchable-picker-option[aria-selected="true"] { background: #edf4ed; }
-    .searchable-picker-option-primary { color: #294d34; font-weight: 700; white-space: nowrap; }
-    #phoneCountryOptions .searchable-picker-option-primary { text-align: right; }
-    #timezoneOptions .searchable-picker-option-secondary { text-align: right; }
-    .searchable-picker-option-secondary { min-width: 0; overflow: hidden; color: #536258; text-overflow: ellipsis; white-space: nowrap; }
-    .searchable-picker-empty { grid-column: 1 / -1; padding: 12px 8px; color: #748077; font-size: 12px; }
-    .form-field-wide, .privacy, .preview-notice, .error, #reviewButton { grid-column: 1 / -1; }
-    .phone-number-fields input { min-width: 0; padding-inline: 10px; }
-    .privacy { margin: 0; padding: 12px 14px; border-radius: 7px; background: #f4f7f4; color: #5f6f62; font-size: 12px; line-height: 1.5; }
-    .preview-notice { margin: 0; padding: 11px 13px; border: 1px solid #d7e5d8; border-radius: 7px; background: #f2f7f2; color: #4e6953; font-size: 12px; line-height: 1.5; }
-    .preview-footer { margin: 18px 0 0; color: #79837b; font-size: 11px; line-height: 1.5; }
-    [hidden] { display: none !important; }
-    @media (max-width: 560px) {
-      body { padding: 16px 10px; }
-      main { padding: 22px 18px; }
-      form { grid-template-columns: minmax(0, 1fr); }
-      .form-field-wide, .privacy, .preview-notice, .error, #reviewButton { grid-column: auto; }
-      .phone-number-fields { grid-template-columns: minmax(0, 1fr); }
-    }
-  </style>
+  <meta name="theme-color" content="#14213d" />
+  <title>Client onboarding preview | Jeff VA</title>
+  <link rel="stylesheet" href="./onboarding.css" />
   <script src="./onboarding.js" defer></script>
 </head>
-<body>
-  <main>
-    <p class="eyebrow">Jeff VA · Client onboarding</p>
-    <h1 id="welcomeTitle">Welcome</h1>
-    <p class="intro">Please share a few details to help us prepare for working together. Your answers are sent securely and kept separate from the dashboard.</p>
-    <p class="preview-notice" id="previewNotice">Design test only · Edit the fields and explore the pickers. The submission action is disabled.</p>
-    <form id="onboardingForm" novalidate>
-      <label>Your name
-        <input name="contactName" autocomplete="name" maxlength="120" />
-      </label>
-      <label>Email address
-        <input id="clientEmail" name="email" type="email" readonly />
-        <small>This is the address this invitation was sent to.</small>
-      </label>
-      <label>Phone number <small>Optional · International dialing code</small>
-        <span class="phone-number-fields">
-          <span class="searchable-picker" id="phoneCountryPicker">
-            <input class="searchable-picker-input" type="text" role="combobox" aria-label="International dialing code" aria-autocomplete="list" aria-expanded="false" aria-controls="phoneCountryOptions" autocomplete="off" placeholder="Search country" />
-            <input name="phoneCountryCode" type="hidden" />
-            <span class="searchable-picker-menu" id="phoneCountryMenu" hidden><span class="searchable-picker-options" id="phoneCountryOptions" role="listbox"></span></span>
-          </span>
-          <input name="phone" type="tel" autocomplete="tel-national" maxlength="32" placeholder="Phone number" />
-        </span>
-      </label>
-      <label>Time zone <small>Type a city or time zone to search.</small>
-        <span class="searchable-picker" id="timezonePicker">
-          <input class="searchable-picker-input" type="text" role="combobox" aria-label="Search time zone by location" aria-autocomplete="list" aria-expanded="false" aria-controls="timezoneOptions" autocomplete="off" placeholder="Type a city or time zone" />
-          <input name="timezone" type="hidden" />
-          <span class="searchable-picker-menu" id="timezoneMenu" hidden><span class="searchable-picker-options" id="timezoneOptions" role="listbox"></span></span>
-        </span>
-      </label>
-      <label class="form-field-wide">Availability and preferred working hours
-        <textarea name="availability" maxlength="2000"></textarea>
-      </label>
-      <label>Tools or platforms you currently use <small>Do not include passwords, access codes, or other account credentials.</small>
-        <textarea name="tools" maxlength="2000"></textarea>
-      </label>
-      <label class="form-field-wide">First-week priorities
-        <textarea name="priorities" maxlength="2000"></textarea>
-      </label>
-      <p class="privacy">Please do not enter passwords, payment details, government ID numbers, or other sensitive credentials in this form.</p>
-    </form>
-    <p class="preview-footer">This is a separate design test page. Changes here do not change the client form unless you also update onboarding/index.html.</p>
+<body class="preview-page">
+  <main class="wizard-layout">
+    <aside class="wizard-sidebar" aria-label="Onboarding overview">
+      <div class="sidebar-brand-row">
+        <a class="wordmark" href="#" aria-label="Jeff VA client onboarding">
+          <span class="wordmark-dot" aria-hidden="true"></span>JEFF VA
+        </a>
+        <button class="clear-draft-button" id="clearDraftButton" type="button">Clear draft</button>
+      </div>
+      <div class="mobile-step-summary">
+        <div class="mobile-step-meta">
+          <span id="mobileStepText">Step 1 of 4</span>
+          <span id="mobileStepTitle">About you</span>
+        </div>
+        <ol class="mobile-segments" aria-hidden="true">
+          <li></li><li></li><li></li><li></li>
+        </ol>
+      </div>
+      <div class="sidebar-welcome">
+        <h1 id="welcomeTitle">Welcome, Jordan</h1>
+        <p>A few quick details so we can start strong. Takes about 3 minutes.</p>
+        <p class="required-explainer"><span aria-hidden="true">*</span> Required fields</p>
+      </div>
+      <ol class="stepper-list" id="stepperList" aria-label="Onboarding parts">
+        <li class="stepper-item" data-step-index="0" aria-current="step">
+          <span class="stepper-marker" aria-hidden="true"><span class="stepper-number">1</span><span class="stepper-check">✓</span></span>
+          <span class="stepper-copy"><span class="stepper-title">About you</span><span class="stepper-subtitle">A few details about you</span></span>
+        </li>
+        <li class="stepper-item" data-step-index="1">
+          <span class="stepper-marker" aria-hidden="true"><span class="stepper-number">2</span><span class="stepper-check">✓</span></span>
+          <span class="stepper-copy"><span class="stepper-title">Services and communication</span><span class="stepper-subtitle">What you need and how to connect</span></span>
+        </li>
+        <li class="stepper-item" data-step-index="2">
+          <span class="stepper-marker" aria-hidden="true"><span class="stepper-number">3</span><span class="stepper-check">✓</span></span>
+          <span class="stepper-copy"><span class="stepper-title">Schedule</span><span class="stepper-subtitle">Your timezone and availability</span></span>
+        </li>
+        <li class="stepper-item" data-step-index="3">
+          <span class="stepper-marker" aria-hidden="true"><span class="stepper-number">4</span><span class="stepper-check">✓</span></span>
+          <span class="stepper-copy"><span class="stepper-title">Tools and contacts</span><span class="stepper-subtitle">Tools, priorities, and contacts</span></span>
+        </li>
+      </ol>
+      <div class="sidebar-footer">
+        <p class="preview-assurance"><svg aria-hidden="true" viewBox="0 0 20 20"><rect x="4" y="8" width="12" height="9" rx="2"></rect><path d="M6.5 8V6a3.5 3.5 0 0 1 7 0v2"></path><path d="M10 11.5v2"></path></svg><span>Preview only. Nothing is sent. Your draft stays in this browser.</span></p>
+      </div>
+    </aside>
+
+    <section class="wizard-main" aria-label="Client onboarding form">
+      <header class="content-progress">
+        <p class="step-progress-label" id="stepProgressText" aria-live="polite">STEP 1 OF 4</p>
+        <div class="progress-ring" id="progressRing" role="progressbar" aria-label="Onboarding progress" aria-valuemin="1" aria-valuemax="4" aria-valuenow="1"><span id="progressRingText">25%</span></div>
+      </header>
+
+      <form id="previewForm" class="preview-form is-stepped" novalidate aria-labelledby="welcomeTitle">
+        <div class="step-progress">
+          <h2 id="stepProgressName">About you</h2>
+          <p class="step-description" id="stepDescription">Tell us a little about yourself and your business.</p>
+          <p class="required-explainer mobile-required-explainer"><span aria-hidden="true">*</span> Required fields</p>
+        </div>
+
+      <section class="form-section about-section" aria-labelledby="aboutTitle">
+        <h2 id="aboutTitle"><span class="part-number">Part 1:</span> About you</h2>
+        <div class="section-fields">
+          <div class="form-field" data-field-key="contactName">
+            <div class="field-label-row">
+              <label for="contactName">Your name <span class="required-mark" aria-hidden="true">*</span></label>
+            </div>
+            <input id="contactName" name="contactName" type="text" autocomplete="name" maxlength="120" aria-describedby="contactNameError" required value="Jordan Lee" />
+            <p class="field-error" id="contactNameError" aria-live="polite" hidden></p>
+          </div>
+
+          <div class="form-field">
+            <div class="field-label-row">
+              <label for="clientEmail">Email address</label>
+            </div>
+            <div class="sample-email-field">
+              <svg aria-hidden="true" viewBox="0 0 20 20"><rect x="4" y="8" width="12" height="9" rx="2"></rect><path d="M6.5 8V6a3.5 3.5 0 0 1 7 0v2"></path></svg>
+              <input id="clientEmail" name="email" type="email" autocomplete="email" readonly value="jordan@example.com" aria-label="Email address, sample invitation" />
+              <span class="sample-chip">Sample</span>
+            </div>
+          </div>
+
+          <div class="form-field phone-field form-field-wide" data-field-key="phone">
+            <div class="field-label-row">
+              <label for="phone">Phone number <span class="required-mark" aria-hidden="true">*</span></label>
+            </div>
+            <div class="phone-number-fields">
+              <div class="searchable-picker" id="phoneCountryPicker">
+                <input id="phoneCountrySearch" class="searchable-picker-input" type="text" role="combobox" aria-label="Country calling code" aria-autocomplete="list" aria-expanded="false" aria-required="true" aria-controls="phoneCountryOptions" aria-describedby="phoneCountryCodeError" autocomplete="off" placeholder="Search country" required />
+                <input name="phoneCountryCode" type="hidden" />
+                <span class="searchable-picker-menu" id="phoneCountryMenu" hidden><span class="searchable-picker-options" id="phoneCountryOptions" role="listbox" aria-label="Country calling codes"></span></span>
+              </div>
+              <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="32" aria-label="Phone number" aria-describedby="phoneError" placeholder="Number" required />
+            </div>
+            <p class="field-error" id="phoneCountryCodeError" aria-live="polite" hidden></p>
+            <p class="field-error" id="phoneError" aria-live="polite" hidden></p>
+          </div>
+
+          <div class="form-field form-field-wide" data-field-key="companyName">
+            <div class="field-label-row">
+              <label for="companyName">Company or business name <span class="required-mark" aria-hidden="true">*</span></label>
+            </div>
+            <input id="companyName" name="companyName" type="text" autocomplete="organization" maxlength="160" aria-describedby="companyNameError" required />
+            <p class="field-error" id="companyNameError" aria-live="polite" hidden></p>
+          </div>
+
+          <div class="form-field form-field-wide" data-field-key="role">
+            <div class="field-label-row">
+              <label for="role">Your role or title</label><span class="field-optional">Optional</span>
+            </div>
+            <input id="role" name="role" type="text" autocomplete="organization-title" maxlength="120" />
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section services-section" aria-labelledby="servicesTitle">
+        <h2 id="servicesTitle"><span class="part-number">Part 2:</span> Services and communication</h2>
+        <div class="section-fields">
+          <fieldset class="form-field form-field-wide pill-group" data-field-key="services" aria-describedby="servicesError">
+            <legend>Services needed <span class="required-mark" aria-hidden="true">*</span><span class="field-optional">Choose all that apply</span></legend>
+            <div class="choice-grid choice-grid-services" id="servicesChoices">
+              <label class="choice-card"><input type="checkbox" name="services" value="Inbox management" /><span>Inbox management</span></label>
+              <label class="choice-card"><input type="checkbox" name="services" value="Scheduling" /><span>Scheduling</span></label>
+              <label class="choice-card"><input type="checkbox" name="services" value="General admin" /><span>General admin</span></label>
+              <label class="choice-card"><input type="checkbox" name="services" value="Social media" /><span>Social media</span></label>
+              <label class="choice-card"><input type="checkbox" name="services" value="Research" /><span>Research</span></label>
+              <label class="choice-card"><input type="checkbox" name="services" value="Bookkeeping" /><span>Bookkeeping</span></label>
+              <label class="choice-card"><input type="checkbox" name="services" value="Other" /><span>Other</span></label>
+            </div>
+            <p class="field-error" id="servicesError" aria-live="polite" hidden></p>
+          </fieldset>
+
+          <div class="paired-fields form-field-wide">
+            <div class="form-field" data-field-key="hoursPerWeek">
+              <div class="field-label-row">
+                <label for="hoursPerWeek">Hours per week <span class="required-mark" aria-hidden="true">*</span></label>
+              </div>
+              <select id="hoursPerWeek" name="hoursPerWeek" aria-describedby="hoursPerWeekError" required>
+                <option value="">Choose hours</option>
+                <option value="Under 10 hours">&lt;10</option>
+                <option value="10–20 hours">10–20</option>
+                <option value="20–30 hours">20–30</option>
+                <option value="30–40 hours">30–40</option>
+                <option value="40+ hours">40+</option>
+              </select>
+              <p class="field-error" id="hoursPerWeekError" aria-live="polite" hidden></p>
+            </div>
+            <div class="form-field" data-field-key="startDate">
+              <div class="field-label-row">
+                <label for="startDate">Desired start date</label><span class="field-optional">Optional</span>
+              </div>
+              <input id="startDate" name="startDate" type="date" autocomplete="off" aria-describedby="startDateError" />
+              <p class="field-error" id="startDateError" aria-live="polite" hidden></p>
+            </div>
+          </div>
+
+          <fieldset class="form-field form-field-wide pill-group" data-field-key="preferredChannel" aria-describedby="preferredChannelError">
+            <legend>Communication channel <span class="required-mark" aria-hidden="true">*</span></legend>
+            <div class="choice-grid choice-grid-channels" id="channelChoices">
+              <label class="choice-card"><input type="radio" name="preferredChannel" value="Slack" /><span>Slack</span></label>
+              <label class="choice-card"><input type="radio" name="preferredChannel" value="WhatsApp" /><span>WhatsApp</span></label>
+              <label class="choice-card"><input type="radio" name="preferredChannel" value="Telegram" /><span>Telegram</span></label>
+              <label class="choice-card"><input type="radio" name="preferredChannel" value="Email" /><span>Email</span></label>
+            </div>
+            <p class="field-error" id="preferredChannelError" aria-live="polite" hidden></p>
+          </fieldset>
+
+          <div class="form-field form-field-wide" data-field-key="responseTime">
+            <div class="field-label-row">
+              <label for="responseTime">Expected response time</label><span class="field-optional">Optional</span>
+            </div>
+            <select id="responseTime" name="responseTime">
+              <option value="">No preference</option>
+              <option value="Within 1 hour">Within 1 hour</option>
+              <option value="Within the same business day">Within the same business day</option>
+              <option value="Within 24 hours">Within 24 hours</option>
+              <option value="Within 2 business days">Within 2 business days</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section schedule-section" aria-labelledby="scheduleTitle">
+        <h2 id="scheduleTitle"><span class="part-number">Part 3:</span> Schedule</h2>
+        <div class="section-fields">
+          <div class="form-field form-field-wide" data-field-key="timezone">
+            <div class="field-label-row">
+              <label for="timezoneSearch">Time zone <span class="required-mark" aria-hidden="true">*</span></label>
+            </div>
+            <span class="searchable-picker" id="timezonePicker">
+              <input id="timezoneSearch" class="searchable-picker-input" type="text" role="combobox" aria-label="Search time zone by location" aria-autocomplete="list" aria-expanded="false" aria-required="true" aria-controls="timezoneOptions" aria-describedby="timezoneError" autocomplete="off" placeholder="Type a city or time zone" required />
+              <input name="timezone" type="hidden" />
+              <span class="searchable-picker-menu" id="timezoneMenu" hidden><span class="searchable-picker-options" id="timezoneOptions" role="listbox" aria-label="Time zones"></span></span>
+            </span>
+            <p class="field-error" id="timezoneError" aria-live="polite" hidden></p>
+          </div>
+
+          <div class="form-field form-field-wide" data-field-key="availability">
+            <div class="field-label-row">
+              <label for="availability">Availability and preferred working hours <span class="required-mark" aria-hidden="true">*</span></label>
+            </div>
+            <textarea id="availability" name="availability" rows="2" maxlength="2000" aria-describedby="availabilityError" required placeholder="For example, weekdays 9 AM–1 PM and 3 PM–5 PM"></textarea>
+            <p class="field-error" id="availabilityError" aria-live="polite" hidden></p>
+          </div>
+
+          <div class="form-field form-field-wide" data-field-key="blackoutDates">
+            <div class="field-label-row">
+              <label for="blackoutDates">Holidays or blackout dates</label><span class="field-optional">Optional</span>
+            </div>
+            <textarea id="blackoutDates" name="blackoutDates" rows="2" maxlength="1000" placeholder="Unavailable dates in the next month"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section tools-section" aria-labelledby="toolsTitle">
+        <h2 id="toolsTitle"><span class="part-number">Part 4:</span> Tools and contacts</h2>
+        <div class="tools-fields">
+          <div class="form-field tools-used-field" data-field-key="tools">
+            <div class="field-label-row">
+              <label for="tools">Tools or platforms you use</label><span class="field-optional">Optional</span>
+            </div>
+            <textarea id="tools" name="tools" rows="2" maxlength="2000" placeholder="Names only: Google Workspace, Slack…"></textarea>
+          </div>
+
+          <fieldset class="form-field pill-group access-group" data-field-key="accessMethod">
+            <legend>How will you share access? <span class="field-optional">Optional</span></legend>
+            <div class="choice-grid access-choices" id="accessChoices">
+              <label class="choice-card"><input type="radio" name="accessMethod" value="Password manager" /><span>Password manager</span></label>
+              <label class="choice-card"><input type="radio" name="accessMethod" value="Delegated/shared access" /><span>Delegated/shared access</span></label>
+              <label class="choice-card"><input type="radio" name="accessMethod" value="Discuss on kickoff call" /><span>Discuss on kickoff call</span></label>
+            </div>
+          </fieldset>
+
+          <div class="form-field backup-contact-field">
+            <div class="field-label-row">
+              <span>Backup contact for urgent matters</span><span class="field-optional">Optional</span>
+            </div>
+            <div class="backup-fields">
+              <div class="form-field" data-field-key="backupName">
+                <label for="backupName">Contact name</label>
+                <input id="backupName" name="backupName" type="text" autocomplete="name" maxlength="120" aria-describedby="backupNameError" />
+                <p class="field-error" id="backupNameError" aria-live="polite" hidden></p>
+              </div>
+              <div class="form-field" data-field-key="backupEmail">
+                <label for="backupEmail">Email</label>
+                <input id="backupEmail" name="backupEmail" type="email" autocomplete="email" maxlength="254" aria-describedby="backupEmailError" />
+                <p class="field-error" id="backupEmailError" aria-live="polite" hidden></p>
+              </div>
+              <div class="form-field" data-field-key="backupPhone">
+                <label for="backupPhone">Phone</label>
+                <input id="backupPhone" name="backupPhone" type="tel" inputmode="tel" autocomplete="tel" maxlength="32" aria-describedby="backupPhoneError" />
+                <p class="field-error" id="backupPhoneError" aria-live="polite" hidden></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-field priorities-field" data-field-key="priorities">
+            <div class="field-label-row">
+              <label for="priorities">First-week focus <span class="required-mark" aria-hidden="true">*</span></label>
+            </div>
+            <textarea id="priorities" name="priorities" rows="2" maxlength="2000" aria-describedby="prioritiesError" required placeholder="What should we focus on first?"></textarea>
+            <p class="field-error" id="prioritiesError" aria-live="polite" hidden></p>
+            <label for="approval">What needs your approval?</label>
+            <textarea id="approval" name="approval" rows="2" maxlength="1000" placeholder="Optional approval preferences"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <p class="form-announcement" id="formAnnouncement" role="status" aria-live="polite"></p>
+      </form>
+
+      <footer class="form-footer" id="formFooter">
+        <div class="footer-context">
+          <div class="agreement-field form-field" id="agreementField" data-field-key="agreement" hidden>
+            <label class="agreement-control">
+              <input id="agreement" name="agreement" form="previewForm" type="checkbox" value="yes" aria-describedby="agreementError" required />
+              <span>I agree to handle shared information confidentially and follow our agreed terms. <span class="required-mark" aria-hidden="true">*</span></span>
+            </label>
+            <p class="field-error" id="agreementError" aria-live="polite" hidden></p>
+          </div>
+          <p class="draft-status" id="draftStatus" role="status" aria-live="polite"></p>
+        </div>
+        <div class="step-actions">
+          <button class="back-button" id="backPartButton" type="button" hidden>Back</button>
+          <button class="finish-button" id="finishPreviewButton" type="submit" form="previewForm">Continue</button>
+        </div>
+      </footer>
+
+      <section class="confirmation-screen" id="confirmationScreen" aria-labelledby="confirmationTitle" tabindex="-1" hidden>
+        <p class="eyebrow">PART 5 · THANK YOU</p>
+        <h2 id="confirmationTitle" tabindex="-1">Thanks, Jordan</h2>
+        <p>Thank you for sharing these details. I’ll do my best to support you and your business.</p>
+      </section>
+    </section>
   </main>
 </body>
 </html>

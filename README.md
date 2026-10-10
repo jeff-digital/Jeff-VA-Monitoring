@@ -7,6 +7,7 @@ Jeff VA Monitoring is a web app for organizing job applications and virtual-assi
 - Track job applications, platforms, status, and follow-up dates.
 - Automatically mark pending applications as rejected after one calendar month and show a sign-in notice listing the applications that changed.
 - Manage active clients, contracts, documents, invoices, and reminders.
+- Send token-based, one-time client onboarding forms for working preferences and first-week priorities.
 - Organize tasks, reusable scripts, and helpful links.
 - Connect Gmail to view and manage work-related email.
 - Send and review client onboarding forms.
@@ -46,6 +47,15 @@ cd Jeff-VA-Monitoring
 ### 2. Configure external services
 
 Set up a Supabase project and apply the schema in `src/backend/supabase/supabase-schema.sql`. Configure the frontend with your own Supabase project URL and **publishable** key in `src/frontend/js/supabase-config.js`.
+
+To enable client profile photo uploads on an existing Supabase project, run `src/backend/supabase/profile-photo-storage-migration.sql` in the Supabase Dashboard SQL Editor. It allows JPEG, PNG, and WebP images in the existing private client documents bucket while preserving the bucket's other allowed file types.
+
+### Client onboarding
+
+- The real, invitation-only form is served at `/onboarding/`. It requires the Supabase setup above and an active client's invitation.
+- `/onboarding/change-test.html` is a design preview with sample invitation details. It never submits data; draft answers are saved only in this browser's local storage and can be removed with Clear draft.
+- Re-apply `src/backend/supabase/supabase-schema.sql` after updating the onboarding RPC validation so the server enforces the same field rules as the browser.
+- The page does not accept passwords or other account credentials. Screenshots can be added here after capturing the finished page at desktop and mobile widths.
 
 Gmail integration is optional. To use it, configure a Google OAuth client for your app and set its client ID in `src/frontend/js/gmail-config.js`.
 

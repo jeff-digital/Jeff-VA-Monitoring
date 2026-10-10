@@ -598,6 +598,70 @@
     return /^https?:\/\//i.test(value) ? value : `https://${value}`;
   }
 
+  function clientInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    return parts.length > 1
+      ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      : (parts[0]?.slice(0, 2) || '?').toUpperCase();
+  }
+
+  function clientAvatarHue(name) {
+    return [...String(name || '')].reduce((hue, character) => hue + character.charCodeAt(0), 0) % 6;
+  }
+
+  const hiredClientAvatarUrls = new Map();
+  const hiredClientAvatarLoads = new Map();
+
+  function cacheHiredClientAvatar(clientId, storagePath, blob) {
+    const current = hiredClientAvatarUrls.get(clientId);
+    if (current) URL.revokeObjectURL(current.url);
+    const url = URL.createObjectURL(blob);
+    hiredClientAvatarUrls.set(clientId, { storagePath, url });
+  }
+
+  function clearHiredClientAvatar(clientId) {
+    const current = hiredClientAvatarUrls.get(clientId);
+    if (current) URL.revokeObjectURL(current.url);
+    hiredClientAvatarUrls.delete(clientId);
+  }
+
+  function renderHiredClientAvatars() {
+    $$('.hired-card-avatar-image[data-client-avatar-path]').forEach(async image => {
+      const clientId = image.dataset.clientAvatarId;
+      const storagePath = image.dataset.clientAvatarPath;
+      const cached = hiredClientAvatarUrls.get(clientId);
+      if (cached?.storagePath === storagePath) {
+        image.src = cached.url;
+        image.hidden = false;
+        return;
+      }
+      try {
+        const loadKey = `${clientId}:${storagePath}`;
+        let load = hiredClientAvatarLoads.get(loadKey);
+        if (!load) {
+          load = getDocumentBlob(storagePath).then(blob => {
+            const item = data.applications.find(application => application.id === clientId);
+            if (!item || item.profileImage?.storagePath !== storagePath) return '';
+            cacheHiredClientAvatar(clientId, storagePath, blob);
+            return hiredClientAvatarUrls.get(clientId).url;
+          }).finally(() => hiredClientAvatarLoads.delete(loadKey));
+          hiredClientAvatarLoads.set(loadKey, load);
+        }
+        const url = await load;
+        if (!url || !image.isConnected || image.dataset.clientAvatarPath !== storagePath) return;
+        image.src = url;
+        image.hidden = false;
+      } catch (error) {
+        console.error('Could not load client profile photo:', error);
+        showActionResult({
+          title: 'Profile photo could not be loaded',
+          message: 'The client photo is unavailable. The initials avatar will remain visible.',
+          status: 'error'
+        });
+      }
+    });
+  }
+
   function formatFileSize(bytes) {
     if (!bytes && bytes !== 0) return '';
     if (bytes < 1024) return `${bytes} B`;
@@ -711,6 +775,8 @@
     const activeClients = clients.filter(item => !isContractEnded(item));
     const endedClients = clients.filter(isContractEnded);
     $('#hiredCountLabel').textContent = clients.filter(isActiveContract).length;
+    $('#hiredActiveSummary').textContent = allHired.filter(isActiveContract).length;
+    $('#hiredEndedSummary').textContent = allHired.filter(isContractEnded).length;
     const target = $('#hiredList');
     const detailPanel = $('#hiredDetailPanel');
     const hiredView = $('#hiredView');
@@ -744,8 +810,14 @@
         item.employmentType,
         activeDate ? `Since ${emailDate(activeDate)}` : ''
       ].filter(Boolean).map(escapeHtml).join(' · ');
+      const initials = clientInitials(item.clientName);
+      const avatarTone = clientAvatarHue(item.clientName);
       const emailMarkup = item.email ? `<span class="hired-card-email" title="${escapeHtml(item.email)}">${escapeHtml(item.email)}</span>` : '';
       const websiteMarkup = item.website ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(item.website)}</span></a>` : '';
+      const companyName = item.companyName || item.company || '';
+      const companyMarkup = companyName
+        ? `<span class="hired-card-company">${escapeHtml(companyName)}</span>`
+        : websiteMarkup;
       const matchingIncomingEmails = matchingEmailsForApplication(item).filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent');
       const matchCount = matchingIncomingEmails.length;
       const matchMarkup = matchCount ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>` : '';
@@ -753,19 +825,20 @@
       const timeZoneMarkup = timeZone?.localTime
         ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})`)}</span></span>`
         : '';
+      const avatarPath = item.profileImage?.storagePath || '';
       return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-        <span class="hired-card-heading"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
-        ${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}
-        ${contractDetails ? `<span class="hired-card-contract">${contractDetails}</span>` : ''}
+        <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}<button class="hired-card-avatar-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${avatarPath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${avatarPath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button><input class="hired-card-avatar-input" type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden /></span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
         ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
-        ${websiteMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${websiteMarkup}${timeZoneMarkup}</span>` : ''}
-        <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View details <span aria-hidden="true">→</span></span></span>
+        ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
+        ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
+        <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View Details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span></span>
       </article>`;
     };
     target.innerHTML = [
       ...activeClients.map(renderClientCard),
       ...(endedClients.length ? [`<h3 class="hired-ended-heading">Ended</h3>`, ...endedClients.map(renderClientCard)] : [])
     ].join('');
+    renderHiredClientAvatars();
     detailPanel.classList.add('hidden');
   }
 
@@ -931,12 +1004,26 @@
       const additionalDetails = [
         ['Availability and preferred working hours', submission.availability],
         ['Tools or platforms', submission.tools],
-        ['First-week priorities', submission.priorities]
+        ['First-week priorities', submission.priorities],
+        ['Company or business name', submission.details?.companyName],
+        ['Role or title', submission.details?.role],
+        ['Services needed', Array.isArray(submission.details?.services) ? submission.details.services.join(', ') : ''],
+        ['Expected hours per week', submission.details?.hoursPerWeek],
+        ['Desired start date', submission.details?.startDate],
+        ['Communication channel', submission.details?.preferredChannel],
+        ['Expected response time', submission.details?.responseTime],
+        ['Holidays or blackout dates', submission.details?.blackoutDates],
+        ['Access sharing method', submission.details?.accessMethod],
+        ['Backup contact name', submission.details?.backupName],
+        ['Backup contact email', submission.details?.backupEmail],
+        ['Backup contact phone', submission.details?.backupPhone],
+        ['Approval preferences', submission.details?.approval],
+        ['Confidentiality and terms agreement', submission.details?.agreement ? 'Agreed' : '']
       ];
       const detailsDisclosure = document.createElement('details');
       detailsDisclosure.className = 'client-onboarding-additional';
       const detailsSummary = document.createElement('summary');
-      detailsSummary.textContent = 'Availability, tools and priorities';
+      detailsSummary.textContent = 'Onboarding answers';
       const additionalList = document.createElement('dl');
       additionalList.className = 'active-client-onboarding-details';
       additionalDetails.forEach(([label, value]) => {
@@ -1398,7 +1485,10 @@
     };
     if (editingId) {
       // Document metadata lives in Supabase and is managed from the Active Clients page — carry the references forward.
-      if (existing) application.documents = existing.documents;
+      if (existing) {
+        application.documents = existing.documents;
+        application.profileImage = existing.profileImage;
+      }
       const index = data.applications.findIndex(item => item.id === editingId);
       if (index >= 0) data.applications[index] = application;
     } else {
@@ -1429,13 +1519,16 @@
   async function deleteClient(id, fromActive = false) {
     const item = data.applications.find(application => application.id === id);
     if (!item) return;
-    if (!(await appConfirm(`Delete ${item.clientName}? This removes the application and any attached documents from this browser. This cannot be undone unless you've exported a backup.`, { title: 'Delete client application', confirmLabel: 'Delete', danger: true }))) return;
+    if (!(await appConfirm(`Delete ${item.clientName}? This removes the application, profile photo, and attached documents. This cannot be undone unless you've exported a backup.`, { title: 'Delete client application', confirmLabel: 'Delete', danger: true }))) return;
     data.applications = data.applications.filter(application => application.id !== id);
     persist();
     (item.documents || []).forEach(doc => { deleteDocumentBlob(doc.storagePath || doc.id).catch(() => {}); });
+    if (item.profileImage?.storagePath) {
+      deleteDocumentBlob(item.profileImage.storagePath).catch(error => console.error('Could not remove the deleted client profile photo:', error));
+    }
     $('#clientModal')?.close();
     editingId = null;
     if (fromActive) closeHiredDetail(false);
     renderAll();
-    showActionResult({ title: 'Client deleted', message: 'The client and its attached documents were removed.' });
+    showActionResult({ title: 'Client deleted', message: 'The client, profile photo, and attached documents were removed.' });
   }

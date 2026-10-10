@@ -300,6 +300,10 @@
             <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
             <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
           </section>
+          <section class="hired-summary" aria-label="Client summary">
+            <div><span>Active clients</span><strong id="hiredActiveSummary">0</strong></div>
+            <div><span>Ended contracts</span><strong id="hiredEndedSummary">0</strong></div>
+          </section>
           <section class="panel hired-panel">
             <div class="hired-list" id="hiredList"></div>
           </section>
@@ -901,6 +905,23 @@
         <p class="settings-copy">This downloads a PDF snapshot of the current weekly report as you see it on screen.</p>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button><button class="button button-primary" type="button" id="confirmWeeklyReportDownload">Download report</button></div>
       </form>
+    </dialog>
+
+    <dialog class="modal client-avatar-crop-modal" id="clientAvatarCropModal" aria-labelledby="clientAvatarCropTitle">
+      <div class="client-avatar-crop-shell">
+        <div class="modal-heading">
+          <div><p class="eyebrow">CLIENT PROFILE</p><h2 id="clientAvatarCropTitle">Crop profile photo</h2></div>
+          <button class="icon-button" type="button" id="cancelClientAvatarCrop" aria-label="Cancel profile photo crop">×</button>
+        </div>
+        <p class="client-avatar-crop-help">Drag the image to position it. Use the slider to zoom.</p>
+        <div class="client-avatar-crop-viewport" id="clientAvatarCropViewport" aria-label="Drag image to adjust the crop">
+          <img id="clientAvatarCropImage" alt="Profile photo crop preview" draggable="false" />
+          <span class="client-avatar-crop-mask" aria-hidden="true"></span>
+        </div>
+        <label class="client-avatar-zoom-label" for="clientAvatarZoom">Zoom <input id="clientAvatarZoom" type="range" min="1" max="3" step="0.01" value="1" /></label>
+        <p class="client-avatar-crop-status" id="clientAvatarCropStatus" role="status"></p>
+        <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelClientAvatarCropAction">Cancel</button><button class="button button-primary" type="button" id="useClientAvatarCrop">Use photo</button></div>
+      </div>
     </dialog>
 
     <dialog class="modal" id="hiredModal" aria-labelledby="hiredModalTitle">
