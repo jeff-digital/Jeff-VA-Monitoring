@@ -90,6 +90,7 @@ drop function if exists public.get_client_onboarding_submission(text);
 drop function if exists public.lookup_client_onboarding_invite(text);
 drop function if exists public.get_client_onboarding_submissions();
 drop function if exists public.submit_client_onboarding(text, text, text, text, text, text, text);
+drop function if exists public.submit_client_onboarding(text, text, text, text, text, text, text, jsonb);
 
 create or replace function public.issue_client_onboarding_invite(p_client_id text, p_token_hash text)
 returns boolean
@@ -378,6 +379,8 @@ on conflict (id) do update set
   public = false,
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
+
+notify pgrst, 'reload schema';
 
 -- Files are stored under: <authenticated-user-uuid>/<document-uuid>
 drop policy if exists "Users can upload their own client documents" on storage.objects;

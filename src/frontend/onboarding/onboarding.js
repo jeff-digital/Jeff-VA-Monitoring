@@ -4,8 +4,23 @@
   const $ = selector => document.querySelector(selector);
   const previewMode = document.documentElement.dataset.designTest === 'true'
     || new URLSearchParams(location.search).get('preview') === '1';
-  let token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
-  if (token) history.replaceState(null, '', location.pathname);
+  const invitationTokenStorageKey = 'jeff-va-client-onboarding-invitation-token';
+  const tokenFromUrl = new URLSearchParams(location.hash.slice(1)).get('token') || '';
+  let token = tokenFromUrl;
+  if (tokenFromUrl) {
+    try {
+      sessionStorage.setItem(invitationTokenStorageKey, tokenFromUrl);
+      history.replaceState(null, '', `${location.pathname}${location.search}`);
+    } catch (error) {
+      console.error('Unable to preserve the onboarding invitation for a page refresh.', error);
+    }
+  } else {
+    try {
+      token = sessionStorage.getItem(invitationTokenStorageKey) || '';
+    } catch (error) {
+      console.error('Unable to restore the onboarding invitation after a page refresh.', error);
+    }
+  }
   const countries = [
     ['Afghanistan', '+93'], ['Albania', '+355'], ['Algeria', '+213'], ['American Samoa', '+1'],
     ['Andorra', '+376'], ['Angola', '+244'], ['Anguilla', '+1'], ['Antigua and Barbuda', '+1'],
@@ -890,6 +905,11 @@
       });
       if (submitted !== true) throw new Error('This onboarding link has expired, been replaced, or has already been submitted.');
       token = '';
+      try {
+        sessionStorage.removeItem(invitationTokenStorageKey);
+      } catch (error) {
+        console.error('Unable to clear the completed onboarding invitation from this browser session.', error);
+      }
       $('#reviewDialog').close();
       $('#formPanel').hidden = true;
       $('#successPanel').hidden = false;

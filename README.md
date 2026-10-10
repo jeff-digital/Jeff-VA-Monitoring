@@ -54,7 +54,8 @@ To enable client profile photo uploads on an existing Supabase project, run `src
 
 - The real, invitation-only form is served at `/onboarding/`. It requires the Supabase setup above and an active client's invitation.
 - `/onboarding/change-test.html` is a design preview with sample invitation details. It never submits data; draft answers are saved only in this browser's local storage and can be removed with Clear draft.
-- Re-apply `src/backend/supabase/supabase-schema.sql` after updating the onboarding RPC validation so the server enforces the same field rules as the browser.
+- Run `src/backend/supabase/client-onboarding-details-migration.sql` in the Supabase Dashboard SQL Editor when deploying the expanded live onboarding form. It updates the RPC signature and reloads the PostgREST schema cache required by the live page.
+- For a fresh Supabase project, apply `src/backend/supabase/supabase-schema.sql` first.
 - The page does not accept passwords or other account credentials. Screenshots can be added here after capturing the finished page at desktop and mobile widths.
 
 Gmail integration is optional. To use it, configure a Google OAuth client for your app and set its client ID in `src/frontend/js/gmail-config.js`.
