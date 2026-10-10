@@ -148,7 +148,7 @@
       if (selectedFlag) setCountryFlag(selectedFlag, selectedOption?.flag);
     }
 
-    function selectOption(option) {
+    function selectOption(option, notifyChange = true) {
       selectedOption = option;
       valueInput.value = option.value;
       input.value = option.label;
@@ -156,7 +156,7 @@
       if (selectedFlag) setCountryFlag(selectedFlag, option.flag);
       input.setCustomValidity('');
       closeMenu(false);
-      input.dispatchEvent(new Event('change', { bubbles: true }));
+      if (notifyChange) input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     function renderOptions(query = '') {
@@ -261,9 +261,9 @@
       if (!root.contains(event.target)) closeMenu();
     });
     return {
-      setValue(value) {
+      setValue(value, notifyChange = true) {
         const option = options.find(candidate => candidate.value === value);
-        if (option) selectOption(option);
+        if (option) selectOption(option, notifyChange);
       }
     };
   }
@@ -718,6 +718,7 @@
   ];
   const liveSections = [...document.querySelectorAll('#onboardingForm > .form-section')];
   let liveStep = 0;
+  let liveDraftKey = '';
 
   function validateLiveField(fieldName) {
     const config = liveFieldConfig[fieldName];
@@ -788,16 +789,75 @@
     }
   }
 
+  function saveLiveDraft() {
+    if (previewMode || !liveDraftKey) return;
+    try {
+      localStorage.setItem(liveDraftKey, JSON.stringify({
+        answers: currentAnswers(),
+        currentStep: liveStep
+      }));
+      $('#draftStatus').textContent = 'Draft saved in this browser.';
+      $('#clearLiveDraftButton').hidden = false;
+    } catch (error) {
+      $('#draftStatus').textContent = 'Draft could not be saved. Check browser storage settings.';
+      console.error('Unable to save the client onboarding draft.', error);
+    }
+  }
+
+  function restoreLiveDraft() {
+    let draft;
+    try {
+      const saved = localStorage.getItem(liveDraftKey);
+      if (!saved) return;
+      draft = JSON.parse(saved);
+      if (!draft || typeof draft !== 'object' || Array.isArray(draft)
+        || !draft.answers || typeof draft.answers !== 'object' || Array.isArray(draft.answers)) {
+        throw new Error('The saved onboarding draft has an invalid format.');
+      }
+    } catch (error) {
+      $('#draftStatus').textContent = 'The saved draft could not be read. Clear it to start again.';
+      $('#clearLiveDraftButton').hidden = false;
+      console.error('Unable to restore the client onboarding draft.', error);
+      return;
+    }
+
+    Object.entries(draft.answers).forEach(([name, value]) => {
+      const controls = [...$('#onboardingForm').elements].filter(control => control.name === name);
+      if (!controls.length) return;
+      if (controls[0].type === 'checkbox' && controls.length > 1) {
+        controls.forEach(control => { control.checked = Array.isArray(value) && value.includes(control.value); });
+      } else if (controls[0].type === 'radio') {
+        controls.forEach(control => { control.checked = control.value === value; });
+      } else if (controls[0].type === 'checkbox') {
+        controls[0].checked = value === true;
+      } else if (name === 'phoneCountryCode' && typeof value === 'string') {
+        phoneCountryPicker.setValue(value, false);
+      } else if (name === 'timezone' && typeof value === 'string') {
+        timezonePicker.setValue(value, false);
+      } else if (typeof value === 'string') {
+        controls[0].value = value;
+      }
+    });
+
+    if (Number.isInteger(draft.currentStep) && draft.currentStep >= 0 && draft.currentStep < liveSteps.length) {
+      liveStep = draft.currentStep;
+    }
+    $('#draftStatus').textContent = 'Restored a draft saved in this browser.';
+    $('#clearLiveDraftButton').hidden = false;
+  }
+
   $('#onboardingForm').addEventListener('input', event => {
     const fieldName = event.target.closest('[data-field-key]')?.dataset.fieldKey;
     if (fieldName && liveFieldConfig[fieldName]) validateLiveField(fieldName);
     if (fieldName === 'phone') validateLiveField('phoneCountryCode');
     if (fieldName?.startsWith('backup')) ['backupName', 'backupEmail', 'backupPhone'].forEach(validateLiveField);
+    saveLiveDraft();
   });
   $('#onboardingForm').addEventListener('change', event => {
     const fieldName = event.target.closest('[data-field-key]')?.dataset.fieldKey;
     if (fieldName && liveFieldConfig[fieldName]) validateLiveField(fieldName);
     if (fieldName === 'phone') validateLiveField('phoneCountryCode');
+    saveLiveDraft();
     if (fieldName?.startsWith('backup')) ['backupName', 'backupEmail', 'backupPhone'].forEach(validateLiveField);
   });
   $('#onboardingForm').addEventListener('focusout', event => {
@@ -808,7 +868,19 @@
   });
   $('#agreement').addEventListener('change', () => validateLiveField('agreement'));
   $('#backPartButton').addEventListener('click', () => {
-    if (liveStep > 0) showLiveStep(liveStep - 1);
+    if (liveStep > 0) {
+      showLiveStep(liveStep - 1);
+      saveLiveDraft();
+    }
+  });
+  $('#clearLiveDraftButton').addEventListener('click', () => {
+    try {
+      localStorage.removeItem(liveDraftKey);
+      location.reload();
+    } catch (error) {
+      $('#draftStatus').textContent = 'Draft could not be cleared. Check browser storage settings.';
+      console.error('Unable to clear the client onboarding draft.', error);
+    }
   });
 
   function showReview(answers) {
@@ -853,6 +925,7 @@
     if (!validateLiveStep()) return;
     if (liveStep < liveSteps.length - 1) {
       showLiveStep(liveStep + 1);
+      saveLiveDraft();
       return;
     }
     const answers = currentAnswers();
@@ -910,6 +983,14 @@
       } catch (error) {
         console.error('Unable to clear the completed onboarding invitation from this browser session.', error);
       }
+      try {
+        localStorage.removeItem(liveDraftKey);
+        $('#draftStatus').textContent = '';
+        $('#clearLiveDraftButton').hidden = true;
+      } catch (error) {
+        $('#draftStatus').textContent = 'Your submission succeeded, but the saved draft could not be cleared from this browser.';
+        console.error('Unable to clear the submitted client onboarding draft.', error);
+      }
       $('#reviewDialog').close();
       $('#formPanel').hidden = true;
       $('#successPanel').hidden = false;
@@ -936,16 +1017,19 @@
       return;
     }
     try {
-      const invite = await rpc('lookup_client_onboarding_invite', { p_token_hash: await tokenHash(token) });
+      const invitationHash = await tokenHash(token);
+      const invite = await rpc('lookup_client_onboarding_invite', { p_token_hash: invitationHash });
       if (!invite) {
         showUnavailable();
         return;
       }
+      liveDraftKey = `jeff-va-client-onboarding-draft-${invitationHash}`;
       $('#welcomeTitle').textContent = `Welcome${invite.client_name ? `, ${invite.client_name}` : ''}`;
       $('#clientEmail').value = invite.client_email || '';
       $('#loadingPanel').hidden = true;
       $('#formPanel').hidden = false;
-      showLiveStep(0, false);
+      restoreLiveDraft();
+      showLiveStep(liveStep, false);
     } catch {
       showUnavailable('We couldn’t verify this invitation. Check your connection and try again, or contact your Jeff VA representative for help.');
     }
