@@ -790,7 +790,7 @@
     $('#hiredCountLabel').textContent = `${allHired.length} ${allHired.length === 1 ? 'client' : 'clients'}`;
     $('#hiredActiveSummary').textContent = String(allActiveClients.length);
     $('#hiredEndedSummary').textContent = String(allEndedClients.length);
-    const selected = allHired.find(item => item.id === hiredEditingId && isActiveContract(item))
+    const selected = allHired.find(item => item.id === hiredEditingId)
       || allActiveClients[0];
     if (!selected && allHired.length) showingHiredClientList = true;
 

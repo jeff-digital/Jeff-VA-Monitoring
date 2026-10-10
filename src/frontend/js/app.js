@@ -1732,7 +1732,7 @@
     $('#hiredCountLabel').textContent = `${allHired.length} ${allHired.length === 1 ? 'client' : 'clients'}`;
     $('#hiredActiveSummary').textContent = String(allActiveClients.length);
     $('#hiredEndedSummary').textContent = String(allEndedClients.length);
-    const selected = allHired.find(item => item.id === hiredEditingId && isActiveContract(item))
+    const selected = allHired.find(item => item.id === hiredEditingId)
       || allActiveClients[0];
     if (!selected && allHired.length) showingHiredClientList = true;
 
@@ -4561,7 +4561,12 @@
         data.invoices = data.invoices || [];
         data.invoices.unshift({ id: uid(), ...composeInvoiceDraft, sentAt: new Date().toISOString() });
       }
-      const activatingClient = composeActivationClientId && data.applications.find(item => item.id === composeActivationClientId);
+      const activationCandidate = composeActivationClientId && data.applications.find(item => item.id === composeActivationClientId);
+      const activatingClient = activationCandidate?.activePendingEmail
+        && composeClientId === activationCandidate.id
+        && activationCandidate.email?.trim().toLowerCase() === to.toLowerCase()
+        ? activationCandidate
+        : null;
       const updatingClient = composeDocumentUpdateClientId && data.applications.find(item => item.id === composeDocumentUpdateClientId);
       if (activatingClient?.activePendingEmail) {
         activatingClient.activePendingEmail = false;
@@ -4595,9 +4600,6 @@
       if (activatingClient) {
         showView('hired');
         renderHiredDetail(activatingClient);
-      } else if (updatingClient) {
-        showView('hired');
-        renderHiredDetail(updatingClient);
       }
       showEmailActionResult({ title: 'Email sent successfully', message: successMessage });
       composeAttachmentFile = null;
