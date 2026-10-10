@@ -21,6 +21,7 @@
   let applicationEmailSummaryCache = null;
   let applicationMatchIndex = [];
   let applicationMatchIndexSignature = '';
+  let activeClientDetailsModalEdit = false;
 
   function applicationMatchSignature(applications = data.applications || []) {
     return (applications || []).map(application => [
@@ -483,6 +484,7 @@
   function saveToApply(event) {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault();
+    const savingInDrawer = isActiveClientDrawerView('edit');
     const form = $('#toApplyForm');
     if (!form.reportValidity()) return;
     data.toApply = data.toApply || [];
@@ -760,93 +762,126 @@
     if (!document.hidden) updateClientOnlineIndicators();
   });
 
+  let showingHiredClientList = false;
+
   function renderHired() {
-    const query = $('#hiredSearch').value.trim().toLowerCase();
-    const filter = $('#hiredStatusFilter')?.value || 'all';
-    const dateFilter = $('#hiredDateFilter').value;
     const allHired = sortByDate(hiredClients(), activeSinceDate, hiredDateSort);
-    const filteredClients = allHired.filter(item => {
+    const query = $('#hiredSearch').value.trim().toLowerCase();
+    const filter = $('#hiredStatusFilter').value;
+    const dateFilter = $('#hiredDateFilter').value;
+    const clients = allHired.filter(item => {
       const contractStatus = isContractEnded(item) ? 'Contract Ended' : (item.contractStatus || 'Active');
-      const text = [item.clientName, item.email, item.phone, item.website, item.socialMedia, item.location, contractStatus].join(' ').toLowerCase();
-      const statusMatch = filter === 'all' || contractStatus === filter;
-      return statusMatch && (!query || text.includes(query)) && (!dateFilter || dateKey(activeSinceDate(item)) === dateFilter);
+      const searchableText = [
+        item.clientName, item.email, item.phone, item.website, item.socialMedia, item.location,
+        item.companyName, item.company, item.role, contractStatus
+      ].join(' ').toLowerCase();
+      return (filter === 'all' || contractStatus === filter)
+        && (!query || searchableText.includes(query))
+        && (!dateFilter || dateKey(activeSinceDate(item)) === dateFilter);
     });
-    const clients = filteredClients.sort((first, second) => Number(isContractEnded(first)) - Number(isContractEnded(second)));
-    const activeClients = clients.filter(item => !isContractEnded(item));
+    const nonEndedClients = clients.filter(item => !isContractEnded(item));
     const endedClients = clients.filter(isContractEnded);
-    $('#hiredCountLabel').textContent = clients.filter(isActiveContract).length;
-    $('#hiredActiveSummary').textContent = allHired.filter(isActiveContract).length;
-    $('#hiredEndedSummary').textContent = allHired.filter(isContractEnded).length;
     const target = $('#hiredList');
     const detailPanel = $('#hiredDetailPanel');
     const hiredView = $('#hiredView');
+    const panel = target.closest('.hired-panel');
+    const allActiveClients = allHired.filter(isActiveContract);
+    const allEndedClients = allHired.filter(isContractEnded);
+    $('#hiredCountLabel').textContent = `${allHired.length} ${allHired.length === 1 ? 'client' : 'clients'}`;
+    $('#hiredActiveSummary').textContent = String(allActiveClients.length);
+    $('#hiredEndedSummary').textContent = String(allEndedClients.length);
+    const selected = allHired.find(item => item.id === hiredEditingId && isActiveContract(item))
+      || allActiveClients[0];
+    if (!selected && allHired.length) showingHiredClientList = true;
 
-    // Once a client is selected, keep the workspace focused on that one client.
-    const selected = hiredEditingId ? clients.find(item => item.id === hiredEditingId) : null;
+    if (showingHiredClientList) {
+      hiredView.classList.remove('client-focused');
+      $('#hiredCountLabel').hidden = false;
+      detailPanel.classList.add('hidden');
+      detailPanel.dataset.clientId = '';
+      panel.hidden = false;
+      target.innerHTML = clients.length
+        ? [
+          ...nonEndedClients.map(renderActiveClientCard),
+          ...(endedClients.length ? ['<h3 class="hired-ended-heading">Ended</h3>', ...endedClients.map(renderActiveClientCard)] : [])
+        ].join('')
+        : `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
+      renderHiredClientAvatars();
+      return;
+    }
     if (selected) {
-      hiredView.classList.add('client-focused');
-      target.innerHTML = '';
-      detailPanel.classList.remove('hidden');
       renderHiredDetail(selected, false);
       return;
     }
     hiredView.classList.remove('client-focused');
-
-    if (!clients.length) {
-      const hasAny = allHired.length > 0;
-      target.innerHTML = `<div class="application-empty"><h3>${hasAny ? 'No matching clients' : 'No active clients yet'}</h3><p>${hasAny ? 'Try another search or contract status.' : 'Mark an application as “Active client” in your tracker and it will appear here.'}</p>${hasAny ? '' : '<button class="button button-primary" type="button" data-go-to="applications">Go to applications</button>'}</div>`;
-      closeHiredDetail(false);
-      return;
-    }
-    const renderClientCard = item => {
-      const docs = item.documents || [];
-      const contractEnded = isContractEnded(item);
-      const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
-      const endingLabel = contractEndingLabel(item);
-      const statusLabel = contractEnded ? 'Contract ended' : (endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active'));
-      const statusPillClass = contractEnded ? 'contract-ended' : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
-      const activeDate = activeSinceDate(item);
-      const contractDetails = [
-        item.employmentType,
-        activeDate ? `Since ${emailDate(activeDate)}` : ''
-      ].filter(Boolean).map(escapeHtml).join(' · ');
-      const initials = clientInitials(item.clientName);
-      const avatarTone = clientAvatarHue(item.clientName);
-      const emailMarkup = item.email ? `<span class="hired-card-email" title="${escapeHtml(item.email)}">${escapeHtml(item.email)}</span>` : '';
-      const websiteMarkup = item.website ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(item.website)}</span></a>` : '';
-      const companyName = item.companyName || item.company || '';
-      const companyMarkup = companyName
-        ? `<span class="hired-card-company">${escapeHtml(companyName)}</span>`
-        : websiteMarkup;
-      const matchingIncomingEmails = matchingEmailsForApplication(item).filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent');
-      const matchCount = matchingIncomingEmails.length;
-      const matchMarkup = matchCount ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>` : '';
-      const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
-      const timeZoneMarkup = timeZone?.localTime
-        ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})`)}</span></span>`
-        : '';
-      const avatarPath = item.profileImage?.storagePath || '';
-      return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-        <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}<button class="hired-card-avatar-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${avatarPath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${avatarPath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button><input class="hired-card-avatar-input" type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden /></span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
-        ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
-        ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
-        ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
-        <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View Details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span></span>
-      </article>`;
-    };
-    target.innerHTML = [
-      ...activeClients.map(renderClientCard),
-      ...(endedClients.length ? [`<h3 class="hired-ended-heading">Ended</h3>`, ...endedClients.map(renderClientCard)] : [])
-    ].join('');
-    renderHiredClientAvatars();
+    $('#hiredCountLabel').hidden = false;
+    target.innerHTML = '<div class="application-empty"><h3>No active clients yet</h3><p>Clients with an active contract will appear here.</p></div>';
+    panel.hidden = false;
     detailPanel.classList.add('hidden');
+    detailPanel.dataset.clientId = '';
   }
+
+  function renderActiveClientCard(item) {
+    const docs = item.documents || [];
+    const contractEnded = isContractEnded(item);
+    const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
+    const endingLabel = contractEnded ? 'Contract ended' : contractEndingLabel(item);
+    const statusLabel = endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active');
+    const statusPillClass = contractEnded ? 'contract-ended'
+      : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
+    const contractDetails = [
+      item.employmentType,
+      activeSinceDate(item) ? `Since ${emailDate(activeSinceDate(item))}` : ''
+    ].filter(Boolean).map(escapeHtml).join(' · ');
+    const initials = clientInitials(item.clientName);
+    const avatarTone = clientAvatarHue(item.clientName);
+    const emailMarkup = item.email ? `<span class="hired-card-email" title="${escapeHtml(item.email)}">${escapeHtml(item.email)}</span>` : '';
+    const websiteMarkup = item.website ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(item.website)}</span></a>` : '';
+    const companyMarkup = item.companyName || item.company
+      ? `<span class="hired-card-company">${escapeHtml(item.companyName || item.company)}</span>`
+      : websiteMarkup;
+    const matchCount = matchingEmailsForApplication(item)
+      .filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent').length;
+    const matchMarkup = matchCount
+      ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>`
+      : '';
+    const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
+    const timeZoneMarkup = timeZone?.localTime
+      ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})`)}</span></span>`
+      : '';
+    const avatarPath = item.profileImage?.storagePath || '';
+    return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}<button class="hired-card-avatar-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${avatarPath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${avatarPath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button><input class="hired-card-avatar-input" type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden /></span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
+      ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
+      ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
+      ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
+      <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View Details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span></span>
+    </article>`;
+  }
+
+  $('#backToHiredList').addEventListener('click', () => {
+    showingHiredClientList = true;
+    renderHired();
+  });
+  $('#hiredSearch').addEventListener('input', renderHired);
+  $('#hiredDateFilter').addEventListener('change', event => {
+    hiredDateFilter = event.target.value;
+    renderHired();
+  });
+  $('#hiredDateSort').addEventListener('change', event => {
+    hiredDateSort = event.target.value;
+    renderHired();
+  });
+  $('#hiredStatusFilter').addEventListener('change', renderHired);
 
   function renderHiredDetail(item, scroll = true) {
     if (!item) return;
+    showingHiredClientList = false;
+    $('#hiredCountLabel').hidden = true;
     hiredEditingId = item.id;
     $('#hiredView').classList.add('client-focused');
     $('#hiredList').innerHTML = '';
+    $('#hiredList').closest('.hired-panel').hidden = true;
     const detailPanel = $('#hiredDetailPanel');
     detailPanel.classList.remove('hidden');
     if (detailPanel.dataset.clientId !== item.id) {
@@ -951,15 +986,13 @@
     $('#documentsFolderStatus').textContent = 'Files are stored securely in your account.';
     renderHiredDocumentWorkspace(item);
     loadClientOnboardingSubmission(item);
+    renderClientTasks(item.id);
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function loadClientOnboardingSubmission(item) {
     const target = $('#activeOnboardingResponse');
     if (!target) return;
-    const inviteButton = $('#sendClientOnboardingLinkButton');
-    const inviteButtonLabel = inviteButton?.querySelector('strong');
-    if (inviteButtonLabel) inviteButtonLabel.textContent = 'Send onboarding form';
     target.dataset.clientId = item.id;
     updateClientOnboardingStatus('Checking status', 'pending');
     target.innerHTML = '<p class="client-onboarding-loading">Loading onboarding details…</p>';
@@ -979,67 +1012,76 @@
       if (submission.timezone) clientTimeZones.set(item.id, submission.timezone);
       else clientTimeZones.delete(item.id);
       updateClientOnlineIndicators();
-      const details = [
-        ['Client contact', submission.contact_name],
-        ['Email', submission.client_email],
-        ['Phone', submission.phone],
-        ['Time zone', submission.timezone]
+      const onboardingParts = [
+        {
+          title: 'Part 1: About you',
+          details: [
+            ['Client contact', submission.contact_name],
+            ['Email', submission.client_email],
+            ['Phone', submission.phone],
+            ['Company or business name', submission.details?.companyName],
+            ['Role or title', submission.details?.role]
+          ]
+        },
+        {
+          title: 'Part 2: Services and communication',
+          details: [
+            ['Services needed', Array.isArray(submission.details?.services) ? submission.details.services.join(', ') : ''],
+            ['Expected hours per week', submission.details?.hoursPerWeek],
+            ['Desired start date', submission.details?.startDate],
+            ['Communication channel', submission.details?.preferredChannel],
+            ['Expected response time', submission.details?.responseTime]
+          ]
+        },
+        {
+          title: 'Part 3: Schedule',
+          details: [
+            ['Time zone', submission.timezone],
+            ['Availability and preferred working hours', submission.availability],
+            ['Holidays or blackout dates', submission.details?.blackoutDates]
+          ]
+        },
+        {
+          title: 'Part 4: Tools and contacts',
+          details: [
+            ['Tools or platforms', submission.tools],
+            ['First-week priorities', submission.priorities],
+            ['Access sharing method', submission.details?.accessMethod],
+            ['Backup contact name', submission.details?.backupName],
+            ['Backup contact email', submission.details?.backupEmail],
+            ['Backup contact phone', submission.details?.backupPhone],
+            ['Approval preferences', submission.details?.approval],
+            ['Confidentiality and terms agreement', submission.details?.agreement ? 'Agreed' : '']
+          ]
+        }
       ];
       target.replaceChildren();
       updateClientOnboardingStatus('Submitted', 'complete');
       const submittedAt = document.createElement('p');
       submittedAt.className = 'active-client-onboarding-submitted';
       submittedAt.textContent = `Submitted ${new Date(submission.submitted_at).toLocaleString()}`;
-      const list = document.createElement('dl');
-      list.className = 'active-client-onboarding-details';
-      details.forEach(([label, value]) => {
-        const wrapper = document.createElement('div');
-        const term = document.createElement('dt');
-        const description = document.createElement('dd');
-        term.textContent = label;
-        description.textContent = value || 'Not provided';
-        wrapper.append(term, description);
-        list.append(wrapper);
+      const parts = document.createElement('div');
+      parts.className = 'active-client-onboarding-parts';
+      onboardingParts.forEach(part => {
+        const section = document.createElement('section');
+        section.className = 'active-client-onboarding-part';
+        const heading = document.createElement('h4');
+        heading.textContent = part.title;
+        const list = document.createElement('dl');
+        list.className = 'active-client-onboarding-details';
+        part.details.forEach(([label, value]) => {
+          const wrapper = document.createElement('div');
+          const term = document.createElement('dt');
+          const description = document.createElement('dd');
+          term.textContent = label;
+          description.textContent = value || 'Not provided';
+          wrapper.append(term, description);
+          list.append(wrapper);
+        });
+        section.append(heading, list);
+        parts.append(section);
       });
-      const additionalDetails = [
-        ['Availability and preferred working hours', submission.availability],
-        ['Tools or platforms', submission.tools],
-        ['First-week priorities', submission.priorities],
-        ['Company or business name', submission.details?.companyName],
-        ['Role or title', submission.details?.role],
-        ['Services needed', Array.isArray(submission.details?.services) ? submission.details.services.join(', ') : ''],
-        ['Expected hours per week', submission.details?.hoursPerWeek],
-        ['Desired start date', submission.details?.startDate],
-        ['Communication channel', submission.details?.preferredChannel],
-        ['Expected response time', submission.details?.responseTime],
-        ['Holidays or blackout dates', submission.details?.blackoutDates],
-        ['Access sharing method', submission.details?.accessMethod],
-        ['Backup contact name', submission.details?.backupName],
-        ['Backup contact email', submission.details?.backupEmail],
-        ['Backup contact phone', submission.details?.backupPhone],
-        ['Approval preferences', submission.details?.approval],
-        ['Confidentiality and terms agreement', submission.details?.agreement ? 'Agreed' : '']
-      ];
-      const detailsDisclosure = document.createElement('details');
-      detailsDisclosure.className = 'client-onboarding-additional';
-      const detailsSummary = document.createElement('summary');
-      detailsSummary.textContent = 'Onboarding answers';
-      const additionalList = document.createElement('dl');
-      additionalList.className = 'active-client-onboarding-details';
-      additionalDetails.forEach(([label, value]) => {
-        const wrapper = document.createElement('div');
-        const term = document.createElement('dt');
-        const description = document.createElement('dd');
-        term.textContent = label;
-        description.textContent = value || 'Not provided';
-        wrapper.append(term, description);
-        additionalList.append(wrapper);
-      });
-      detailsDisclosure.append(detailsSummary, additionalList);
-      target.append(submittedAt, list, detailsDisclosure);
-      const inviteButton = $('#sendClientOnboardingLinkButton');
-      const inviteButtonLabel = inviteButton?.querySelector('strong');
-      if (inviteButtonLabel) inviteButtonLabel.textContent = 'Request corrected onboarding details';
+      target.append(submittedAt, parts);
     } catch (error) {
       console.error('Could not load client onboarding response:', error);
       if (target.dataset.clientId === item.id && hiredEditingId === item.id) {
@@ -1071,6 +1113,7 @@
     detailPanel.querySelectorAll('[data-client-detail-panel]').forEach(panel => {
       panel.hidden = panel.dataset.clientDetailPanel !== tabName;
     });
+    if (tabName === 'tasks') renderClientTasks(hiredEditingId);
   }
 
   function closeHiredDetail(render = true) {
@@ -1181,7 +1224,6 @@
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];
     $('#pageTitle').hidden = false;
-    $('#hiredCountLabel').hidden = view !== 'hired';
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
@@ -1240,9 +1282,10 @@
     return true;
   }
 
-  function openClientModal(id = null, viewOnly = false, activeClientOnly = false) {
+  function openClientModal(id = null, viewOnly = false, activeClientOnly = false, drawerEdit = false, activeClientDetailsEdit = false) {
     const form = $('#clientForm');
     form.reset();
+    activeClientDetailsModalEdit = activeClientDetailsEdit;
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
     viewingClientDetails = viewOnly;
@@ -1342,9 +1385,16 @@
     $('#automaticFollowUp').disabled = activeClientEdit;
     $('#followUpDate').closest('.form-field')?.classList.toggle('hidden', activeClientEdit);
     $('#automaticFollowUp').closest('.follow-up-option')?.classList.toggle('hidden', activeClientEdit);
-    $('#clientModal').showModal();
+    if (drawerEdit) {
+      showActiveClientDrawerView('edit');
+      $('#closeClientDetailsButton').textContent = 'Cancel';
+      markActiveClientDrawerFormClean('edit');
+    } else {
+      $('#clientModal').showModal();
+    }
     updateClientActionLabel();
-    setTimeout(() => $('#clientName').focus(), 30);
+    if (drawerEdit) $('#clientName').focus();
+    else setTimeout(() => $('#clientName').focus(), 30);
   }
 
   function renderClientFollowUpHistory(item, viewOnly) {
@@ -1400,7 +1450,8 @@
     const button = $('#saveClientButton');
     if (!button) return;
     const activeClient = $('#clientStatus').value === 'Active client';
-    button.textContent = activeClient ? 'Next' : (editingId ? 'Save changes' : 'Save application');
+    const activeClientDrawerEdit = isActiveClientDrawerView('edit');
+    button.textContent = activeClient && !activeClientDrawerEdit && !activeClientDetailsModalEdit ? 'Next' : (editingId ? 'Save changes' : 'Save application');
     $$('.contract-field').forEach(field => field.classList.toggle('hidden', !activeClient));
     const activeClientEdit = Boolean(editingId && activeClient && !viewingClientDetails);
     $('#appliedDate').disabled = activeClientEdit;
@@ -1417,10 +1468,12 @@
       field.required = isInterview;
       field.setCustomValidity(isInterview ? '' : '');
     });
-    $('#sendEmailMenuButton').hidden = viewingClientDetails;
+    $('#sendEmailMenuButton').hidden = viewingClientDetails || activeClientDrawerEdit;
     $('#sendClientEmailButton').hidden = false;
     $('#sendEmailMenu').classList.add('hidden');
     $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
+    $('#deleteClientButton').hidden = !editingId || viewingClientDetails || activeClientDrawerEdit;
+    $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
   }
@@ -1496,7 +1549,8 @@
     }
     persist();
     if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
-    $('#clientModal').close();
+    if ($('#clientModal').open) $('#clientModal').close();
+    if (savingInDrawer) closeActiveClientActionsDrawer(true);
     renderAll();
     if (application.status === 'Active client' && application.activePendingDocument) {
       pendingActiveClientId = application.id;
@@ -1527,6 +1581,7 @@
       deleteDocumentBlob(item.profileImage.storagePath).catch(error => console.error('Could not remove the deleted client profile photo:', error));
     }
     $('#clientModal')?.close();
+    if (isActiveClientDrawerOpen()) closeActiveClientActionsDrawer(true);
     editingId = null;
     if (fromActive) closeHiredDetail(false);
     renderAll();

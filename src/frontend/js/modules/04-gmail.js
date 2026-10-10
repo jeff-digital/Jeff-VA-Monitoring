@@ -322,7 +322,7 @@
     $('#composeBody').focus();
   }
 
-  function openPlainClientEmailComposer(application) {
+  function openPlainClientEmailComposer(application, preferDrawer = false) {
     if (!application?.email) {
       toast('Add a client email before sending a message.');
       return;
@@ -344,7 +344,12 @@
       : 'Gmail will connect automatically when you send.');
     updateComposeAttachmentDisplay();
     renderEmailTemplateOptions();
-    $('#emailComposeModal').showModal();
+    if (preferDrawer || isActiveClientDrawerOpen()) {
+      showActiveClientDrawerView('email');
+      markActiveClientDrawerFormClean('email');
+    } else {
+      $('#emailComposeModal').showModal();
+    }
     $('#composeSubject').focus();
   }
 
@@ -690,7 +695,8 @@
         const application = data.applications.find(item => item.id === editingId);
         if (application) renderClientEmailHistory(application);
       }
-      $('#emailComposeModal').close();
+      if (isActiveClientDrawerOpen()) closeActiveClientActionsDrawer(true);
+      else $('#emailComposeModal').close();
       if (activatingClient) {
         showView('hired');
         renderHiredDetail(activatingClient);
@@ -708,7 +714,8 @@
     } catch (error) {
       console.error(error);
       if (gmailAccepted) {
-        $('#emailComposeModal').close();
+        if (isActiveClientDrawerOpen()) closeActiveClientActionsDrawer(true);
+        else $('#emailComposeModal').close();
         showEmailActionResult({
           title: 'Email sent, but history could not update',
           message: 'Gmail accepted the message. Reload the app to refresh the email and invoice history.',

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261007-22" />
+    <link rel="stylesheet" href="css/styles.css?v=20261011-24" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -100,7 +100,7 @@
           <div class="topbar-title-area">
             <div class="topbar-copy">
               <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
-              <h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0</span>
+              <h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span>
               <p class="page-context" id="applicationWeekDate" hidden></p>
               <p class="page-context" id="emailWeekDate" hidden></p>
               <p class="page-context daily-task-header-date" id="dailyTaskHeaderDate" hidden></p>
@@ -304,7 +304,7 @@
             <div><span>Active clients</span><strong id="hiredActiveSummary">0</strong></div>
             <div><span>Ended contracts</span><strong id="hiredEndedSummary">0</strong></div>
           </section>
-          <section class="panel hired-panel">
+          <section class="panel hired-panel" hidden>
             <div class="hired-list" id="hiredList"></div>
           </section>
           <section class="panel hired-detail-panel hidden" id="hiredDetailPanel">
@@ -320,12 +320,13 @@
                 </div>
               </div>
               <div class="hired-detail-heading-actions">
+                <button class="button button-secondary hired-list-back-button" id="backToHiredList" type="button"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All clients</button>
                 <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton">Actions</button>
-                <button class="button button-secondary" type="button" id="closeHiredDetail">All clients</button>
               </div>
             </div>
             <div class="client-detail-tabs" role="tablist" aria-label="Client details">
               <button class="client-detail-tab active" id="clientOverviewTab" type="button" role="tab" aria-selected="true" aria-controls="clientOverviewPanel" data-client-detail-tab="overview">Overview</button>
+              <button class="client-detail-tab" id="clientTasksTab" type="button" role="tab" aria-selected="false" aria-controls="clientTasksPanel" data-client-detail-tab="tasks">Tasks <span class="client-task-tab-count" id="clientTaskTabCount">0</span></button>
               <button class="client-detail-tab" id="clientOnboardingTab" type="button" role="tab" aria-selected="false" aria-controls="clientOnboardingPanel" data-client-detail-tab="onboarding">Onboarding</button>
               <button class="client-detail-tab" id="clientContractInfoTab" type="button" role="tab" aria-selected="false" aria-controls="clientContractsPanel" data-client-detail-tab="contract-info">Contract Info</button>
               <button class="client-detail-tab" id="clientInvoicesTab" type="button" role="tab" aria-selected="false" aria-controls="clientInvoicesPanel" data-client-detail-tab="invoices">Invoices</button>
@@ -338,6 +339,26 @@
                   <div class="client-detail-section-heading"><div><p class="eyebrow">PROFILE</p><h3 id="clientDetailsTitle">Client Details</h3></div></div>
                   <div class="hired-detail-grid hired-detail-sections" id="hiredDetailGrid"></div>
                 </section>
+              </section>
+              <section class="client-detail-panel client-tasks-panel" id="clientTasksPanel" role="tabpanel" tabindex="0" aria-labelledby="clientTasksTab" data-client-detail-panel="tasks" hidden>
+                <div class="client-tasks-contract-notice" id="clientTasksContractNotice" role="status" hidden><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>This contract has ended. New tasks and timers are disabled.</span></div>
+                <div class="client-task-summary" aria-label="Task summary">
+                  <div class="client-task-summary-card"><span>Open tasks</span><strong id="clientTaskOpenCount">0</strong></div>
+                  <div class="client-task-summary-card"><span>Due this week</span><strong id="clientTaskWeekCount">0</strong></div>
+                  <div class="client-task-summary-card"><span>Hours this month</span><strong id="clientTaskMonthHours">0m</strong></div>
+                  <div class="client-task-summary-card"><span>Overdue</span><strong id="clientTaskOverdueCount">0</strong></div>
+                </div>
+                <div class="client-task-toolbar">
+                  <div class="client-task-filters">
+                    <label class="client-task-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="clientTaskSearch" type="search" aria-label="Search client tasks" placeholder="Search tasks" /></label>
+                    <label class="sr-only" for="clientTaskStatusFilter">Filter tasks by status</label>
+                    <select id="clientTaskStatusFilter" aria-label="Filter tasks by status"><option value="all">All statuses</option><option value="todo">To do</option><option value="in-progress">In progress</option><option value="done">Done</option></select>
+                    <label class="sr-only" for="clientTaskPriorityFilter">Filter tasks by priority</label>
+                    <select id="clientTaskPriorityFilter" aria-label="Filter tasks by priority"><option value="all">All priorities</option><option value="High">High priority</option><option value="Medium">Medium priority</option><option value="Low">Low priority</option></select>
+                  </div>
+                  <button class="button button-primary client-task-new-button" id="newClientTaskButton" type="button"><i class="fa-solid fa-plus" aria-hidden="true"></i> New task</button>
+                </div>
+                <div class="client-task-groups" id="clientTaskGroups" aria-live="polite"></div>
               </section>
               <section class="client-detail-panel" id="clientOnboardingPanel" role="tabpanel" tabindex="0" aria-labelledby="clientOnboardingTab" data-client-detail-panel="onboarding" hidden>
                 <section class="active-client-onboarding" aria-labelledby="activeClientOnboardingTitle">
@@ -943,32 +964,111 @@
       </form>
     </dialog>
 
-    <dialog class="modal active-client-actions-modal" id="activeClientActionsModal" aria-labelledby="activeClientActionsTitle" aria-describedby="activeClientActionsDescription">
-      <form method="dialog">
-        <div class="modal-heading">
-          <div><p class="eyebrow">ACTIVE CLIENT</p><h2 id="activeClientActionsTitle">Choose an action</h2><p id="activeClientActionsDescription">What would you like to do?</p></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close actions">×</button>
+    <div class="client-task-drawer-layer" id="clientTaskDrawerLayer" hidden aria-hidden="true">
+      <button class="client-task-drawer-backdrop" id="clientTaskDrawerBackdrop" type="button" aria-label="Close task editor"></button>
+      <aside class="client-task-drawer" id="clientTaskDrawer" role="dialog" aria-modal="true" aria-labelledby="clientTaskDrawerTitle" tabindex="-1">
+        <header class="client-task-drawer-header">
+          <div><p class="eyebrow">ACTIVE CLIENT</p><h2 id="clientTaskDrawerTitle">New task</h2><p id="clientTaskDrawerClientName"></p></div>
+          <button class="icon-button" id="closeClientTaskDrawer" type="button" aria-label="Close task editor">×</button>
+        </header>
+        <form id="clientTaskForm" class="client-task-drawer-form">
+          <div class="client-task-drawer-fields">
+            <label class="form-field">Title <span class="required">*</span><input id="clientTaskTitle" maxlength="160" required placeholder="What needs to get done?" /></label>
+            <div class="client-task-form-grid">
+              <label class="form-field">Category
+                <select id="clientTaskCategory"><option>Graphic Design</option><option>Social Media</option><option>Email Marketing</option><option>Digital Marketing</option><option>Web Development</option><option>Other</option></select>
+              </label>
+              <label class="form-field">Priority
+                <select id="clientTaskPriority"><option>Medium</option><option>Low</option><option>High</option></select>
+              </label>
+            </div>
+            <div class="client-task-form-grid">
+              <label class="form-field">Due date<input id="clientTaskDueDate" type="date" /></label>
+              <label class="form-field">Estimated time<input id="clientTaskEstimate" type="number" min="0" max="10000" step="5" placeholder="Minutes" /></label>
+            </div>
+            <label class="form-field">Notes<textarea id="clientTaskNotes" rows="4" maxlength="3000" placeholder="Add task details or context"></textarea></label>
+            <label class="form-field">Repeat
+              <select id="clientTaskRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
+            </label>
+            <fieldset class="client-task-weekdays" id="clientTaskWeekdays" hidden>
+              <legend>Repeat on</legend>
+              <label><input type="checkbox" value="1" /><span>Mon</span></label><label><input type="checkbox" value="2" /><span>Tue</span></label><label><input type="checkbox" value="3" /><span>Wed</span></label><label><input type="checkbox" value="4" /><span>Thu</span></label><label><input type="checkbox" value="5" /><span>Fri</span></label><label><input type="checkbox" value="6" /><span>Sat</span></label><label><input type="checkbox" value="0" /><span>Sun</span></label>
+            </fieldset>
+            <label class="form-field" id="clientTaskMonthDayField" hidden>Repeat on day
+              <select id="clientTaskMonthDay"></select>
+            </label>
+            <p class="client-task-repeat-preview" id="clientTaskRepeatPreview" aria-live="polite"></p>
+            <section class="client-task-time-editor" id="clientTaskTimeEditor" hidden aria-labelledby="clientTaskTimeTitle">
+              <div class="client-task-time-heading"><h3 id="clientTaskTimeTitle">Time entries</h3><strong id="clientTaskTotalTime">0m total</strong></div>
+              <div class="client-task-manual-entry">
+                <label class="form-field">Start<input id="clientTaskManualStart" type="datetime-local" /></label>
+                <label class="form-field">End<input id="clientTaskManualEnd" type="datetime-local" /></label>
+                <button class="button button-secondary" id="addClientTaskTimeEntry" type="button">Add entry</button>
+              </div>
+              <div class="client-task-time-entry-list" id="clientTaskTimeEntryList"></div>
+            </section>
+          </div>
+          <footer class="client-task-drawer-footer">
+            <button class="button button-secondary" id="cancelClientTaskDrawer" type="button">Cancel</button>
+            <button class="button button-primary" id="saveClientTaskButton" type="submit">Save task</button>
+          </footer>
+        </form>
+      </aside>
+    </div>
+    <div class="active-client-drawer-layer" id="activeClientDrawerLayer" hidden aria-hidden="true">
+      <button class="active-client-drawer-backdrop" id="activeClientDrawerBackdrop" type="button" aria-label="Close client actions"></button>
+      <aside class="active-client-drawer" id="activeClientDrawer" role="dialog" aria-modal="true" aria-labelledby="activeClientActionsTitle" tabindex="-1">
+        <header class="active-client-drawer-header">
+          <button class="active-client-drawer-back" id="activeClientDrawerBack" type="button" hidden><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</button>
+          <div class="active-client-drawer-heading">
+            <p class="eyebrow">ACTIVE CLIENT</p>
+            <h2 id="activeClientActionsTitle">Actions</h2>
+            <p id="activeClientDrawerClientName"></p>
+          </div>
+          <button class="icon-button active-client-drawer-close" id="closeActiveClientDrawer" type="button" aria-label="Close actions">×</button>
+        </header>
+        <div class="active-client-drawer-list" id="activeClientDrawerList">
+          <button class="active-client-action-row" type="button" data-active-client-action="email">
+            <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
+            <span class="active-client-action-row-copy"><strong>Send email</strong><small>Write a message to this client.</small></span>
+            <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+          </button>
+          <button class="active-client-action-row" type="button" data-active-client-action="onboarding">
+            <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-clipboard"></i></span>
+            <span class="active-client-action-row-copy"><strong>Request corrected onboarding details</strong><small>Create a private form link for this client.</small></span>
+            <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+          </button>
+          <button class="active-client-action-row" type="button" data-active-client-action="edit">
+            <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-pen-to-square"></i></span>
+            <span class="active-client-action-row-copy"><strong>Edit details</strong><small>Update this client's information.</small></span>
+            <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+          </button>
         </div>
-        <div class="active-client-action-cards">
-          <button class="active-client-action-card" type="button" id="sendActiveClientEmailButton">
-            <span class="active-client-action-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
-            <strong>Send email</strong>
-            <span>Write a message to this client.</span>
-          </button>
-          <button class="active-client-action-card" type="button" id="sendClientOnboardingLinkButton">
-            <span class="active-client-action-icon" aria-hidden="true"><i class="fa-regular fa-clipboard"></i></span>
-            <strong>Send onboarding form</strong>
-            <span>Create a private form link for this client.</span>
-          </button>
-          <button class="active-client-action-card" type="button" id="editActiveClientButton">
-            <span class="active-client-action-icon" aria-hidden="true"><i class="fa-regular fa-pen-to-square"></i></span>
-            <strong>Edit details</strong>
-            <span>Update this client's information.</span>
-          </button>
-        </div>
-        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button></div>
-      </form>
-    </dialog>
+        <section class="active-client-drawer-view" id="activeClientDrawerEmailView" hidden>
+          <div id="activeClientDrawerEmailSlot"></div>
+        </section>
+        <section class="active-client-drawer-view" id="activeClientDrawerOnboardingView" hidden>
+          <div class="active-client-drawer-view-content">
+            <p class="active-client-drawer-description">Create a private link for the client to review and correct their onboarding details.</p>
+            <div class="active-client-generated-link" id="activeClientGeneratedLink" hidden>
+              <label class="form-field" for="activeClientOnboardingUrl">Private onboarding link</label>
+              <div class="active-client-generated-link-row">
+                <input id="activeClientOnboardingUrl" type="url" readonly aria-label="Private onboarding link" />
+                <button class="button button-secondary" type="button" id="copyActiveClientOnboardingUrl">Copy</button>
+              </div>
+            </div>
+            <p class="compose-status" id="activeClientOnboardingStatus" role="status" aria-live="polite"></p>
+          </div>
+          <footer class="active-client-drawer-footer">
+            <button class="button button-secondary active-client-drawer-cancel" type="button">Cancel</button>
+            <button class="button button-primary" type="button" id="generateClientOnboardingLinkButton">Generate link</button>
+          </footer>
+        </section>
+        <section class="active-client-drawer-view" id="activeClientDrawerEditView" hidden>
+          <div id="activeClientDrawerClientFormSlot"></div>
+        </section>
+      </aside>
+    </div>
 
     <dialog class="modal document-viewer-modal" id="documentViewerModal" aria-labelledby="documentViewerTitle">
       <form method="dialog">
@@ -1086,6 +1186,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261007-39"></script>
+    <script src="js/app.js?v=20261011-43"></script>
   </body>
 </html>

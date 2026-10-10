@@ -8,7 +8,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -546,6 +546,7 @@
       applications: Array.isArray(saved.applications) ? saved.applications : [],
       toApply: Array.isArray(saved.toApply) ? saved.toApply : [],
       dailyTasks: Array.isArray(saved.dailyTasks) ? saved.dailyTasks : [],
+      clientTasks: Array.isArray(saved.clientTasks) ? saved.clientTasks : [],
       emails: dedupeEmails(Array.isArray(saved.emails) ? saved.emails : []).filter(item => !(item.source === 'gmail' && deletedGmailIdSet.has(item.gmailId))),
       deletedGmailIds,
       accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],
@@ -962,6 +963,7 @@
   let applicationEmailSummaryCache = null;
   let applicationMatchIndex = [];
   let applicationMatchIndexSignature = '';
+  let activeClientDetailsModalEdit = false;
 
   function applicationMatchSignature(applications = data.applications || []) {
     return (applications || []).map(application => [
@@ -1424,6 +1426,7 @@
   function saveToApply(event) {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault();
+    const savingInDrawer = isActiveClientDrawerView('edit');
     const form = $('#toApplyForm');
     if (!form.reportValidity()) return;
     data.toApply = data.toApply || [];
@@ -1701,93 +1704,126 @@
     if (!document.hidden) updateClientOnlineIndicators();
   });
 
+  let showingHiredClientList = false;
+
   function renderHired() {
-    const query = $('#hiredSearch').value.trim().toLowerCase();
-    const filter = $('#hiredStatusFilter')?.value || 'all';
-    const dateFilter = $('#hiredDateFilter').value;
     const allHired = sortByDate(hiredClients(), activeSinceDate, hiredDateSort);
-    const filteredClients = allHired.filter(item => {
+    const query = $('#hiredSearch').value.trim().toLowerCase();
+    const filter = $('#hiredStatusFilter').value;
+    const dateFilter = $('#hiredDateFilter').value;
+    const clients = allHired.filter(item => {
       const contractStatus = isContractEnded(item) ? 'Contract Ended' : (item.contractStatus || 'Active');
-      const text = [item.clientName, item.email, item.phone, item.website, item.socialMedia, item.location, contractStatus].join(' ').toLowerCase();
-      const statusMatch = filter === 'all' || contractStatus === filter;
-      return statusMatch && (!query || text.includes(query)) && (!dateFilter || dateKey(activeSinceDate(item)) === dateFilter);
+      const searchableText = [
+        item.clientName, item.email, item.phone, item.website, item.socialMedia, item.location,
+        item.companyName, item.company, item.role, contractStatus
+      ].join(' ').toLowerCase();
+      return (filter === 'all' || contractStatus === filter)
+        && (!query || searchableText.includes(query))
+        && (!dateFilter || dateKey(activeSinceDate(item)) === dateFilter);
     });
-    const clients = filteredClients.sort((first, second) => Number(isContractEnded(first)) - Number(isContractEnded(second)));
-    const activeClients = clients.filter(item => !isContractEnded(item));
+    const nonEndedClients = clients.filter(item => !isContractEnded(item));
     const endedClients = clients.filter(isContractEnded);
-    $('#hiredCountLabel').textContent = clients.filter(isActiveContract).length;
-    $('#hiredActiveSummary').textContent = allHired.filter(isActiveContract).length;
-    $('#hiredEndedSummary').textContent = allHired.filter(isContractEnded).length;
     const target = $('#hiredList');
     const detailPanel = $('#hiredDetailPanel');
     const hiredView = $('#hiredView');
+    const panel = target.closest('.hired-panel');
+    const allActiveClients = allHired.filter(isActiveContract);
+    const allEndedClients = allHired.filter(isContractEnded);
+    $('#hiredCountLabel').textContent = `${allHired.length} ${allHired.length === 1 ? 'client' : 'clients'}`;
+    $('#hiredActiveSummary').textContent = String(allActiveClients.length);
+    $('#hiredEndedSummary').textContent = String(allEndedClients.length);
+    const selected = allHired.find(item => item.id === hiredEditingId && isActiveContract(item))
+      || allActiveClients[0];
+    if (!selected && allHired.length) showingHiredClientList = true;
 
-    // Once a client is selected, keep the workspace focused on that one client.
-    const selected = hiredEditingId ? clients.find(item => item.id === hiredEditingId) : null;
+    if (showingHiredClientList) {
+      hiredView.classList.remove('client-focused');
+      $('#hiredCountLabel').hidden = false;
+      detailPanel.classList.add('hidden');
+      detailPanel.dataset.clientId = '';
+      panel.hidden = false;
+      target.innerHTML = clients.length
+        ? [
+          ...nonEndedClients.map(renderActiveClientCard),
+          ...(endedClients.length ? ['<h3 class="hired-ended-heading">Ended</h3>', ...endedClients.map(renderActiveClientCard)] : [])
+        ].join('')
+        : `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
+      renderHiredClientAvatars();
+      return;
+    }
     if (selected) {
-      hiredView.classList.add('client-focused');
-      target.innerHTML = '';
-      detailPanel.classList.remove('hidden');
       renderHiredDetail(selected, false);
       return;
     }
     hiredView.classList.remove('client-focused');
-
-    if (!clients.length) {
-      const hasAny = allHired.length > 0;
-      target.innerHTML = `<div class="application-empty"><h3>${hasAny ? 'No matching clients' : 'No active clients yet'}</h3><p>${hasAny ? 'Try another search or contract status.' : 'Mark an application as “Active client” in your tracker and it will appear here.'}</p>${hasAny ? '' : '<button class="button button-primary" type="button" data-go-to="applications">Go to applications</button>'}</div>`;
-      closeHiredDetail(false);
-      return;
-    }
-    const renderClientCard = item => {
-      const docs = item.documents || [];
-      const contractEnded = isContractEnded(item);
-      const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
-      const endingLabel = contractEndingLabel(item);
-      const statusLabel = contractEnded ? 'Contract ended' : (endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active'));
-      const statusPillClass = contractEnded ? 'contract-ended' : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
-      const activeDate = activeSinceDate(item);
-      const contractDetails = [
-        item.employmentType,
-        activeDate ? `Since ${emailDate(activeDate)}` : ''
-      ].filter(Boolean).map(escapeHtml).join(' · ');
-      const initials = clientInitials(item.clientName);
-      const avatarTone = clientAvatarHue(item.clientName);
-      const emailMarkup = item.email ? `<span class="hired-card-email" title="${escapeHtml(item.email)}">${escapeHtml(item.email)}</span>` : '';
-      const websiteMarkup = item.website ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(item.website)}</span></a>` : '';
-      const companyName = item.companyName || item.company || '';
-      const companyMarkup = companyName
-        ? `<span class="hired-card-company">${escapeHtml(companyName)}</span>`
-        : websiteMarkup;
-      const matchingIncomingEmails = matchingEmailsForApplication(item).filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent');
-      const matchCount = matchingIncomingEmails.length;
-      const matchMarkup = matchCount ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>` : '';
-      const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
-      const timeZoneMarkup = timeZone?.localTime
-        ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})`)}</span></span>`
-        : '';
-      const avatarPath = item.profileImage?.storagePath || '';
-      return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-        <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}<button class="hired-card-avatar-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${avatarPath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${avatarPath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button><input class="hired-card-avatar-input" type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden /></span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
-        ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
-        ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
-        ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
-        <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View Details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span></span>
-      </article>`;
-    };
-    target.innerHTML = [
-      ...activeClients.map(renderClientCard),
-      ...(endedClients.length ? [`<h3 class="hired-ended-heading">Ended</h3>`, ...endedClients.map(renderClientCard)] : [])
-    ].join('');
-    renderHiredClientAvatars();
+    $('#hiredCountLabel').hidden = false;
+    target.innerHTML = '<div class="application-empty"><h3>No active clients yet</h3><p>Clients with an active contract will appear here.</p></div>';
+    panel.hidden = false;
     detailPanel.classList.add('hidden');
+    detailPanel.dataset.clientId = '';
   }
+
+  function renderActiveClientCard(item) {
+    const docs = item.documents || [];
+    const contractEnded = isContractEnded(item);
+    const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
+    const endingLabel = contractEnded ? 'Contract ended' : contractEndingLabel(item);
+    const statusLabel = endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active');
+    const statusPillClass = contractEnded ? 'contract-ended'
+      : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
+    const contractDetails = [
+      item.employmentType,
+      activeSinceDate(item) ? `Since ${emailDate(activeSinceDate(item))}` : ''
+    ].filter(Boolean).map(escapeHtml).join(' · ');
+    const initials = clientInitials(item.clientName);
+    const avatarTone = clientAvatarHue(item.clientName);
+    const emailMarkup = item.email ? `<span class="hired-card-email" title="${escapeHtml(item.email)}">${escapeHtml(item.email)}</span>` : '';
+    const websiteMarkup = item.website ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(item.website)}</span></a>` : '';
+    const companyMarkup = item.companyName || item.company
+      ? `<span class="hired-card-company">${escapeHtml(item.companyName || item.company)}</span>`
+      : websiteMarkup;
+    const matchCount = matchingEmailsForApplication(item)
+      .filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent').length;
+    const matchMarkup = matchCount
+      ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>`
+      : '';
+    const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
+    const timeZoneMarkup = timeZone?.localTime
+      ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})`)}</span></span>`
+      : '';
+    const avatarPath = item.profileImage?.storagePath || '';
+    return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}<button class="hired-card-avatar-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${avatarPath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${avatarPath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button><input class="hired-card-avatar-input" type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden /></span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
+      ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
+      ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
+      ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
+      <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View Details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span></span>
+    </article>`;
+  }
+
+  $('#backToHiredList').addEventListener('click', () => {
+    showingHiredClientList = true;
+    renderHired();
+  });
+  $('#hiredSearch').addEventListener('input', renderHired);
+  $('#hiredDateFilter').addEventListener('change', event => {
+    hiredDateFilter = event.target.value;
+    renderHired();
+  });
+  $('#hiredDateSort').addEventListener('change', event => {
+    hiredDateSort = event.target.value;
+    renderHired();
+  });
+  $('#hiredStatusFilter').addEventListener('change', renderHired);
 
   function renderHiredDetail(item, scroll = true) {
     if (!item) return;
+    showingHiredClientList = false;
+    $('#hiredCountLabel').hidden = true;
     hiredEditingId = item.id;
     $('#hiredView').classList.add('client-focused');
     $('#hiredList').innerHTML = '';
+    $('#hiredList').closest('.hired-panel').hidden = true;
     const detailPanel = $('#hiredDetailPanel');
     detailPanel.classList.remove('hidden');
     if (detailPanel.dataset.clientId !== item.id) {
@@ -1892,15 +1928,13 @@
     $('#documentsFolderStatus').textContent = 'Files are stored securely in your account.';
     renderHiredDocumentWorkspace(item);
     loadClientOnboardingSubmission(item);
+    renderClientTasks(item.id);
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function loadClientOnboardingSubmission(item) {
     const target = $('#activeOnboardingResponse');
     if (!target) return;
-    const inviteButton = $('#sendClientOnboardingLinkButton');
-    const inviteButtonLabel = inviteButton?.querySelector('strong');
-    if (inviteButtonLabel) inviteButtonLabel.textContent = 'Send onboarding form';
     target.dataset.clientId = item.id;
     updateClientOnboardingStatus('Checking status', 'pending');
     target.innerHTML = '<p class="client-onboarding-loading">Loading onboarding details…</p>';
@@ -1920,67 +1954,76 @@
       if (submission.timezone) clientTimeZones.set(item.id, submission.timezone);
       else clientTimeZones.delete(item.id);
       updateClientOnlineIndicators();
-      const details = [
-        ['Client contact', submission.contact_name],
-        ['Email', submission.client_email],
-        ['Phone', submission.phone],
-        ['Time zone', submission.timezone]
+      const onboardingParts = [
+        {
+          title: 'Part 1: About you',
+          details: [
+            ['Client contact', submission.contact_name],
+            ['Email', submission.client_email],
+            ['Phone', submission.phone],
+            ['Company or business name', submission.details?.companyName],
+            ['Role or title', submission.details?.role]
+          ]
+        },
+        {
+          title: 'Part 2: Services and communication',
+          details: [
+            ['Services needed', Array.isArray(submission.details?.services) ? submission.details.services.join(', ') : ''],
+            ['Expected hours per week', submission.details?.hoursPerWeek],
+            ['Desired start date', submission.details?.startDate],
+            ['Communication channel', submission.details?.preferredChannel],
+            ['Expected response time', submission.details?.responseTime]
+          ]
+        },
+        {
+          title: 'Part 3: Schedule',
+          details: [
+            ['Time zone', submission.timezone],
+            ['Availability and preferred working hours', submission.availability],
+            ['Holidays or blackout dates', submission.details?.blackoutDates]
+          ]
+        },
+        {
+          title: 'Part 4: Tools and contacts',
+          details: [
+            ['Tools or platforms', submission.tools],
+            ['First-week priorities', submission.priorities],
+            ['Access sharing method', submission.details?.accessMethod],
+            ['Backup contact name', submission.details?.backupName],
+            ['Backup contact email', submission.details?.backupEmail],
+            ['Backup contact phone', submission.details?.backupPhone],
+            ['Approval preferences', submission.details?.approval],
+            ['Confidentiality and terms agreement', submission.details?.agreement ? 'Agreed' : '']
+          ]
+        }
       ];
       target.replaceChildren();
       updateClientOnboardingStatus('Submitted', 'complete');
       const submittedAt = document.createElement('p');
       submittedAt.className = 'active-client-onboarding-submitted';
       submittedAt.textContent = `Submitted ${new Date(submission.submitted_at).toLocaleString()}`;
-      const list = document.createElement('dl');
-      list.className = 'active-client-onboarding-details';
-      details.forEach(([label, value]) => {
-        const wrapper = document.createElement('div');
-        const term = document.createElement('dt');
-        const description = document.createElement('dd');
-        term.textContent = label;
-        description.textContent = value || 'Not provided';
-        wrapper.append(term, description);
-        list.append(wrapper);
+      const parts = document.createElement('div');
+      parts.className = 'active-client-onboarding-parts';
+      onboardingParts.forEach(part => {
+        const section = document.createElement('section');
+        section.className = 'active-client-onboarding-part';
+        const heading = document.createElement('h4');
+        heading.textContent = part.title;
+        const list = document.createElement('dl');
+        list.className = 'active-client-onboarding-details';
+        part.details.forEach(([label, value]) => {
+          const wrapper = document.createElement('div');
+          const term = document.createElement('dt');
+          const description = document.createElement('dd');
+          term.textContent = label;
+          description.textContent = value || 'Not provided';
+          wrapper.append(term, description);
+          list.append(wrapper);
+        });
+        section.append(heading, list);
+        parts.append(section);
       });
-      const additionalDetails = [
-        ['Availability and preferred working hours', submission.availability],
-        ['Tools or platforms', submission.tools],
-        ['First-week priorities', submission.priorities],
-        ['Company or business name', submission.details?.companyName],
-        ['Role or title', submission.details?.role],
-        ['Services needed', Array.isArray(submission.details?.services) ? submission.details.services.join(', ') : ''],
-        ['Expected hours per week', submission.details?.hoursPerWeek],
-        ['Desired start date', submission.details?.startDate],
-        ['Communication channel', submission.details?.preferredChannel],
-        ['Expected response time', submission.details?.responseTime],
-        ['Holidays or blackout dates', submission.details?.blackoutDates],
-        ['Access sharing method', submission.details?.accessMethod],
-        ['Backup contact name', submission.details?.backupName],
-        ['Backup contact email', submission.details?.backupEmail],
-        ['Backup contact phone', submission.details?.backupPhone],
-        ['Approval preferences', submission.details?.approval],
-        ['Confidentiality and terms agreement', submission.details?.agreement ? 'Agreed' : '']
-      ];
-      const detailsDisclosure = document.createElement('details');
-      detailsDisclosure.className = 'client-onboarding-additional';
-      const detailsSummary = document.createElement('summary');
-      detailsSummary.textContent = 'Onboarding answers';
-      const additionalList = document.createElement('dl');
-      additionalList.className = 'active-client-onboarding-details';
-      additionalDetails.forEach(([label, value]) => {
-        const wrapper = document.createElement('div');
-        const term = document.createElement('dt');
-        const description = document.createElement('dd');
-        term.textContent = label;
-        description.textContent = value || 'Not provided';
-        wrapper.append(term, description);
-        additionalList.append(wrapper);
-      });
-      detailsDisclosure.append(detailsSummary, additionalList);
-      target.append(submittedAt, list, detailsDisclosure);
-      const inviteButton = $('#sendClientOnboardingLinkButton');
-      const inviteButtonLabel = inviteButton?.querySelector('strong');
-      if (inviteButtonLabel) inviteButtonLabel.textContent = 'Request corrected onboarding details';
+      target.append(submittedAt, parts);
     } catch (error) {
       console.error('Could not load client onboarding response:', error);
       if (target.dataset.clientId === item.id && hiredEditingId === item.id) {
@@ -2012,6 +2055,7 @@
     detailPanel.querySelectorAll('[data-client-detail-panel]').forEach(panel => {
       panel.hidden = panel.dataset.clientDetailPanel !== tabName;
     });
+    if (tabName === 'tasks') renderClientTasks(hiredEditingId);
   }
 
   function closeHiredDetail(render = true) {
@@ -2122,7 +2166,6 @@
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];
     $('#pageTitle').hidden = false;
-    $('#hiredCountLabel').hidden = view !== 'hired';
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
@@ -2181,9 +2224,10 @@
     return true;
   }
 
-  function openClientModal(id = null, viewOnly = false, activeClientOnly = false) {
+  function openClientModal(id = null, viewOnly = false, activeClientOnly = false, drawerEdit = false, activeClientDetailsEdit = false) {
     const form = $('#clientForm');
     form.reset();
+    activeClientDetailsModalEdit = activeClientDetailsEdit;
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
     viewingClientDetails = viewOnly;
@@ -2283,9 +2327,16 @@
     $('#automaticFollowUp').disabled = activeClientEdit;
     $('#followUpDate').closest('.form-field')?.classList.toggle('hidden', activeClientEdit);
     $('#automaticFollowUp').closest('.follow-up-option')?.classList.toggle('hidden', activeClientEdit);
-    $('#clientModal').showModal();
+    if (drawerEdit) {
+      showActiveClientDrawerView('edit');
+      $('#closeClientDetailsButton').textContent = 'Cancel';
+      markActiveClientDrawerFormClean('edit');
+    } else {
+      $('#clientModal').showModal();
+    }
     updateClientActionLabel();
-    setTimeout(() => $('#clientName').focus(), 30);
+    if (drawerEdit) $('#clientName').focus();
+    else setTimeout(() => $('#clientName').focus(), 30);
   }
 
   function renderClientFollowUpHistory(item, viewOnly) {
@@ -2341,7 +2392,8 @@
     const button = $('#saveClientButton');
     if (!button) return;
     const activeClient = $('#clientStatus').value === 'Active client';
-    button.textContent = activeClient ? 'Next' : (editingId ? 'Save changes' : 'Save application');
+    const activeClientDrawerEdit = isActiveClientDrawerView('edit');
+    button.textContent = activeClient && !activeClientDrawerEdit && !activeClientDetailsModalEdit ? 'Next' : (editingId ? 'Save changes' : 'Save application');
     $$('.contract-field').forEach(field => field.classList.toggle('hidden', !activeClient));
     const activeClientEdit = Boolean(editingId && activeClient && !viewingClientDetails);
     $('#appliedDate').disabled = activeClientEdit;
@@ -2358,10 +2410,12 @@
       field.required = isInterview;
       field.setCustomValidity(isInterview ? '' : '');
     });
-    $('#sendEmailMenuButton').hidden = viewingClientDetails;
+    $('#sendEmailMenuButton').hidden = viewingClientDetails || activeClientDrawerEdit;
     $('#sendClientEmailButton').hidden = false;
     $('#sendEmailMenu').classList.add('hidden');
     $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
+    $('#deleteClientButton').hidden = !editingId || viewingClientDetails || activeClientDrawerEdit;
+    $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
   }
@@ -2437,7 +2491,8 @@
     }
     persist();
     if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
-    $('#clientModal').close();
+    if ($('#clientModal').open) $('#clientModal').close();
+    if (savingInDrawer) closeActiveClientActionsDrawer(true);
     renderAll();
     if (application.status === 'Active client' && application.activePendingDocument) {
       pendingActiveClientId = application.id;
@@ -2468,6 +2523,7 @@
       deleteDocumentBlob(item.profileImage.storagePath).catch(error => console.error('Could not remove the deleted client profile photo:', error));
     }
     $('#clientModal')?.close();
+    if (isActiveClientDrawerOpen()) closeActiveClientActionsDrawer(true);
     editingId = null;
     if (fromActive) closeHiredDetail(false);
     renderAll();
@@ -4161,7 +4217,7 @@
     $('#composeBody').focus();
   }
 
-  function openPlainClientEmailComposer(application) {
+  function openPlainClientEmailComposer(application, preferDrawer = false) {
     if (!application?.email) {
       toast('Add a client email before sending a message.');
       return;
@@ -4183,7 +4239,12 @@
       : 'Gmail will connect automatically when you send.');
     updateComposeAttachmentDisplay();
     renderEmailTemplateOptions();
-    $('#emailComposeModal').showModal();
+    if (preferDrawer || isActiveClientDrawerOpen()) {
+      showActiveClientDrawerView('email');
+      markActiveClientDrawerFormClean('email');
+    } else {
+      $('#emailComposeModal').showModal();
+    }
     $('#composeSubject').focus();
   }
 
@@ -4529,7 +4590,8 @@
         const application = data.applications.find(item => item.id === editingId);
         if (application) renderClientEmailHistory(application);
       }
-      $('#emailComposeModal').close();
+      if (isActiveClientDrawerOpen()) closeActiveClientActionsDrawer(true);
+      else $('#emailComposeModal').close();
       if (activatingClient) {
         showView('hired');
         renderHiredDetail(activatingClient);
@@ -4547,7 +4609,8 @@
     } catch (error) {
       console.error(error);
       if (gmailAccepted) {
-        $('#emailComposeModal').close();
+        if (isActiveClientDrawerOpen()) closeActiveClientActionsDrawer(true);
+        else $('#emailComposeModal').close();
         showEmailActionResult({
           title: 'Email sent, but history could not update',
           message: 'Gmail accepted the message. Reload the app to refresh the email and invoice history.',
@@ -5954,6 +6017,210 @@
     renderDailyTaskDraftChecklist();
   });
   // Active Clients page controls, including its document and invoice tools.
+  let activeClientDrawerOpen = false;
+  let activeClientDrawerView = 'list';
+  let activeClientDrawerReturnFocus = null;
+  let activeClientDrawerCloseTimer = null;
+  const activeClientDrawerBaselines = new Map();
+
+  function isActiveClientDrawerOpen() {
+    return activeClientDrawerOpen;
+  }
+
+  function isActiveClientDrawerView(view) {
+    return activeClientDrawerOpen && activeClientDrawerView === view;
+  }
+
+  function activeClientDrawerFormSnapshot(form) {
+    return JSON.stringify([...form.elements].map(field => ({
+      id: field.id,
+      type: field.type,
+      value: field.type === 'checkbox' || field.type === 'radio'
+        ? field.checked
+        : field.type === 'file'
+          ? [...(field.files || [])].map(file => file.name)
+          : field.value
+    })));
+  }
+
+  function activeClientDrawerFormChanged(view) {
+    const baseline = activeClientDrawerBaselines.get(view);
+    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    return Boolean(baseline && form && activeClientDrawerFormSnapshot(form) !== baseline);
+  }
+
+  function markActiveClientDrawerFormClean(view) {
+    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    if (form) activeClientDrawerBaselines.set(view, activeClientDrawerFormSnapshot(form));
+  }
+
+  function resetActiveClientDrawerForm(view) {
+    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const baseline = activeClientDrawerBaselines.get(view);
+    if (!form || !baseline) return;
+    const values = JSON.parse(baseline);
+    [...form.elements].forEach((field, index) => {
+      const initial = values[index];
+      if (!initial) return;
+      if (field.type === 'file') {
+        field.value = '';
+        return;
+      }
+      if (field.type === 'checkbox' || field.type === 'radio') field.checked = initial.value;
+      else field.value = initial.value;
+    });
+  }
+
+  function mountActiveClientDrawerForm(formId, slotId) {
+    const form = $(`#${formId}`);
+    const slot = $(`#${slotId}`);
+    if (!form || !slot || form.parentElement === slot) return;
+    form.dataset.drawerOriginalMethod = form.getAttribute('method') || '';
+    form.setAttribute('method', 'post');
+    slot.append(form);
+    if (formId === 'emailComposeForm') $('#sendEmailButton').textContent = 'Send';
+    if (formId === 'clientForm') $('#closeClientDetailsButton').textContent = 'Cancel';
+  }
+
+  function restoreActiveClientDrawerForms() {
+    [
+      ['emailComposeForm', 'emailComposeModal'],
+      ['clientForm', 'clientModal']
+    ].forEach(([formId, modalId]) => {
+      const form = $(`#${formId}`);
+      const modal = $(`#${modalId}`);
+      if (!form || !modal || !form.dataset.drawerOriginalMethod) return;
+      form.setAttribute('method', form.dataset.drawerOriginalMethod);
+      delete form.dataset.drawerOriginalMethod;
+      modal.append(form);
+    });
+    $('#sendEmailButton').textContent = 'Send email';
+    $('#closeClientDetailsButton').textContent = 'Close';
+    activeClientDrawerBaselines.clear();
+  }
+
+  function showActiveClientDrawerView(view) {
+    const layer = $('#activeClientDrawerLayer');
+    const title = $('#activeClientActionsTitle');
+    const back = $('#activeClientDrawerBack');
+    const client = data.applications.find(application => application.id === hiredEditingId);
+    if (!layer || !client) return;
+    activeClientDrawerView = view;
+    $('#activeClientDrawerList').hidden = view !== 'list';
+    $('#activeClientDrawerEmailView').hidden = view !== 'email';
+    $('#activeClientDrawerOnboardingView').hidden = view !== 'onboarding';
+    $('#activeClientDrawerEditView').hidden = view !== 'edit';
+    back.hidden = view === 'list';
+    title.textContent = view === 'list'
+      ? 'Actions'
+      : view === 'email'
+        ? 'Send email'
+        : view === 'onboarding'
+          ? 'Request corrected onboarding details'
+          : 'Edit details';
+    $('#activeClientDrawerClientName').textContent = client.clientName || 'Active client';
+    if (view === 'email') mountActiveClientDrawerForm('emailComposeForm', 'activeClientDrawerEmailSlot');
+    if (view === 'edit') mountActiveClientDrawerForm('clientForm', 'activeClientDrawerClientFormSlot');
+    layer.dataset.view = view;
+  }
+
+  function openActiveClientActionsDrawer(trigger) {
+    const client = data.applications.find(application => application.id === hiredEditingId);
+    if (!client) return;
+    const layer = $('#activeClientDrawerLayer');
+    activeClientDrawerReturnFocus = trigger;
+    activeClientDrawerOpen = true;
+    activeClientDrawerView = 'list';
+    clearTimeout(activeClientDrawerCloseTimer);
+    layer.hidden = false;
+    layer.setAttribute('aria-hidden', 'false');
+    layer.classList.remove('closing');
+    document.body.classList.add('active-client-drawer-open');
+    $('#activeClientGeneratedLink').hidden = true;
+    $('#activeClientOnboardingUrl').value = '';
+    $('#activeClientOnboardingStatus').textContent = '';
+    showActiveClientDrawerView('list');
+    requestAnimationFrame(() => {
+      if (!activeClientDrawerOpen) return;
+      layer.classList.add('open');
+      $('#activeClientDrawerList [data-active-client-action]')?.focus();
+    });
+  }
+
+  async function closeActiveClientActionsDrawer(force = false, onClosed = null) {
+    if (!activeClientDrawerOpen) {
+      onClosed?.();
+      return;
+    }
+    const changedViews = ['email', 'edit'].filter(activeClientDrawerFormChanged);
+    if (!force && changedViews.length
+      && !window.confirm('Discard unsaved changes and close client actions?')) return;
+    if (!force) changedViews.forEach(resetActiveClientDrawerForm);
+    activeClientDrawerOpen = false;
+    const layer = $('#activeClientDrawerLayer');
+    layer.classList.add('closing');
+    layer.classList.remove('open');
+    layer.setAttribute('aria-hidden', 'true');
+    activeClientDrawerCloseTimer = setTimeout(() => {
+      layer.hidden = true;
+      layer.classList.remove('closing');
+      document.body.classList.remove('active-client-drawer-open');
+      restoreActiveClientDrawerForms();
+      updateClientActionLabel();
+      activeClientDrawerReturnFocus?.focus();
+      activeClientDrawerReturnFocus = null;
+      onClosed?.();
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 270);
+  }
+
+  function drawerTabStops() {
+    return $$('#activeClientDrawer button:not([disabled]), #activeClientDrawer input:not([disabled]), #activeClientDrawer select:not([disabled]), #activeClientDrawer textarea:not([disabled]), #activeClientDrawer a[href]')
+      .filter(element => !element.closest('[hidden]') && element.getClientRects().length);
+  }
+
+  $('#closeActiveClientDrawer').addEventListener('click', () => closeActiveClientActionsDrawer());
+  $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
+  $('#activeClientDrawerBack').addEventListener('click', () => {
+    if (activeClientDrawerFormChanged(activeClientDrawerView)) {
+      if (!window.confirm('Discard unsaved changes and return to actions?')) return;
+      resetActiveClientDrawerForm(activeClientDrawerView);
+    }
+    showActiveClientDrawerView('list');
+    $('#activeClientDrawerList [data-active-client-action]')?.focus();
+  });
+  document.addEventListener('keydown', event => {
+    if (!activeClientDrawerOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeActiveClientActionsDrawer();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const stops = drawerTabStops();
+    if (!stops.length) {
+      event.preventDefault();
+      $('#activeClientDrawer').focus();
+      return;
+    }
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !$('#activeClientDrawer').contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !$('#activeClientDrawer').contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, true);
+  $('#activeClientDrawerLayer').addEventListener('click', event => {
+    if (activeClientDrawerOpen && event.target.closest('#closeClientDetailsButton, #cancelActivationEmailButton, .active-client-drawer-cancel')) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeActiveClientActionsDrawer();
+    }
+  });
+
   document.addEventListener('click', event => {
     const avatarUploadButton = event.target.closest('[data-client-avatar-upload]');
     const avatarInput = event.target.closest('[data-client-avatar-input]');
@@ -5972,11 +6239,10 @@
     }
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
-    const editActiveButton = event.target.closest('#editActiveClientButton');
-    const closeHiredDetailAction = event.target.closest('#closeHiredDetailAction');
-    const sendActiveClientEmailButton = event.target.closest('#sendActiveClientEmailButton');
-    const sendClientOnboardingLinkButton = event.target.closest('#sendClientOnboardingLinkButton');
     const sendInvoiceButton = event.target.closest('#sendInvoiceButton');
+    const actionRow = event.target.closest('[data-active-client-action]');
+    const generateOnboardingLinkButton = event.target.closest('#generateClientOnboardingLinkButton');
+    const copyOnboardingLinkButton = event.target.closest('#copyActiveClientOnboardingUrl');
     const hiredSelectButton = event.target.closest('[data-hired-select]');
     const docOpenButton = event.target.closest('[data-doc-open]');
     const docRemoveButton = event.target.closest('[data-doc-remove]');
@@ -5984,33 +6250,46 @@
     const documentMenuButton = event.target.closest('.document-menu-button');
 
     if (activeClientActionsButton) {
-      $('#activeClientActionsModal').showModal();
+      openActiveClientActionsDrawer(activeClientActionsButton);
+      return;
+    }
+
+    if (actionRow) {
+      if (actionRow.dataset.activeClientAction === 'email') {
+        const item = data.applications.find(application => application.id === hiredEditingId);
+        if (item) openPlainClientEmailComposer(item, true);
+      } else if (actionRow.dataset.activeClientAction === 'onboarding') {
+        showActiveClientDrawerView('onboarding');
+        $('#generateClientOnboardingLinkButton').focus();
+      } else if (actionRow.dataset.activeClientAction === 'edit') {
+        const clientId = hiredEditingId;
+        closeActiveClientActionsDrawer(false, () => openClientModal(clientId, false, true, false, true));
+      }
+      return;
+    }
+
+    if (generateOnboardingLinkButton) {
+      const item = data.applications.find(application => application.id === hiredEditingId);
+      if (item) await sendClientOnboardingInvite(item, generateOnboardingLinkButton, true);
+      return;
+    }
+
+    if (copyOnboardingLinkButton) {
+      const status = $('#activeClientOnboardingStatus');
+      try {
+        await navigator.clipboard.writeText($('#activeClientOnboardingUrl').value);
+        status.textContent = 'Onboarding link copied to clipboard.';
+        status.className = 'compose-status status-success';
+      } catch (error) {
+        console.error('Could not copy the onboarding link:', error);
+        status.textContent = 'Could not copy automatically. Select and copy the link above.';
+        status.className = 'compose-status status-alert';
+      }
       return;
     }
 
     if (deleteActiveButton) {
       deleteClient(hiredEditingId, true);
-      return;
-    }
-    if (editActiveButton) {
-      $('#activeClientActionsModal').close();
-      openClientModal(hiredEditingId, false, true);
-      return;
-    }
-    if (closeHiredDetailAction) {
-      closeHiredDetail();
-      return;
-    }
-    if (sendActiveClientEmailButton) {
-      $('#activeClientActionsModal').close();
-      const item = data.applications.find(application => application.id === hiredEditingId);
-      if (item) openPlainClientEmailComposer(item);
-      return;
-    }
-    if (sendClientOnboardingLinkButton) {
-      $('#activeClientActionsModal').close();
-      const item = data.applications.find(application => application.id === hiredEditingId);
-      if (item) await sendClientOnboardingInvite(item, sendClientOnboardingLinkButton);
       return;
     }
     if (sendInvoiceButton) {
@@ -6064,18 +6343,6 @@
     event.preventDefault();
     selectClientDetailTab(tabs[nextIndex].dataset.clientDetailTab, true);
   });
-
-  $('#hiredSearch').addEventListener('input', renderHired);
-  $('#hiredDateFilter').addEventListener('change', event => {
-    hiredDateFilter = event.target.value;
-    renderHired();
-  });
-  $('#hiredDateSort').addEventListener('change', event => {
-    hiredDateSort = event.target.value;
-    renderHired();
-  });
-  $('#hiredStatusFilter').addEventListener('change', renderHired);
-  $('#closeHiredDetail').addEventListener('click', () => closeHiredDetail());
 
   let clientAvatarCropState = null;
   let clientAvatarCropObjectUrl = '';
@@ -6341,9 +6608,14 @@
     openClientAvatarCrop(clientId, file);
   });
 
-  async function sendClientOnboardingInvite(item, button) {
+  async function sendClientOnboardingInvite(item, button, generateOnly = false) {
     if (!item.email) {
-      showActionResult({ title: 'Client email required', message: 'Add an email address to this active client before sending an onboarding invitation.', status: 'error' });
+      if (generateOnly) {
+        $('#activeClientOnboardingStatus').textContent = 'Add an email address to this active client before creating an onboarding link.';
+        $('#activeClientOnboardingStatus').className = 'compose-status status-alert';
+      } else {
+        showActionResult({ title: 'Client email required', message: 'Add an email address to this active client before sending an onboarding invitation.', status: 'error' });
+      }
       return;
     }
     button.disabled = true;
@@ -6360,13 +6632,26 @@
       if (issued !== true) throw new Error('The onboarding invitation could not be created.');
       const onboardingUrl = new URL('/onboarding/', window.location.origin);
       onboardingUrl.hash = `token=${token}`;
+      if (generateOnly) {
+        $('#activeClientOnboardingUrl').value = onboardingUrl.href;
+        $('#activeClientGeneratedLink').hidden = false;
+        $('#activeClientOnboardingStatus').textContent = 'Private link generated. Copy it to share with your client.';
+        $('#activeClientOnboardingStatus').className = 'compose-status status-success';
+        $('#copyActiveClientOnboardingUrl').focus();
+        return;
+      }
       openPlainClientEmailComposer(item);
       $('#composeSubject').value = 'Please review your client onboarding details';
       $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete or update your onboarding details using this private form:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. Submitting this form will replace any onboarding details previously provided. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
       toast('Review the onboarding invitation and send it through Gmail.');
     } catch (error) {
       console.error('Could not create client onboarding invitation:', error);
-      showActionResult({ title: 'Onboarding link could not be created', message: error.message || 'Check your connection and try again.', status: 'error' });
+      if (generateOnly) {
+        $('#activeClientOnboardingStatus').textContent = error.message || 'The link could not be created. Check your connection and try again.';
+        $('#activeClientOnboardingStatus').className = 'compose-status status-alert';
+      } else {
+        showActionResult({ title: 'Onboarding link could not be created', message: error.message || 'Check your connection and try again.', status: 'error' });
+      }
     } finally {
       button.disabled = false;
     }
@@ -7372,5 +7657,649 @@
   });
   initGmail();
   restoreSupabaseSession();
+
+// Task management belongs to the selected Active Client and is persisted with the app state.
+const CLIENT_TASK_CATEGORIES = ['Graphic Design', 'Social Media', 'Email Marketing', 'Digital Marketing', 'Web Development', 'Other'];
+const CLIENT_TASK_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+let clientTaskEditingId = '';
+let clientTaskDrawerReturnFocus = null;
+let clientTaskDrawerOpen = false;
+let clientTaskDrawerClosing = false;
+let clientTaskDrawerCloseTimer = null;
+let clientTaskDraftEntries = [];
+let clientTaskTickTimer = null;
+let clientTaskMenuOpenId = '';
+
+function getClientTasks(clientId = hiredEditingId) {
+  data.clientTasks = Array.isArray(data.clientTasks) ? data.clientTasks : [];
+  return data.clientTasks.filter(task => task.clientId === clientId);
+}
+
+function clientTaskIsEnded(clientId = hiredEditingId) {
+  const client = data.applications.find(application => application.id === clientId);
+  return Boolean(client && (client.contractStatus === 'Contract Ended' || isContractEnded(client)));
+}
+
+function saveClientTasks() {
+  persist().catch(error => console.error('Could not save Active Client tasks:', error));
+}
+
+function clientTaskLocalDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function clientTaskTimeEntries(task) {
+  return Array.isArray(task.timeEntries) ? task.timeEntries : [];
+}
+
+function clientTaskElapsed(entry, now = Date.now()) {
+  if (Number.isFinite(entry.durationMs)) return Math.max(0, entry.durationMs);
+  const start = new Date(entry.start || '').getTime();
+  const end = new Date(entry.end || '').getTime();
+  return Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : 0;
+}
+
+function clientTaskTotalMs(task, now = Date.now()) {
+  const entries = clientTaskTimeEntries(task).reduce((total, entry) => total + clientTaskElapsed(entry, now), 0);
+  const startedAt = new Date(task.timerStartedAt || '').getTime();
+  return entries + (Number.isFinite(startedAt) ? Math.max(0, now - startedAt) : 0);
+}
+
+function clientTaskFormatDuration(milliseconds) {
+  const totalSeconds = Math.floor(Math.max(0, milliseconds) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours ? `${hours}h ${minutes}m` : minutes ? `${minutes}m` : `${seconds}s`;
+}
+
+function clientTaskClock(milliseconds) {
+  const totalSeconds = Math.floor(Math.max(0, milliseconds) / 1000);
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function clientTaskMonthlyMs(tasks, now = new Date()) {
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+  let total = 0;
+  tasks.forEach(task => {
+    clientTaskTimeEntries(task).forEach(entry => {
+      const start = new Date(entry.start || '').getTime();
+      const end = new Date(entry.end || '').getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+      total += Math.max(0, Math.min(end, nextMonth) - Math.max(start, monthStart));
+    });
+    const running = new Date(task.timerStartedAt || '').getTime();
+    if (Number.isFinite(running)) total += Math.max(0, Math.min(now.getTime(), nextMonth) - Math.max(running, monthStart));
+  });
+  return total;
+}
+
+function clientTaskWeekEnd() {
+  const current = new Date();
+  current.setHours(12, 0, 0, 0);
+  current.setDate(current.getDate() + (7 - current.getDay()) % 7);
+  return clientTaskLocalDateKey(current);
+}
+
+function clientTaskFiltered(tasks) {
+  const query = $('#clientTaskSearch').value.trim().toLowerCase();
+  const status = $('#clientTaskStatusFilter').value;
+  const priority = $('#clientTaskPriorityFilter').value;
+  return tasks.filter(task => {
+    const taskStatus = task.status === 'done' || task.completedAt ? 'done' : task.status || 'todo';
+    const content = `${task.title || ''} ${task.category || ''} ${task.notes || ''}`.toLowerCase();
+    return (status === 'all' || taskStatus === status)
+      && (priority === 'all' || task.priority === priority)
+      && (!query || content.includes(query));
+  });
+}
+
+function clientTaskDueLabel(task) {
+  if (!task.dueDate) return '<span class="client-task-due no-date">No due date</span>';
+  const overdue = task.dueDate < today() && task.status !== 'done' && !task.completedAt;
+  return `<time class="client-task-due${overdue ? ' is-overdue' : ''}" datetime="${escapeHtml(task.dueDate)}">${overdue ? '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ' : ''}${escapeHtml(formatDate(task.dueDate))}</time>`;
+}
+
+function clientTaskRenderRow(task, ended) {
+  const done = task.status === 'done' || Boolean(task.completedAt);
+  const running = Boolean(task.timerStartedAt);
+  const priority = ['Low', 'Medium', 'High'].includes(task.priority) ? task.priority : 'Medium';
+  const time = clientTaskTotalMs(task);
+  const repeatIcon = task.repeat?.frequency && task.repeat.frequency !== 'none'
+    ? '<span class="client-task-recurring" title="Recurring task" aria-label="Recurring task"><i class="fa-solid fa-repeat" aria-hidden="true"></i></span>'
+    : '';
+  const menuOpen = clientTaskMenuOpenId === task.id;
+  return `<article class="client-task-row${done ? ' is-complete' : ''}${running ? ' is-running' : ''}" data-client-task-row="${escapeHtml(task.id)}">
+    <label class="client-task-complete-control"><input type="checkbox" data-client-task-complete="${escapeHtml(task.id)}" ${done ? 'checked' : ''} aria-label="${done ? 'Reopen' : 'Complete'} task: ${escapeHtml(task.title || 'Untitled task')}" /><span class="sr-only">${done ? 'Completed' : 'Mark complete'}</span></label>
+    <div class="client-task-row-main">
+      <div class="client-task-row-title-line"><button class="client-task-title-button" type="button" data-client-task-edit="${escapeHtml(task.id)}">${escapeHtml(task.title || 'Untitled task')}</button><span class="client-task-category">${escapeHtml(CLIENT_TASK_CATEGORIES.includes(task.category) ? task.category : 'Other')}</span></div>
+      <div class="client-task-row-meta"><span class="client-task-priority priority-${priority.toLowerCase()}"><i aria-hidden="true"></i>${priority}</span>${clientTaskDueLabel(task)}${repeatIcon}<span class="client-task-status-text">${done ? 'Done' : task.status === 'in-progress' ? 'In progress' : 'To do'}</span></div>
+    </div>
+    <span class="client-task-time-logged" data-client-task-time="${escapeHtml(task.id)}">${escapeHtml(clientTaskFormatDuration(time))}</span>
+    <span class="client-task-live-clock${running ? ' is-visible' : ''}" data-client-task-clock="${escapeHtml(task.id)}">${running ? clientTaskClock(time) : ''}</span>
+    <button class="client-task-timer-button${running ? ' is-running' : ''}" type="button" data-client-task-timer="${escapeHtml(task.id)}" ${ended || done ? 'disabled' : ''} aria-label="${running ? 'Pause timer' : 'Start timer'} for ${escapeHtml(task.title || 'task')}" title="${ended ? 'Timers are disabled for ended contracts' : running ? 'Pause timer' : 'Start timer'}"><i class="fa-solid ${running ? 'fa-pause' : 'fa-play'}" aria-hidden="true"></i></button>
+    <div class="client-task-menu-wrap">
+      <button class="client-task-menu-button" type="button" data-client-task-menu="${escapeHtml(task.id)}" aria-label="Task actions for ${escapeHtml(task.title || 'task')}" aria-expanded="${menuOpen}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
+      <div class="client-task-menu${menuOpen ? '' : ' hidden'}" role="menu">
+        <button type="button" role="menuitem" data-client-task-edit="${escapeHtml(task.id)}">Edit</button>
+        <button type="button" role="menuitem" data-client-task-duplicate="${escapeHtml(task.id)}" ${ended ? 'disabled title="New tasks are disabled for ended contracts"' : ''}>Duplicate</button>
+        <button type="button" role="menuitem" class="is-danger" data-client-task-delete="${escapeHtml(task.id)}">Delete</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function clientTaskGroupMarkup(group, tasks, ended, open = true) {
+  if (!tasks.length) return '';
+  const rows = tasks.sort((a, b) => String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999'))
+    || String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+    .map(task => clientTaskRenderRow(task, ended)).join('');
+  const completed = group === 'Completed';
+  return `<details class="client-task-group${completed ? ' is-completed-group' : ''}" data-client-task-group="${group}" ${completed ? (open ? 'open' : '') : 'open'}>
+    <summary><span>${group}</span><span class="client-task-group-count">${tasks.length}</span></summary>
+    <div class="client-task-group-rows">${rows}</div>
+  </details>`;
+}
+
+function renderClientTasks(clientId = hiredEditingId) {
+  if (!clientId) return;
+  const tasks = getClientTasks(clientId);
+  const now = new Date();
+  const day = today();
+  const weekEnd = clientTaskWeekEnd();
+  const openTasks = tasks.filter(task => (task.status || 'todo') !== 'done' && !task.completedAt);
+  const overdueCount = openTasks.filter(task => task.dueDate && task.dueDate < day).length;
+  const weekCount = openTasks.filter(task => task.dueDate && task.dueDate >= day && task.dueDate <= weekEnd).length;
+  $('#clientTaskOpenCount').textContent = String(openTasks.length);
+  $('#clientTaskWeekCount').textContent = String(weekCount);
+  const monthHours = clientTaskMonthlyMs(tasks, now);
+  $('#clientTaskMonthHours').textContent = clientTaskFormatDuration(monthHours);
+  const overdueSummary = $('#clientTaskOverdueCount');
+  overdueSummary.textContent = String(overdueCount);
+  overdueSummary.classList.toggle('has-overdue', overdueCount > 0);
+  $('#clientTaskTabCount').textContent = String(openTasks.length);
+  $('#clientTasksContractNotice').hidden = !clientTaskIsEnded(clientId);
+  $('#newClientTaskButton').disabled = clientTaskIsEnded(clientId);
+  $('#newClientTaskButton').title = clientTaskIsEnded(clientId) ? 'New tasks are disabled for ended contracts' : '';
+
+  const target = $('#clientTaskGroups');
+  const priorCompletedOpen = target.querySelector('[data-client-task-group="Completed"]')?.open;
+  const visible = clientTaskFiltered(tasks);
+  if (!visible.length) {
+    const hasAnyTasks = tasks.length > 0;
+    target.innerHTML = `<div class="client-task-empty"><i class="fa-regular ${hasAnyTasks ? 'fa-filter' : 'fa-clipboard'}" aria-hidden="true"></i><h3>${hasAnyTasks ? 'No tasks match these filters' : 'No tasks for this client yet'}</h3><p>${hasAnyTasks ? 'Try adjusting the search or filters.' : 'Keep this client’s work organized in one place.'}</p>${hasAnyTasks ? '' : `<button class="button button-primary" type="button" data-client-task-new ${clientTaskIsEnded(clientId) ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i> New task</button>`}</div>`;
+    return;
+  }
+
+  const done = visible.filter(task => task.status === 'done' || task.completedAt);
+  const active = visible.filter(task => !done.includes(task));
+  const groups = {
+    Overdue: active.filter(task => task.dueDate && task.dueDate < day),
+    Today: active.filter(task => task.dueDate === day),
+    'This week': active.filter(task => task.dueDate > day && task.dueDate <= weekEnd),
+    Later: active.filter(task => !task.dueDate || task.dueDate > weekEnd),
+    Completed: done
+  };
+  target.innerHTML = Object.entries(groups)
+    .map(([name, entries]) => clientTaskGroupMarkup(name, entries, clientTaskIsEnded(clientId), name === 'Completed' ? Boolean(priorCompletedOpen) : true))
+    .join('');
+}
+
+function clientTaskRepeatValue() {
+  const frequency = $('#clientTaskRepeat').value;
+  if (frequency === 'weekly') {
+    const weekdays = $$('#clientTaskWeekdays input:checked').map(input => Number(input.value)).sort((a, b) => a - b);
+    return { frequency, weekdays };
+  }
+  if (frequency === 'monthly') return { frequency, dayOfMonth: Number($('#clientTaskMonthDay').value) };
+  return { frequency, weekdays: [], dayOfMonth: null };
+}
+
+function updateClientTaskRepeatFields() {
+  const frequency = $('#clientTaskRepeat').value;
+  $('#clientTaskWeekdays').hidden = frequency !== 'weekly';
+  $('#clientTaskMonthDayField').hidden = frequency !== 'monthly';
+  const preview = $('#clientTaskRepeatPreview');
+  if (frequency === 'daily') preview.textContent = 'Repeats every day.';
+  else if (frequency === 'weekly') {
+    const selected = $$('#clientTaskWeekdays input:checked').map(input => CLIENT_TASK_WEEKDAYS[Number(input.value)]);
+    preview.textContent = selected.length ? `Repeats every ${selected.join(', ')}.` : 'Choose one or more weekdays.';
+  } else if (frequency === 'monthly') preview.textContent = `Repeats on day ${$('#clientTaskMonthDay').value} of each month.`;
+  else preview.textContent = 'This task will not repeat.';
+}
+
+function fillClientTaskDrawer(task = null) {
+  const form = $('#clientTaskForm');
+  form.reset();
+  $('#clientTaskDueDate').setCustomValidity('');
+  $('#clientTaskManualEnd').setCustomValidity('');
+  clientTaskEditingId = task?.id || '';
+  clientTaskDraftEntries = task ? clientTaskTimeEntries(task).map(entry => ({ ...entry })) : [];
+  $('#clientTaskDrawerTitle').textContent = task ? 'Edit task' : 'New task';
+  $('#clientTaskDrawerClientName').textContent = data.applications.find(item => item.id === hiredEditingId)?.clientName || '';
+  $('#clientTaskTitle').value = task?.title || '';
+  $('#clientTaskCategory').value = CLIENT_TASK_CATEGORIES.includes(task?.category) ? task.category : 'Graphic Design';
+  $('#clientTaskPriority').value = ['Low', 'Medium', 'High'].includes(task?.priority) ? task.priority : 'Medium';
+  $('#clientTaskDueDate').value = task?.dueDate || '';
+  $('#clientTaskEstimate').value = task?.estimateMinutes ?? '';
+  $('#clientTaskNotes').value = task?.notes || '';
+  $('#clientTaskRepeat').value = task?.repeat?.frequency || 'none';
+  $('#clientTaskWeekdays').querySelectorAll('input').forEach(input => {
+    input.checked = Array.isArray(task?.repeat?.weekdays) && task.repeat.weekdays.includes(Number(input.value));
+  });
+  $('#clientTaskMonthDay').value = String(task?.repeat?.dayOfMonth || Number(task?.dueDate?.slice(-2)) || 1);
+  $('#clientTaskTimeEditor').hidden = !task;
+  $('#saveClientTaskButton').textContent = task ? 'Save changes' : 'Save task';
+  updateClientTaskRepeatFields();
+  renderClientTaskEntries();
+  form.dataset.initialSnapshot = clientTaskFormSnapshot();
+}
+
+function openClientTaskDrawer(task = null, trigger = $('#newClientTaskButton')) {
+  if (clientTaskDrawerOpen || (clientTaskIsEnded() && !task)) return;
+  clientTaskDrawerReturnFocus = trigger;
+  fillClientTaskDrawer(task);
+  const layer = $('#clientTaskDrawerLayer');
+  clearTimeout(clientTaskDrawerCloseTimer);
+  clientTaskDrawerOpen = true;
+  clientTaskDrawerClosing = false;
+  layer.classList.remove('is-closing');
+  layer.hidden = false;
+  layer.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('client-task-drawer-open');
+  requestAnimationFrame(() => {
+    if (!clientTaskDrawerOpen) return;
+    layer.classList.add('is-open');
+    $('#clientTaskTitle').focus();
+  });
+}
+
+async function closeClientTaskDrawer() {
+  if (!clientTaskDrawerOpen || clientTaskDrawerClosing) return;
+  const form = $('#clientTaskForm');
+  const isDirty = clientTaskFormSnapshot() !== form.dataset.initialSnapshot;
+  if (isDirty && !(await appConfirm('Discard your unsaved task changes?', { title: 'Discard task changes', confirmLabel: 'Discard changes', danger: true }))) return;
+  clientTaskDrawerOpen = false;
+  clientTaskDrawerClosing = true;
+  const layer = $('#clientTaskDrawerLayer');
+  layer.classList.remove('is-open');
+  layer.classList.add('is-closing');
+  const finishClose = () => {
+    layer.hidden = true;
+    layer.classList.remove('is-closing');
+    document.body.classList.remove('client-task-drawer-open');
+    clientTaskDrawerClosing = false;
+    clientTaskMenuOpenId = '';
+    clientTaskDrawerReturnFocus?.focus();
+    clientTaskDrawerReturnFocus = null;
+  };
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) finishClose();
+  else clientTaskDrawerCloseTimer = setTimeout(finishClose, 270);
+}
+
+function clientTaskFormSnapshot() {
+  return JSON.stringify({
+    title: $('#clientTaskTitle').value,
+    category: $('#clientTaskCategory').value,
+    priority: $('#clientTaskPriority').value,
+    dueDate: $('#clientTaskDueDate').value,
+    estimate: $('#clientTaskEstimate').value,
+    notes: $('#clientTaskNotes').value,
+    manualStart: $('#clientTaskManualStart').value,
+    manualEnd: $('#clientTaskManualEnd').value,
+    repeat: clientTaskRepeatValue(),
+    entries: clientTaskDraftEntries
+  });
+}
+
+function openClientTaskEditor(taskId) {
+  const task = data.clientTasks.find(item => item.id === taskId && item.clientId === hiredEditingId);
+  if (!task) return;
+  clientTaskMenuOpenId = '';
+  renderClientTasks(hiredEditingId);
+  openClientTaskDrawer(task, $('#newClientTaskButton'));
+}
+
+function renderClientTaskEntries() {
+  const entries = clientTaskDraftEntries;
+  const current = data.clientTasks.find(task => task.id === clientTaskEditingId);
+  const liveTime = current?.timerStartedAt ? Math.max(0, Date.now() - new Date(current.timerStartedAt).getTime()) : 0;
+  $('#clientTaskTotalTime').textContent = `${clientTaskFormatDuration(entries.reduce((sum, entry) => sum + clientTaskElapsed(entry), liveTime))} total`;
+  $('#clientTaskTimeEntryList').innerHTML = entries.length
+    ? entries.slice().reverse().map(entry => `<div class="client-task-time-entry"><span>${escapeHtml(formatDate(dateKey(entry.start)))} · ${escapeHtml(emailTime(entry.start))}–${escapeHtml(emailTime(entry.end))}</span><strong>${escapeHtml(clientTaskFormatDuration(clientTaskElapsed(entry)))}</strong><button type="button" data-client-task-entry-delete="${escapeHtml(entry.id)}" aria-label="Delete time entry" title="Delete time entry"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button></div>`).join('')
+    : '<p class="client-task-time-empty">No time entries yet.</p>';
+}
+
+function clientTaskOccurrenceKey(seriesId, dueDate) {
+  return `${seriesId}:${dueDate}`;
+}
+
+function clientTaskNextDueDate(task) {
+  if (!task.dueDate) return '';
+  const due = new Date(`${task.dueDate}T12:00:00`);
+  const recurrence = task.repeat || {};
+  if (recurrence.frequency === 'daily') {
+    due.setDate(due.getDate() + 1);
+    return clientTaskLocalDateKey(due);
+  }
+  if (recurrence.frequency === 'weekly') {
+    const weekdays = Array.isArray(recurrence.weekdays) && recurrence.weekdays.length
+      ? recurrence.weekdays
+      : [due.getDay()];
+    for (let offset = 1; offset <= 7; offset += 1) {
+      const candidate = new Date(due);
+      candidate.setDate(candidate.getDate() + offset);
+      if (weekdays.includes(candidate.getDay())) return clientTaskLocalDateKey(candidate);
+    }
+  }
+  if (recurrence.frequency === 'monthly') {
+    const firstNextMonth = new Date(due.getFullYear(), due.getMonth() + 1, 1, 12);
+    const targetDay = Math.max(1, Math.min(31, Number(recurrence.dayOfMonth) || due.getDate()));
+    const lastDay = new Date(firstNextMonth.getFullYear(), firstNextMonth.getMonth() + 1, 0).getDate();
+    firstNextMonth.setDate(Math.min(targetDay, lastDay));
+    return clientTaskLocalDateKey(firstNextMonth);
+  }
+  return '';
+}
+
+function createNextClientTaskOccurrence(task) {
+  const nextDueDate = clientTaskNextDueDate(task);
+  if (!nextDueDate) return false;
+  const seriesId = task.recurrenceSeriesId || task.id;
+  const occurrenceKey = clientTaskOccurrenceKey(seriesId, nextDueDate);
+  if (data.clientTasks.some(item => item.recurrenceOccurrenceKey === occurrenceKey)) return false;
+  data.clientTasks.push({
+    ...task,
+    id: uid(),
+    dueDate: nextDueDate,
+    status: 'todo',
+    completedAt: '',
+    recurrenceSeriesId: seriesId,
+    recurrenceOccurrenceKey: occurrenceKey,
+    generatedFromTaskId: task.id,
+    timerStartedAt: '',
+    timeEntries: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+  return true;
+}
+
+function stopClientTaskTimer(task) {
+  if (!task?.timerStartedAt) return false;
+  const start = new Date(task.timerStartedAt);
+  const end = new Date();
+  const durationMs = Math.max(0, end.getTime() - start.getTime());
+  task.timeEntries = clientTaskTimeEntries(task);
+  if (durationMs > 0) task.timeEntries.push({ id: uid(), start: start.toISOString(), end: end.toISOString(), durationMs });
+  task.timerStartedAt = '';
+  task.updatedAt = end.toISOString();
+  return true;
+}
+
+async function toggleClientTaskTimer(taskId) {
+  if (clientTaskIsEnded()) return;
+  const task = data.clientTasks.find(item => item.id === taskId && item.clientId === hiredEditingId);
+  if (!task || task.status === 'done') return;
+  if (task.timerStartedAt) {
+    stopClientTaskTimer(task);
+  } else {
+    data.clientTasks.forEach(item => {
+      if (item.timerStartedAt) stopClientTaskTimer(item);
+    });
+    task.timerStartedAt = new Date().toISOString();
+    if (task.status !== 'in-progress') task.status = 'in-progress';
+  }
+  saveClientTasks();
+  renderClientTasks(hiredEditingId);
+}
+
+async function toggleClientTaskComplete(taskId, complete) {
+  const task = data.clientTasks.find(item => item.id === taskId && item.clientId === hiredEditingId);
+  if (!task) return;
+  if (complete) {
+    stopClientTaskTimer(task);
+    task.status = 'done';
+    task.completedAt = new Date().toISOString();
+    task.updatedAt = task.completedAt;
+    if (task.repeat?.frequency && task.repeat.frequency !== 'none') createNextClientTaskOccurrence(task);
+  } else {
+    task.status = 'todo';
+    task.completedAt = '';
+    task.updatedAt = new Date().toISOString();
+  }
+  saveClientTasks();
+  renderClientTasks(hiredEditingId);
+}
+
+function updateClientTaskTick() {
+  if (!$('#clientTasksPanel') || $('#clientTasksPanel').hidden) return;
+  const tasks = getClientTasks();
+  const now = Date.now();
+  tasks.forEach(task => {
+    const elapsed = clientTaskTotalMs(task, now);
+    const logged = $(`[data-client-task-time="${CSS.escape(task.id)}"]`);
+    const clock = $(`[data-client-task-clock="${CSS.escape(task.id)}"]`);
+    if (logged) logged.textContent = clientTaskFormatDuration(elapsed);
+    if (clock) {
+      clock.textContent = task.timerStartedAt ? clientTaskClock(elapsed) : '';
+      clock.classList.toggle('is-visible', Boolean(task.timerStartedAt));
+    }
+  });
+  $('#clientTaskMonthHours').textContent = clientTaskFormatDuration(clientTaskMonthlyMs(tasks, new Date(now)));
+}
+
+function startClientTaskTick() {
+  if (clientTaskTickTimer) return;
+  clientTaskTickTimer = setInterval(updateClientTaskTick, 1000);
+}
+
+function initClientTaskDrawer() {
+  const monthDay = $('#clientTaskMonthDay');
+  monthDay.innerHTML = Array.from({ length: 31 }, (_, index) => `<option value="${index + 1}">${index + 1}${[1, 21, 31].includes(index + 1) ? 'st' : [2, 22].includes(index + 1) ? 'nd' : [3, 23].includes(index + 1) ? 'rd' : 'th'}</option>`).join('');
+  $('#clientTaskForm').dataset.initialSnapshot = clientTaskFormSnapshot();
+  $('#newClientTaskButton').addEventListener('click', event => openClientTaskDrawer(null, event.currentTarget));
+  $('#clientTaskDrawerBackdrop').addEventListener('click', closeClientTaskDrawer);
+  $('#closeClientTaskDrawer').addEventListener('click', closeClientTaskDrawer);
+  $('#cancelClientTaskDrawer').addEventListener('click', closeClientTaskDrawer);
+  $('#clientTaskRepeat').addEventListener('change', updateClientTaskRepeatFields);
+  $('#clientTaskWeekdays').addEventListener('change', updateClientTaskRepeatFields);
+  $('#clientTaskMonthDay').addEventListener('change', updateClientTaskRepeatFields);
+  ['input', 'change'].forEach(type => {
+    $('#clientTaskForm').addEventListener(type, () => {
+      $('#clientTaskForm').dataset.dirtySnapshot = clientTaskFormSnapshot();
+    });
+  });
+  $('#clientTaskForm').addEventListener('submit', event => {
+    event.preventDefault();
+    if (clientTaskIsEnded() && !clientTaskEditingId) return;
+    const title = $('#clientTaskTitle').value.trim();
+    const repeat = clientTaskRepeatValue();
+    const dueField = $('#clientTaskDueDate');
+    if (repeat.frequency !== 'none' && !dueField.value) {
+      dueField.setCustomValidity('A due date is required for recurring tasks.');
+      dueField.reportValidity();
+      dueField.addEventListener('input', () => dueField.setCustomValidity(''), { once: true });
+      return;
+    }
+    if (repeat.frequency === 'weekly' && !repeat.weekdays.length) {
+      $('#clientTaskWeekdays').querySelector('input').focus();
+      return;
+    }
+    const existing = data.clientTasks.find(task => task.id === clientTaskEditingId && task.clientId === hiredEditingId);
+    const now = new Date().toISOString();
+    const task = {
+      id: existing?.id || uid(),
+      clientId: hiredEditingId,
+      title,
+      category: $('#clientTaskCategory').value,
+      priority: $('#clientTaskPriority').value,
+      dueDate: dueField.value,
+      estimateMinutes: $('#clientTaskEstimate').value ? Number($('#clientTaskEstimate').value) : '',
+      notes: $('#clientTaskNotes').value.trim(),
+      repeat,
+      status: existing?.status || 'todo',
+      completedAt: existing?.completedAt || '',
+      timeEntries: clientTaskDraftEntries,
+      timerStartedAt: existing?.timerStartedAt || '',
+      recurrenceSeriesId: existing?.recurrenceSeriesId || '',
+      recurrenceOccurrenceKey: existing?.recurrenceOccurrenceKey || '',
+      generatedFromTaskId: existing?.generatedFromTaskId || '',
+      createdAt: existing?.createdAt || now,
+      updatedAt: now
+    };
+    if (existing) {
+      Object.assign(existing, task);
+    } else {
+      data.clientTasks.push(task);
+    }
+    if (task.repeat.frequency !== 'none' && !task.recurrenceSeriesId) task.recurrenceSeriesId = task.id;
+    $('#clientTaskForm').dataset.initialSnapshot = clientTaskFormSnapshot();
+    saveClientTasks();
+    clientTaskDrawerOpen = false;
+    clientTaskDrawerClosing = true;
+    const layer = $('#clientTaskDrawerLayer');
+    layer.classList.remove('is-open');
+    layer.classList.add('is-closing');
+    const finish = () => {
+      layer.hidden = true;
+      layer.classList.remove('is-closing');
+      document.body.classList.remove('client-task-drawer-open');
+      clientTaskDrawerClosing = false;
+      clientTaskDrawerReturnFocus?.focus();
+      clientTaskDrawerReturnFocus = null;
+      renderClientTasks(hiredEditingId);
+    };
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) finish();
+    else clientTaskDrawerCloseTimer = setTimeout(finish, 270);
+  });
+  $('#addClientTaskTimeEntry').addEventListener('click', () => {
+    const startValue = $('#clientTaskManualStart').value;
+    const endValue = $('#clientTaskManualEnd').value;
+    const start = new Date(startValue);
+    const end = new Date(endValue);
+    if (!startValue || !endValue || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      $('#clientTaskManualEnd').setCustomValidity('Choose an end time after the start time.');
+      $('#clientTaskManualEnd').reportValidity();
+      $('#clientTaskManualEnd').addEventListener('input', event => event.currentTarget.setCustomValidity(''), { once: true });
+      return;
+    }
+    clientTaskDraftEntries.push({ id: uid(), start: start.toISOString(), end: end.toISOString(), durationMs: end.getTime() - start.getTime() });
+    $('#clientTaskManualStart').value = '';
+    $('#clientTaskManualEnd').value = '';
+    renderClientTaskEntries();
+    $('#clientTaskForm').dataset.dirtySnapshot = clientTaskFormSnapshot();
+  });
+
+  document.addEventListener('keydown', event => {
+    if (!clientTaskDrawerOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeClientTaskDrawer();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = $$('#clientTaskDrawer button:not([disabled]), #clientTaskDrawer input:not([disabled]), #clientTaskDrawer select:not([disabled]), #clientTaskDrawer textarea:not([disabled])')
+      .filter(element => !element.closest('[hidden]') && element.getClientRects().length);
+    if (!focusable.length) {
+      event.preventDefault();
+      $('#clientTaskDrawer').focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !$('#clientTaskDrawer').contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !$('#clientTaskDrawer').contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, true);
+
+  document.addEventListener('change', event => {
+    const checkbox = event.target.closest('[data-client-task-complete]');
+    if (checkbox) toggleClientTaskComplete(checkbox.dataset.clientTaskComplete, checkbox.checked);
+  });
+
+  document.addEventListener('input', event => {
+    if (event.target.matches('#clientTaskSearch')) renderClientTasks(hiredEditingId);
+  });
+  ['#clientTaskStatusFilter', '#clientTaskPriorityFilter'].forEach(selector => {
+    $(selector).addEventListener('change', () => renderClientTasks(hiredEditingId));
+  });
+
+  document.addEventListener('click', async event => {
+    const newTaskButton = event.target.closest('[data-client-task-new]');
+    if (newTaskButton) {
+      if (clientTaskIsEnded()) return;
+      openClientTaskDrawer(null, newTaskButton);
+      return;
+    }
+    const menuButton = event.target.closest('[data-client-task-menu]');
+    if (menuButton) {
+      clientTaskMenuOpenId = clientTaskMenuOpenId === menuButton.dataset.clientTaskMenu ? '' : menuButton.dataset.clientTaskMenu;
+      renderClientTasks(hiredEditingId);
+      $(`[data-client-task-menu="${CSS.escape(clientTaskMenuOpenId)}"]`)?.focus();
+      return;
+    }
+    const editButton = event.target.closest('[data-client-task-edit]');
+    if (editButton) {
+      openClientTaskEditor(editButton.dataset.clientTaskEdit);
+      return;
+    }
+    const duplicateButton = event.target.closest('[data-client-task-duplicate]');
+    if (duplicateButton) {
+      if (clientTaskIsEnded()) return;
+      const original = data.clientTasks.find(task => task.id === duplicateButton.dataset.clientTaskDuplicate && task.clientId === hiredEditingId);
+      if (!original) return;
+      const duplicate = { ...original, id: uid(), recurrenceSeriesId: '', recurrenceOccurrenceKey: '', generatedFromTaskId: '', status: 'todo', completedAt: '', timerStartedAt: '', timeEntries: [], createdAt: new Date().toISOString() };
+      data.clientTasks.push(duplicate);
+      saveClientTasks();
+      clientTaskMenuOpenId = '';
+      renderClientTasks(hiredEditingId);
+      openClientTaskEditor(duplicate.id);
+      return;
+    }
+    const deleteButton = event.target.closest('[data-client-task-delete]');
+    if (deleteButton) {
+      const task = data.clientTasks.find(item => item.id === deleteButton.dataset.clientTaskDelete && item.clientId === hiredEditingId);
+      if (!task || !(await appConfirm(`Delete “${task.title}”?`, { title: 'Delete client task', confirmLabel: 'Delete task', danger: true }))) return;
+      stopClientTaskTimer(task);
+      data.clientTasks = data.clientTasks.filter(item => item.id !== task.id);
+      saveClientTasks();
+      clientTaskMenuOpenId = '';
+      renderClientTasks(hiredEditingId);
+      return;
+    }
+    const timerButton = event.target.closest('[data-client-task-timer]');
+    if (timerButton) {
+      await toggleClientTaskTimer(timerButton.dataset.clientTaskTimer);
+      return;
+    }
+    const deleteEntryButton = event.target.closest('[data-client-task-entry-delete]');
+    if (deleteEntryButton) {
+      clientTaskDraftEntries = clientTaskDraftEntries.filter(entry => entry.id !== deleteEntryButton.dataset.clientTaskEntryDelete);
+      renderClientTaskEntries();
+      $('#clientTaskForm').dataset.dirtySnapshot = clientTaskFormSnapshot();
+      return;
+    }
+    if (clientTaskMenuOpenId && !event.target.closest('.client-task-menu-wrap')) {
+      clientTaskMenuOpenId = '';
+      renderClientTasks(hiredEditingId);
+    }
+  });
+}
+
+initClientTaskDrawer();
+startClientTaskTick();
 
 })();

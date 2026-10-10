@@ -12,3 +12,4 @@ pages/10-inbox-page.js
 pages/11-tools-page.js
 pages/12-weekly-report.js
 pages/12-auth-startup.js
+pages/13-client-tasks-page.js

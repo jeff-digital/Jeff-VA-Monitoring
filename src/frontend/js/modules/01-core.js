@@ -5,7 +5,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -543,6 +543,7 @@
       applications: Array.isArray(saved.applications) ? saved.applications : [],
       toApply: Array.isArray(saved.toApply) ? saved.toApply : [],
       dailyTasks: Array.isArray(saved.dailyTasks) ? saved.dailyTasks : [],
+      clientTasks: Array.isArray(saved.clientTasks) ? saved.clientTasks : [],
       emails: dedupeEmails(Array.isArray(saved.emails) ? saved.emails : []).filter(item => !(item.source === 'gmail' && deletedGmailIdSet.has(item.gmailId))),
       deletedGmailIds,
       accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],

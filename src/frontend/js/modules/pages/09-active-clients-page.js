@@ -1,4 +1,208 @@
   // Active Clients page controls, including its document and invoice tools.
+  let activeClientDrawerOpen = false;
+  let activeClientDrawerView = 'list';
+  let activeClientDrawerReturnFocus = null;
+  let activeClientDrawerCloseTimer = null;
+  const activeClientDrawerBaselines = new Map();
+
+  function isActiveClientDrawerOpen() {
+    return activeClientDrawerOpen;
+  }
+
+  function isActiveClientDrawerView(view) {
+    return activeClientDrawerOpen && activeClientDrawerView === view;
+  }
+
+  function activeClientDrawerFormSnapshot(form) {
+    return JSON.stringify([...form.elements].map(field => ({
+      id: field.id,
+      type: field.type,
+      value: field.type === 'checkbox' || field.type === 'radio'
+        ? field.checked
+        : field.type === 'file'
+          ? [...(field.files || [])].map(file => file.name)
+          : field.value
+    })));
+  }
+
+  function activeClientDrawerFormChanged(view) {
+    const baseline = activeClientDrawerBaselines.get(view);
+    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    return Boolean(baseline && form && activeClientDrawerFormSnapshot(form) !== baseline);
+  }
+
+  function markActiveClientDrawerFormClean(view) {
+    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    if (form) activeClientDrawerBaselines.set(view, activeClientDrawerFormSnapshot(form));
+  }
+
+  function resetActiveClientDrawerForm(view) {
+    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const baseline = activeClientDrawerBaselines.get(view);
+    if (!form || !baseline) return;
+    const values = JSON.parse(baseline);
+    [...form.elements].forEach((field, index) => {
+      const initial = values[index];
+      if (!initial) return;
+      if (field.type === 'file') {
+        field.value = '';
+        return;
+      }
+      if (field.type === 'checkbox' || field.type === 'radio') field.checked = initial.value;
+      else field.value = initial.value;
+    });
+  }
+
+  function mountActiveClientDrawerForm(formId, slotId) {
+    const form = $(`#${formId}`);
+    const slot = $(`#${slotId}`);
+    if (!form || !slot || form.parentElement === slot) return;
+    form.dataset.drawerOriginalMethod = form.getAttribute('method') || '';
+    form.setAttribute('method', 'post');
+    slot.append(form);
+    if (formId === 'emailComposeForm') $('#sendEmailButton').textContent = 'Send';
+    if (formId === 'clientForm') $('#closeClientDetailsButton').textContent = 'Cancel';
+  }
+
+  function restoreActiveClientDrawerForms() {
+    [
+      ['emailComposeForm', 'emailComposeModal'],
+      ['clientForm', 'clientModal']
+    ].forEach(([formId, modalId]) => {
+      const form = $(`#${formId}`);
+      const modal = $(`#${modalId}`);
+      if (!form || !modal || !form.dataset.drawerOriginalMethod) return;
+      form.setAttribute('method', form.dataset.drawerOriginalMethod);
+      delete form.dataset.drawerOriginalMethod;
+      modal.append(form);
+    });
+    $('#sendEmailButton').textContent = 'Send email';
+    $('#closeClientDetailsButton').textContent = 'Close';
+    activeClientDrawerBaselines.clear();
+  }
+
+  function showActiveClientDrawerView(view) {
+    const layer = $('#activeClientDrawerLayer');
+    const title = $('#activeClientActionsTitle');
+    const back = $('#activeClientDrawerBack');
+    const client = data.applications.find(application => application.id === hiredEditingId);
+    if (!layer || !client) return;
+    activeClientDrawerView = view;
+    $('#activeClientDrawerList').hidden = view !== 'list';
+    $('#activeClientDrawerEmailView').hidden = view !== 'email';
+    $('#activeClientDrawerOnboardingView').hidden = view !== 'onboarding';
+    $('#activeClientDrawerEditView').hidden = view !== 'edit';
+    back.hidden = view === 'list';
+    title.textContent = view === 'list'
+      ? 'Actions'
+      : view === 'email'
+        ? 'Send email'
+        : view === 'onboarding'
+          ? 'Request corrected onboarding details'
+          : 'Edit details';
+    $('#activeClientDrawerClientName').textContent = client.clientName || 'Active client';
+    if (view === 'email') mountActiveClientDrawerForm('emailComposeForm', 'activeClientDrawerEmailSlot');
+    if (view === 'edit') mountActiveClientDrawerForm('clientForm', 'activeClientDrawerClientFormSlot');
+    layer.dataset.view = view;
+  }
+
+  function openActiveClientActionsDrawer(trigger) {
+    const client = data.applications.find(application => application.id === hiredEditingId);
+    if (!client) return;
+    const layer = $('#activeClientDrawerLayer');
+    activeClientDrawerReturnFocus = trigger;
+    activeClientDrawerOpen = true;
+    activeClientDrawerView = 'list';
+    clearTimeout(activeClientDrawerCloseTimer);
+    layer.hidden = false;
+    layer.setAttribute('aria-hidden', 'false');
+    layer.classList.remove('closing');
+    document.body.classList.add('active-client-drawer-open');
+    $('#activeClientGeneratedLink').hidden = true;
+    $('#activeClientOnboardingUrl').value = '';
+    $('#activeClientOnboardingStatus').textContent = '';
+    showActiveClientDrawerView('list');
+    requestAnimationFrame(() => {
+      if (!activeClientDrawerOpen) return;
+      layer.classList.add('open');
+      $('#activeClientDrawerList [data-active-client-action]')?.focus();
+    });
+  }
+
+  async function closeActiveClientActionsDrawer(force = false, onClosed = null) {
+    if (!activeClientDrawerOpen) {
+      onClosed?.();
+      return;
+    }
+    const changedViews = ['email', 'edit'].filter(activeClientDrawerFormChanged);
+    if (!force && changedViews.length
+      && !window.confirm('Discard unsaved changes and close client actions?')) return;
+    if (!force) changedViews.forEach(resetActiveClientDrawerForm);
+    activeClientDrawerOpen = false;
+    const layer = $('#activeClientDrawerLayer');
+    layer.classList.add('closing');
+    layer.classList.remove('open');
+    layer.setAttribute('aria-hidden', 'true');
+    activeClientDrawerCloseTimer = setTimeout(() => {
+      layer.hidden = true;
+      layer.classList.remove('closing');
+      document.body.classList.remove('active-client-drawer-open');
+      restoreActiveClientDrawerForms();
+      updateClientActionLabel();
+      activeClientDrawerReturnFocus?.focus();
+      activeClientDrawerReturnFocus = null;
+      onClosed?.();
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 270);
+  }
+
+  function drawerTabStops() {
+    return $$('#activeClientDrawer button:not([disabled]), #activeClientDrawer input:not([disabled]), #activeClientDrawer select:not([disabled]), #activeClientDrawer textarea:not([disabled]), #activeClientDrawer a[href]')
+      .filter(element => !element.closest('[hidden]') && element.getClientRects().length);
+  }
+
+  $('#closeActiveClientDrawer').addEventListener('click', () => closeActiveClientActionsDrawer());
+  $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
+  $('#activeClientDrawerBack').addEventListener('click', () => {
+    if (activeClientDrawerFormChanged(activeClientDrawerView)) {
+      if (!window.confirm('Discard unsaved changes and return to actions?')) return;
+      resetActiveClientDrawerForm(activeClientDrawerView);
+    }
+    showActiveClientDrawerView('list');
+    $('#activeClientDrawerList [data-active-client-action]')?.focus();
+  });
+  document.addEventListener('keydown', event => {
+    if (!activeClientDrawerOpen) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeActiveClientActionsDrawer();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const stops = drawerTabStops();
+    if (!stops.length) {
+      event.preventDefault();
+      $('#activeClientDrawer').focus();
+      return;
+    }
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !$('#activeClientDrawer').contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !$('#activeClientDrawer').contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, true);
+  $('#activeClientDrawerLayer').addEventListener('click', event => {
+    if (activeClientDrawerOpen && event.target.closest('#closeClientDetailsButton, #cancelActivationEmailButton, .active-client-drawer-cancel')) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeActiveClientActionsDrawer();
+    }
+  });
+
   document.addEventListener('click', event => {
     const avatarUploadButton = event.target.closest('[data-client-avatar-upload]');
     const avatarInput = event.target.closest('[data-client-avatar-input]');
@@ -17,11 +221,10 @@
     }
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
-    const editActiveButton = event.target.closest('#editActiveClientButton');
-    const closeHiredDetailAction = event.target.closest('#closeHiredDetailAction');
-    const sendActiveClientEmailButton = event.target.closest('#sendActiveClientEmailButton');
-    const sendClientOnboardingLinkButton = event.target.closest('#sendClientOnboardingLinkButton');
     const sendInvoiceButton = event.target.closest('#sendInvoiceButton');
+    const actionRow = event.target.closest('[data-active-client-action]');
+    const generateOnboardingLinkButton = event.target.closest('#generateClientOnboardingLinkButton');
+    const copyOnboardingLinkButton = event.target.closest('#copyActiveClientOnboardingUrl');
     const hiredSelectButton = event.target.closest('[data-hired-select]');
     const docOpenButton = event.target.closest('[data-doc-open]');
     const docRemoveButton = event.target.closest('[data-doc-remove]');
@@ -29,33 +232,46 @@
     const documentMenuButton = event.target.closest('.document-menu-button');
 
     if (activeClientActionsButton) {
-      $('#activeClientActionsModal').showModal();
+      openActiveClientActionsDrawer(activeClientActionsButton);
+      return;
+    }
+
+    if (actionRow) {
+      if (actionRow.dataset.activeClientAction === 'email') {
+        const item = data.applications.find(application => application.id === hiredEditingId);
+        if (item) openPlainClientEmailComposer(item, true);
+      } else if (actionRow.dataset.activeClientAction === 'onboarding') {
+        showActiveClientDrawerView('onboarding');
+        $('#generateClientOnboardingLinkButton').focus();
+      } else if (actionRow.dataset.activeClientAction === 'edit') {
+        const clientId = hiredEditingId;
+        closeActiveClientActionsDrawer(false, () => openClientModal(clientId, false, true, false, true));
+      }
+      return;
+    }
+
+    if (generateOnboardingLinkButton) {
+      const item = data.applications.find(application => application.id === hiredEditingId);
+      if (item) await sendClientOnboardingInvite(item, generateOnboardingLinkButton, true);
+      return;
+    }
+
+    if (copyOnboardingLinkButton) {
+      const status = $('#activeClientOnboardingStatus');
+      try {
+        await navigator.clipboard.writeText($('#activeClientOnboardingUrl').value);
+        status.textContent = 'Onboarding link copied to clipboard.';
+        status.className = 'compose-status status-success';
+      } catch (error) {
+        console.error('Could not copy the onboarding link:', error);
+        status.textContent = 'Could not copy automatically. Select and copy the link above.';
+        status.className = 'compose-status status-alert';
+      }
       return;
     }
 
     if (deleteActiveButton) {
       deleteClient(hiredEditingId, true);
-      return;
-    }
-    if (editActiveButton) {
-      $('#activeClientActionsModal').close();
-      openClientModal(hiredEditingId, false, true);
-      return;
-    }
-    if (closeHiredDetailAction) {
-      closeHiredDetail();
-      return;
-    }
-    if (sendActiveClientEmailButton) {
-      $('#activeClientActionsModal').close();
-      const item = data.applications.find(application => application.id === hiredEditingId);
-      if (item) openPlainClientEmailComposer(item);
-      return;
-    }
-    if (sendClientOnboardingLinkButton) {
-      $('#activeClientActionsModal').close();
-      const item = data.applications.find(application => application.id === hiredEditingId);
-      if (item) await sendClientOnboardingInvite(item, sendClientOnboardingLinkButton);
       return;
     }
     if (sendInvoiceButton) {
@@ -109,18 +325,6 @@
     event.preventDefault();
     selectClientDetailTab(tabs[nextIndex].dataset.clientDetailTab, true);
   });
-
-  $('#hiredSearch').addEventListener('input', renderHired);
-  $('#hiredDateFilter').addEventListener('change', event => {
-    hiredDateFilter = event.target.value;
-    renderHired();
-  });
-  $('#hiredDateSort').addEventListener('change', event => {
-    hiredDateSort = event.target.value;
-    renderHired();
-  });
-  $('#hiredStatusFilter').addEventListener('change', renderHired);
-  $('#closeHiredDetail').addEventListener('click', () => closeHiredDetail());
 
   let clientAvatarCropState = null;
   let clientAvatarCropObjectUrl = '';
@@ -386,9 +590,14 @@
     openClientAvatarCrop(clientId, file);
   });
 
-  async function sendClientOnboardingInvite(item, button) {
+  async function sendClientOnboardingInvite(item, button, generateOnly = false) {
     if (!item.email) {
-      showActionResult({ title: 'Client email required', message: 'Add an email address to this active client before sending an onboarding invitation.', status: 'error' });
+      if (generateOnly) {
+        $('#activeClientOnboardingStatus').textContent = 'Add an email address to this active client before creating an onboarding link.';
+        $('#activeClientOnboardingStatus').className = 'compose-status status-alert';
+      } else {
+        showActionResult({ title: 'Client email required', message: 'Add an email address to this active client before sending an onboarding invitation.', status: 'error' });
+      }
       return;
     }
     button.disabled = true;
@@ -405,13 +614,26 @@
       if (issued !== true) throw new Error('The onboarding invitation could not be created.');
       const onboardingUrl = new URL('/onboarding/', window.location.origin);
       onboardingUrl.hash = `token=${token}`;
+      if (generateOnly) {
+        $('#activeClientOnboardingUrl').value = onboardingUrl.href;
+        $('#activeClientGeneratedLink').hidden = false;
+        $('#activeClientOnboardingStatus').textContent = 'Private link generated. Copy it to share with your client.';
+        $('#activeClientOnboardingStatus').className = 'compose-status status-success';
+        $('#copyActiveClientOnboardingUrl').focus();
+        return;
+      }
       openPlainClientEmailComposer(item);
       $('#composeSubject').value = 'Please review your client onboarding details';
       $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete or update your onboarding details using this private form:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. Submitting this form will replace any onboarding details previously provided. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
       toast('Review the onboarding invitation and send it through Gmail.');
     } catch (error) {
       console.error('Could not create client onboarding invitation:', error);
-      showActionResult({ title: 'Onboarding link could not be created', message: error.message || 'Check your connection and try again.', status: 'error' });
+      if (generateOnly) {
+        $('#activeClientOnboardingStatus').textContent = error.message || 'The link could not be created. Check your connection and try again.';
+        $('#activeClientOnboardingStatus').className = 'compose-status status-alert';
+      } else {
+        showActionResult({ title: 'Onboarding link could not be created', message: error.message || 'Check your connection and try again.', status: 'error' });
+      }
     } finally {
       button.disabled = false;
     }
