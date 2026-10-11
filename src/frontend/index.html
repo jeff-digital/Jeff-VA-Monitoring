@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261011-31" />
+    <link rel="stylesheet" href="css/styles.css?v=20261012-03" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -111,6 +111,7 @@
             </div>
           </div>
           <div class="topbar-actions">
+            <button class="button button-secondary global-search-trigger" type="button" id="openQuickSearch" aria-label="Open quick search" aria-haspopup="dialog" aria-controls="quickSearchModal"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span><kbd>Ctrl K</kbd></button>
             <p class="local-indicator"><span></span> Saved</p>
             <div class="notification-menu" id="notificationMenu">
               <button class="notification-button" type="button" id="notificationButton" aria-label="Recent client alerts" aria-haspopup="true" aria-expanded="false">
@@ -144,6 +145,12 @@
           <section id="applicationDashboardPanel" class="dashboard-tab-panel" role="tabpanel" aria-label="Application Dashboard" data-dashboard-panel="application" hidden>
             <section class="weekly-report-banner" aria-label="Weekly report">
               <div><h2>This week</h2><p id="weeklyReportPeriod">Current week: Oct 5 – Oct 9</p></div>
+              <div class="today-focus-items" aria-label="Today">
+                <span><strong id="todayFollowUps">0</strong> follow-ups due</span>
+                <span><strong id="todayInterviews">0</strong> interviews today</span>
+                <span><strong id="todayToApply">0</strong> reminders due</span>
+                <span class="dashboard-weekly-goal"><strong id="dashboardWeeklyActivity">0 activities</strong><small id="dashboardWeeklyGoalLabel">Weekly goal not set</small><progress id="dashboardWeeklyProgress" value="0" max="1" aria-label="Weekly activity goal progress" hidden></progress><button class="dashboard-weekly-goal-action" type="button" id="openWeeklyGoalDialog">Set goal</button></span>
+              </div>
               <button class="text-button" type="button" id="openWeeklyReport">View weekly report</button>
             </section>
           <section class="stat-grid" aria-label="Pipeline summary">
@@ -266,8 +273,24 @@
               <label class="application-filter-field"><span><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i> Stage</span><select id="statusFilter"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-globe" aria-hidden="true"></i> Source</span><select id="platformFilter"><option value="">All sources</option></select></label>
             </div>
+            <div class="application-filter-footer">
+              <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
+              <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
+              <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
+              <div class="application-view-toggle" role="group" aria-label="Application view">
+                <button class="button button-secondary active" type="button" data-application-view="table" aria-pressed="true"><i class="fa-solid fa-table-list" aria-hidden="true"></i> Table</button>
+                <button class="button button-secondary" type="button" data-application-view="board" aria-pressed="false"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Pipeline</button>
+              </div>
+            </div>
           </section>
           <section class="panel application-panel">
+            <div class="application-bulk-bar" id="applicationBulkActions" hidden>
+              <span id="applicationSelectionCount" aria-live="polite">0 selected</span>
+              <label class="sr-only" for="applicationBulkStatus">Set selected status</label>
+              <select id="applicationBulkStatus" aria-label="Set selected application status"><option value="">Change status…</option><option value="To Proceed">To Proceed</option><option value="Ongoing">Ongoing</option><option value="Applied">Applied</option><option value="Not selected">Rejected</option></select>
+              <button class="button button-secondary" type="button" id="applyBulkStatus">Apply</button>
+              <button class="button button-ghost" type="button" id="clearApplicationSelection">Clear selection</button>
+            </div>
             <div class="application-list-head"><span><i class="fa-solid fa-list-check" aria-hidden="true"></i> Client / role</span><span>Source &amp; pay</span><span>Stage</span><span>Applied / activity</span><span></span></div>
             <div class="application-list" id="applicationList"></div>
           </section>
@@ -689,6 +712,26 @@
         </div>
       </form>
     </dialog>
+    <dialog class="modal quick-search-modal" id="quickSearchModal" aria-labelledby="quickSearchTitle">
+      <div class="quick-search-shell">
+        <label class="quick-search-input"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="quickSearchInput" type="search" autocomplete="off" placeholder="Search applications, emails, or pages…" aria-label="Search applications, emails, or pages" /><kbd>ESC</kbd></label>
+        <h2 id="quickSearchTitle" class="sr-only">Quick search</h2>
+        <div id="quickSearchResults" class="quick-search-results" role="listbox" aria-label="Search results"></div>
+        <div class="quick-search-footer"><span>Jump to pages or open a matching application</span><button class="text-button" type="button" id="showKeyboardShortcuts">Keyboard shortcuts</button></div>
+      </div>
+    </dialog>
+    <dialog class="modal small-modal shortcuts-modal" id="shortcutsModal" aria-labelledby="shortcutsTitle">
+      <div class="modal-heading"><div><p class="eyebrow">QUICK REFERENCE</p><h2 id="shortcutsTitle">Keyboard shortcuts</h2></div><button class="icon-button" type="button" id="closeShortcuts" aria-label="Close shortcuts">×</button></div>
+      <dl class="shortcut-list"><div><dt>Open quick search</dt><dd><kbd>Ctrl</kbd> <kbd>K</kbd></dd></div><div><dt>Focus search</dt><dd><kbd>/</kbd></dd></div><div><dt>Add application</dt><dd><kbd>N</kbd></dd></div><div><dt>Close dialog or panel</dt><dd><kbd>Esc</kbd></dd></div><div><dt>Change report week</dt><dd><kbd>←</kbd> <kbd>→</kbd></dd></div></dl>
+    </dialog>
+    <dialog class="modal small-modal weekly-goal-modal" id="weeklyGoalDialog" aria-labelledby="weeklyGoalTitle">
+      <form id="weeklyGoalForm">
+        <div class="modal-heading"><div><p class="eyebrow">DASHBOARD GOAL</p><h2 id="weeklyGoalTitle">Weekly activity goal</h2></div><button class="icon-button" type="button" id="closeWeeklyGoalDialog" aria-label="Close weekly goal">×</button></div>
+        <label class="form-field" for="weeklyGoalInput">Target activities per week<input id="weeklyGoalInput" type="number" min="1" max="100" step="1" required inputmode="numeric" placeholder="e.g. 10" /></label>
+        <p class="weekly-goal-help">Progress counts the activities shown in your Weekly report. This goal is saved on this device.</p>
+        <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelWeeklyGoal">Cancel</button><button class="button button-primary" type="submit" id="saveWeeklyGoal" disabled>Save goal</button></div>
+      </form>
+    </dialog>
 
     <dialog class="modal small-modal email-result-modal" id="emailActionResultModal" aria-labelledby="emailActionResultTitle" aria-describedby="emailActionResultMessage">
       <form method="dialog">
@@ -909,14 +952,109 @@
     </dialog>
 
     <dialog class="modal weekly-report-modal" id="weeklyReportModal" aria-labelledby="weeklyReportTitle">
-      <form method="dialog">
-        <div class="modal-heading"><div><p class="eyebrow">WEEKLY REPORT</p><h2 id="weeklyReportTitle">Weekly activity</h2><p class="weekly-report-date" id="weeklyReportDate"></p></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
-        <div class="weekly-report-period-controls"><label for="weeklyReportHistory">Report history</label><select id="weeklyReportHistory"><option value="0">Choose a previous week</option></select><button class="button button-secondary" type="button" id="showCurrentWeeklyReport">Current week</button></div>
-        <div class="weekly-report-metrics" id="weeklyReportMetrics"></div>
-        <section class="weekly-report-chart-section"><div class="weekly-report-section-heading"><h3>Weekly activity</h3><span>Completed this week</span></div><div class="weekly-report-chart" id="weeklyReportChart" role="img" aria-label="Weekly activity chart"></div></section>
-        <section class="weekly-report-email-section"><div class="weekly-report-section-heading"><h3>Emails sent</h3><span id="weeklyReportEmailTotal"></span></div><div class="weekly-report-email-list" id="weeklyReportEmailBreakdown"></div></section>
-        <section class="weekly-report-activity-section"><div class="weekly-report-section-heading"><h3>Activity log</h3><span id="weeklyReportActivityCount"></span></div><div class="weekly-report-activity-list" id="weeklyReportActivities"></div></section>
-        <div class="modal-actions"><button class="button button-secondary" type="button" id="downloadWeeklyReport">Download PDF report</button><button class="button button-primary" value="done" type="submit">Done</button></div>
+      <form method="dialog" class="weekly-report-form">
+        <header class="weekly-report-header">
+          <div class="weekly-report-header-title">
+            <p class="eyebrow">WEEKLY REPORT</p>
+            <h2 id="weeklyReportTitle">Weekly report</h2>
+            <p class="weekly-report-date" id="weeklyReportDate"></p>
+          </div>
+          <span class="weekly-report-status" id="weeklyReportStatus" role="status"></span>
+          <div class="weekly-report-week-controls" aria-label="Report week">
+            <button class="icon-button" type="button" id="previousWeeklyReport" aria-label="View previous week" title="View previous week">‹</button>
+            <button class="icon-button" type="button" id="nextWeeklyReport" aria-label="View next week" title="View next week">›</button>
+            <label class="sr-only" for="weeklyReportHistory">Choose report week</label>
+            <select id="weeklyReportHistory" aria-label="Choose report week"><option value="0">This week</option></select>
+            <button class="button button-secondary" type="button" id="showCurrentWeeklyReport">Current week</button>
+          </div>
+          <div class="weekly-report-download-menu" id="weeklyReportDownloadMenu">
+            <button class="button button-secondary" type="button" id="weeklyReportDownloadMenuButton" aria-haspopup="menu" aria-expanded="false" aria-controls="weeklyReportDownloadOptions">Download</button>
+            <div class="weekly-report-download-options" id="weeklyReportDownloadOptions" role="menu" hidden>
+              <button type="button" role="menuitem" data-report-download="pdf" id="downloadWeeklyReport">Download PDF</button>
+              <button type="button" role="menuitem" data-report-download="all-weeks-pdf" id="downloadAllWeeksPdf">Download all weeks as PDF</button>
+              <button type="button" role="menuitem" data-report-download="csv">Download this week as CSV</button>
+              <button type="button" role="menuitem" data-report-download="all-weeks">Download all weeks as CSV</button>
+            </div>
+          </div>
+          <button class="icon-button weekly-report-close" value="cancel" type="submit" aria-label="Close weekly report" title="Close">×</button>
+        </header>
+        <nav class="weekly-report-nav" aria-label="Weekly report sections">
+          <button type="button" data-report-target="weeklyReportOverview" aria-current="location">Overview</button>
+          <button type="button" data-report-target="weeklyReportApplications">Applications</button>
+          <button type="button" data-report-target="weeklyReportEmails">Emails</button>
+          <button type="button" data-report-target="weeklyReportInterviews">Interviews</button>
+          <button type="button" data-report-target="weeklyReportFollowUps">Follow-ups</button>
+          <button type="button" data-report-target="weeklyReportSources">Sources</button>
+          <button type="button" data-report-target="weeklyReportNotes">Notes</button>
+        </nav>
+        <div class="weekly-report-content" id="weeklyReportContent">
+          <section class="weekly-report-section" id="weeklyReportOverview" aria-labelledby="weeklyReportOverviewTitle">
+            <div class="weekly-report-section-title"><p class="eyebrow">OVERVIEW</p><h3 id="weeklyReportOverviewTitle">Your week at a glance</h3></div>
+            <div class="weekly-report-metrics" id="weeklyReportMetrics"></div>
+            <div class="weekly-report-overview-grid">
+              <section class="weekly-report-card">
+                <div class="weekly-report-section-heading"><h4>Weekly goals</h4><span>Progress this week</span></div>
+                <div id="weeklyReportGoals"></div>
+              </section>
+              <section class="weekly-report-card">
+                <div class="weekly-report-section-heading"><h4>Activity by day</h4><span>Applications and related activity</span></div>
+                <div class="weekly-report-daily-chart" id="weeklyReportDailyChart" role="img" aria-label="Daily activity chart"></div>
+              </section>
+            </div>
+            <div class="weekly-report-overview-grid">
+              <section class="weekly-report-card">
+                <div class="weekly-report-section-heading"><h4>Pipeline outcomes</h4><span>Applications submitted this week</span></div>
+                <div class="weekly-report-chart" id="weeklyReportChart" aria-label="Pipeline outcome counts"></div>
+              </section>
+              <section class="weekly-report-card">
+                <div class="weekly-report-section-heading"><h4>Source effectiveness</h4><span>Applications and replies</span></div>
+                <div class="weekly-report-source-list" id="weeklyReportSourceEffectiveness"></div>
+              </section>
+            </div>
+            <section class="weekly-report-detail-section">
+              <div class="weekly-report-section-heading"><h4>Outcomes</h4><span id="weeklyReportOutcomeCount"></span></div>
+              <div class="weekly-report-table-wrap"><table class="weekly-report-table"><thead><tr><th scope="col">Status</th><th scope="col" class="numeric">Applications</th></tr></thead><tbody id="weeklyReportOutcomes"></tbody></table></div>
+            </section>
+            <section class="weekly-report-detail-section">
+              <div class="weekly-report-section-heading"><h4>Activity log</h4><span id="weeklyReportActivityCount"></span></div>
+              <div class="weekly-report-filter-chips" id="weeklyReportActivityFilters" aria-label="Filter activity log">
+                <button type="button" class="active" data-activity-filter="all" aria-pressed="true">All</button>
+                <button type="button" data-activity-filter="Application" aria-pressed="false">Applications</button>
+                <button type="button" data-activity-filter="Email" aria-pressed="false">Emails</button>
+                <button type="button" data-activity-filter="Interview" aria-pressed="false">Interviews</button>
+                <button type="button" data-activity-filter="Follow-up" aria-pressed="false">Follow-ups</button>
+              </div>
+              <div class="weekly-report-table-wrap"><table class="weekly-report-table weekly-report-activity-table"><thead><tr><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Company</th><th scope="col">Platform</th><th scope="col">Status</th></tr></thead><tbody id="weeklyReportActivities"></tbody></table></div>
+            </section>
+          </section>
+          <section class="weekly-report-section" id="weeklyReportApplications" aria-labelledby="weeklyReportApplicationsTitle">
+            <div class="weekly-report-section-title"><p class="eyebrow">PIPELINE</p><h3 id="weeklyReportApplicationsTitle">Applications</h3></div>
+            <div class="weekly-report-section-heading"><span id="weeklyReportApplicationCount"></span></div>
+            <div class="weekly-report-table-wrap"><table class="weekly-report-table"><thead><tr><th scope="col">Date</th><th scope="col">Company</th><th scope="col">Platform</th><th scope="col">Status</th></tr></thead><tbody id="weeklyReportApplicationRows"></tbody></table></div>
+          </section>
+          <section class="weekly-report-section" id="weeklyReportEmails" aria-labelledby="weeklyReportEmailsTitle">
+            <div class="weekly-report-section-title"><p class="eyebrow">COMMUNICATION</p><h3 id="weeklyReportEmailsTitle">Emails</h3></div>
+            <div class="weekly-report-section-heading"><span>Sent <strong id="weeklyReportEmailTotal"></strong></span><span>Replies <strong id="weeklyReportReplyTotal"></strong></span></div>
+            <div class="weekly-report-email-list" id="weeklyReportEmailBreakdown"></div>
+            <div class="weekly-report-table-wrap"><table class="weekly-report-table"><thead><tr><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Company</th><th scope="col">Subject</th></tr></thead><tbody id="weeklyReportEmailRows"></tbody></table></div>
+          </section>
+          <section class="weekly-report-section" id="weeklyReportInterviews" aria-labelledby="weeklyReportInterviewsTitle">
+            <div class="weekly-report-section-title"><p class="eyebrow">SCHEDULE</p><h3 id="weeklyReportInterviewsTitle">Interviews</h3></div>
+            <div class="weekly-report-table-wrap"><table class="weekly-report-table"><thead><tr><th scope="col">Date</th><th scope="col">Company</th><th scope="col">Role</th><th scope="col">Status</th></tr></thead><tbody id="weeklyReportInterviewRows"></tbody></table></div>
+          </section>
+          <section class="weekly-report-section" id="weeklyReportFollowUps" aria-labelledby="weeklyReportFollowUpsTitle">
+            <div class="weekly-report-section-title"><p class="eyebrow">REMINDERS</p><h3 id="weeklyReportFollowUpsTitle">Follow-ups</h3></div>
+            <div class="weekly-report-table-wrap"><table class="weekly-report-table"><thead><tr><th scope="col">Due date</th><th scope="col">Company</th><th scope="col">Status</th></tr></thead><tbody id="weeklyReportFollowUpRows"></tbody></table></div>
+          </section>
+          <section class="weekly-report-section" id="weeklyReportSources" aria-labelledby="weeklyReportSourcesTitle">
+            <div class="weekly-report-section-title"><p class="eyebrow">DISCOVERY</p><h3 id="weeklyReportSourcesTitle">Sources</h3></div>
+            <div class="weekly-report-table-wrap"><table class="weekly-report-table"><thead><tr><th scope="col">Platform</th><th scope="col" class="numeric">Applications</th><th scope="col" class="numeric">Replied</th><th scope="col" class="numeric">Reply rate</th></tr></thead><tbody id="weeklyReportSourceRows"></tbody></table></div>
+          </section>
+          <section class="weekly-report-section" id="weeklyReportNotes" aria-labelledby="weeklyReportNotesTitle">
+            <div class="weekly-report-section-title"><p class="eyebrow">NOTES</p><h3 id="weeklyReportNotesTitle">Application notes</h3></div>
+            <div class="weekly-report-notes-list" id="weeklyReportNotesList"></div>
+          </section>
+        </div>
       </form>
     </dialog>
 
@@ -1186,6 +1324,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261011-46"></script>
+    <script src="js/app.js?v=20261012-05"></script>
   </body>
 </html>

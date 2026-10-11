@@ -641,3 +641,12 @@ function initClientTaskDrawer() {
 
 initClientTaskDrawer();
 startClientTaskTick();
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || event.defaultPrevented) return;
+  const dialog = document.activeElement.closest?.('dialog[open]')
+    || [...document.querySelectorAll('dialog[open]')].pop();
+  if (!dialog) return;
+  event.preventDefault();
+  dialog.close();
+});

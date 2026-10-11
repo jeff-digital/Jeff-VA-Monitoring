@@ -24,9 +24,11 @@
   let projectStorageFileCount = 0;
   let passwordRecoveryMode = false;
   const STATUS_COLORS = {
-    Ongoing: '#1d8a89', Applied: '#8a9b8e', 'To Proceed': '#2f6f8f', Interview: '#c28a52', 'Active client': '#5a956a', 'Not selected': '#c36e73'
+    'To Apply': '#69717d', Ongoing: '#16756f', Replied: '#16756f', Applied: '#2563a6',
+    'To Proceed': '#2f6f9f', Interview: '#7550a3', Offer: '#187443',
+    'Active client': '#187443', Rejected: '#ad343d', 'Not selected': '#ad343d', Ghosted: '#8a6331'
   };
-  const STATUS_CLASS = { Ongoing: 'ongoing', Applied: 'applied', 'To Proceed': 'to-proceed', 'To Proceeding': 'to-proceed', Interview: 'interview', 'Active client': 'active-client', 'Not selected': 'not-selected' };
+  const STATUS_CLASS = { 'To Apply': 'to-apply', Ongoing: 'ongoing', Replied: 'responded', Applied: 'applied', 'To Proceed': 'to-proceed', 'To Proceeding': 'to-proceed', Interview: 'interview', Offer: 'offer', 'Active client': 'active-client', Rejected: 'rejected', 'Not selected': 'not-selected', Ghosted: 'ghosted' };
   const STATUS_LABELS = { 'Not selected': 'Rejected', 'To Proceeding': 'To Proceed' };
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -433,6 +435,9 @@
 
   const SESSION_KEY = 'jeff-va-session-v1';
   const EMAIL_WEEK_FILTER_KEY = 'jeff-va-email-week-filter-v1';
+  function weeklyActivityGoalStorageKey() {
+    return `jeff-va-weekly-activity-goal-v1:${currentUser?.id || 'anonymous'}`;
+  }
   let data = emptyData();
   let clientTimeZones = new Map();
   let activeView = 'dashboard';
@@ -440,6 +445,9 @@
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
   let applicationDateSort = '0';
+  let applicationViewMode = localStorage.getItem('jeff-va-application-view-v1') === 'board' ? 'board' : 'table';
+  let applicationSelectionMode = false;
+  const selectedApplicationIds = new Set();
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
   let applicationDateFilter = today();
@@ -857,9 +865,9 @@
 
   function dateKey(value) {
     if (!value) return '';
-    if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) return String(value).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+    return Number.isNaN(date.getTime()) ? '' : localDateKey(date);
   }
 
   function plural(number, word) { return `${number} ${word}${number === 1 ? '' : 's'}`; }

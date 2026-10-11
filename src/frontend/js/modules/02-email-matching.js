@@ -188,6 +188,8 @@
     const active = hiredClients().filter(isActiveContract).length;
     const appliedToday = pipelineApplications().filter(item => dateKey(item.appliedDate) === today()).length;
     const followUp = applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected').length;
+    const interviewsToday = applications.filter(item => item.status === 'Interview' && dateKey(item.interviewDate) === today()).length;
+    const toApplyToday = (data.toApply || []).filter(item => item.dueDate && item.dueDate <= today()).length;
     $('#totalApplications').textContent = pipelineCount;
     $('#activeClients').textContent = active;
     $('#conversationClients').textContent = appliedToday;
@@ -196,6 +198,24 @@
     $('#activeDetail').textContent = active ? `${plural(active, 'client')} currently in progress` : 'Clients currently in progress';
     $('#conversationDetail').textContent = appliedToday ? `${plural(appliedToday, 'application')} submitted today` : 'Applications submitted today';
     $('#followUpDetail').textContent = followUp ? `${plural(followUp, 'application')} due for a follow-up` : 'Applications to revisit soon';
+    $('#todayFollowUps').textContent = followUp;
+    $('#todayInterviews').textContent = interviewsToday;
+    $('#todayToApply').textContent = toApplyToday;
+    const weeklyActivityCount = weeklyReportData().activities.length;
+    const savedWeeklyGoal = Number(localStorage.getItem(weeklyActivityGoalStorageKey()));
+    const weeklyGoal = Number.isInteger(savedWeeklyGoal) && savedWeeklyGoal >= 1 && savedWeeklyGoal <= 100 ? savedWeeklyGoal : 0;
+    $('#dashboardWeeklyActivity').textContent = weeklyGoal
+      ? `${weeklyActivityCount} of ${weeklyGoal} ${weeklyGoal === 1 ? 'activity' : 'activities'}`
+      : weeklyActivityCount === 1 ? '1 activity' : `${weeklyActivityCount} activities`;
+    $('#dashboardWeeklyGoalLabel').textContent = weeklyGoal ? 'Weekly activity goal' : 'Weekly goal not set';
+    const weeklyProgress = $('#dashboardWeeklyProgress');
+    weeklyProgress.hidden = !weeklyGoal;
+    weeklyProgress.max = weeklyGoal || 1;
+    weeklyProgress.value = Math.min(weeklyActivityCount, weeklyGoal || 1);
+    weeklyProgress.setAttribute('aria-valuemin', '0');
+    weeklyProgress.setAttribute('aria-valuemax', String(weeklyGoal || 1));
+    weeklyProgress.setAttribute('aria-valuenow', String(Math.min(weeklyActivityCount, weeklyGoal || 1)));
+    $('#openWeeklyGoalDialog').textContent = weeklyGoal ? 'Edit goal' : 'Set goal';
     renderPlatformBreakdown(applications);
     renderStatusChart(applications);
     renderInterviewCalendar();
@@ -345,40 +365,46 @@
       .map(([name, count]) => `<span class="application-platform-count">${escapeHtml(name)} - ${count}</span>`)
       .join('');
     const target = $('#applicationList');
+    const filterChips = [
+      query ? ['search', `Search: ${query}`] : null,
+      dateFilter ? ['date', `Date: ${emailDate(dateFilter)}`] : null,
+      status ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
+      platform ? ['platform', `Source: ${platform}`] : null,
+      applicationDateSort && applicationDateSort !== '0' ? ['week', applicationDateSort === 'all' ? 'All weeks' : `Week: ${$('#applicationWeekDate').textContent}`] : null
+    ].filter(Boolean);
+    $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
+    $('#clearApplicationFilters').hidden = filterChips.length === 0;
+    $$('[data-application-view]').forEach(button => {
+      const selected = button.dataset.applicationView === applicationViewMode;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    const selectionToggle = $('#toggleApplicationSelection');
+    selectionToggle.classList.toggle('active', applicationSelectionMode);
+    selectionToggle.setAttribute('aria-pressed', String(applicationSelectionMode));
+    selectionToggle.textContent = applicationSelectionMode ? 'Done' : 'Select';
+    target.classList.toggle('application-board-mode', applicationViewMode === 'board');
+    target.classList.toggle('selection-mode', applicationSelectionMode);
+    selectedApplicationIds.forEach(id => {
+      if (!filtered.some(item => item.id === id)) selectedApplicationIds.delete(id);
+    });
+    $('#applicationBulkActions').hidden = !applicationSelectionMode || selectedApplicationIds.size === 0;
+    $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
     if (!filtered.length) {
       const isFiltered = pipeline.length > 0;
       target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>Add your first client</button>'}</div>`;
       return;
     }
-    const renderRows = items => items.map(item => {
-      const currency = item.salaryCurrency || 'USD';
-      const salaryText = item.salaryType === 'monthly' && Number(item.salaryAmount) > 0
-        ? `${formatSalaryAmount(item.salaryAmount, currency, 'monthly')} `
-        : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0
-          ? Number(item.hoursPerWeek) > 0
-            ? `${formatSalaryAmount(item.salaryAmount, currency, 'hourly', item.hoursPerWeek)} · ${formatSalaryAmount(item.salaryAmount, currency, 'hourly')}`
-            : `${formatSalaryAmount(item.salaryAmount, currency, 'hourly')}`
-          : 'Salary not set';
-      return `
-      <article class="application-row${isInterviewToday(item) ? ' interview-today' : ''}" data-view-details="${escapeHtml(item.id)}" tabindex="0" role="button" aria-label="View details for ${escapeHtml(item.clientName)}">
-        <div><h3 class="client-card-title">${escapeHtml(item.clientName)}</h3><p class="client-card-subtitle">${escapeHtml(item.role || item.contact || item.nextStep || item.notes || 'No extra details')}</p>${item.website ? `<a class="client-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>` : ''}${item.interviewLink ? `<a class="interview-link-button" href="${escapeHtml(normalizeUrl(item.interviewLink))}" target="_blank" rel="noopener"><span aria-hidden="true">↗</span> Join interview</a>` : ''}</div>
-        <div class="application-meta">${escapeHtml(item.platform)}<small>${escapeHtml(item.employmentType || 'Employment type not set')}</small><small class="application-salary">${escapeHtml(salaryText)}</small></div>
-        <div>${statusPill(item.status)}${item.interviewPriority ? '<span class="interview-priority-badge">INTERVIEW</span>' : ''}${matchBadge(item)}</div>
-        <div class="application-meta">${emailDate(item.appliedDate)}<small>Applied${item.interviewDate ? ` · Interview ${formatDate(item.interviewDate)}` : ''}${item.followUpDate ? ` · Follow up ${formatDate(item.followUpDate)}` : ''}</small><small>Added ${emailDate(applicationAddedDate(item))}</small></div>
-        <button class="icon-button list-icon-button update-row-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Update ${escapeHtml(item.clientName)}" title="Update application">Update</button>
-      </article>
-    `; }).join('');
     const newestFirst = sortByDate(filtered, applicationAddedDate);
-    const ongoing = newestFirst.filter(item => item.status === 'Ongoing');
-    const interviews = newestFirst.filter(item => item.status === 'Interview');
-    const toProceed = newestFirst.filter(item => isToProceedStatus(item));
-    const applications = newestFirst.filter(item => item.status !== 'Ongoing' && item.status !== 'Interview' && !isToProceedStatus(item));
-    target.innerHTML = [
-      ongoing.length ? `<section class="application-group application-group-ongoing"><div class="application-group-heading"><h3><i class="fa-regular fa-clock" aria-hidden="true"></i> Ongoing</h3><span>${plural(ongoing.length, 'application')}</span></div>${renderRows(ongoing)}</section>` : '',
-      interviews.length ? `<section class="application-group"><div class="application-group-heading"><h3><i class="fa-regular fa-calendar-check" aria-hidden="true"></i> Interviews</h3><span>${plural(interviews.length, 'interview')}</span></div>${renderRows(interviews)}</section>` : '',
-      toProceed.length ? `<section class="application-group application-group-to-proceed"><div class="application-group-heading"><h3><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> To proceed</h3><span>${plural(toProceed.length, 'application')}</span></div>${renderRows(toProceed)}</section>` : '',
-      applications.length ? `<section class="application-group"><div class="application-group-heading"><h3><i class="fa-regular fa-paper-plane" aria-hidden="true"></i> Applications</h3><span>${plural(applications.length, 'application')}</span></div>${renderRows(applications)}</section>` : ''
-    ].join('');
+    if (applicationViewMode === 'board') {
+      const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', 'Active client', 'Not selected'];
+      target.innerHTML = `<div class="application-board">${stages.map(stage => {
+        const cards = newestFirst.filter(item => stage === 'To Proceed' ? isToProceedStatus(item) : item.status === stage);
+        return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}">${applicationSelectionMode ? `<input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} />` : ''}<button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
+      }).join('')}</div>`;
+      return;
+    }
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${newestFirst.map(item => `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td>${statusPill(item.status)}${matchBadge(item)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><div class="application-row-menu"><button class="icon-button application-row-menu-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="true" aria-expanded="false" data-application-menu="${escapeHtml(item.id)}">⋯</button><div class="application-row-menu-items hidden" role="menu" data-application-menu-items="${escapeHtml(item.id)}"><button type="button" role="menuitem" data-view-details="${escapeHtml(item.id)}">View details</button><button type="button" role="menuitem" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-application="${escapeHtml(item.id)}">Delete</button></div></div></td></tr>`).join('')}</tbody></table></div>`;
   }
 
   function emailWeekOptions() {
@@ -1192,6 +1218,7 @@
     if (autoBackupFrequency) autoBackupFrequency.value = localStorage.getItem('jeff-va-auto-backup-frequency-v1') || 'off';
     renderAlerts();
     renderWeeklyReportAvailability();
+    $$('.nav-count').forEach(count => count.classList.toggle('is-zero', Number(count.textContent) === 0));
   }
 
   function showView(view, { updateUrl = true } = {}) {
@@ -1212,6 +1239,10 @@
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
+    if (view === 'hired') {
+      showingHiredClientList = true;
+      hiredEditingId = null;
+    }
     // perf: render the requested view on entry while renderAll skips inactive pages.
     renderCurrentView();
     if (view === 'account') {
@@ -1289,6 +1320,7 @@
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
     viewingClientDetails = viewOnly;
+    $('#clientModal').classList.toggle('application-detail-panel', viewOnly && activeView === 'applications');
     $('#clientId').value = id || '';
     $('#appliedDate').value = id ? '' : today();
     $('#automaticFollowUp').checked = false;
@@ -1485,6 +1517,7 @@
       return;
     }
     event.preventDefault();
+    const savingInDrawer = isActiveClientDrawerView('edit');
     const form = $('#clientForm');
     if (!form.reportValidity()) return;
     if ($('#automaticFollowUp').checked && !$('#followUpDate').value) {

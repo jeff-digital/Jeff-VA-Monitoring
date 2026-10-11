@@ -39,6 +39,145 @@
     if (restoreFocus && wasOpen && mobileLayout) $('#mobileMenu').focus();
   }
 
+  const quickSearchPages = [
+    { id: 'dashboard', label: 'Dashboard', detail: 'Your overview', icon: 'fa-house' },
+    { id: 'applications', label: 'Applications', detail: 'Search and manage your pipeline', icon: 'fa-layer-group' },
+    { id: 'inbox', label: 'Email', detail: 'Open your email workspace', icon: 'fa-envelope' },
+    { id: 'daily-task', label: 'Daily Tasks', detail: 'Review today’s tasks', icon: 'fa-list-check' },
+    { id: 'to-apply', label: 'To Apply', detail: 'Review application reminders', icon: 'fa-calendar-check' },
+    { id: 'hired', label: 'Active clients', detail: 'View your active client list', icon: 'fa-user-tie' },
+    { id: 'documents', label: 'Tools', detail: 'Open your tools library', icon: 'fa-toolbox' },
+    { id: 'weekly-report', label: 'Weekly report', detail: 'Review or export this week’s report', icon: 'fa-chart-column' },
+    { id: 'settings', label: 'Settings', detail: 'Manage your workspace preferences', icon: 'fa-gear' }
+  ];
+
+  function renderQuickSearchResults(query = '') {
+    const normalizedQuery = query.trim().toLowerCase();
+    const matches = [];
+    quickSearchPages.filter(page => !normalizedQuery || `${page.label} ${page.detail}`.toLowerCase().includes(normalizedQuery))
+      .forEach(page => matches.push(`<button class="quick-search-result" type="button" role="option" data-quick-page="${page.id}"><i class="fa-solid ${page.icon}" aria-hidden="true"></i><span><strong>${escapeHtml(page.label)}</strong><small>${escapeHtml(page.detail)}</small></span><kbd>Page</kbd></button>`));
+    const applications = data.applications.filter(item => !normalizedQuery
+      ? true
+      : [item.clientName, item.contact, item.role, item.platform, item.status].join(' ').toLowerCase().includes(normalizedQuery))
+      .slice(0, normalizedQuery ? 6 : 5);
+    applications.forEach(item => matches.push(`<button class="quick-search-result" type="button" role="option" data-quick-application="${escapeHtml(item.id)}"><i class="fa-regular fa-building" aria-hidden="true"></i><span><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml([item.role, item.platform, item.status].filter(Boolean).join(' · '))}</small></span><kbd>Application</kbd></button>`));
+    const emails = normalizedQuery
+      ? data.emails.filter(item => [item.from, item.to, item.subject, item.body].join(' ').toLowerCase().includes(normalizedQuery)).slice(0, 5)
+      : sortByDate(data.emails, item => item.date).slice(0, 3);
+    emails.forEach(item => matches.push(`<button class="quick-search-result" type="button" role="option" data-quick-email="${escapeHtml(item.id)}"><i class="fa-regular fa-envelope" aria-hidden="true"></i><span><strong>${escapeHtml(item.subject || '(No subject)')}</strong><small>${escapeHtml(item.from || item.to || 'Email')}</small></span><kbd>${normalizedQuery ? 'Email' : 'Recent'}</kbd></button>`));
+    $('#quickSearchResults').innerHTML = matches.length
+      ? matches.join('')
+      : '<p class="quick-search-empty">No matching pages, applications, or emails.</p>';
+  }
+
+  function openQuickSearch() {
+    $('#quickSearchModal').showModal();
+    $('#quickSearchInput').value = '';
+    renderQuickSearchResults();
+    requestAnimationFrame(() => $('#quickSearchInput').focus());
+  }
+
+  $('#openQuickSearch').addEventListener('click', openQuickSearch);
+  $('#quickSearchInput').addEventListener('input', event => renderQuickSearchResults(event.target.value));
+  $('#openWeeklyGoalDialog').addEventListener('click', () => {
+    const savedGoal = localStorage.getItem(weeklyActivityGoalStorageKey()) || '';
+    $('#weeklyGoalInput').value = savedGoal;
+    $('#saveWeeklyGoal').disabled = !$('#weeklyGoalInput').checkValidity();
+    $('#weeklyGoalDialog').showModal();
+    requestAnimationFrame(() => $('#weeklyGoalInput').focus());
+  });
+  $('#weeklyGoalInput').addEventListener('input', event => {
+    event.target.setCustomValidity('');
+    $('#saveWeeklyGoal').disabled = !event.target.checkValidity();
+  });
+  $('#closeWeeklyGoalDialog').addEventListener('click', () => $('#weeklyGoalDialog').close());
+  $('#cancelWeeklyGoal').addEventListener('click', () => $('#weeklyGoalDialog').close());
+  $('#weeklyGoalForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    const goal = Number($('#weeklyGoalInput').value);
+    if (!Number.isInteger(goal) || goal < 1 || goal > 100) {
+      $('#weeklyGoalInput').setCustomValidity('Enter a whole number between 1 and 100.');
+      form.reportValidity();
+      return;
+    }
+    localStorage.setItem(weeklyActivityGoalStorageKey(), String(goal));
+    $('#weeklyGoalDialog').close();
+    renderDashboard();
+    toast('Weekly activity goal saved.');
+  });
+  $('#showKeyboardShortcuts').addEventListener('click', () => {
+    $('#quickSearchModal').close();
+    $('#shortcutsModal').showModal();
+  });
+  $('#closeShortcuts').addEventListener('click', () => $('#shortcutsModal').close());
+  document.addEventListener('click', event => {
+    const pageResult = event.target.closest('[data-quick-page]');
+    const applicationResult = event.target.closest('[data-quick-application]');
+    const emailResult = event.target.closest('[data-quick-email]');
+    if (!pageResult && !applicationResult && !emailResult) return;
+    $('#quickSearchModal').close();
+    if (pageResult) {
+      if (pageResult.dataset.quickPage === 'weekly-report') {
+        showView('dashboard');
+        openWeeklyReport();
+      } else if (pageResult.dataset.quickPage === 'settings') {
+        openWorkspaceSettings();
+      } else {
+        showView(pageResult.dataset.quickPage);
+      }
+    } else if (applicationResult) {
+      showView('applications');
+      openClientModal(applicationResult.dataset.quickApplication, true);
+    } else {
+      showView('inbox');
+      openEmailDetail(emailResult.dataset.quickEmail);
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      if (!$('#quickSearchModal').open) openQuickSearch();
+      return;
+    }
+    if ($('#quickSearchModal').open && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
+      const results = [...$('#quickSearchResults').querySelectorAll('.quick-search-result')];
+      if (results.length) {
+        event.preventDefault();
+        const activeIndex = results.indexOf(document.activeElement);
+        const nextIndex = event.key === 'ArrowDown'
+          ? (activeIndex + 1) % results.length
+          : activeIndex < 0 ? results.length - 1 : (activeIndex - 1 + results.length) % results.length;
+        results[nextIndex].focus();
+      }
+      return;
+    }
+    const target = event.target;
+    const isTyping = target instanceof HTMLElement
+      && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+    if ($('#weeklyReportModal').open && !isTyping && event.key === 'ArrowLeft') {
+      event.preventDefault();
+      selectWeeklyReportWeek(weeklyReportOffset - 1);
+      return;
+    }
+    if ($('#weeklyReportModal').open && !isTyping && event.key === 'ArrowRight') {
+      event.preventDefault();
+      selectWeeklyReportWeek(weeklyReportOffset + 1);
+      return;
+    }
+    if (isTyping || event.altKey || event.ctrlKey || event.metaKey || document.querySelector('dialog[open]')) return;
+    if (event.key === '/') {
+      event.preventDefault();
+      if (activeView !== 'applications') showView('applications');
+      $('#applicationSearch').focus();
+    } else if (event.key.toLowerCase() === 'n' && activeView !== 'inbox') {
+      event.preventDefault();
+      if (activeView !== 'applications') showView('applications');
+      openClientModal();
+    }
+  });
+
   $$('.nav-link').forEach(link => link.addEventListener('click', event => {
     event.preventDefault();
     showView(link.dataset.view);
@@ -145,6 +284,13 @@
   $('#settingsButton').addEventListener('click', openWorkspaceSettings);
   $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
   $('#settingsDoneButton').addEventListener('click', () => $('#settingsModal').close());
+  $('#settingsModal').addEventListener('close', () => {
+    const mobileMenu = $('#mobileMenu');
+    const focusTarget = mobileMenu && getComputedStyle(mobileMenu).display !== 'none'
+      ? mobileMenu
+      : $('#utilityMenuButton');
+    focusTarget.focus();
+  });
   $('#autoBackupFrequency').addEventListener('change', event => {
     localStorage.setItem('jeff-va-auto-backup-frequency-v1', event.target.value);
     localStorage.removeItem('jeff-va-auto-backup-last-run-v1');

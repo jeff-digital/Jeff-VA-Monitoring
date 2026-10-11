@@ -87,7 +87,7 @@
       openApplicationEmailsModal(applicationEmailsButton.dataset.applicationEmails);
       return;
     }
-    if (viewDetailsButton && !event.target.closest('button, a')) {
+    if (viewDetailsButton && !event.target.closest('button, a, input, select, textarea, label')) {
       openClientModal(viewDetailsButton.dataset.viewDetails, true);
       return;
     }
@@ -162,6 +162,154 @@
   });
   $('#statusFilter').addEventListener('change', renderApplications);
   $('#platformFilter').addEventListener('change', renderApplications);
+  document.querySelectorAll('[data-application-view]').forEach(button => {
+    button.addEventListener('click', () => {
+      applicationViewMode = button.dataset.applicationView;
+      localStorage.setItem('jeff-va-application-view-v1', applicationViewMode);
+      renderApplications();
+    });
+  });
+  $('#toggleApplicationSelection').addEventListener('click', () => {
+    applicationSelectionMode = !applicationSelectionMode;
+    if (!applicationSelectionMode) selectedApplicationIds.clear();
+    renderApplications();
+  });
+  $('#clearApplicationFilters').addEventListener('click', () => {
+    $('#applicationSearch').value = '';
+    $('#applicationDateFilter').value = '';
+    $('#statusFilter').value = '';
+    $('#platformFilter').value = '';
+    $('#applicationDateSort').value = '0';
+    applicationDateFilter = '';
+    applicationDateSort = '0';
+    renderApplications();
+    updateWeekNavigationCounts();
+  });
+  document.addEventListener('click', async event => {
+    const removeFilter = event.target.closest('[data-remove-application-filter]');
+    const menuTrigger = event.target.closest('[data-application-menu]');
+    const menuAction = event.target.closest('[data-delete-application]');
+    const detailButton = event.target.closest('button[data-view-details]');
+    if (removeFilter) {
+      const filter = removeFilter.dataset.removeApplicationFilter;
+      if (filter === 'search') $('#applicationSearch').value = '';
+      if (filter === 'date') {
+        applicationDateFilter = '';
+        $('#applicationDateFilter').value = '';
+      }
+      if (filter === 'status') $('#statusFilter').value = '';
+      if (filter === 'platform') $('#platformFilter').value = '';
+      if (filter === 'week') {
+        applicationDateSort = '0';
+        $('#applicationDateSort').value = '0';
+      }
+      renderApplications();
+      updateWeekNavigationCounts();
+      return;
+    }
+    if (menuTrigger) {
+      const menu = [...document.querySelectorAll('[data-application-menu-items]')]
+        .find(item => item.dataset.applicationMenuItems === menuTrigger.dataset.applicationMenu);
+      if (!menu) return;
+      const willOpen = menu.classList.contains('hidden');
+      document.querySelectorAll('[data-application-menu-items]').forEach(item => item.classList.add('hidden'));
+      document.querySelectorAll('[data-application-menu]').forEach(item => item.setAttribute('aria-expanded', 'false'));
+      menu.classList.toggle('hidden', !willOpen);
+      menuTrigger.setAttribute('aria-expanded', String(willOpen));
+      return;
+    }
+    if (detailButton) {
+      openClientModal(detailButton.dataset.viewDetails, true);
+      return;
+    }
+    if (menuAction) {
+      await deleteClient(menuAction.dataset.deleteApplication);
+      return;
+    }
+    if (!event.target.closest('.application-row-menu')) {
+      document.querySelectorAll('[data-application-menu-items]').forEach(item => item.classList.add('hidden'));
+      document.querySelectorAll('[data-application-menu]').forEach(item => item.setAttribute('aria-expanded', 'false'));
+    }
+  });
+  $('#applicationList').addEventListener('change', event => {
+    const checkbox = event.target.closest('[data-application-select]');
+    if (!checkbox) return;
+    if (checkbox.checked) selectedApplicationIds.add(checkbox.dataset.applicationSelect);
+    else selectedApplicationIds.delete(checkbox.dataset.applicationSelect);
+    $('#applicationBulkActions').hidden = !applicationSelectionMode || selectedApplicationIds.size === 0;
+    $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
+  });
+  $('#clearApplicationSelection').addEventListener('click', () => {
+    selectedApplicationIds.clear();
+    renderApplications();
+  });
+  $('#applyBulkStatus').addEventListener('click', () => {
+    const newStatus = $('#applicationBulkStatus').value;
+    if (!newStatus || !selectedApplicationIds.size) return;
+    const selected = data.applications.filter(item => selectedApplicationIds.has(item.id));
+    const activeClients = selected.filter(item => item.status === 'Active client');
+    if (activeClients.length) {
+      toast('Active clients must be updated from their details to preserve contract records.');
+      return;
+    }
+    selected.forEach(item => {
+      item.status = newStatus;
+      if (newStatus !== 'Interview') {
+        item.interviewDate = '';
+        item.interviewLink = '';
+      }
+      if (newStatus !== 'To Proceed') item.nextStep = '';
+    });
+    selectedApplicationIds.clear();
+    $('#applicationBulkStatus').value = '';
+    persist();
+    renderAll();
+    toast(`Updated ${plural(selected.length, 'application')}.`);
+  });
+  let draggedApplicationId = '';
+  $('#applicationList').addEventListener('dragstart', event => {
+    const card = event.target.closest('[data-application-card]');
+    if (!card || card.getAttribute('draggable') !== 'true') return;
+    draggedApplicationId = card.dataset.applicationCard;
+    event.dataTransfer.setData('text/plain', draggedApplicationId);
+    event.dataTransfer.effectAllowed = 'move';
+  });
+  $('#applicationList').addEventListener('dragover', event => {
+    const column = event.target.closest('[data-application-drop-status]');
+    if (!column || !draggedApplicationId) return;
+    event.preventDefault();
+    column.classList.add('drop-target');
+  });
+  $('#applicationList').addEventListener('dragleave', event => {
+    const column = event.target.closest('[data-application-drop-status]');
+    if (column && !column.contains(event.relatedTarget)) column.classList.remove('drop-target');
+  });
+  $('#applicationList').addEventListener('drop', event => {
+    const column = event.target.closest('[data-application-drop-status]');
+    if (!column || !draggedApplicationId) return;
+    event.preventDefault();
+    column.classList.remove('drop-target');
+    const item = data.applications.find(application => application.id === draggedApplicationId);
+    const nextStatus = column.dataset.applicationDropStatus;
+    draggedApplicationId = '';
+    if (!item || item.status === nextStatus) return;
+    if (nextStatus === 'Interview' || nextStatus === 'Active client') {
+      openClientModal(item.id);
+      $('#clientStatus').value = nextStatus;
+      $('#clientStatus').dispatchEvent(new Event('change'));
+      toast(nextStatus === 'Interview'
+        ? 'Add the interview date and link to complete this status change.'
+        : 'Complete the client activation steps to change this status.');
+      return;
+    }
+    item.status = nextStatus;
+    if (nextStatus !== 'To Proceed') item.nextStep = '';
+    item.interviewDate = '';
+    item.interviewLink = '';
+    persist();
+    renderAll();
+    toast(`Moved ${item.clientName} to ${nextStatus === 'Not selected' ? 'Rejected' : nextStatus}.`);
+  });
 
   $('#clientPickerUploadInput').addEventListener('change', async event => {
     await uploadActivationDocument(event.target.files[0]);
