@@ -3201,7 +3201,7 @@ body.client-task-drawer-open { overflow: hidden; }
 #hiredView #hiredDetailGrid .hired-detail-info-group dl > div { min-width: 0; padding: 10px 11px; border: 1px solid #e9edf2; border-radius: 7px; background: #f8f9fb; }
 #hiredView #hiredDetailGrid dt { display: block; margin: 0 0 5px; color: var(--workspace-muted); font-size: 10px; font-weight: 600; letter-spacing: .035em; text-transform: uppercase; }
 #hiredView #hiredDetailGrid dd { margin: 0; color: var(--workspace-ink); font-size: 13px; font-weight: 550; line-height: 1.45; overflow-wrap: anywhere; }
-#hiredView #hiredDetailGrid dd a { color: var(--workspace-accent); text-decoration: none; }
+#hiredView #hiredDetailGrid dd a { color: var(--workspace-accent); text-decoration: underline; cursor: pointer; }
 #hiredView #hiredDetailGrid dd a:hover { text-decoration: underline; }
 #hiredView #hiredDetailGrid .client-detail-empty-copy { grid-column: 1 / -1; margin: 0; color: var(--workspace-muted); font-size: 12px; }
 #hiredView #hiredDetailGrid .hired-detail-timeline { grid-column: 1 / -1; }
@@ -4214,6 +4214,8 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .w
 #applicationsView .application-list-head { display: none; }
 #clientModal.application-detail-panel[open] { position: fixed; inset: 0 0 0 auto; width: min(1000px, 90vw); height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 12px 0 0 12px; }
 #clientModal.application-detail-panel #clientForm { height: 100dvh; max-height: 100dvh; }
+.form-field a.form-field-link { display: block; width: 100%; overflow: hidden; border: 1px solid #e0e4e0; border-radius: 6px; background: #fafbfa; color: #343a35; padding: 9px 10px; font-weight: 450; font-size: 13px; line-height: normal; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.form-field a.form-field-link:hover, .form-field a.form-field-link:focus-visible { border-color: var(--navy); text-decoration: underline; }
 
 @media (max-width: 900px) {
   .today-focus-items { gap: 8px; }

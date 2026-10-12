@@ -1402,6 +1402,18 @@
       }
     }
     if (!id && !viewOnly) restoreNewClientApplicationDraft();
+    [
+      ['#hiredWebsite', '#hiredWebsiteLink'],
+      ['#hiredSocial', '#hiredSocialLink']
+    ].forEach(([inputSelector, linkSelector]) => {
+      const input = $(inputSelector);
+      const link = $(linkSelector);
+      const value = input.value.trim();
+      input.hidden = viewOnly;
+      link.hidden = !viewOnly || !value;
+      link.textContent = value;
+      if (value) link.href = normalizeUrl(value);
+    });
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = viewOnly; });
     if (activeClientOnly) {
       $('#clientStatus').value = 'Active client';
