@@ -1906,8 +1906,8 @@
       ['Contact', item.contact && escapeHtml(item.contact)],
       ['Email', item.email && `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>`],
       ['Phone', item.phone && `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`],
-      ['Website', item.website && `<a href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>`],
-      ['Social', item.socialMedia && escapeHtml(item.socialMedia)],
+      ['Application Link', item.website && `<a href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>`],
+      ['Social Media | Website', item.socialMedia && `<a href="${escapeHtml(normalizeUrl(item.socialMedia))}" target="_blank" rel="noopener">${escapeHtml(item.socialMedia)}</a>`],
       ['Location', item.location && escapeHtml(item.location)]
     ]);
     const workFields = detailsMarkup([
