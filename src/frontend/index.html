@@ -231,7 +231,13 @@
 
         <section class="view daily-task-view" id="dailyTaskView" data-view-panel="daily-task" data-page="daily-task">
           <section class="daily-task-toolbar" aria-label="Daily task controls">
-            <label class="daily-task-date-field"><span class="sr-only">Plan date</span><input id="dailyTaskDate" type="date" aria-label="Plan date" title="Plan date" /></label>
+            <div class="daily-task-date-navigation" aria-label="Task date">
+              <button class="button button-secondary daily-task-date-step" id="dailyTaskPreviousDate" type="button" aria-label="Previous day"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+              <button class="daily-task-date-label" id="dailyTaskDateLabel" type="button" aria-label="Choose task date">Oct 12, 2026</button>
+              <button class="button button-secondary daily-task-date-step" id="dailyTaskNextDate" type="button" aria-label="Next day"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+              <button class="button button-secondary daily-task-today-button" id="dailyTaskToday" type="button">Today</button>
+              <label class="daily-task-native-date"><span class="sr-only">Choose task date</span><input id="dailyTaskDate" type="date" aria-label="Choose task date" title="Choose task date" /></label>
+            </div>
             <label class="daily-task-filter-field"><span class="sr-only">Show</span><select id="dailyTaskFilter" aria-label="Show tasks"><option value="all">All tasks</option><option value="remaining">Remaining</option><option value="completed">Completed</option><option value="overdue">Overdue</option></select></label>
             <button class="button button-primary" type="button" id="openDailyTaskAddModal">Add Task</button>
           </section>
@@ -239,24 +245,31 @@
             <div><span>Tasks</span><strong id="dailyTaskScheduledCount">0</strong></div>
             <div><span>Done</span><strong id="dailyTaskCompletedCount">0</strong></div>
             <div><span>Left</span><strong id="dailyTaskRemainingCount">0</strong></div>
-            <button class="daily-task-summary-overdue" type="button" id="dailyTaskOverdueFilter" aria-label="Filter to overdue tasks"><span>Overdue</span><strong id="dailyTaskOverdueCount">0</strong></button>
+            <button class="daily-task-summary-overdue" type="button" id="dailyTaskOverdueFilter" aria-label="Filter to overdue tasks" hidden><span>Overdue</span><strong id="dailyTaskOverdueCount">0</strong></button>
           </section>
           <section class="daily-task-layout">
             <section class="panel daily-task-list-panel" aria-labelledby="dailyTaskListTitle">
               <div class="daily-task-section-heading daily-task-list-heading">
                 <h3 id="dailyTaskListTitle">Tasks</h3>
+                <span class="daily-task-progress-label" id="dailyTaskProgressLabel" aria-live="polite">0 of 0 done</span>
+              </div>
+              <div class="daily-task-progress" role="progressbar" aria-label="Tasks completed" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" id="dailyTaskProgress"><span></span></div>
+              <div class="daily-task-list-tools">
+                <label class="daily-task-quick-add"><span class="sr-only">Add a task</span><input id="dailyTaskQuickAdd" type="text" maxlength="180" placeholder="Add a task and press Enter" autocomplete="off" /></label>
+                <label class="daily-task-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search tasks</span><input id="dailyTaskSearch" type="search" placeholder="Search tasks" autocomplete="off" /></label>
               </div>
               <div class="daily-task-list" id="dailyTaskList" aria-live="polite"></div>
             </section>
             <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
               <div class="daily-task-section-heading daily-task-history-heading"><div><h3 id="dailyTaskHistoryTitle">History</h3></div><span class="daily-task-count" id="dailyTaskHistoryCount">0</span></div>
               <div class="daily-task-history-controls">
-                <label class="daily-task-date-field"><span class="sr-only">Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" title="Completed on" /></label>
                 <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Last week</button></div>
+                <label class="daily-task-date-field"><span class="sr-only">Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" title="Completed on" /></label>
               </div>
               <div class="daily-task-history-list" id="dailyTaskHistoryList" aria-live="polite"></div>
             </section>
           </section>
+          <div class="daily-task-undo-toast" id="dailyTaskUndoToast" role="status" aria-live="polite" hidden><span>Task deleted</span><button type="button" id="undoDailyTaskDelete">Undo</button></div>
         </section>
 
         <section class="view" id="applicationsView" data-view-panel="applications" data-page="applications">
@@ -1324,6 +1337,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261012-07"></script>
+    <script src="js/app.js?v=20261012-08"></script>
   </body>
 </html>
