@@ -198,20 +198,20 @@
     $('#todayFollowUps').textContent = followUp;
     $('#todayInterviews').textContent = interviewsToday;
     $('#todayToApply').textContent = toApplyToday;
-    const weeklyActivityCount = weeklyReportData().activities.length;
+    const weeklyApplicationCount = weeklyReportData().applications.length;
     const savedWeeklyGoal = Number(localStorage.getItem(weeklyActivityGoalStorageKey()));
     const weeklyGoal = Number.isInteger(savedWeeklyGoal) && savedWeeklyGoal >= 1 && savedWeeklyGoal <= 100 ? savedWeeklyGoal : 0;
     $('#dashboardWeeklyActivity').textContent = weeklyGoal
-      ? `${weeklyActivityCount} of ${weeklyGoal} ${weeklyGoal === 1 ? 'activity' : 'activities'}`
-      : weeklyActivityCount === 1 ? '1 activity' : `${weeklyActivityCount} activities`;
-    $('#dashboardWeeklyGoalLabel').textContent = weeklyGoal ? 'Weekly activity goal' : 'Weekly goal not set';
+      ? `${weeklyApplicationCount} of ${weeklyGoal} ${weeklyGoal === 1 ? 'application' : 'applications'}`
+      : plural(weeklyApplicationCount, 'application');
+    $('#dashboardWeeklyGoalLabel').textContent = weeklyGoal ? 'Weekly application goal' : 'Weekly goal not set';
     const weeklyProgress = $('#dashboardWeeklyProgress');
     weeklyProgress.hidden = !weeklyGoal;
     weeklyProgress.max = weeklyGoal || 1;
-    weeklyProgress.value = Math.min(weeklyActivityCount, weeklyGoal || 1);
+    weeklyProgress.value = Math.min(weeklyApplicationCount, weeklyGoal || 1);
     weeklyProgress.setAttribute('aria-valuemin', '0');
     weeklyProgress.setAttribute('aria-valuemax', String(weeklyGoal || 1));
-    weeklyProgress.setAttribute('aria-valuenow', String(Math.min(weeklyActivityCount, weeklyGoal || 1)));
+    weeklyProgress.setAttribute('aria-valuenow', String(Math.min(weeklyApplicationCount, weeklyGoal || 1)));
     $('#openWeeklyGoalDialog').textContent = weeklyGoal ? 'Edit goal' : 'Set goal';
     renderPlatformBreakdown(applications);
     renderStatusChart(applications);

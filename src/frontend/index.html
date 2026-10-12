@@ -238,7 +238,7 @@
                 <span><strong id="todayFollowUps">0</strong> follow-ups due</span>
                 <span><strong id="todayInterviews">0</strong> interviews today</span>
                 <span><strong id="todayToApply">0</strong> reminders due</span>
-                <span class="dashboard-weekly-goal"><strong id="dashboardWeeklyActivity">0 activities</strong><small id="dashboardWeeklyGoalLabel">Weekly goal not set</small><progress id="dashboardWeeklyProgress" value="0" max="1" aria-label="Weekly activity goal progress" hidden></progress><button class="dashboard-weekly-goal-action" type="button" id="openWeeklyGoalDialog">Set goal</button></span>
+                <span class="dashboard-weekly-goal"><strong id="dashboardWeeklyActivity">0 applications</strong><small id="dashboardWeeklyGoalLabel">Weekly goal not set</small><progress id="dashboardWeeklyProgress" value="0" max="1" aria-label="Weekly application goal progress" hidden></progress><button class="dashboard-weekly-goal-action" type="button" id="openWeeklyGoalDialog">Set goal</button></span>
               </div>
               <button class="text-button" type="button" id="openWeeklyReport">View weekly report</button>
             </section>
@@ -823,9 +823,9 @@
     </dialog>
     <dialog class="modal small-modal weekly-goal-modal" id="weeklyGoalDialog" aria-labelledby="weeklyGoalTitle">
       <form id="weeklyGoalForm">
-        <div class="modal-heading"><div><p class="eyebrow">DASHBOARD GOAL</p><h2 id="weeklyGoalTitle">Weekly activity goal</h2></div><button class="icon-button" type="button" id="closeWeeklyGoalDialog" aria-label="Close weekly goal">×</button></div>
-        <label class="form-field" for="weeklyGoalInput">Target activities per week<input id="weeklyGoalInput" type="number" min="1" max="100" step="1" required inputmode="numeric" placeholder="e.g. 10" /></label>
-        <p class="weekly-goal-help">Progress counts the activities shown in your Weekly report. This goal is saved on this device.</p>
+        <div class="modal-heading"><div><p class="eyebrow">DASHBOARD GOAL</p><h2 id="weeklyGoalTitle">Weekly application goal</h2></div><button class="icon-button" type="button" id="closeWeeklyGoalDialog" aria-label="Close weekly goal">×</button></div>
+        <label class="form-field" for="weeklyGoalInput">Target applications per week<input id="weeklyGoalInput" type="number" min="1" max="100" step="1" required inputmode="numeric" placeholder="e.g. 10" /></label>
+        <p class="weekly-goal-help">Progress counts applications submitted this week. This goal is saved on this device.</p>
         <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelWeeklyGoal">Cancel</button><button class="button button-primary" type="submit" id="saveWeeklyGoal" disabled>Save goal</button></div>
       </form>
     </dialog>

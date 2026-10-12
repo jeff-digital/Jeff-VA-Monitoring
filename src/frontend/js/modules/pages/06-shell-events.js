@@ -105,7 +105,7 @@
     localStorage.setItem(weeklyActivityGoalStorageKey(), String(goal));
     $('#weeklyGoalDialog').close();
     renderDashboard();
-    toast('Weekly activity goal saved.');
+    toast('Weekly application goal saved.');
   });
   $('#showKeyboardShortcuts').addEventListener('click', () => {
     $('#quickSearchModal').close();
