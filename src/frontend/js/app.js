@@ -449,13 +449,13 @@
   let activeDashboardTab = 'client';
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
-  let applicationDateSort = '0';
+  let applicationDateSort = 'all';
   let applicationViewMode = localStorage.getItem('jeff-va-application-view-v1') === 'board' ? 'board' : 'table';
   let applicationSelectionMode = false;
   const selectedApplicationIds = new Set();
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
-  let applicationDateFilter = today();
+  let applicationDateFilter = '';
   let hiredDateFilter = '';
   let emailDateFilter = '';
   let interviewCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -1866,7 +1866,7 @@
       const text = [item.clientName, item.contact, item.role, item.platform, item.nextStep, item.notes].join(' ').toLowerCase();
       const statusMatches = status
         ? (status === 'To Proceed' ? isToProceedStatus(item) : status === 'Ongoing' ? item.status === 'Ongoing' : item.status === status)
-        : item.status !== 'Not selected';
+        : true;
       const alwaysVisibleStatus = isToProceedStatus(item) || item.status === 'Interview' || item.status === 'Ongoing';
       const dateMatches = alwaysVisibleStatus || !dateFilter || dateKey(item.appliedDate) === dateFilter;
       const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAddedDate(item), weekRangeFilter);
@@ -1888,7 +1888,7 @@
       dateFilter ? ['date', `Date: ${emailDate(dateFilter)}`] : null,
       status ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
       platform ? ['platform', `Source: ${platform}`] : null,
-      applicationDateSort && applicationDateSort !== '0' ? ['week', applicationDateSort === 'all' ? 'All weeks' : `Week: ${$('#applicationWeekDate').textContent}`] : null
+      applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
     $('#clearApplicationFilters').hidden = filterChips.length === 0;
@@ -6723,9 +6723,9 @@
     $('#applicationDateFilter').value = '';
     $('#statusFilter').value = '';
     $('#platformFilter').value = '';
-    $('#applicationDateSort').value = '0';
+    $('#applicationDateSort').value = 'all';
     applicationDateFilter = '';
-    applicationDateSort = '0';
+    applicationDateSort = 'all';
     renderApplications();
     updateWeekNavigationCounts();
   });
@@ -6744,8 +6744,8 @@
       if (filter === 'status') $('#statusFilter').value = '';
       if (filter === 'platform') $('#platformFilter').value = '';
       if (filter === 'week') {
-        applicationDateSort = '0';
-        $('#applicationDateSort').value = '0';
+        applicationDateSort = 'all';
+        $('#applicationDateSort').value = 'all';
       }
       renderApplications();
       updateWeekNavigationCounts();
@@ -9716,14 +9716,18 @@
     supabaseDataLoaded = false;
     data = emptyData();
     setAuthenticated(false);
-    applicationDateFilter = today();
+    applicationDateFilter = '';
     $('#applicationDateFilter').value = applicationDateFilter;
+    applicationDateSort = 'all';
+    $('#applicationDateSort').value = 'all';
     renderAll();
     $('#loginUsername').focus();
   });
 
-  applicationDateFilter = today();
+  applicationDateFilter = '';
   $('#applicationDateFilter').value = applicationDateFilter;
+  applicationDateSort = 'all';
+  $('#applicationDateSort').value = 'all';
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);

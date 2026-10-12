@@ -179,9 +179,9 @@
     $('#applicationDateFilter').value = '';
     $('#statusFilter').value = '';
     $('#platformFilter').value = '';
-    $('#applicationDateSort').value = '0';
+    $('#applicationDateSort').value = 'all';
     applicationDateFilter = '';
-    applicationDateSort = '0';
+    applicationDateSort = 'all';
     renderApplications();
     updateWeekNavigationCounts();
   });
@@ -200,8 +200,8 @@
       if (filter === 'status') $('#statusFilter').value = '';
       if (filter === 'platform') $('#platformFilter').value = '';
       if (filter === 'week') {
-        applicationDateSort = '0';
-        $('#applicationDateSort').value = '0';
+        applicationDateSort = 'all';
+        $('#applicationDateSort').value = 'all';
       }
       renderApplications();
       updateWeekNavigationCounts();

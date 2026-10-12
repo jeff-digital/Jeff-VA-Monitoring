@@ -446,13 +446,13 @@
   let activeDashboardTab = 'client';
   let emailViewFilter = 'client';
   let emailSelectionMode = false;
-  let applicationDateSort = '0';
+  let applicationDateSort = 'all';
   let applicationViewMode = localStorage.getItem('jeff-va-application-view-v1') === 'board' ? 'board' : 'table';
   let applicationSelectionMode = false;
   const selectedApplicationIds = new Set();
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
-  let applicationDateFilter = today();
+  let applicationDateFilter = '';
   let hiredDateFilter = '';
   let emailDateFilter = '';
   let interviewCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);

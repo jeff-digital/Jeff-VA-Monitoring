@@ -156,14 +156,18 @@
     supabaseDataLoaded = false;
     data = emptyData();
     setAuthenticated(false);
-    applicationDateFilter = today();
+    applicationDateFilter = '';
     $('#applicationDateFilter').value = applicationDateFilter;
+    applicationDateSort = 'all';
+    $('#applicationDateSort').value = 'all';
     renderAll();
     $('#loginUsername').focus();
   });
 
-  applicationDateFilter = today();
+  applicationDateFilter = '';
   $('#applicationDateFilter').value = applicationDateFilter;
+  applicationDateSort = 'all';
+  $('#applicationDateSort').value = 'all';
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);
