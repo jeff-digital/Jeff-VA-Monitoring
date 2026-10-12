@@ -882,7 +882,7 @@
       });
       added = true;
     });
-    if (added) data.alerts = data.alerts.slice(0, 30);
+    if (added) limitAlertHistory();
     return added;
   }
 
@@ -928,7 +928,7 @@
         });
       }
     });
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     renderAlerts();
 
@@ -949,65 +949,322 @@
     return true;
   }
 
+  const generatedNotificationTypes = new Set([
+    'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
+    'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended'
+  ]);
+  let notificationFilter = 'all';
+  let notificationReturnFocus = null;
+  let notificationRefreshTimer = null;
+
+  function isGeneratedNotification(alert) {
+    return generatedNotificationTypes.has(alert.type);
+  }
+
+  function limitAlertHistory() {
+    const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    const generated = alerts.filter(isGeneratedNotification);
+    const history = alerts.filter(alert => !isGeneratedNotification(alert)).slice(0, Math.max(0, 30 - generated.length));
+    data.alerts = [...generated, ...history];
+  }
+
+  function notificationDate(date) {
+    return new Date(`${date}T12:00:00`).toISOString();
+  }
+
+  function notificationRelativeTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value || 'No date';
+    const day = dateKey(date);
+    const currentDay = today();
+    const dayOffset = Math.round((new Date(`${day}T12:00:00`) - new Date(`${currentDay}T12:00:00`)) / 86400000);
+    if (dayOffset === 0) return 'Today';
+    if (dayOffset === 1) return 'Tomorrow';
+    if (dayOffset === -1) return 'Yesterday';
+    return dayOffset > 0 ? `In ${dayOffset} days` : `${Math.abs(dayOffset)} days ago`;
+  }
+
+  function refreshGeneratedNotifications() {
+    if (!dataReady || !supabaseDataLoaded) return false;
+    data.alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    const existingById = new Map(data.alerts.map(alert => [alert.id, alert]));
+    const generated = new Map();
+    const add = alert => {
+      const previous = existingById.get(alert.id);
+      const wasContractEmailUpdated = alert.type === 'contract-ended' && previous?.emailSent !== undefined;
+      generated.set(alert.id, {
+        ...alert,
+        unread: previous ? Boolean(previous.unread) : true,
+        dismissedAt: previous?.dismissedAt || '',
+        snoozedUntil: previous?.snoozedUntil || '',
+        ...(wasContractEmailUpdated ? {
+          emailSent: previous.emailSent,
+          subject: previous.subject,
+          from: previous.from
+        } : {})
+      });
+    };
+    const addTaskAlert = (task, { type, entityType, date, clientName = '' }) => {
+      const title = task.title || 'Untitled task';
+      add({
+        id: `${type}|${entityType}:${task.id}|${date}`,
+        type,
+        taskId: task.id,
+        taskDate: date,
+        clientId: entityType === 'client-task' ? task.clientId : task.relatedType === 'client' ? task.relatedId : '',
+        applicationId: entityType === 'client-task' ? task.clientId : task.relatedType === 'client' ? task.relatedId : '',
+        clientName: clientName || task.relatedName || (entityType === 'client-task' ? 'Client task' : 'Task'),
+        subject: `${type.endsWith('overdue') ? 'Overdue' : 'Due today'}: ${title}`,
+        from: 'Jeff VA reminder',
+        date: notificationDate(date),
+        urgency: type.endsWith('overdue') ? 'overdue' : 'due-today'
+      });
+    };
+    const todayDate = today();
+    (data.dailyTasks || []).forEach(task => {
+      if (!task.id || task.completedAt || task.status === 'done' || !task.taskDate) return;
+      if (task.taskDate === todayDate) addTaskAlert(task, { type: 'task-due-today', entityType: 'daily-task', date: task.taskDate });
+      else if (task.taskDate < todayDate) addTaskAlert(task, { type: 'task-overdue', entityType: 'daily-task', date: task.taskDate });
+    });
+    (data.clientTasks || []).forEach(task => {
+      if (!task.id || task.status === 'done' || task.completedAt || !task.dueDate) return;
+      const client = (data.applications || []).find(item => item.id === task.clientId);
+      const type = task.dueDate === todayDate ? 'client-task-due-today' : task.dueDate < todayDate ? 'client-task-overdue' : '';
+      if (type) addTaskAlert(task, { type, entityType: 'client-task', date: task.dueDate, clientName: client?.clientName || 'Client task' });
+    });
+    (data.applications || []).forEach(item => {
+      if (!item.id || item.status !== 'Active client') return;
+      const endDate = dateKey(item.contractEndDate);
+      const explicitlyEnded = String(item.contractStatus || '').trim().toLowerCase() === 'contract ended';
+      if (explicitlyEnded || endDate && endDate < todayDate) {
+        const endedDate = endDate || dateKey(item.updatedAt || item.activeAt || item.createdAt) || todayDate;
+        add({
+          id: `contract-ended|${item.id}|${endedDate}`,
+          type: 'contract-ended',
+          applicationId: item.id,
+          clientName: item.clientName || 'Client',
+          subject: 'Contract ended',
+          from: 'Jeff VA reminder',
+          date: notificationDate(endedDate),
+          contractEndDate: endedDate,
+          urgency: 'ended'
+        });
+        return;
+      }
+      if (!endDate || String(item.contractStatus || 'Active').trim().toLowerCase() !== 'active') return;
+      const daysLeft = Math.round((new Date(`${endDate}T12:00:00`) - new Date(`${todayDate}T12:00:00`)) / 86400000);
+      if (daysLeft < 0 || daysLeft > 30) return;
+      const threshold = daysLeft <= 7 ? 7 : daysLeft <= 14 ? 14 : 30;
+      add({
+        id: `contract-ending-${threshold}|${item.id}|${endDate}`,
+        type: `contract-ending-${threshold}`,
+        applicationId: item.id,
+        clientName: item.clientName || 'Client',
+        subject: daysLeft ? `Contract ending in ${plural(daysLeft, 'day')}` : 'Contract ends today',
+        from: 'Jeff VA reminder',
+        date: notificationDate(endDate),
+        contractEndDate: endDate,
+        urgency: 'ending-soon'
+      });
+    });
+
+    const existingGenerated = data.alerts.filter(isGeneratedNotification);
+    const previousGeneratedIds = new Set(existingGenerated.map(alert => alert.id));
+    const generatedIds = new Set(generated.keys());
+    const urgentNewCount = [...generated.values()].filter(alert =>
+      !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended'].includes(alert.type)
+    ).length;
+    const changed = previousGeneratedIds.size !== generatedIds.size
+      || [...previousGeneratedIds].some(id => !generatedIds.has(id))
+      || [...generatedIds].some(id => !previousGeneratedIds.has(id))
+      || [...generated.values()].some(alert => {
+        const existing = existingById.get(alert.id);
+        return !existing || Object.keys(alert).some(key => existing[key] !== alert[key]);
+      });
+    const retainedAlerts = data.alerts.filter(alert => !isGeneratedNotification(alert));
+    data.alerts = [...generated.values(), ...retainedAlerts];
+    if (changed) {
+      data.alerts.sort((first, second) => new Date(second.date) - new Date(first.date));
+      persist();
+      if (urgentNewCount) {
+        const live = $('#notificationLive');
+        if (live) live.textContent = `${urgentNewCount} new urgent ${urgentNewCount === 1 ? 'notification' : 'notifications'}.`;
+      }
+    }
+    return changed;
+  }
+
+  function visibleNotificationAlerts() {
+    const now = Date.now();
+    return (data.alerts || []).filter(alert => !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
+  }
+
+  function notificationGroup(alert) {
+    return alert.type?.startsWith('task-') || alert.type?.startsWith('client-task-') ? 'Tasks' : 'Clients';
+  }
+
   function renderAlerts() {
-    const alerts = [...(data.alerts || [])].sort((first, second) => new Date(second.date) - new Date(first.date));
+    refreshGeneratedNotifications();
+    const alerts = visibleNotificationAlerts().sort((first, second) => new Date(second.date) - new Date(first.date));
     const unread = alerts.filter(alert => alert.unread).length;
     const badge = $('#notificationBadge');
+    const button = $('#notificationButton');
     if (badge) { badge.textContent = unread > 9 ? '9+' : String(unread); badge.hidden = unread === 0; }
+    if (button) button.setAttribute('aria-label', unread ? `Notifications, ${unread} unread` : 'Notifications');
     updateTabNotification(unread);
     const list = $('#notificationList');
     if (!list) return;
-    if (!alerts.length) {
-      list.innerHTML = '<div class="notification-empty">No recent client alerts.</div>';
+    const shownAlerts = notificationFilter === 'unread' ? alerts.filter(alert => alert.unread) : alerts;
+    const groups = ['Tasks', 'Clients'].map(label => ({
+      label,
+      items: shownAlerts.filter(alert => notificationGroup(alert) === label)
+    })).filter(group => group.items.length);
+    if (!groups.length) {
+      list.innerHTML = `<div class="notification-empty">${notificationFilter === 'unread' ? 'You’re all caught up. No unread notifications.' : 'No notifications right now. Tasks and client updates will appear here.'}</div>`;
       return;
     }
-
-    const todayAlerts = alerts.filter(alert => dateKey(alert.date) === today());
-    const thisWeekAlerts = alerts.filter(alert => {
-      if (dateKey(alert.date) === today()) return false;
-      const alertDate = new Date(`${alert.date || new Date().toISOString()}T12:00:00`);
-      const weekStart = new Date(`${today()}T12:00:00`);
-      const mondayOffset = (weekStart.getDay() + 6) % 7;
-      weekStart.setDate(weekStart.getDate() - mondayOffset);
-      weekStart.setHours(0, 0, 0, 0);
-      return alertDate >= weekStart;
-    });
-    const recentAlertIds = new Set([...todayAlerts, ...thisWeekAlerts].map(alert => alert.id));
-    const earlierAlerts = alerts.filter(alert => !recentAlertIds.has(alert.id));
-
-    const sectionMap = [
-      { label: 'Today', items: todayAlerts },
-      { label: 'This Week', items: thisWeekAlerts },
-      { label: 'Earlier', items: earlierAlerts }
-    ].filter(section => section.items.length);
-
-    let remaining = 7;
-    const grouped = sectionMap.map(section => {
-      const items = section.items.slice(0, remaining);
-      remaining -= items.length;
-      return { label: section.label, items };
-    }).filter(section => section.items.length);
-
-    if (!grouped.length) {
-      list.innerHTML = '<div class="notification-empty">No recent client alerts.</div>';
-      return;
-    }
-
-    list.innerHTML = grouped.map(section => `
-      <div class="notification-section">
-        <div class="notification-section-title">${section.label}</div>
-        ${section.items.map(alert => `
-          <button type="button" class="notification-item ${alert.unread ? 'unread' : ''}" data-alert-open="${escapeHtml(alert.id)}">
+    list.innerHTML = groups.map(group => `
+      <section class="notification-section" aria-label="${group.label}">
+        <h3 class="notification-section-title">${group.label}</h3>
+        ${group.items.map(alert => {
+          const urgency = alert.urgency || (alert.type === 'contract-ended' ? 'ended' : '');
+          return `<article class="notification-item ${alert.unread ? 'unread' : ''}${urgency ? ` is-${escapeHtml(urgency)}` : ''}">
             <span class="notification-item-dot" aria-hidden="true"></span>
-            <span class="notification-item-copy">
-              <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName)}</strong><time>${relativeDate(alert.date)}</time></span>
-              <span class="notification-item-subject">${escapeHtml(alert.subject || '(No subject)')}</span>
-              <small>From ${escapeHtml(alert.from || 'Unknown sender')}</small>
-            </span>
-          </button>
-        `).join('')}
-      </div>
+            <div class="notification-item-copy">
+              <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName || 'Notification')}</strong><time datetime="${escapeHtml(alert.date || '')}">${escapeHtml(notificationRelativeTime(alert.date))}</time></span>
+              <button type="button" class="notification-item-subject" data-alert-open="${escapeHtml(alert.id)}">${escapeHtml(alert.subject || '(No subject)')}</button>
+              ${alert.from ? `<small>${escapeHtml(alert.from)}</small>` : ''}
+              <div class="notification-item-actions">
+                <button type="button" data-alert-action="snooze" data-alert-id="${escapeHtml(alert.id)}" aria-label="Snooze ${escapeHtml(alert.subject || 'notification')} for one day">Snooze</button>
+                <button type="button" data-alert-action="dismiss" data-alert-id="${escapeHtml(alert.id)}" aria-label="Dismiss ${escapeHtml(alert.subject || 'notification')}">Dismiss</button>
+                <button type="button" data-alert-action="done" data-alert-id="${escapeHtml(alert.id)}">Mark done</button>
+              </div>
+            </div>
+          </article>`;
+        }).join('')}
+      </section>
     `).join('');
+  }
+
+  function closeNotifications({ restoreFocus = false } = {}) {
+    const panel = $('#notificationPanel');
+    if (!panel || panel.classList.contains('hidden')) return;
+    panel.classList.add('hidden');
+    $('#notificationButton').setAttribute('aria-expanded', 'false');
+    const focusTarget = notificationReturnFocus instanceof HTMLElement && notificationReturnFocus.isConnected
+      ? notificationReturnFocus
+      : $('#notificationButton');
+    notificationReturnFocus = null;
+    if (restoreFocus) focusTarget.focus();
+  }
+
+  function openNotifications() {
+    const panel = $('#notificationPanel');
+    const willOpen = panel.classList.contains('hidden');
+    if (!willOpen) {
+      closeNotifications({ restoreFocus: true });
+      return;
+    }
+    notificationReturnFocus = $('#notificationButton');
+    renderAlerts();
+    panel.classList.remove('hidden');
+    $('#notificationButton').setAttribute('aria-expanded', 'true');
+    requestAnimationFrame(() => {
+      $(`[data-notification-filter="${notificationFilter}"]`)?.focus();
+    });
+  }
+
+  function setNotificationFilter(filter) {
+    notificationFilter = filter;
+    const allTab = $('#notificationAllTab');
+    const unreadTab = $('#notificationUnreadTab');
+    [allTab, unreadTab].forEach(tab => {
+      const selected = tab.dataset.notificationFilter === filter;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    $('#notificationList').setAttribute('aria-labelledby', filter === 'unread' ? 'notificationUnreadTab' : 'notificationAllTab');
+    renderAlerts();
+  }
+
+  function handleNotificationAction(alertId, action) {
+    const alert = (data.alerts || []).find(item => item.id === alertId);
+    if (!alert) return;
+    if (action === 'snooze') alert.snoozedUntil = new Date(Date.now() + 86400000).toISOString();
+    else if (action === 'dismiss') alert.dismissedAt = new Date().toISOString();
+    else if (action === 'done') {
+      if (alert.type?.startsWith('client-task-')) {
+        const task = (data.clientTasks || []).find(item => item.id === alert.taskId);
+        if (task) {
+          task.status = 'done';
+          task.completedAt = new Date().toISOString();
+          task.updatedAt = task.completedAt;
+        }
+      } else if (alert.type?.startsWith('task-')) {
+        const task = (data.dailyTasks || []).find(item => item.id === alert.taskId);
+        if (task) task.completedAt = new Date().toISOString();
+      } else {
+        alert.unread = false;
+        alert.dismissedAt = new Date().toISOString();
+      }
+    }
+    persist();
+    renderAll();
+    if (!$('#notificationPanel').classList.contains('hidden')) {
+      requestAnimationFrame(() => $(`[data-notification-filter="${notificationFilter}"]`)?.focus());
+    }
+  }
+
+  function handleNotificationKeydown(event) {
+    const panel = $('#notificationPanel');
+    if (panel.classList.contains('hidden') || document.querySelector('dialog[open]')) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeNotifications({ restoreFocus: true });
+      return;
+    }
+    if (event.target instanceof HTMLElement && event.target.matches('[role="tab"]') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const tabs = [$('#notificationAllTab'), $('#notificationUnreadTab')];
+      const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[1] : event.key === 'ArrowRight' ? (event.target === tabs[0] ? tabs[1] : tabs[0]) : (event.target === tabs[0] ? tabs[1] : tabs[0]);
+      next.focus();
+      next.click();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...panel.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(item => !item.closest('[hidden]') && item.getClientRects().length);
+    if (!focusable.length) {
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  document.addEventListener('keydown', handleNotificationKeydown);
+  window.addEventListener('focus', renderAlerts);
+
+  function startNotificationRefreshTimer() {
+    if (!notificationRefreshTimer) {
+      notificationRefreshTimer = setInterval(() => {
+        if (dataReady && supabaseDataLoaded) renderAlerts();
+      }, 60000);
+    }
+  }
+
+  function stopNotificationRefreshTimer() {
+    if (!notificationRefreshTimer) return;
+    clearInterval(notificationRefreshTimer);
+    notificationRefreshTimer = null;
   }
 
   let onboardingAlertsRefreshInFlight = false;
@@ -1047,7 +1304,7 @@
         changed = true;
       });
       if (changed) {
-        data.alerts = data.alerts.slice(0, 30);
+        limitAlertHistory();
         persist();
         renderAlerts();
       }
@@ -1165,7 +1422,7 @@
       changed = true;
     });
     if (changed) {
-      data.alerts = data.alerts.slice(0, 30);
+      limitAlertHistory();
       persist();
       const needsManualEmail = ended.filter(item => !item.contractEndedEmailSentAt && (!gmailAccessToken || !isEmailAddress(item.email))).length;
       if (needsManualEmail) {
@@ -1212,7 +1469,7 @@
       });
       interviewsDue += 1;
     });
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     renderAlerts();
     if (interviewsDue) {
@@ -1243,7 +1500,7 @@
       if (data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({ id: alertId, type: 'document-email-reminder', applicationId: item.id, clientName: item.clientName, subject: 'Send the updated document today', from: 'Jeff VA reminder', date: new Date().toISOString(), unread: true });
     });
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     renderAlerts();
     const currentClient = data.applications.find(item => item.id === hiredEditingId);
@@ -1317,7 +1574,7 @@
         followUpsNeedingReview += 1;
       }
     }
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     if (automaticEmailsSent && activeView === 'applications') renderApplications();
     if (automaticEmailsSent && activeView === 'dashboard') renderDashboard();
@@ -1339,14 +1596,6 @@
     }
   }
 
-  function openNotifications() {
-    const panel = $('#notificationPanel');
-    const willOpen = panel.classList.contains('hidden');
-    renderAlerts();
-    panel.classList.toggle('hidden', !willOpen);
-    $('#notificationButton').setAttribute('aria-expanded', String(willOpen));
-  }
-
   function markAlertsRead() {
     (data.alerts || []).forEach(alert => { alert.unread = false; });
     persist();
@@ -1354,9 +1603,10 @@
   }
 
   async function clearAlerts() {
-    if (!(data.alerts || []).length) return;
-    if (!(await appConfirm('Clear all recent alerts? This will not delete your applications or emails.', { title: 'Clear recent alerts', confirmLabel: 'Clear alerts', danger: true }))) return;
-    data.alerts = [];
+    if (!visibleNotificationAlerts().length) return;
+    if (!(await appConfirm('Dismiss all visible notifications? This will not delete your tasks or client records.', { title: 'Clear notifications', confirmLabel: 'Clear all', danger: true }))) return;
+    const dismissedAt = new Date().toISOString();
+    visibleNotificationAlerts().forEach(alert => { alert.dismissedAt = dismissedAt; });
     persist();
     renderAlerts();
   }

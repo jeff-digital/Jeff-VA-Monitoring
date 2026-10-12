@@ -42,7 +42,7 @@
         <nav class="main-nav">
           <div class="nav-group">
             <p class="nav-group-label">WORKSPACE</p>
-            <a class="nav-link active" href="#dashboard" data-view="dashboard" title="Dashboards">
+            <a class="nav-link" href="#dashboard" data-view="dashboard" title="Dashboards">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span><span class="nav-label">Dashboards</span>
             </a>
             <a class="nav-link" href="#daily-task" data-view="daily-task" title="Daily Task">
@@ -106,20 +106,28 @@
               <p class="page-context daily-task-header-date" id="dailyTaskHeaderDate" hidden></p>
             </div>
             <div class="dashboard-switcher" role="tablist" aria-label="Dashboard views">
-              <button class="dashboard-switcher-tab active" type="button" role="tab" aria-selected="true" aria-controls="clientDashboardPanel" data-dashboard-tab="client">Client Dashboard</button>
-              <button class="dashboard-switcher-tab" type="button" role="tab" aria-selected="false" aria-controls="applicationDashboardPanel" data-dashboard-tab="application">Application Dashboard</button>
+              <button class="dashboard-switcher-tab active" id="clientDashboardTab" type="button" role="tab" tabindex="0" aria-selected="true" aria-controls="clientDashboardPanel" data-dashboard-tab="client">Client Dashboard</button>
+              <button class="dashboard-switcher-tab" id="applicationDashboardTab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="applicationDashboardPanel" data-dashboard-tab="application">Application Dashboard</button>
             </div>
           </div>
           <div class="topbar-actions">
             <button class="button button-secondary global-search-trigger" type="button" id="openQuickSearch" aria-label="Open quick search" aria-haspopup="dialog" aria-controls="quickSearchModal"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span><kbd>Ctrl K</kbd></button>
-            <p class="local-indicator"><span></span> Saved</p>
+            <p class="local-indicator" id="saveIndicator" role="status" aria-live="polite" hidden><span></span><span id="saveIndicatorText"></span></p>
             <div class="notification-menu" id="notificationMenu">
-              <button class="notification-button" type="button" id="notificationButton" aria-label="Recent client alerts" aria-haspopup="true" aria-expanded="false">
+              <button class="notification-button" type="button" id="notificationButton" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notificationPanel">
                 <span aria-hidden="true"><i class="fa-solid fa-bell"></i></span><span class="notification-badge" id="notificationBadge" hidden>0</span>
               </button>
-              <div class="notification-panel hidden" id="notificationPanel" role="dialog" aria-label="Recent client alerts">
-                <div class="notification-panel-head"><div><strong>Recent alerts</strong><span>Client replies matched to your applications</span></div><div class="notification-panel-actions"><button type="button" class="text-button" id="markAlertsRead">Mark read</button><button type="button" class="text-button clear-alerts-button" id="clearAlerts">Clear all</button></div></div>
-                <div id="notificationList"></div>
+              <div class="notification-panel hidden" id="notificationPanel" role="dialog" aria-modal="true" aria-labelledby="notificationTitle" tabindex="-1">
+                <div class="notification-panel-head">
+                  <div><strong id="notificationTitle">Notifications</strong><span>Tasks and client updates that need your attention</span></div>
+                  <div class="notification-panel-actions"><button type="button" class="text-button" id="markAlertsRead">Mark all as read</button><button type="button" class="text-button clear-alerts-button" id="clearAlerts">Clear all</button></div>
+                  <div class="notification-tabs" role="tablist" aria-label="Notification filter">
+                    <button type="button" role="tab" id="notificationAllTab" aria-selected="true" aria-controls="notificationList" data-notification-filter="all">All</button>
+                    <button type="button" role="tab" id="notificationUnreadTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="unread" tabindex="-1">Unread</button>
+                  </div>
+                </div>
+                <div id="notificationLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+                <div id="notificationList" role="tabpanel" aria-labelledby="notificationAllTab"></div>
               </div>
             </div>
             <button class="button button-secondary" type="button" id="openFollowUpTemplate" hidden aria-hidden="true">Follow-up template</button>
@@ -128,21 +136,102 @@
         </header>
 
         <section class="view active" id="dashboardView" data-view-panel="dashboard" data-page="dashboard">
-          <section id="clientDashboardPanel" class="dashboard-tab-panel" role="tabpanel" aria-label="Client Dashboard" data-dashboard-panel="client">
-            <section class="stat-grid client-dashboard-stat-grid" aria-label="Client summary">
-              <button class="stat-card stat-card-primary stat-card-link" type="button" data-go-to="hired" aria-label="View active clients">
-                <div class="stat-label"><span class="stat-icon" aria-hidden="true">✓</span> Active clients</div>
-                <strong id="clientDashboardCount">0</strong>
-                <p id="clientDashboardDetail">Clients with an active contract</p>
-              </button>
-              <article class="stat-card client-dashboard-ended-card">
-                <div class="stat-label"><span class="stat-icon" aria-hidden="true">◷</span> Contract ended</div>
-                <strong id="clientDashboardEndedCount">0</strong>
-                <p id="clientDashboardEndedDetail">No ended contracts</p>
-              </article>
-            </section>
+          <section id="clientDashboardPanel" class="dashboard-tab-panel" role="tabpanel" tabindex="0" aria-labelledby="clientDashboardTab" data-dashboard-panel="client">
+            <div class="client-dashboard-loading" id="clientDashboardLoading" aria-label="Loading client dashboard" hidden>
+              <div class="client-dashboard-skeleton client-dashboard-skeleton-kpis"></div>
+              <div class="client-dashboard-skeleton client-dashboard-skeleton-content"></div>
+            </div>
+            <div id="clientDashboardContent">
+              <div class="client-dashboard-heading">
+                <div><h2>Client overview</h2><p>Contracts, follow-ups, and tracked hours in one place.</p></div>
+                <button class="button button-primary" type="button" data-client-dashboard-add><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Client</button>
+              </div>
+              <section class="stat-grid client-dashboard-stat-grid" aria-label="Client summary">
+                <article class="stat-card client-dashboard-kpi client-dashboard-kpi-active">
+                  <div class="stat-label"><span class="stat-icon" aria-hidden="true"><i class="fa-solid fa-user-check"></i></span> Active clients</div>
+                  <strong id="clientDashboardCount">—</strong>
+                  <p id="clientDashboardDetail">Loading clients…</p>
+                </article>
+                <article class="stat-card client-dashboard-kpi client-dashboard-kpi-ending">
+                  <div class="stat-label"><span class="stat-icon" aria-hidden="true"><i class="fa-regular fa-clock"></i></span> Ending soon</div>
+                  <strong id="clientDashboardEndingCount">0</strong>
+                  <p>Within the next 30 days</p>
+                </article>
+                <article class="stat-card client-dashboard-kpi client-dashboard-kpi-ended">
+                  <div class="stat-label"><span class="stat-icon" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></span> Contract ended</div>
+                  <strong id="clientDashboardEndedCount">0</strong>
+                  <p id="clientDashboardEndedDetail">No ended contracts</p>
+                </article>
+                <article class="stat-card client-dashboard-kpi client-dashboard-kpi-income" id="clientDashboardIncomeCard" hidden>
+                  <div class="stat-label"><span class="stat-icon" aria-hidden="true"><i class="fa-solid fa-coins"></i></span> Monthly income</div>
+                  <strong id="clientDashboardIncome">—</strong>
+                  <p>Estimated from saved client rates</p>
+                </article>
+              </section>
+              <div class="client-dashboard-quickbar">
+                <label class="client-dashboard-client-picker"><span>Quick actions for</span><select id="clientDashboardActionClient" aria-label="Choose a client for quick actions"></select></label>
+                <div class="client-dashboard-quick-actions" id="clientDashboardQuickActions" aria-label="Client quick actions">
+                  <button class="button button-secondary" type="button" data-client-dashboard-action="hours"><i class="fa-regular fa-clock" aria-hidden="true"></i> Log Hours</button>
+                  <button class="button button-secondary" type="button" data-client-dashboard-action="task"><i class="fa-solid fa-list-check" aria-hidden="true"></i> Add Task</button>
+                  <button class="button button-secondary" type="button" data-client-dashboard-action="note"><i class="fa-regular fa-note-sticky" aria-hidden="true"></i> Add Note</button>
+                </div>
+              </div>
+              <div class="client-dashboard-main-grid">
+                <section class="client-dashboard-panel client-dashboard-clients" id="clientDashboardClients" aria-labelledby="clientDashboardListTitle">
+                  <header class="client-dashboard-panel-heading">
+                    <div><h2 id="clientDashboardListTitle">Clients</h2><span id="clientDashboardListCount">0 clients</span></div>
+                    <div class="client-dashboard-filters">
+                      <label class="client-dashboard-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search clients</span><input id="clientDashboardSearch" type="search" placeholder="Search clients" autocomplete="off" /></label>
+                      <label><span class="sr-only">Filter clients by status</span><select id="clientDashboardStatusFilter" aria-label="Filter clients by status"><option value="all">All statuses</option><option value="active">Active</option><option value="ending">Ending soon</option><option value="paused">Paused</option><option value="ended">Ended</option></select></label>
+                    </div>
+                  </header>
+                  <div class="client-dashboard-table-wrap">
+                    <table class="client-dashboard-table">
+                      <thead><tr>
+                        <th scope="col"><button type="button" data-client-sort="name">Client name <span aria-hidden="true">↕</span></button></th>
+                        <th scope="col"><button type="button" data-client-sort="status">Status <span aria-hidden="true">↕</span></button></th>
+                        <th scope="col"><button type="button" data-client-sort="start">Contract start <span aria-hidden="true">↕</span></button></th>
+                        <th scope="col"><button type="button" data-client-sort="end">Contract end <span aria-hidden="true">↕</span></button></th>
+                        <th scope="col"><button type="button" data-client-sort="days">Days left <span aria-hidden="true">↕</span></button></th>
+                        <th scope="col"><button type="button" data-client-sort="rate">Rate <span aria-hidden="true">↕</span></button></th>
+                        <th scope="col"><button type="button" data-client-sort="contact">Last contact <span aria-hidden="true">↕</span></button></th>
+                        <th scope="col"><span class="sr-only">Actions</span></th>
+                      </tr></thead>
+                      <tbody id="clientDashboardTableBody"></tbody>
+                    </table>
+                    <div class="client-dashboard-empty" id="clientDashboardEmpty" hidden><span class="client-dashboard-empty-icon" aria-hidden="true"><i class="fa-solid fa-user-group"></i></span><h3 id="clientDashboardEmptyTitle">No clients yet</h3><p id="clientDashboardEmptyMessage">Add your first client to start tracking contracts and work.</p><button class="button button-primary" type="button" data-client-dashboard-add><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Client</button></div>
+                  </div>
+                </section>
+                <aside class="client-dashboard-panel client-dashboard-attention" aria-labelledby="clientDashboardAttentionTitle">
+                  <header class="client-dashboard-panel-heading"><div><h2 id="clientDashboardAttentionTitle">Needs attention</h2><span id="clientDashboardAttentionCount">All caught up</span></div></header>
+                  <div class="client-dashboard-attention-list" id="clientDashboardAttentionList"></div>
+                </aside>
+              </div>
+              <div class="client-dashboard-bottom-grid">
+                <section class="client-dashboard-panel" aria-labelledby="clientDashboardActivityTitle">
+                  <header class="client-dashboard-panel-heading"><div><h2 id="clientDashboardActivityTitle">Recent activity</h2><span>Latest client updates and completed work</span></div></header>
+                  <div class="client-dashboard-activity-list" id="clientDashboardActivityList"></div>
+                </section>
+                <section class="client-dashboard-panel" aria-labelledby="clientDashboardHoursTitle">
+                  <header class="client-dashboard-panel-heading"><div><h2 id="clientDashboardHoursTitle">Logged hours</h2><span>Last 6 months</span></div></header>
+                  <div class="client-dashboard-chart-wrap"><svg id="clientDashboardHoursChart" viewBox="0 0 600 210" role="img" aria-label="Logged client hours over the last six months"></svg></div>
+                </section>
+              </div>
+            </div>
+            <div class="client-dashboard-backdrop" id="clientDashboardBackdrop" hidden></div>
+            <aside class="client-dashboard-drawer" id="clientDashboardDrawer" role="dialog" aria-modal="true" aria-labelledby="clientDashboardDrawerTitle" aria-hidden="true" hidden>
+              <header class="client-dashboard-drawer-heading"><div><span class="eyebrow">CLIENT DETAILS</span><h2 id="clientDashboardDrawerTitle">Client</h2></div><button class="icon-button" type="button" data-client-dashboard-close aria-label="Close client details"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+              <div class="client-dashboard-drawer-content" id="clientDashboardDrawerContent"></div>
+            </aside>
+            <dialog class="client-dashboard-action-dialog" id="clientDashboardActionDialog" aria-labelledby="clientDashboardActionTitle">
+              <form id="clientDashboardActionForm">
+                <div class="client-dashboard-drawer-heading"><div><span class="eyebrow">QUICK ACTION</span><h2 id="clientDashboardActionTitle">Add a note</h2></div><button class="icon-button" type="button" data-client-dashboard-action-close aria-label="Close quick action"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+                <div id="clientDashboardActionFields"></div>
+                <div class="modal-actions"><button class="button button-secondary" type="button" data-client-dashboard-action-close>Cancel</button><button class="button button-primary" type="submit">Save</button></div>
+              </form>
+            </dialog>
           </section>
-          <section id="applicationDashboardPanel" class="dashboard-tab-panel" role="tabpanel" aria-label="Application Dashboard" data-dashboard-panel="application" hidden>
+          <section id="applicationDashboardPanel" class="dashboard-tab-panel" role="tabpanel" tabindex="0" aria-labelledby="applicationDashboardTab" data-dashboard-panel="application" hidden>
             <section class="weekly-report-banner" aria-label="Weekly report">
               <div><h2>This week</h2><p id="weeklyReportPeriod">Current week: Oct 5 – Oct 9</p></div>
               <div class="today-focus-items" aria-label="Today">

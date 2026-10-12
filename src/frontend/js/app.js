@@ -19,6 +19,8 @@
   let initializingUserId = null;
   let persistChain = Promise.resolve();
   let persistWritePending = false;
+  let pendingPersistWrites = 0;
+  let saveIndicatorTimer = null;
   const MAX_LOCAL_WRITE_STAMPS = 20;
   const lastLocalWriteStamps = new Set();
   let dataReady = false;
@@ -577,6 +579,27 @@
     }
   }
 
+  function updateSaveIndicator(state) {
+    const indicator = $('#saveIndicator');
+    const label = $('#saveIndicatorText');
+    if (!indicator || !label) return;
+    if (saveIndicatorTimer) {
+      clearTimeout(saveIndicatorTimer);
+      saveIndicatorTimer = null;
+    }
+    indicator.className = `local-indicator is-${state}`;
+    indicator.hidden = false;
+    label.textContent = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save failed';
+    if (state === 'saved') {
+      saveIndicatorTimer = setTimeout(() => {
+        indicator.hidden = true;
+        indicator.className = 'local-indicator';
+        label.textContent = '';
+        saveIndicatorTimer = null;
+      }, 2200);
+    }
+  }
+
   function persist() {
     if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) return Promise.resolve();
     const snapshot = JSON.parse(JSON.stringify(data));
@@ -585,8 +608,11 @@
     const updatedAt = new Date().toISOString();
     // perf: remember our own writes so repeat realtime echoes do not trigger a reload loop.
     rememberLocalWriteStamp(updatedAt);
+    pendingPersistWrites += 1;
     persistWritePending = true;
-    persistChain = persistChain.then(async () => {
+    updateSaveIndicator('saving');
+    let saved = false;
+    const write = persistChain.then(async () => {
       if (!client || !userId) return;
       const { error } = await client.from('app_state').upsert({
         user_id: userId,
@@ -598,9 +624,13 @@
         showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
         throw error;
       }
+      saved = true;
     }).catch(() => {}).finally(() => {
-      persistWritePending = false;
+      pendingPersistWrites = Math.max(0, pendingPersistWrites - 1);
+      persistWritePending = pendingPersistWrites > 0;
+      if (!pendingPersistWrites) updateSaveIndicator(saved ? 'saved' : 'error');
     });
+    persistChain = write.then(() => undefined);
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
     queueDocumentsBackup({ immediate: true });
@@ -656,6 +686,7 @@
 
     supabaseDataLoaded = true;
     dataReady = true;
+    startNotificationRefreshTimer();
     let startupStage = 'preparing workspace data';
     try {
       if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
@@ -1169,19 +1200,559 @@
     renderRecentApplications();
   }
 
+  let clientDashboardSort = 'name';
+  let clientDashboardSortDirection = 'asc';
+  let clientDashboardSelectedId = '';
+  let clientDashboardAction = '';
+  let clientDashboardDrawerReturnFocus = null;
+
+  function clientDashboardDaysLeft(item) {
+    if (!item.contractEndDate || isContractEnded(item)) return null;
+    const end = new Date(`${dateKey(item.contractEndDate)}T12:00:00`);
+    const current = new Date(`${today()}T12:00:00`);
+    return Number.isNaN(end.getTime()) ? null : Math.round((end - current) / 86400000);
+  }
+
+  function clientDashboardStatus(item) {
+    if (isContractEnded(item)) return { key: 'ended', label: 'Ended' };
+    if (String(item.contractStatus || '').toLowerCase() === 'not active'
+      || String(item.contractStatus || '').toLowerCase() === 'paused') return { key: 'paused', label: 'Paused' };
+    const daysLeft = clientDashboardDaysLeft(item);
+    if (isActiveContract(item) && daysLeft !== null && daysLeft <= 30) return { key: 'ending', label: 'Ending soon' };
+    return { key: 'active', label: 'Active' };
+  }
+
+  function clientDashboardLastContact(item) {
+    const emailAddress = String(item.email || '').trim().toLowerCase();
+    const matching = (data.emails || []).filter(email => email.applicationId === item.id
+      || (emailAddress && [email.to, email.from].some(address => String(address || '').trim().toLowerCase() === emailAddress)));
+    return matching.reduce((latest, email) => {
+      const date = email.date || '';
+      return dateKey(date) && (!latest || new Date(date) > new Date(latest)) ? date : latest;
+    }, '');
+  }
+
+  function clientDashboardRate(item) {
+    const amount = Number(item.salaryAmount);
+    if (!(amount > 0) || !['monthly', 'hourly'].includes(item.salaryType)) return '';
+    const symbol = item.salaryCurrency === 'PHP' ? '₱' : '$';
+    return `${symbol}${amount.toLocaleString()} / ${item.salaryType === 'monthly' ? 'month' : 'hour'}`;
+  }
+
+  function clientDashboardMonthlyAmount(item) {
+    const amount = Number(item.salaryAmount);
+    if (!(amount > 0)) return 0;
+    if (item.salaryType === 'monthly') return amount;
+    if (item.salaryType === 'hourly' && Number(item.hoursPerWeek) > 0) return amount * Number(item.hoursPerWeek) * 4;
+    return 0;
+  }
+
+  function clientDashboardMoneyByCurrency(clients) {
+    const totals = new Map();
+    clients.filter(isActiveContract).forEach(item => {
+      const amount = clientDashboardMonthlyAmount(item);
+      if (!amount) return;
+      const currency = item.salaryCurrency === 'PHP' ? 'PHP' : 'USD';
+      totals.set(currency, (totals.get(currency) || 0) + amount);
+    });
+    return [...totals].map(([currency, amount]) => `${currency === 'PHP' ? '₱' : '$'}${Math.round(amount).toLocaleString()}`).join(' · ');
+  }
+
+  function clientDashboardMatchesStatus(item, filter) {
+    return filter === 'all' || clientDashboardStatus(item).key === filter;
+  }
+
+  function clientDashboardTableValue(item, key) {
+    const daysLeft = clientDashboardDaysLeft(item);
+    switch (key) {
+      case 'name': return String(item.clientName || '').toLowerCase();
+      case 'status': return clientDashboardStatus(item).label;
+      case 'start': return dateKey(item.activeAt || item.appliedDate) || '';
+      case 'end': return dateKey(item.contractEndDate) || '';
+      case 'days': return daysLeft ?? Number.POSITIVE_INFINITY;
+      case 'rate': return Number(item.salaryAmount) || 0;
+      case 'contact': return clientDashboardLastContact(item) || '';
+      default: return '';
+    }
+  }
+
+  function renderClientDashboardTable(clients) {
+    const query = $('#clientDashboardSearch').value.trim().toLowerCase();
+    const filter = $('#clientDashboardStatusFilter').value;
+    const filtered = clients.filter(item => {
+      const haystack = [item.clientName, item.contact, item.email, item.role, item.companyName, item.company].join(' ').toLowerCase();
+      return (!query || haystack.includes(query)) && clientDashboardMatchesStatus(item, filter);
+    });
+    const multiplier = clientDashboardSortDirection === 'asc' ? 1 : -1;
+    filtered.sort((first, second) => {
+      const a = clientDashboardTableValue(first, clientDashboardSort);
+      const b = clientDashboardTableValue(second, clientDashboardSort);
+      return (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b))) * multiplier;
+    });
+    $('#clientDashboardListCount').textContent = plural(filtered.length, 'client');
+    $$('#clientDashboardPanel [data-client-sort]').forEach(button => {
+      button.closest('th')?.setAttribute('aria-sort', button.dataset.clientSort === clientDashboardSort
+        ? (clientDashboardSortDirection === 'asc' ? 'ascending' : 'descending')
+        : 'none');
+    });
+    const tbody = $('#clientDashboardTableBody');
+    const empty = $('#clientDashboardEmpty');
+    empty.hidden = filtered.length > 0;
+    if (!filtered.length) {
+      const hasClients = clients.length > 0;
+      $('#clientDashboardEmptyTitle').textContent = hasClients ? 'No matching clients' : 'No clients yet';
+      $('#clientDashboardEmptyMessage').textContent = hasClients
+        ? 'Try changing your search or status filter.'
+        : 'Add your first client to start tracking contracts and work.';
+      empty.querySelector('[data-client-dashboard-add]').hidden = hasClients;
+      tbody.innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = filtered.map(item => {
+      const status = clientDashboardStatus(item);
+      const daysLeft = clientDashboardDaysLeft(item);
+      const lastContact = clientDashboardLastContact(item);
+      const startDate = item.activeAt || item.appliedDate;
+      const initials = clientInitials(item.clientName);
+      const rate = clientDashboardRate(item);
+      return `<tr data-client-row="${escapeHtml(item.id)}" tabindex="0" aria-label="Open details for ${escapeHtml(item.clientName || 'client')}">
+        <td data-label="Client name"><button class="client-dashboard-name" type="button" data-client-dashboard-open="${escapeHtml(item.id)}"><span class="client-dashboard-avatar" aria-hidden="true">${escapeHtml(initials)}</span><span>${escapeHtml(item.clientName || 'Untitled client')}<small>${escapeHtml(item.role || item.companyName || item.company || 'Client')}</small></span></button></td>
+        <td data-label="Status"><span class="client-dashboard-status is-${status.key}">${status.label}</span></td>
+        <td data-label="Contract start">${startDate ? escapeHtml(formatDate(startDate)) : '—'}</td>
+        <td data-label="Contract end">${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : '—'}</td>
+        <td data-label="Days left">${daysLeft === null ? '—' : daysLeft < 0 ? 'Ended' : plural(daysLeft, 'day')}</td>
+        <td data-label="Rate">${escapeHtml(rate || '—')}</td>
+        <td data-label="Last contact">${lastContact ? escapeHtml(formatDate(lastContact)) : '—'}</td>
+        <td data-label="Actions"><button class="client-dashboard-row-action" type="button" data-client-dashboard-open="${escapeHtml(item.id)}" aria-label="Open ${escapeHtml(item.clientName || 'client')} details"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i><span>View</span></button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function clientDashboardRecentActivity(clients) {
+    const activity = [];
+    const recentThreshold = new Date();
+    recentThreshold.setMonth(recentThreshold.getMonth() - 6);
+    const thresholdKey = localDateKey(recentThreshold);
+    clients.forEach(item => {
+      const addedAt = item.createdAt || item.activeAt;
+      if (addedAt) activity.push({ date: addedAt, title: 'Client added', detail: item.clientName || 'Client', icon: 'fa-user-plus', tone: 'blue' });
+      if (item.contractStatus === 'Contract Ended' || (item.contractEndDate && dateKey(item.contractEndDate) < today())) {
+        activity.push({ date: item.contractEndDate || item.updatedAt || item.activeAt, title: 'Contract ended', detail: item.clientName || 'Client', icon: 'fa-circle-check', tone: 'gray' });
+      }
+      (item.dashboardActivity || []).forEach(entry => activity.push(entry));
+    });
+    (data.clientTasks || []).filter(task => task.status === 'done' && task.completedAt).forEach(task => {
+      const client = clients.find(item => item.id === task.clientId);
+      if (client) activity.push({ date: task.completedAt, title: 'Task completed', detail: `${client.clientName || 'Client'} · ${task.title || 'Task'}`, icon: 'fa-check', tone: 'green' });
+    });
+    (data.dailyTasks || []).filter(task => task.completedAt && task.relatedType === 'client').forEach(task => {
+      const client = clients.find(item => item.id === task.relatedId);
+      if (client) activity.push({ date: task.completedAt, title: 'Task completed', detail: `${client.clientName || 'Client'} · ${task.title || 'Task'}`, icon: 'fa-check', tone: 'green' });
+    });
+    return activity.filter(item => dateKey(item.date) >= thresholdKey)
+      .sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+  }
+
+  function renderClientDashboardActivity(clients) {
+    const activity = clientDashboardRecentActivity(clients);
+    $('#clientDashboardActivityList').innerHTML = activity.length
+      ? activity.map(item => `<article class="client-dashboard-activity-item"><span class="client-dashboard-activity-icon is-${escapeHtml(item.tone || 'blue')}"><i class="fa-solid ${escapeHtml(item.icon || 'fa-bolt')}" aria-hidden="true"></i></span><span><strong>${escapeHtml(item.title || 'Client update')}</strong><small>${escapeHtml(item.detail || '')}</small></span><time>${escapeHtml(formatDate(item.date))}</time></article>`).join('')
+      : '<p class="client-dashboard-inline-empty">Client updates and completed tasks will appear here.</p>';
+  }
+
+  function clientDashboardMonthKeys() {
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = new Date();
+      date.setDate(1);
+      date.setMonth(date.getMonth() - (5 - index));
+      return { key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`, label: new Intl.DateTimeFormat(undefined, { month: 'short' }).format(date) };
+    });
+  }
+
+  function renderClientDashboardHours() {
+    const months = clientDashboardMonthKeys();
+    const totals = new Map(months.map(month => [month.key, 0]));
+    (data.clientTasks || []).forEach(task => {
+      (task.timeEntries || []).forEach(entry => {
+        const date = dateKey(entry.start);
+        if (!date) return;
+        const key = date.slice(0, 7);
+        if (!totals.has(key)) return;
+        const start = new Date(entry.start || '').getTime();
+        const end = new Date(entry.end || '').getTime();
+        const duration = Number(entry.durationMs) || (Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : 0);
+        totals.set(key, totals.get(key) + duration / 3600000);
+      });
+    });
+    (data.applications || []).forEach(item => {
+      (item.dashboardLoggedHours || []).forEach(entry => {
+        const key = dateKey(entry.date).slice(0, 7);
+        if (totals.has(key)) totals.set(key, totals.get(key) + (Number(entry.hours) || 0));
+      });
+    });
+    const values = months.map(month => totals.get(month.key) || 0);
+    const chart = $('#clientDashboardHoursChart');
+    if (!values.some(value => value > 0)) {
+      chart.innerHTML = '<text x="300" y="106" text-anchor="middle" class="client-dashboard-chart-empty">Logged client hours will appear here.</text>';
+      return;
+    }
+    const max = Math.max(...values, 1);
+    const points = values.map((value, index) => `${48 + index * 100},${160 - value / max * 112}`).join(' ');
+    chart.innerHTML = `<line x1="34" y1="160" x2="566" y2="160" class="client-dashboard-chart-axis"></line><polyline points="${points}" class="client-dashboard-chart-line"></polyline>${values.map((value, index) => {
+      const x = 48 + index * 100;
+      const y = 160 - value / max * 112;
+      return `<circle cx="${x}" cy="${y}" r="4" class="client-dashboard-chart-point"><title>${value.toFixed(1)} hours</title></circle><text x="${x}" y="190" text-anchor="middle" class="client-dashboard-chart-label">${months[index].label}</text><text x="${x}" y="${Math.max(y - 10, 20)}" text-anchor="middle" class="client-dashboard-chart-value">${value.toFixed(value % 1 ? 1 : 0)}</text>`;
+    }).join('')}`;
+  }
+
+  function renderClientDashboardAttention(clients) {
+    const entries = [];
+    clients.forEach(item => {
+      const daysLeft = clientDashboardDaysLeft(item);
+      if (isActiveContract(item) && daysLeft !== null && daysLeft >= 0 && daysLeft <= 30) {
+        entries.push({ id: item.id, type: 'renew', title: 'Contract ending soon', detail: `${item.clientName || 'Client'} · ${plural(daysLeft, 'day')} left`, action: 'Renew', tone: 'amber' });
+      }
+      const lastContact = clientDashboardLastContact(item);
+      const followUpBasis = lastContact || item.activeAt || item.createdAt;
+      if (isActiveContract(item) && followUpBasis && Math.floor((new Date(`${today()}T12:00:00`) - new Date(dateKey(followUpBasis) + 'T12:00:00')) / 86400000) >= 14) {
+        entries.push({ id: item.id, type: 'message', title: 'Follow-up due', detail: `${item.clientName || 'Client'} · ${lastContact ? `Last contacted ${formatDate(lastContact)}` : 'No contact recorded'}`, action: 'Message', tone: 'blue' });
+      }
+    });
+    (data.clientTasks || []).filter(task => task.status !== 'done' && task.dueDate && dateKey(task.dueDate) < today()).forEach(task => {
+      const item = clients.find(client => client.id === task.clientId);
+      if (item) entries.push({ id: task.id, clientId: item.id, type: 'client-task', title: 'Overdue client task', detail: `${item.clientName || 'Client'} · ${task.title || 'Task'}`, action: 'Mark done', tone: 'red' });
+    });
+    (data.dailyTasks || []).filter(task => !task.completedAt && task.taskDate < today() && task.relatedType === 'client').forEach(task => {
+      const item = clients.find(client => client.id === task.relatedId);
+      if (item) entries.push({ id: task.id, clientId: item.id, type: 'daily-task', title: 'Overdue task', detail: `${item.clientName || 'Client'} · ${task.title || 'Task'}`, action: 'Mark done', tone: 'red' });
+    });
+    $('#clientDashboardAttentionCount').textContent = entries.length ? plural(entries.length, 'item') : 'All caught up';
+    $('#clientDashboardAttentionList').innerHTML = entries.length
+      ? entries.slice(0, 8).map(entry => `<article class="client-dashboard-attention-item"><span class="client-dashboard-attention-dot is-${entry.tone}" aria-hidden="true"></span><span class="client-dashboard-attention-copy"><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.detail)}</small></span><button class="button button-secondary" type="button" data-client-dashboard-attention="${entry.type}" data-client-id="${escapeHtml(entry.clientId || entry.id)}" data-item-id="${escapeHtml(entry.id)}">${entry.action}</button></article>`).join('')
+      : '<p class="client-dashboard-inline-empty">No contracts, follow-ups, or tasks need attention.</p>';
+  }
+
+  function renderClientDashboardDrawer(client) {
+    const content = $('#clientDashboardDrawerContent');
+    if (!client || !content) return;
+    const status = clientDashboardStatus(client);
+    const tasks = [
+      ...(data.clientTasks || []).filter(task => task.clientId === client.id),
+      ...(data.dailyTasks || []).filter(task => task.relatedType === 'client' && task.relatedId === client.id)
+    ].sort((a, b) => new Date(a.dueDate || a.taskDate || 0) - new Date(b.dueDate || b.taskDate || 0)).slice(0, 5);
+    const startDate = client.activeAt || client.appliedDate;
+    const salary = clientDashboardRate(client);
+    content.innerHTML = `
+      <div class="client-dashboard-drawer-profile"><span class="client-dashboard-avatar is-large" aria-hidden="true">${escapeHtml(clientInitials(client.clientName))}</span><div><h3>${escapeHtml(client.clientName || 'Untitled client')}</h3><span class="client-dashboard-status is-${status.key}">${status.label}</span></div></div>
+      <section class="client-dashboard-drawer-section"><h3>Contract information</h3><dl><div><dt>Position</dt><dd>${escapeHtml(client.role || 'Not set')}</dd></div><div><dt>Start date</dt><dd>${startDate ? escapeHtml(formatDate(startDate)) : 'Not set'}</dd></div><div><dt>End date</dt><dd>${client.contractEndDate ? escapeHtml(formatDate(client.contractEndDate)) : 'Not set'}</dd></div><div><dt>Rate</dt><dd>${escapeHtml(salary || 'Not set')}</dd></div><div><dt>Contact</dt><dd>${escapeHtml(client.contact || 'Not set')}</dd></div>${client.email ? `<div><dt>Email</dt><dd><a href="mailto:${escapeHtml(client.email)}">${escapeHtml(client.email)}</a></dd></div>` : ''}${client.phone ? `<div><dt>Phone</dt><dd><a href="tel:${escapeHtml(client.phone)}">${escapeHtml(client.phone)}</a></dd></div>` : ''}${client.companyName || client.company ? `<div><dt>Company</dt><dd>${escapeHtml(client.companyName || client.company)}</dd></div>` : ''}</dl></section>
+      <section class="client-dashboard-drawer-section"><h3>Notes</h3><p class="client-dashboard-drawer-notes">${escapeHtml(client.notes || 'No notes yet.')}</p></section>
+      <section class="client-dashboard-drawer-section"><h3>Linked tasks <span>${tasks.length}</span></h3>${tasks.length ? `<ul class="client-dashboard-drawer-tasks">${tasks.map(task => `<li><span>${escapeHtml(task.title || 'Untitled task')}</span><small>${escapeHtml(task.status === 'done' || task.completedAt ? 'Done' : (task.dueDate || task.taskDate) ? formatDate(task.dueDate || task.taskDate) : 'No due date')}</small></li>`).join('')}</ul>` : '<p class="client-dashboard-inline-empty">No tasks linked to this client yet.</p>'}</section>
+      <div class="client-dashboard-drawer-actions"><button class="button button-secondary" type="button" data-client-dashboard-drawer-action="message"><i class="fa-regular fa-envelope" aria-hidden="true"></i> Message</button><button class="button button-primary" type="button" data-client-dashboard-edit="${escapeHtml(client.id)}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit details</button></div>`;
+  }
+
   function renderClientDashboard() {
     const clients = hiredClients();
+    const loading = !dataReady;
+    $('#clientDashboardLoading').hidden = !loading;
+    $('#clientDashboardContent').hidden = loading;
+    if (loading) {
+      $('#clientDashboardCount').textContent = '—';
+      $('#clientDashboardDetail').textContent = 'Loading clients…';
+      return;
+    }
     const activeClients = clients.filter(isActiveContract).length;
+    const endingSoon = clients.filter(item => isActiveContract(item) && clientDashboardDaysLeft(item) !== null && clientDashboardDaysLeft(item) >= 0 && clientDashboardDaysLeft(item) <= 30).length;
     const endedContracts = clients.filter(isContractEnded).length;
-    $('#clientDashboardCount').textContent = activeClients;
-    $('#clientDashboardDetail').textContent = activeClients
-      ? `${plural(activeClients, 'client')} with an active contract`
-      : 'No active contracts';
-    $('#clientDashboardEndedCount').textContent = endedContracts;
-    $('#clientDashboardEndedDetail').textContent = endedContracts
-      ? `${plural(endedContracts, 'contract')} ended`
-      : 'No ended contracts';
+    const income = clientDashboardMoneyByCurrency(clients);
+    $('#clientDashboardCount').textContent = Number.isFinite(activeClients) ? String(activeClients) : '—';
+    $('#clientDashboardDetail').textContent = activeClients ? plural(activeClients, 'client') : 'No active contracts';
+    $('#clientDashboardEndingCount').textContent = String(endingSoon);
+    $('#clientDashboardEndedCount').textContent = String(endedContracts);
+    $('#clientDashboardEndedDetail').textContent = endedContracts ? plural(endedContracts, 'contract') : 'No ended contracts';
+    $('#clientDashboardIncomeCard').hidden = !income;
+    $('#clientDashboardIncome').textContent = income || '—';
+    $('#clientDashboardPanel .client-dashboard-stat-grid').classList.toggle('has-income', Boolean(income));
+    $('#clientDashboardActionClient').innerHTML = clients.length
+      ? clients.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.clientName || 'Untitled client')}</option>`).join('')
+      : '<option value="">Add a client to get started</option>';
+    $$('#clientDashboardQuickActions [data-client-dashboard-action]').forEach(button => { button.disabled = !clients.length; });
+    renderClientDashboardTable(clients);
+    renderClientDashboardAttention(clients);
+    renderClientDashboardActivity(clients);
+    renderClientDashboardHours();
+    if (clientDashboardSelectedId) {
+      const selected = clients.find(item => item.id === clientDashboardSelectedId);
+      if (selected && !$('#clientDashboardDrawer').hidden) renderClientDashboardDrawer(selected);
+      else closeClientDashboardDrawer();
+    }
   }
+
+  function closeClientDashboardDrawer() {
+    const drawer = $('#clientDashboardDrawer');
+    if (!drawer || drawer.hidden) return;
+    drawer.hidden = true;
+    drawer.setAttribute('aria-hidden', 'true');
+    $('#clientDashboardBackdrop').hidden = true;
+    document.body.classList.remove('client-dashboard-drawer-open');
+    clientDashboardSelectedId = '';
+    clientDashboardDrawerReturnFocus?.focus();
+    clientDashboardDrawerReturnFocus = null;
+  }
+
+  function openClientDashboardDrawer(clientId, trigger) {
+    const client = hiredClients().find(item => item.id === clientId);
+    if (!client) return;
+    clientDashboardSelectedId = client.id;
+    clientDashboardDrawerReturnFocus = trigger;
+    $('#clientDashboardDrawerTitle').textContent = client.clientName || 'Client';
+    renderClientDashboardDrawer(client);
+    const drawer = $('#clientDashboardDrawer');
+    drawer.hidden = false;
+    drawer.setAttribute('aria-hidden', 'false');
+    $('#clientDashboardBackdrop').hidden = false;
+    document.body.classList.add('client-dashboard-drawer-open');
+    requestAnimationFrame(() => drawer.querySelector('button, a, input, select, textarea')?.focus());
+  }
+
+  function renderClientDashboardEditForm(client) {
+    const status = client.contractStatus === 'Contract Ended' ? 'Contract Ended' : client.contractStatus === 'Not active' ? 'Not active' : 'Active';
+    $('#clientDashboardDrawerContent').innerHTML = `<form class="client-dashboard-edit-form" data-client-dashboard-save="${escapeHtml(client.id)}">
+      <label class="form-field">Client name<input name="clientName" required maxlength="180" value="${escapeHtml(client.clientName || '')}" /></label>
+      <label class="form-field">Position<input name="role" maxlength="180" value="${escapeHtml(client.role || '')}" /></label>
+      <label class="form-field">Contact name<input name="contact" maxlength="180" value="${escapeHtml(client.contact || '')}" /></label>
+      <label class="form-field">Contract status<select name="contractStatus"><option${status === 'Active' ? ' selected' : ''}>Active</option><option${status === 'Not active' ? ' selected' : ''}>Not active</option><option${status === 'Contract Ended' ? ' selected' : ''}>Contract Ended</option></select></label>
+      <label class="form-field">Contract start<input name="activeAt" type="date" value="${escapeHtml(dateKey(client.activeAt || client.appliedDate))}" /></label>
+      <label class="form-field">Contract end<input name="contractEndDate" type="date" value="${escapeHtml(dateKey(client.contractEndDate))}" /></label>
+      <label class="form-field">Rate amount<input name="salaryAmount" type="number" min="0" step="0.01" value="${escapeHtml(client.salaryAmount ?? '')}" /></label>
+      <label class="form-field">Rate type<select name="salaryType"><option value="">Not set</option><option value="hourly"${client.salaryType === 'hourly' ? ' selected' : ''}>Hourly</option><option value="monthly"${client.salaryType === 'monthly' ? ' selected' : ''}>Monthly</option></select></label>
+      <label class="form-field">Currency<select name="salaryCurrency"><option value="USD"${client.salaryCurrency !== 'PHP' ? ' selected' : ''}>USD ($)</option><option value="PHP"${client.salaryCurrency === 'PHP' ? ' selected' : ''}>PHP (₱)</option></select></label>
+      <label class="form-field">Hours per week<input name="hoursPerWeek" type="number" min="0" step="0.5" value="${escapeHtml(client.hoursPerWeek ?? '')}" /></label>
+      <label class="form-field">Contact email<input name="email" type="email" value="${escapeHtml(client.email || '')}" /></label>
+      <label class="form-field">Phone<input name="phone" type="tel" maxlength="80" value="${escapeHtml(client.phone || '')}" /></label>
+      <label class="form-field client-dashboard-edit-notes">Notes<textarea name="notes" rows="5" maxlength="4000">${escapeHtml(client.notes || '')}</textarea></label>
+      <div class="client-dashboard-drawer-actions"><button class="button button-secondary" type="button" data-client-dashboard-cancel-edit>Cancel</button><button class="button button-primary" type="submit">Save changes</button></div>
+    </form>`;
+    $('#clientDashboardDrawerContent').querySelector('input')?.focus();
+  }
+
+  function openClientDashboardAction(action) {
+    const client = hiredClients().find(item => item.id === $('#clientDashboardActionClient').value);
+    if (!client) return;
+    if (action === 'message') {
+      openPlainClientEmailComposer(client);
+      return;
+    }
+    clientDashboardAction = action;
+    const title = action === 'hours' ? 'Log client hours' : action === 'task' ? 'Add a client task' : 'Add a client note';
+    $('#clientDashboardActionTitle').textContent = `${title} · ${client.clientName || 'Client'}`;
+    $('#clientDashboardActionFields').innerHTML = action === 'hours'
+      ? '<label class="form-field">Hours worked<input name="hours" type="number" min="0.25" step="0.25" required autofocus /></label><label class="form-field">Date<input name="date" type="date" required /></label>'
+      : action === 'task'
+        ? '<label class="form-field">Task title<input name="title" maxlength="180" required autofocus /></label><label class="form-field">Due date<input name="date" type="date" /></label>'
+        : '<label class="form-field">Note<textarea name="note" rows="5" maxlength="2000" required autofocus placeholder="Add a note for this client"></textarea></label>';
+    const dateInput = $('#clientDashboardActionFields [name="date"]');
+    if (dateInput) dateInput.value = today();
+    $('#clientDashboardActionDialog').showModal();
+    requestAnimationFrame(() => $('#clientDashboardActionFields').querySelector('input, textarea')?.focus());
+  }
+
+  async function saveClientDashboardAction(event) {
+    event.preventDefault();
+    const client = hiredClients().find(item => item.id === $('#clientDashboardActionClient').value);
+    if (!client) return;
+    const formData = new FormData(event.currentTarget);
+    const now = new Date().toISOString();
+    if (clientDashboardAction === 'hours') {
+      client.dashboardLoggedHours = Array.isArray(client.dashboardLoggedHours) ? client.dashboardLoggedHours : [];
+      client.dashboardLoggedHours.push({ id: uid(), hours: Number(formData.get('hours')), date: String(formData.get('date') || today()), createdAt: now });
+      client.dashboardActivity = [...(client.dashboardActivity || []), { date: now, title: 'Hours logged', detail: `${client.clientName || 'Client'} · ${Number(formData.get('hours'))} hours`, icon: 'fa-clock', tone: 'blue' }].slice(-100);
+    } else if (clientDashboardAction === 'task') {
+      data.dailyTasks = Array.isArray(data.dailyTasks) ? data.dailyTasks : [];
+      data.dailyTasks.push({
+        id: uid(),
+        title: String(formData.get('title') || '').trim(),
+        type: 'task',
+        taskDate: String(formData.get('date') || today()),
+        relatedType: 'client',
+        relatedId: client.id,
+        relatedName: client.clientName || '',
+        destination: '',
+        notes: '',
+        checklist: [],
+        createdAt: now,
+        completedAt: ''
+      });
+      client.dashboardActivity = [...(client.dashboardActivity || []), { date: now, title: 'Task added', detail: `${client.clientName || 'Client'} · ${String(formData.get('title') || '').trim()}`, icon: 'fa-list-check', tone: 'blue' }].slice(-100);
+    } else {
+      const note = String(formData.get('note') || '').trim();
+      client.notes = [client.notes, note].filter(Boolean).join('\n\n');
+      client.dashboardActivity = [...(client.dashboardActivity || []), { date: now, title: 'Note added', detail: client.clientName || 'Client', icon: 'fa-note-sticky', tone: 'gray' }].slice(-100);
+    }
+    const action = clientDashboardAction;
+    try {
+      await persist();
+    } catch (error) {
+      console.error('Could not save client dashboard action:', error);
+      showActionResult({ title: 'Could not save client update', message: error.message || 'Check your connection and try again.', status: 'error' });
+      return;
+    }
+    $('#clientDashboardActionDialog').close();
+    renderAll();
+    if (action === 'task') showView('daily-task');
+    else if (clientDashboardSelectedId) openClientDashboardDrawer(client.id, clientDashboardDrawerReturnFocus);
+    toast(action === 'hours' ? 'Client hours saved.' : action === 'task' ? 'Task added to Daily Tasks.' : 'Client note saved.');
+  }
+
+  $('#clientDashboardSearch').addEventListener('input', () => renderClientDashboardTable(hiredClients()));
+  $('#clientDashboardStatusFilter').addEventListener('change', () => renderClientDashboardTable(hiredClients()));
+  $('#clientDashboardActionForm').addEventListener('submit', saveClientDashboardAction);
+  $('#clientDashboardClients').addEventListener('click', event => {
+    const sortButton = event.target.closest('[data-client-sort]');
+    if (sortButton) {
+      if (clientDashboardSort === sortButton.dataset.clientSort) clientDashboardSortDirection = clientDashboardSortDirection === 'asc' ? 'desc' : 'asc';
+      else {
+        clientDashboardSort = sortButton.dataset.clientSort;
+        clientDashboardSortDirection = 'asc';
+      }
+      renderClientDashboardTable(hiredClients());
+      return;
+    }
+    const openButton = event.target.closest('[data-client-dashboard-open]');
+    if (openButton) openClientDashboardDrawer(openButton.dataset.clientDashboardOpen, openButton);
+    else {
+      const row = event.target.closest('[data-client-row]');
+      if (row && !event.target.closest('button, a, input, select, textarea')) {
+        openClientDashboardDrawer(row.dataset.clientRow, row);
+      }
+    }
+  });
+  $('#clientDashboardPanel').addEventListener('click', event => {
+    const addButton = event.target.closest('[data-client-dashboard-add]');
+    const actionButton = event.target.closest('[data-client-dashboard-action]');
+    const closeButton = event.target.closest('[data-client-dashboard-close], [data-client-dashboard-action-close]');
+    const drawerMessage = event.target.closest('[data-client-dashboard-drawer-action="message"]');
+    const editButton = event.target.closest('[data-client-dashboard-edit]');
+    const cancelEditButton = event.target.closest('[data-client-dashboard-cancel-edit]');
+    const attentionButton = event.target.closest('[data-client-dashboard-attention]');
+    if (addButton) {
+      openClientModal(null, false, true);
+    } else if (actionButton) {
+      openClientDashboardAction(actionButton.dataset.clientDashboardAction);
+    } else if (closeButton) {
+      if (closeButton.closest('#clientDashboardActionDialog')) $('#clientDashboardActionDialog').close();
+      else closeClientDashboardDrawer();
+    } else if (drawerMessage) {
+      const client = hiredClients().find(item => item.id === clientDashboardSelectedId);
+      if (client) openPlainClientEmailComposer(client);
+    } else if (editButton) {
+      const client = hiredClients().find(item => item.id === editButton.dataset.clientDashboardEdit);
+      if (client) renderClientDashboardEditForm(client);
+    } else if (cancelEditButton) {
+      const client = hiredClients().find(item => item.id === clientDashboardSelectedId);
+      if (client) renderClientDashboardDrawer(client);
+    } else if (attentionButton) {
+      const client = hiredClients().find(item => item.id === attentionButton.dataset.clientId);
+      if (attentionButton.dataset.clientDashboardAttention === 'renew' && client) {
+        openClientModal(client.id, false, true, false, true);
+      } else if (attentionButton.dataset.clientDashboardAttention === 'message' && client) {
+        openPlainClientEmailComposer(client);
+      } else if (attentionButton.dataset.clientDashboardAttention === 'client-task') {
+        const task = (data.clientTasks || []).find(item => item.id === attentionButton.dataset.itemId);
+        if (task) {
+          const now = new Date();
+          if (task.timerStartedAt) {
+            const start = new Date(task.timerStartedAt);
+            const durationMs = Math.max(0, now.getTime() - start.getTime());
+            task.timeEntries = Array.isArray(task.timeEntries) ? task.timeEntries : [];
+            if (durationMs) task.timeEntries.push({ id: uid(), start: start.toISOString(), end: now.toISOString(), durationMs });
+            task.timerStartedAt = '';
+          }
+          Object.assign(task, { status: 'done', completedAt: now.toISOString(), updatedAt: now.toISOString() });
+        }
+        persist().catch(error => {
+          console.error('Could not complete overdue client task:', error);
+          showActionResult({ title: 'Could not update task', message: error.message || 'Check your connection and try again.', status: 'error' });
+        });
+        renderAll();
+      } else if (attentionButton.dataset.clientDashboardAttention === 'daily-task') {
+        const task = (data.dailyTasks || []).find(item => item.id === attentionButton.dataset.itemId);
+        if (task) task.completedAt = new Date().toISOString();
+        persist().catch(error => {
+          console.error('Could not complete overdue daily task:', error);
+          showActionResult({ title: 'Could not update task', message: error.message || 'Check your connection and try again.', status: 'error' });
+        });
+        renderAll();
+      }
+    }
+  });
+  $('#clientDashboardPanel').addEventListener('submit', async event => {
+    const form = event.target.closest('[data-client-dashboard-save]');
+    if (!form) return;
+    event.preventDefault();
+    const client = hiredClients().find(item => item.id === form.dataset.clientDashboardSave);
+    if (!client) return;
+    const fields = new FormData(form);
+    Object.assign(client, {
+      clientName: String(fields.get('clientName') || '').trim(),
+      role: String(fields.get('role') || '').trim(),
+      contact: String(fields.get('contact') || '').trim(),
+      contractStatus: String(fields.get('contractStatus') || 'Active'),
+      activeAt: String(fields.get('activeAt') || ''),
+      contractEndDate: String(fields.get('contractEndDate') || ''),
+      salaryAmount: fields.get('salaryAmount') === '' ? '' : Number(fields.get('salaryAmount')),
+      salaryType: String(fields.get('salaryType') || ''),
+      salaryCurrency: String(fields.get('salaryCurrency') || 'USD'),
+      hoursPerWeek: fields.get('hoursPerWeek') === '' ? '' : Number(fields.get('hoursPerWeek')),
+      email: String(fields.get('email') || '').trim(),
+      phone: String(fields.get('phone') || '').trim(),
+      notes: String(fields.get('notes') || '').trim(),
+      updatedAt: new Date().toISOString()
+    });
+    try {
+      await persist();
+      renderClientDashboard();
+      toast('Client details saved.');
+    } catch (error) {
+      console.error('Could not save client dashboard details:', error);
+      showActionResult({ title: 'Could not save client details', message: error.message || 'Check your connection and try again.', status: 'error' });
+    }
+  });
+  $('#clientDashboardBackdrop').addEventListener('click', closeClientDashboardDrawer);
+  $('#clientDashboardDrawer').addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeClientDashboardDrawer();
+    } else if (event.key === 'Tab') {
+      const focusable = [...event.currentTarget.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])')];
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+  });
+  $('#clientDashboardActionDialog').addEventListener('click', event => {
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
+  $('#clientDashboardActionDialog').addEventListener('close', () => { clientDashboardAction = ''; });
+  $('#clientDashboardPanel').addEventListener('keydown', event => {
+    const sortButton = event.target.closest('[data-client-sort]');
+    if (sortButton && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      sortButton.click();
+      return;
+    }
+    const row = event.target.closest('[data-client-row]');
+    if (row && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      openClientDashboardDrawer(row.dataset.clientRow, row);
+    }
+  });
+  renderClientDashboard();
 
   function renderInterviewCalendar() {
     const target = $('#interviewCalendar');
@@ -1430,7 +2001,7 @@
       remindersDue += 1;
     });
     if (changed) {
-      data.alerts = data.alerts.slice(0, 30);
+      limitAlertHistory();
       persist();
       renderAlerts();
       showActionResult({
@@ -2179,6 +2750,7 @@
     const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
+    if (view !== 'dashboard') closeClientDashboardDrawer();
     else if (view === 'account') {
       localStorage.setItem(ACTIVE_VIEW_KEY, view);
       if (updateUrl && window.location.hash !== '#account') {
@@ -2212,7 +2784,12 @@
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
     $$('.view').forEach(panel => panel.classList.toggle('active', panel.dataset.viewPanel === view));
-    $$('.nav-link').forEach(link => link.classList.toggle('active', link.dataset.view === view));
+    $$('.nav-link').forEach(link => {
+      const isCurrentRoute = link.dataset.view === view;
+      link.classList.toggle('active', isCurrentRoute);
+      if (isCurrentRoute) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
     // The header Add client action belongs exclusively to the Applications view.
     // Keep it hidden everywhere else, including when navigating from the sidebar.
     const addClientButton = $('#openAddModal');
@@ -3470,7 +4047,7 @@
       });
       added = true;
     });
-    if (added) data.alerts = data.alerts.slice(0, 30);
+    if (added) limitAlertHistory();
     return added;
   }
 
@@ -3516,7 +4093,7 @@
         });
       }
     });
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     renderAlerts();
 
@@ -3537,65 +4114,322 @@
     return true;
   }
 
+  const generatedNotificationTypes = new Set([
+    'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
+    'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended'
+  ]);
+  let notificationFilter = 'all';
+  let notificationReturnFocus = null;
+  let notificationRefreshTimer = null;
+
+  function isGeneratedNotification(alert) {
+    return generatedNotificationTypes.has(alert.type);
+  }
+
+  function limitAlertHistory() {
+    const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    const generated = alerts.filter(isGeneratedNotification);
+    const history = alerts.filter(alert => !isGeneratedNotification(alert)).slice(0, Math.max(0, 30 - generated.length));
+    data.alerts = [...generated, ...history];
+  }
+
+  function notificationDate(date) {
+    return new Date(`${date}T12:00:00`).toISOString();
+  }
+
+  function notificationRelativeTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value || 'No date';
+    const day = dateKey(date);
+    const currentDay = today();
+    const dayOffset = Math.round((new Date(`${day}T12:00:00`) - new Date(`${currentDay}T12:00:00`)) / 86400000);
+    if (dayOffset === 0) return 'Today';
+    if (dayOffset === 1) return 'Tomorrow';
+    if (dayOffset === -1) return 'Yesterday';
+    return dayOffset > 0 ? `In ${dayOffset} days` : `${Math.abs(dayOffset)} days ago`;
+  }
+
+  function refreshGeneratedNotifications() {
+    if (!dataReady || !supabaseDataLoaded) return false;
+    data.alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    const existingById = new Map(data.alerts.map(alert => [alert.id, alert]));
+    const generated = new Map();
+    const add = alert => {
+      const previous = existingById.get(alert.id);
+      const wasContractEmailUpdated = alert.type === 'contract-ended' && previous?.emailSent !== undefined;
+      generated.set(alert.id, {
+        ...alert,
+        unread: previous ? Boolean(previous.unread) : true,
+        dismissedAt: previous?.dismissedAt || '',
+        snoozedUntil: previous?.snoozedUntil || '',
+        ...(wasContractEmailUpdated ? {
+          emailSent: previous.emailSent,
+          subject: previous.subject,
+          from: previous.from
+        } : {})
+      });
+    };
+    const addTaskAlert = (task, { type, entityType, date, clientName = '' }) => {
+      const title = task.title || 'Untitled task';
+      add({
+        id: `${type}|${entityType}:${task.id}|${date}`,
+        type,
+        taskId: task.id,
+        taskDate: date,
+        clientId: entityType === 'client-task' ? task.clientId : task.relatedType === 'client' ? task.relatedId : '',
+        applicationId: entityType === 'client-task' ? task.clientId : task.relatedType === 'client' ? task.relatedId : '',
+        clientName: clientName || task.relatedName || (entityType === 'client-task' ? 'Client task' : 'Task'),
+        subject: `${type.endsWith('overdue') ? 'Overdue' : 'Due today'}: ${title}`,
+        from: 'Jeff VA reminder',
+        date: notificationDate(date),
+        urgency: type.endsWith('overdue') ? 'overdue' : 'due-today'
+      });
+    };
+    const todayDate = today();
+    (data.dailyTasks || []).forEach(task => {
+      if (!task.id || task.completedAt || task.status === 'done' || !task.taskDate) return;
+      if (task.taskDate === todayDate) addTaskAlert(task, { type: 'task-due-today', entityType: 'daily-task', date: task.taskDate });
+      else if (task.taskDate < todayDate) addTaskAlert(task, { type: 'task-overdue', entityType: 'daily-task', date: task.taskDate });
+    });
+    (data.clientTasks || []).forEach(task => {
+      if (!task.id || task.status === 'done' || task.completedAt || !task.dueDate) return;
+      const client = (data.applications || []).find(item => item.id === task.clientId);
+      const type = task.dueDate === todayDate ? 'client-task-due-today' : task.dueDate < todayDate ? 'client-task-overdue' : '';
+      if (type) addTaskAlert(task, { type, entityType: 'client-task', date: task.dueDate, clientName: client?.clientName || 'Client task' });
+    });
+    (data.applications || []).forEach(item => {
+      if (!item.id || item.status !== 'Active client') return;
+      const endDate = dateKey(item.contractEndDate);
+      const explicitlyEnded = String(item.contractStatus || '').trim().toLowerCase() === 'contract ended';
+      if (explicitlyEnded || endDate && endDate < todayDate) {
+        const endedDate = endDate || dateKey(item.updatedAt || item.activeAt || item.createdAt) || todayDate;
+        add({
+          id: `contract-ended|${item.id}|${endedDate}`,
+          type: 'contract-ended',
+          applicationId: item.id,
+          clientName: item.clientName || 'Client',
+          subject: 'Contract ended',
+          from: 'Jeff VA reminder',
+          date: notificationDate(endedDate),
+          contractEndDate: endedDate,
+          urgency: 'ended'
+        });
+        return;
+      }
+      if (!endDate || String(item.contractStatus || 'Active').trim().toLowerCase() !== 'active') return;
+      const daysLeft = Math.round((new Date(`${endDate}T12:00:00`) - new Date(`${todayDate}T12:00:00`)) / 86400000);
+      if (daysLeft < 0 || daysLeft > 30) return;
+      const threshold = daysLeft <= 7 ? 7 : daysLeft <= 14 ? 14 : 30;
+      add({
+        id: `contract-ending-${threshold}|${item.id}|${endDate}`,
+        type: `contract-ending-${threshold}`,
+        applicationId: item.id,
+        clientName: item.clientName || 'Client',
+        subject: daysLeft ? `Contract ending in ${plural(daysLeft, 'day')}` : 'Contract ends today',
+        from: 'Jeff VA reminder',
+        date: notificationDate(endDate),
+        contractEndDate: endDate,
+        urgency: 'ending-soon'
+      });
+    });
+
+    const existingGenerated = data.alerts.filter(isGeneratedNotification);
+    const previousGeneratedIds = new Set(existingGenerated.map(alert => alert.id));
+    const generatedIds = new Set(generated.keys());
+    const urgentNewCount = [...generated.values()].filter(alert =>
+      !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended'].includes(alert.type)
+    ).length;
+    const changed = previousGeneratedIds.size !== generatedIds.size
+      || [...previousGeneratedIds].some(id => !generatedIds.has(id))
+      || [...generatedIds].some(id => !previousGeneratedIds.has(id))
+      || [...generated.values()].some(alert => {
+        const existing = existingById.get(alert.id);
+        return !existing || Object.keys(alert).some(key => existing[key] !== alert[key]);
+      });
+    const retainedAlerts = data.alerts.filter(alert => !isGeneratedNotification(alert));
+    data.alerts = [...generated.values(), ...retainedAlerts];
+    if (changed) {
+      data.alerts.sort((first, second) => new Date(second.date) - new Date(first.date));
+      persist();
+      if (urgentNewCount) {
+        const live = $('#notificationLive');
+        if (live) live.textContent = `${urgentNewCount} new urgent ${urgentNewCount === 1 ? 'notification' : 'notifications'}.`;
+      }
+    }
+    return changed;
+  }
+
+  function visibleNotificationAlerts() {
+    const now = Date.now();
+    return (data.alerts || []).filter(alert => !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
+  }
+
+  function notificationGroup(alert) {
+    return alert.type?.startsWith('task-') || alert.type?.startsWith('client-task-') ? 'Tasks' : 'Clients';
+  }
+
   function renderAlerts() {
-    const alerts = [...(data.alerts || [])].sort((first, second) => new Date(second.date) - new Date(first.date));
+    refreshGeneratedNotifications();
+    const alerts = visibleNotificationAlerts().sort((first, second) => new Date(second.date) - new Date(first.date));
     const unread = alerts.filter(alert => alert.unread).length;
     const badge = $('#notificationBadge');
+    const button = $('#notificationButton');
     if (badge) { badge.textContent = unread > 9 ? '9+' : String(unread); badge.hidden = unread === 0; }
+    if (button) button.setAttribute('aria-label', unread ? `Notifications, ${unread} unread` : 'Notifications');
     updateTabNotification(unread);
     const list = $('#notificationList');
     if (!list) return;
-    if (!alerts.length) {
-      list.innerHTML = '<div class="notification-empty">No recent client alerts.</div>';
+    const shownAlerts = notificationFilter === 'unread' ? alerts.filter(alert => alert.unread) : alerts;
+    const groups = ['Tasks', 'Clients'].map(label => ({
+      label,
+      items: shownAlerts.filter(alert => notificationGroup(alert) === label)
+    })).filter(group => group.items.length);
+    if (!groups.length) {
+      list.innerHTML = `<div class="notification-empty">${notificationFilter === 'unread' ? 'You’re all caught up. No unread notifications.' : 'No notifications right now. Tasks and client updates will appear here.'}</div>`;
       return;
     }
-
-    const todayAlerts = alerts.filter(alert => dateKey(alert.date) === today());
-    const thisWeekAlerts = alerts.filter(alert => {
-      if (dateKey(alert.date) === today()) return false;
-      const alertDate = new Date(`${alert.date || new Date().toISOString()}T12:00:00`);
-      const weekStart = new Date(`${today()}T12:00:00`);
-      const mondayOffset = (weekStart.getDay() + 6) % 7;
-      weekStart.setDate(weekStart.getDate() - mondayOffset);
-      weekStart.setHours(0, 0, 0, 0);
-      return alertDate >= weekStart;
-    });
-    const recentAlertIds = new Set([...todayAlerts, ...thisWeekAlerts].map(alert => alert.id));
-    const earlierAlerts = alerts.filter(alert => !recentAlertIds.has(alert.id));
-
-    const sectionMap = [
-      { label: 'Today', items: todayAlerts },
-      { label: 'This Week', items: thisWeekAlerts },
-      { label: 'Earlier', items: earlierAlerts }
-    ].filter(section => section.items.length);
-
-    let remaining = 7;
-    const grouped = sectionMap.map(section => {
-      const items = section.items.slice(0, remaining);
-      remaining -= items.length;
-      return { label: section.label, items };
-    }).filter(section => section.items.length);
-
-    if (!grouped.length) {
-      list.innerHTML = '<div class="notification-empty">No recent client alerts.</div>';
-      return;
-    }
-
-    list.innerHTML = grouped.map(section => `
-      <div class="notification-section">
-        <div class="notification-section-title">${section.label}</div>
-        ${section.items.map(alert => `
-          <button type="button" class="notification-item ${alert.unread ? 'unread' : ''}" data-alert-open="${escapeHtml(alert.id)}">
+    list.innerHTML = groups.map(group => `
+      <section class="notification-section" aria-label="${group.label}">
+        <h3 class="notification-section-title">${group.label}</h3>
+        ${group.items.map(alert => {
+          const urgency = alert.urgency || (alert.type === 'contract-ended' ? 'ended' : '');
+          return `<article class="notification-item ${alert.unread ? 'unread' : ''}${urgency ? ` is-${escapeHtml(urgency)}` : ''}">
             <span class="notification-item-dot" aria-hidden="true"></span>
-            <span class="notification-item-copy">
-              <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName)}</strong><time>${relativeDate(alert.date)}</time></span>
-              <span class="notification-item-subject">${escapeHtml(alert.subject || '(No subject)')}</span>
-              <small>From ${escapeHtml(alert.from || 'Unknown sender')}</small>
-            </span>
-          </button>
-        `).join('')}
-      </div>
+            <div class="notification-item-copy">
+              <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName || 'Notification')}</strong><time datetime="${escapeHtml(alert.date || '')}">${escapeHtml(notificationRelativeTime(alert.date))}</time></span>
+              <button type="button" class="notification-item-subject" data-alert-open="${escapeHtml(alert.id)}">${escapeHtml(alert.subject || '(No subject)')}</button>
+              ${alert.from ? `<small>${escapeHtml(alert.from)}</small>` : ''}
+              <div class="notification-item-actions">
+                <button type="button" data-alert-action="snooze" data-alert-id="${escapeHtml(alert.id)}" aria-label="Snooze ${escapeHtml(alert.subject || 'notification')} for one day">Snooze</button>
+                <button type="button" data-alert-action="dismiss" data-alert-id="${escapeHtml(alert.id)}" aria-label="Dismiss ${escapeHtml(alert.subject || 'notification')}">Dismiss</button>
+                <button type="button" data-alert-action="done" data-alert-id="${escapeHtml(alert.id)}">Mark done</button>
+              </div>
+            </div>
+          </article>`;
+        }).join('')}
+      </section>
     `).join('');
+  }
+
+  function closeNotifications({ restoreFocus = false } = {}) {
+    const panel = $('#notificationPanel');
+    if (!panel || panel.classList.contains('hidden')) return;
+    panel.classList.add('hidden');
+    $('#notificationButton').setAttribute('aria-expanded', 'false');
+    const focusTarget = notificationReturnFocus instanceof HTMLElement && notificationReturnFocus.isConnected
+      ? notificationReturnFocus
+      : $('#notificationButton');
+    notificationReturnFocus = null;
+    if (restoreFocus) focusTarget.focus();
+  }
+
+  function openNotifications() {
+    const panel = $('#notificationPanel');
+    const willOpen = panel.classList.contains('hidden');
+    if (!willOpen) {
+      closeNotifications({ restoreFocus: true });
+      return;
+    }
+    notificationReturnFocus = $('#notificationButton');
+    renderAlerts();
+    panel.classList.remove('hidden');
+    $('#notificationButton').setAttribute('aria-expanded', 'true');
+    requestAnimationFrame(() => {
+      $(`[data-notification-filter="${notificationFilter}"]`)?.focus();
+    });
+  }
+
+  function setNotificationFilter(filter) {
+    notificationFilter = filter;
+    const allTab = $('#notificationAllTab');
+    const unreadTab = $('#notificationUnreadTab');
+    [allTab, unreadTab].forEach(tab => {
+      const selected = tab.dataset.notificationFilter === filter;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    $('#notificationList').setAttribute('aria-labelledby', filter === 'unread' ? 'notificationUnreadTab' : 'notificationAllTab');
+    renderAlerts();
+  }
+
+  function handleNotificationAction(alertId, action) {
+    const alert = (data.alerts || []).find(item => item.id === alertId);
+    if (!alert) return;
+    if (action === 'snooze') alert.snoozedUntil = new Date(Date.now() + 86400000).toISOString();
+    else if (action === 'dismiss') alert.dismissedAt = new Date().toISOString();
+    else if (action === 'done') {
+      if (alert.type?.startsWith('client-task-')) {
+        const task = (data.clientTasks || []).find(item => item.id === alert.taskId);
+        if (task) {
+          task.status = 'done';
+          task.completedAt = new Date().toISOString();
+          task.updatedAt = task.completedAt;
+        }
+      } else if (alert.type?.startsWith('task-')) {
+        const task = (data.dailyTasks || []).find(item => item.id === alert.taskId);
+        if (task) task.completedAt = new Date().toISOString();
+      } else {
+        alert.unread = false;
+        alert.dismissedAt = new Date().toISOString();
+      }
+    }
+    persist();
+    renderAll();
+    if (!$('#notificationPanel').classList.contains('hidden')) {
+      requestAnimationFrame(() => $(`[data-notification-filter="${notificationFilter}"]`)?.focus());
+    }
+  }
+
+  function handleNotificationKeydown(event) {
+    const panel = $('#notificationPanel');
+    if (panel.classList.contains('hidden') || document.querySelector('dialog[open]')) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeNotifications({ restoreFocus: true });
+      return;
+    }
+    if (event.target instanceof HTMLElement && event.target.matches('[role="tab"]') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const tabs = [$('#notificationAllTab'), $('#notificationUnreadTab')];
+      const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[1] : event.key === 'ArrowRight' ? (event.target === tabs[0] ? tabs[1] : tabs[0]) : (event.target === tabs[0] ? tabs[1] : tabs[0]);
+      next.focus();
+      next.click();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...panel.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(item => !item.closest('[hidden]') && item.getClientRects().length);
+    if (!focusable.length) {
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  document.addEventListener('keydown', handleNotificationKeydown);
+  window.addEventListener('focus', renderAlerts);
+
+  function startNotificationRefreshTimer() {
+    if (!notificationRefreshTimer) {
+      notificationRefreshTimer = setInterval(() => {
+        if (dataReady && supabaseDataLoaded) renderAlerts();
+      }, 60000);
+    }
+  }
+
+  function stopNotificationRefreshTimer() {
+    if (!notificationRefreshTimer) return;
+    clearInterval(notificationRefreshTimer);
+    notificationRefreshTimer = null;
   }
 
   let onboardingAlertsRefreshInFlight = false;
@@ -3635,7 +4469,7 @@
         changed = true;
       });
       if (changed) {
-        data.alerts = data.alerts.slice(0, 30);
+        limitAlertHistory();
         persist();
         renderAlerts();
       }
@@ -3753,7 +4587,7 @@
       changed = true;
     });
     if (changed) {
-      data.alerts = data.alerts.slice(0, 30);
+      limitAlertHistory();
       persist();
       const needsManualEmail = ended.filter(item => !item.contractEndedEmailSentAt && (!gmailAccessToken || !isEmailAddress(item.email))).length;
       if (needsManualEmail) {
@@ -3800,7 +4634,7 @@
       });
       interviewsDue += 1;
     });
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     renderAlerts();
     if (interviewsDue) {
@@ -3831,7 +4665,7 @@
       if (data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({ id: alertId, type: 'document-email-reminder', applicationId: item.id, clientName: item.clientName, subject: 'Send the updated document today', from: 'Jeff VA reminder', date: new Date().toISOString(), unread: true });
     });
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     renderAlerts();
     const currentClient = data.applications.find(item => item.id === hiredEditingId);
@@ -3905,7 +4739,7 @@
         followUpsNeedingReview += 1;
       }
     }
-    data.alerts = data.alerts.slice(0, 30);
+    limitAlertHistory();
     persist();
     if (automaticEmailsSent && activeView === 'applications') renderApplications();
     if (automaticEmailsSent && activeView === 'dashboard') renderDashboard();
@@ -3927,14 +4761,6 @@
     }
   }
 
-  function openNotifications() {
-    const panel = $('#notificationPanel');
-    const willOpen = panel.classList.contains('hidden');
-    renderAlerts();
-    panel.classList.toggle('hidden', !willOpen);
-    $('#notificationButton').setAttribute('aria-expanded', String(willOpen));
-  }
-
   function markAlertsRead() {
     (data.alerts || []).forEach(alert => { alert.unread = false; });
     persist();
@@ -3942,9 +4768,10 @@
   }
 
   async function clearAlerts() {
-    if (!(data.alerts || []).length) return;
-    if (!(await appConfirm('Clear all recent alerts? This will not delete your applications or emails.', { title: 'Clear recent alerts', confirmLabel: 'Clear alerts', danger: true }))) return;
-    data.alerts = [];
+    if (!visibleNotificationAlerts().length) return;
+    if (!(await appConfirm('Dismiss all visible notifications? This will not delete your tasks or client records.', { title: 'Clear notifications', confirmLabel: 'Clear all', danger: true }))) return;
+    const dismissedAt = new Date().toISOString();
+    visibleNotificationAlerts().forEach(alert => { alert.dismissedAt = dismissedAt; });
     persist();
     renderAlerts();
   }
@@ -5510,20 +6337,32 @@
     const previousInterviewMonth = event.target.closest('#previousInterviewMonth');
     const nextInterviewMonth = event.target.closest('#nextInterviewMonth');
     const calendarClientButton = event.target.closest('[data-calendar-client]');
+    const notificationFilterButton = event.target.closest('[data-notification-filter]');
+    const notificationActionButton = event.target.closest('[data-alert-action]');
     const alertOpenButton = event.target.closest('[data-alert-open]');
 
     if (dashboardTab) {
+      if (dashboardTab.dataset.dashboardTab === 'application') closeClientDashboardDrawer();
       activeDashboardTab = dashboardTab.dataset.dashboardTab;
       $$('[data-dashboard-tab]').forEach(tab => {
         const selected = tab === dashboardTab;
         tab.classList.toggle('active', selected);
         tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
       });
       $$('[data-dashboard-panel]').forEach(panel => {
         panel.hidden = panel.dataset.dashboardPanel !== activeDashboardTab;
       });
       $('#pageEyebrow').textContent = activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE';
       $('#pageTitle').textContent = activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard';
+      return;
+    }
+    if (notificationFilterButton) {
+      setNotificationFilter(notificationFilterButton.dataset.notificationFilter);
+      return;
+    }
+    if (notificationActionButton) {
+      handleNotificationAction(notificationActionButton.dataset.alertId, notificationActionButton.dataset.alertAction);
       return;
     }
     if (previousInterviewMonth) {
@@ -5547,11 +6386,25 @@
         persist();
         renderAlerts();
       }
-      $('#notificationPanel').classList.add('hidden');
-      $('#notificationButton').setAttribute('aria-expanded', 'false');
-      if (alert?.type === 'interview' && alert.applicationId) {
-        showView('applications');
-        openClientModal(alert.applicationId, true);
+      closeNotifications();
+      if (alert?.type?.startsWith('task-') && alert.taskId) {
+        showView('daily-task');
+        const taskDate = $('#dailyTaskDate');
+        if (taskDate && alert.taskDate) taskDate.value = alert.taskDate;
+        renderDailyTasks();
+        requestAnimationFrame(() => $(`[data-daily-task-open="${CSS.escape(alert.taskId)}"]`)?.focus());
+      } else if (alert?.type?.startsWith('client-task-') && alert.applicationId) {
+        const client = data.applications.find(candidate => candidate.id === alert.applicationId);
+        if (client) {
+          showView('hired');
+          renderHiredDetail(client);
+        }
+      } else if (alert?.type?.startsWith('contract-ending-') && alert.applicationId) {
+        const client = data.applications.find(candidate => candidate.id === alert.applicationId);
+        if (client) {
+          showView('hired');
+          renderHiredDetail(client);
+        }
       } else if (alert?.type === 'contract-ended' && alert.applicationId) {
         const item = data.applications.find(candidate => candidate.id === alert.applicationId);
         // perf: let the manual review flow retry a prior failure instead of auto-retrying on every render.
@@ -5562,15 +6415,39 @@
           sendContractEndedEmail(item, alert);
           return;
         }
-        showView('hired');
-        renderHiredDetail(item);
+        if (item) {
+          showView('hired');
+          renderHiredDetail(item);
+        }
+      } else if (alert?.type === 'interview' && alert.applicationId) {
+        showView('applications');
+        openClientModal(alert.applicationId, true);
       } else if ((alert?.type === 'document-email-reminder' || alert?.type === 'onboarding-submission') && alert.applicationId) {
-        showView('hired');
-        renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
+        const client = data.applications.find(item => item.id === alert.applicationId);
+        if (client) {
+          showView('hired');
+          renderHiredDetail(client);
+        }
       } else {
         showView('inbox');
       }
     }
+  });
+
+  document.addEventListener('keydown', event => {
+    const currentTab = event.target.closest('[data-dashboard-tab]');
+    if (!currentTab) return;
+    const tabs = $$('[data-dashboard-tab]');
+    const currentIndex = tabs.indexOf(currentTab);
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    tabs[nextIndex].focus();
+    tabs[nextIndex].click();
   });
 
   $('#notificationButton').addEventListener('click', openNotifications);
@@ -5584,8 +6461,7 @@
   });
   document.addEventListener('click', event => {
     if (!event.target.closest('#notificationMenu')) {
-      $('#notificationPanel').classList.add('hidden');
-      $('#notificationButton').setAttribute('aria-expanded', 'false');
+      closeNotifications();
     }
     if (!event.target.closest('.sidebar-utility-menu')) {
       $('#utilityMenu').classList.add('hidden');
@@ -6249,6 +7125,7 @@
       if (activeTask) renderDailyTaskDetails(activeTask);
       else $('#dailyTaskDetailModal').close();
     }
+    renderAlerts();
   }
 
   $('#dailyTaskType').addEventListener('change', event => {
@@ -8834,6 +9711,7 @@
       clearInterval(applyReminderTimer);
       applyReminderTimer = null;
     }
+    stopNotificationRefreshTimer();
     dataReady = false;
     supabaseDataLoaded = false;
     data = emptyData();
@@ -8881,6 +9759,7 @@ function clientTaskIsEnded(clientId = hiredEditingId) {
 
 function saveClientTasks() {
   persist().catch(error => console.error('Could not save Active Client tasks:', error));
+  renderAlerts();
 }
 
 function clientTaskLocalDateKey(date) {

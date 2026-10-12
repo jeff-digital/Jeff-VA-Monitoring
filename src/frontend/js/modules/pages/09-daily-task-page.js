@@ -200,6 +200,7 @@
       if (activeTask) renderDailyTaskDetails(activeTask);
       else $('#dailyTaskDetailModal').close();
     }
+    renderAlerts();
   }
 
   $('#dailyTaskType').addEventListener('change', event => {

@@ -16,6 +16,8 @@
   let initializingUserId = null;
   let persistChain = Promise.resolve();
   let persistWritePending = false;
+  let pendingPersistWrites = 0;
+  let saveIndicatorTimer = null;
   const MAX_LOCAL_WRITE_STAMPS = 20;
   const lastLocalWriteStamps = new Set();
   let dataReady = false;
@@ -574,6 +576,27 @@
     }
   }
 
+  function updateSaveIndicator(state) {
+    const indicator = $('#saveIndicator');
+    const label = $('#saveIndicatorText');
+    if (!indicator || !label) return;
+    if (saveIndicatorTimer) {
+      clearTimeout(saveIndicatorTimer);
+      saveIndicatorTimer = null;
+    }
+    indicator.className = `local-indicator is-${state}`;
+    indicator.hidden = false;
+    label.textContent = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save failed';
+    if (state === 'saved') {
+      saveIndicatorTimer = setTimeout(() => {
+        indicator.hidden = true;
+        indicator.className = 'local-indicator';
+        label.textContent = '';
+        saveIndicatorTimer = null;
+      }, 2200);
+    }
+  }
+
   function persist() {
     if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) return Promise.resolve();
     const snapshot = JSON.parse(JSON.stringify(data));
@@ -582,8 +605,11 @@
     const updatedAt = new Date().toISOString();
     // perf: remember our own writes so repeat realtime echoes do not trigger a reload loop.
     rememberLocalWriteStamp(updatedAt);
+    pendingPersistWrites += 1;
     persistWritePending = true;
-    persistChain = persistChain.then(async () => {
+    updateSaveIndicator('saving');
+    let saved = false;
+    const write = persistChain.then(async () => {
       if (!client || !userId) return;
       const { error } = await client.from('app_state').upsert({
         user_id: userId,
@@ -595,9 +621,13 @@
         showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
         throw error;
       }
+      saved = true;
     }).catch(() => {}).finally(() => {
-      persistWritePending = false;
+      pendingPersistWrites = Math.max(0, pendingPersistWrites - 1);
+      persistWritePending = pendingPersistWrites > 0;
+      if (!pendingPersistWrites) updateSaveIndicator(saved ? 'saved' : 'error');
     });
+    persistChain = write.then(() => undefined);
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
     queueDocumentsBackup({ immediate: true });
@@ -653,6 +683,7 @@
 
     supabaseDataLoaded = true;
     dataReady = true;
+    startNotificationRefreshTimer();
     let startupStage = 'preparing workspace data';
     try {
       if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);

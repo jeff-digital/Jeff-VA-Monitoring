@@ -151,6 +151,7 @@
       clearInterval(applyReminderTimer);
       applyReminderTimer = null;
     }
+    stopNotificationRefreshTimer();
     dataReady = false;
     supabaseDataLoaded = false;
     data = emptyData();

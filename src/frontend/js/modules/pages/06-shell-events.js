@@ -196,20 +196,32 @@
     const previousInterviewMonth = event.target.closest('#previousInterviewMonth');
     const nextInterviewMonth = event.target.closest('#nextInterviewMonth');
     const calendarClientButton = event.target.closest('[data-calendar-client]');
+    const notificationFilterButton = event.target.closest('[data-notification-filter]');
+    const notificationActionButton = event.target.closest('[data-alert-action]');
     const alertOpenButton = event.target.closest('[data-alert-open]');
 
     if (dashboardTab) {
+      if (dashboardTab.dataset.dashboardTab === 'application') closeClientDashboardDrawer();
       activeDashboardTab = dashboardTab.dataset.dashboardTab;
       $$('[data-dashboard-tab]').forEach(tab => {
         const selected = tab === dashboardTab;
         tab.classList.toggle('active', selected);
         tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
       });
       $$('[data-dashboard-panel]').forEach(panel => {
         panel.hidden = panel.dataset.dashboardPanel !== activeDashboardTab;
       });
       $('#pageEyebrow').textContent = activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE';
       $('#pageTitle').textContent = activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard';
+      return;
+    }
+    if (notificationFilterButton) {
+      setNotificationFilter(notificationFilterButton.dataset.notificationFilter);
+      return;
+    }
+    if (notificationActionButton) {
+      handleNotificationAction(notificationActionButton.dataset.alertId, notificationActionButton.dataset.alertAction);
       return;
     }
     if (previousInterviewMonth) {
@@ -233,11 +245,25 @@
         persist();
         renderAlerts();
       }
-      $('#notificationPanel').classList.add('hidden');
-      $('#notificationButton').setAttribute('aria-expanded', 'false');
-      if (alert?.type === 'interview' && alert.applicationId) {
-        showView('applications');
-        openClientModal(alert.applicationId, true);
+      closeNotifications();
+      if (alert?.type?.startsWith('task-') && alert.taskId) {
+        showView('daily-task');
+        const taskDate = $('#dailyTaskDate');
+        if (taskDate && alert.taskDate) taskDate.value = alert.taskDate;
+        renderDailyTasks();
+        requestAnimationFrame(() => $(`[data-daily-task-open="${CSS.escape(alert.taskId)}"]`)?.focus());
+      } else if (alert?.type?.startsWith('client-task-') && alert.applicationId) {
+        const client = data.applications.find(candidate => candidate.id === alert.applicationId);
+        if (client) {
+          showView('hired');
+          renderHiredDetail(client);
+        }
+      } else if (alert?.type?.startsWith('contract-ending-') && alert.applicationId) {
+        const client = data.applications.find(candidate => candidate.id === alert.applicationId);
+        if (client) {
+          showView('hired');
+          renderHiredDetail(client);
+        }
       } else if (alert?.type === 'contract-ended' && alert.applicationId) {
         const item = data.applications.find(candidate => candidate.id === alert.applicationId);
         // perf: let the manual review flow retry a prior failure instead of auto-retrying on every render.
@@ -248,15 +274,39 @@
           sendContractEndedEmail(item, alert);
           return;
         }
-        showView('hired');
-        renderHiredDetail(item);
+        if (item) {
+          showView('hired');
+          renderHiredDetail(item);
+        }
+      } else if (alert?.type === 'interview' && alert.applicationId) {
+        showView('applications');
+        openClientModal(alert.applicationId, true);
       } else if ((alert?.type === 'document-email-reminder' || alert?.type === 'onboarding-submission') && alert.applicationId) {
-        showView('hired');
-        renderHiredDetail(data.applications.find(item => item.id === alert.applicationId));
+        const client = data.applications.find(item => item.id === alert.applicationId);
+        if (client) {
+          showView('hired');
+          renderHiredDetail(client);
+        }
       } else {
         showView('inbox');
       }
     }
+  });
+
+  document.addEventListener('keydown', event => {
+    const currentTab = event.target.closest('[data-dashboard-tab]');
+    if (!currentTab) return;
+    const tabs = $$('[data-dashboard-tab]');
+    const currentIndex = tabs.indexOf(currentTab);
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    tabs[nextIndex].focus();
+    tabs[nextIndex].click();
   });
 
   $('#notificationButton').addEventListener('click', openNotifications);
@@ -270,8 +320,7 @@
   });
   document.addEventListener('click', event => {
     if (!event.target.closest('#notificationMenu')) {
-      $('#notificationPanel').classList.add('hidden');
-      $('#notificationButton').setAttribute('aria-expanded', 'false');
+      closeNotifications();
     }
     if (!event.target.closest('.sidebar-utility-menu')) {
       $('#utilityMenu').classList.add('hidden');

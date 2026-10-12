@@ -22,6 +22,7 @@ function clientTaskIsEnded(clientId = hiredEditingId) {
 
 function saveClientTasks() {
   persist().catch(error => console.error('Could not save Active Client tasks:', error));
+  renderAlerts();
 }
 
 function clientTaskLocalDateKey(date) {
