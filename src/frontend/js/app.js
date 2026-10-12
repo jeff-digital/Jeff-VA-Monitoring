@@ -1135,17 +1135,14 @@
   function renderDashboard() {
     const applications = data.applications;
     const pipelineCount = pipelineApplications().length;
-    const active = hiredClients().filter(isActiveContract).length;
     const appliedToday = pipelineApplications().filter(item => dateKey(item.appliedDate) === today()).length;
     const followUp = applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected').length;
     const interviewsToday = applications.filter(item => item.status === 'Interview' && dateKey(item.interviewDate) === today()).length;
     const toApplyToday = (data.toApply || []).filter(item => item.dueDate && item.dueDate <= today()).length;
     $('#totalApplications').textContent = pipelineCount;
-    $('#activeClients').textContent = active;
     $('#conversationClients').textContent = appliedToday;
     $('#followUpClients').textContent = followUp;
     $('#applicationsDetail').textContent = pipelineCount ? `${plural(pipelineCount, 'application')} in your tracker` : 'No applications tracked yet';
-    $('#activeDetail').textContent = active ? `${plural(active, 'client')} currently in progress` : 'Clients currently in progress';
     $('#conversationDetail').textContent = appliedToday ? `${plural(appliedToday, 'application')} submitted today` : 'Applications submitted today';
     $('#followUpDetail').textContent = followUp ? `${plural(followUp, 'application')} due for a follow-up` : 'Applications to revisit soon';
     $('#todayFollowUps').textContent = followUp;
