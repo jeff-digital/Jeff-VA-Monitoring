@@ -1053,12 +1053,16 @@
           <div><p class="eyebrow">SEND CONTRACT · STEP 1 OF 2</p><h2 id="contractEmailUploadTitle">Upload contract</h2><p id="contractEmailUploadClientName"></p></div>
           <button class="icon-button" type="button" id="closeContractEmailUploadModal" aria-label="Close">×</button>
         </div>
-        <button class="button button-secondary" type="button" id="chooseContractEmailFileButton">Choose file</button>
-        <input id="contractEmailFileInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
-        <div id="contractEmailFilePreview" hidden>
-          <div class="document-preview-title" id="contractEmailFileInfo"></div>
-          <button class="button button-secondary" type="button" id="chooseDifferentContractEmailFileButton">Choose a different file</button>
-          <div class="document-inline-viewer" id="contractEmailInlinePreview"></div>
+        <div id="contractEmailFileBox">
+          <button class="button button-secondary" type="button" id="chooseContractEmailFileButton">Choose file</button>
+          <input id="contractEmailFileInput" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+          <div id="contractEmailSelectedFile" hidden>
+            <p id="contractEmailFileName"></p>
+            <div class="document-preview-actions">
+              <button class="button button-secondary" type="button" id="chooseDifferentContractEmailFileButton">Replace file</button>
+              <button class="button button-secondary" type="button" id="removeContractEmailFileButton">Remove file</button>
+            </div>
+          </div>
         </div>
         <p class="compose-status" id="contractEmailUploadStatus" role="status" aria-live="polite"></p>
         <p class="follow-up-editor-status">Check that this is the right document, then click Next.</p>

@@ -12,7 +12,6 @@
   let pdfjsModulePromise = null;
   let contractEmailUploadClientId = '';
   let contractEmailUploadFile = null;
-  let contractEmailPreviewUrl = '';
 
   function loadPdfJs() {
     if (!pdfjsModulePromise) {
@@ -660,14 +659,12 @@
   }
 
   function clearContractEmailUploadStage() {
-    if (contractEmailPreviewUrl) URL.revokeObjectURL(contractEmailPreviewUrl);
-    contractEmailPreviewUrl = '';
     contractEmailUploadFile = null;
     contractEmailUploadClientId = '';
     $('#contractEmailFileInput').value = '';
-    $('#contractEmailFilePreview').hidden = true;
-    $('#contractEmailFileInfo').replaceChildren();
-    $('#contractEmailInlinePreview').replaceChildren();
+    $('#chooseContractEmailFileButton').hidden = false;
+    $('#contractEmailSelectedFile').hidden = true;
+    $('#contractEmailFileName').textContent = '';
     $('#contractEmailUploadStatus').textContent = '';
     $('#continueContractEmailButton').disabled = true;
   }
@@ -685,38 +682,45 @@
     $('#contractEmailUploadModal').showModal();
   }
 
-  function renderContractEmailUploadPreview(file) {
-    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
-    const fileType = isPdf ? 'PDF' : 'Word document';
-    const preview = $('#contractEmailInlinePreview');
-    $('#contractEmailFileInfo').innerHTML = `<span class="doc-type-icon">${isPdf ? 'PDF' : 'DOC'}</span><div><h3>${escapeHtml(file.name)}</h3><p>${fileType} · ${formatFileSize(file.size)}</p></div>`;
-    if (isPdf) {
-      contractEmailPreviewUrl = URL.createObjectURL(file);
-      preview.innerHTML = `<iframe src="${contractEmailPreviewUrl}" title="Preview of ${escapeHtml(file.name)}"></iframe>`;
-    } else {
-      preview.innerHTML = `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(file.name)}</h4><p>Preview is not available in the browser. The file is ready to send.</p></div>`;
-    }
-    $('#contractEmailFilePreview').hidden = false;
+  function renderContractEmailSelectedFile(file) {
+    $('#contractEmailFileName').textContent = file.name;
+    $('#contractEmailSelectedFile').hidden = false;
+    $('#chooseContractEmailFileButton').hidden = true;
     $('#contractEmailUploadStatus').textContent = '';
     $('#continueContractEmailButton').disabled = false;
   }
 
+  function removeContractEmailUploadFile() {
+    contractEmailUploadFile = null;
+    $('#contractEmailSelectedFile').hidden = true;
+    $('#contractEmailFileName').textContent = '';
+    $('#chooseContractEmailFileButton').hidden = false;
+    $('#contractEmailUploadStatus').textContent = '';
+    $('#continueContractEmailButton').disabled = true;
+  }
+
   function stageContractEmailFile(file) {
     if (!file) return;
-    const validType = /\.(pdf|doc|docx)$/i.test(file.name)
-      || ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type);
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const supportedTypes = {
+      pdf: ['application/pdf', 'application/x-pdf'],
+      doc: ['application/msword', 'application/octet-stream'],
+      docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream'],
+      xls: ['application/vnd.ms-excel', 'application/msexcel', 'application/xls', 'application/x-excel', 'application/octet-stream'],
+      xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream']
+    };
+    const allowedMimes = supportedTypes[extension];
+    const validType = allowedMimes && (!file.type || allowedMimes.includes(file.type.toLowerCase()));
     if (!validType) {
-      $('#contractEmailUploadStatus').textContent = 'Please choose a PDF or Word document.';
+      $('#contractEmailUploadStatus').textContent = 'Please choose a PDF, Word, or Excel document.';
       return;
     }
     if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
       $('#contractEmailUploadStatus').textContent = 'Documents must be 25 MB or smaller.';
       return;
     }
-    if (contractEmailPreviewUrl) URL.revokeObjectURL(contractEmailPreviewUrl);
-    contractEmailPreviewUrl = '';
     contractEmailUploadFile = file;
-    renderContractEmailUploadPreview(file);
+    renderContractEmailSelectedFile(file);
   }
 
   async function pickContractEmailFile() {
@@ -724,10 +728,12 @@
       try {
         const [handle] = await window.showOpenFilePicker({
           multiple: false,
-          types: [{ description: 'PDF or Word document', accept: {
+          types: [{ description: 'PDF, Word, or Excel document', accept: {
             'application/pdf': ['.pdf'],
             'application/msword': ['.doc'],
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+            'application/vnd.ms-excel': ['.xls'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
           }}]
         });
         stageContractEmailFile(await handle.getFile());

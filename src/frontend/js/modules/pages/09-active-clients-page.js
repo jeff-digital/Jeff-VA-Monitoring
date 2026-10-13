@@ -728,6 +728,10 @@
       pickContractEmailFile();
       return;
     }
+    if (event.target.closest('#removeContractEmailFileButton')) {
+      removeContractEmailUploadFile();
+      return;
+    }
     if (event.target.closest('#cancelContractEmailUploadButton, #closeContractEmailUploadModal')) {
       $('#contractEmailUploadModal').close();
       return;

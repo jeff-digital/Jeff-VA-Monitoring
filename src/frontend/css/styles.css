@@ -5728,6 +5728,126 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   }
 }
 
+#contractEmailUploadClientName {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  border: 1px solid #e1e8e1;
+  border-radius: 999px;
+  background: #f5f8f5;
+  color: #526558;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+#contractEmailUploadClientName::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5b8062;
+  content: "";
+}
+
+#chooseContractEmailFileButton {
+  gap: 9px;
+  padding: 9px 13px;
+  border-color: #d5e1d7;
+  background: #f7faf7;
+  color: #34563c;
+  font-weight: 700;
+}
+
+#chooseContractEmailFileButton::before {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid #e0e8e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #456e4e;
+  content: "↑";
+  font-size: 15px;
+  line-height: 1;
+}
+
+#chooseContractEmailFileButton:hover {
+  border-color: #b9cdbb;
+  background: #eff6f0;
+}
+
+#contractEmailUploadModal {
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+}
+
+#contractEmailFileBox {
+  display: grid;
+  min-height: 116px;
+  place-items: center;
+  padding: 14px;
+  border: 1px dashed #cbd9cd;
+  border-radius: 9px;
+  background: #f8faf8;
+}
+
+#contractEmailFileBox:has(#contractEmailSelectedFile:not([hidden])) {
+  border-style: solid;
+  background: #fbfcfb;
+}
+
+#contractEmailUploadModal form {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  overflow: hidden;
+}
+
+#contractEmailUploadModal .modal-heading {
+  margin-bottom: 14px;
+}
+
+#contractEmailFileName {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: #303630;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#contractEmailUploadModal .document-preview-actions {
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+#contractEmailUploadModal .document-preview-actions .button {
+  min-height: 36px;
+  padding: 7px 11px;
+}
+
+#removeContractEmailFileButton {
+  border-color: #ead5d5;
+  background: #fff8f8;
+  color: #9a3e42;
+}
+
+#removeContractEmailFileButton:hover {
+  border-color: #dfbabb;
+  background: #fff0f0;
+}
+
+#contractEmailUploadModal .modal-actions {
+  margin-top: 14px;
+}
+
 /* ===== CONTRACT EMAIL UPLOAD MODAL MOBILE ===== */
 @media (max-width: 720px) {
   #contractEmailUploadModal {
@@ -5738,53 +5858,21 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   }
 
   #contractEmailUploadModal form {
-    display: flex;
-    flex-direction: column;
     max-height: calc(100dvh - 16px);
     padding: 16px;
-    overflow-y: auto;
   }
 
   #contractEmailUploadModal .modal-heading {
-    flex: 0 0 auto;
+    margin-bottom: 12px;
   }
 
-  #contractEmailUploadModal #contractEmailFilePreview {
-    min-height: 0;
-    overflow-y: auto;
-  }
-
-  #contractEmailUploadModal #contractEmailFileInfo {
-    font-size: 14px;
-  }
-
-  #contractEmailUploadModal #contractEmailFileInfo p,
   #contractEmailUploadModal #contractEmailUploadStatus,
   #contractEmailUploadModal .follow-up-editor-status {
     font-size: 12px;
   }
 
-  #contractEmailUploadModal .document-inline-viewer {
-    min-height: 0;
-    max-height: 40vh;
-    overflow: hidden;
-  }
-
-  #contractEmailUploadModal .document-inline-viewer iframe {
-    height: 40vh;
-  }
-
-  #contractEmailUploadModal .word-preview {
-    margin: 10px auto;
-    padding: 20px;
-  }
-
   #contractEmailUploadModal .modal-actions {
-    position: sticky;
-    bottom: 0;
-    flex: 0 0 auto;
     padding-top: 12px;
-    background: #fff;
   }
 
   #contractEmailUploadModal .button,

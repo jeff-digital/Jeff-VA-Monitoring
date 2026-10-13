@@ -46,7 +46,7 @@
     'updated-contract': {
       name: 'Updated contract',
       subject: 'Updated Contract Of Agreement',
-      body: 'Hi {{contact}},\n\nPlease find attached the updated Contract Of Agreement for your records.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
+      body: 'Dear {{clientName}},\n\nPlease find attached the updated Contract of Agreement for your review and records.\n\nShould you have any questions or require further clarification, please feel free to contact me.\n\nThank you.\n\nBest regards,\n**Jeffrey S. Almocera**\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     }
   };
   let gmailTokenClient = null;
