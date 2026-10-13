@@ -122,6 +122,25 @@
     }).formatToParts(new Date()).find(part => part.type === 'timeZoneName')?.value || 'GMT';
     return offset === 'GMT' ? 'UTC+00:00' : offset.replace(/^GMT/, 'UTC');
   };
+  function formatAvailabilityTime(value) {
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value || '');
+    if (!match) return '';
+    const hour = Number(match[1]);
+    return `${hour % 12 || 12}:${match[2]} ${hour < 12 ? 'AM' : 'PM'}`;
+  }
+
+  function formatAvailability(start, end) {
+    const startLabel = formatAvailabilityTime(start);
+    const endLabel = formatAvailabilityTime(end);
+    return startLabel && endLabel ? `${startLabel} – ${endLabel}` : '';
+  }
+
+  function validateAvailability(answers) {
+    if (!answers.availabilityStart || !answers.availabilityEnd) return 'Choose both a start time and an end time.';
+    if (answers.availabilityStart >= answers.availabilityEnd) return 'The end time must be later than the start time.';
+    return '';
+  }
+
   function setupSearchablePicker(rootSelector, name, options, placeholder) {
     const root = $(rootSelector);
     const input = root.querySelector('.searchable-picker-input');
@@ -325,7 +344,7 @@
       hoursPerWeek: { selector: '#hoursPerWeek', error: '#hoursPerWeekError', validate: answers => answers.hoursPerWeek ? '' : 'Choose your expected hours per week.' },
       preferredChannel: { selector: '#channelChoices input', error: '#preferredChannelError', validate: answers => answers.preferredChannel ? '' : 'Choose a preferred communication channel.' },
       timezone: { selector: '#timezoneSearch', error: '#timezoneError', validate: answers => answers.timezone ? '' : 'Choose a time zone from the suggestions.' },
-      availability: { selector: '#availability', error: '#availabilityError', validate: answers => answers.availability ? '' : 'Describe your availability and preferred working hours.' },
+      availability: { selector: '#availabilityStart, #availabilityEnd', error: '#availabilityError', validate: validateAvailability },
       priorities: { selector: '#priorities', error: '#prioritiesError', validate: answers => answers.priorities ? '' : 'Add at least one first-week priority.' },
       backupName: {
         selector: '#backupName', error: '#backupNameError',
@@ -395,7 +414,9 @@
         responseTime: String(data.get('responseTime') || ''),
         preferredChannel: String(data.get('preferredChannel') || ''),
         timezone: String(data.get('timezone') || ''),
-        availability: String(data.get('availability') || '').trim(),
+        availabilityStart: String(data.get('availabilityStart') || ''),
+        availabilityEnd: String(data.get('availabilityEnd') || ''),
+        availability: formatAvailability(String(data.get('availabilityStart') || ''), String(data.get('availabilityEnd') || '')),
         blackoutDates: String(data.get('blackoutDates') || '').trim(),
         tools: String(data.get('tools') || '').trim(),
         accessMethod: String(data.get('accessMethod') || ''),
@@ -435,7 +456,10 @@
     function validatePart() {
       let firstInvalid = null;
       for (const name of partConfiguration[currentPart].fields) {
-        if (validateField(name) && !firstInvalid) firstInvalid = document.querySelector(fieldConfig[name].selector);
+        if (validateField(name) && !firstInvalid) {
+          const controls = [...document.querySelectorAll(fieldConfig[name].selector)];
+          firstInvalid = controls.find(control => !control.value) || controls[0];
+        }
       }
       if (firstInvalid) {
         $('#formAnnouncement').textContent = 'Please correct the highlighted fields before continuing.';
@@ -655,7 +679,9 @@
       responseTime: String(formData.get('responseTime') || ''),
       preferredChannel: String(formData.get('preferredChannel') || ''),
       timezone: String(formData.get('timezone') || '').trim(),
-      availability: String(formData.get('availability') || '').trim(),
+      availabilityStart: String(formData.get('availabilityStart') || ''),
+      availabilityEnd: String(formData.get('availabilityEnd') || ''),
+      availability: formatAvailability(String(formData.get('availabilityStart') || ''), String(formData.get('availabilityEnd') || '')),
       blackoutDates: String(formData.get('blackoutDates') || '').trim(),
       tools: String(formData.get('tools') || '').trim(),
       accessMethod: String(formData.get('accessMethod') || ''),
@@ -685,7 +711,7 @@
     hoursPerWeek: { control: '#hoursPerWeek', field: '[data-field-key="hoursPerWeek"]', error: '#hoursPerWeekError', validate: answers => answers.hoursPerWeek ? '' : 'Choose your expected hours per week.' },
     preferredChannel: { control: '#channelChoices input', field: '[data-field-key="preferredChannel"]', error: '#preferredChannelError', validate: answers => answers.preferredChannel ? '' : 'Choose a preferred communication channel.' },
     timezone: { control: '#timezoneSearch', field: '[data-field-key="timezone"]', error: '#timezoneError', validate: answers => answers.timezone ? '' : 'Choose a time zone from the suggestions.' },
-    availability: { control: '#availability', field: '[data-field-key="availability"]', error: '#availabilityError', validate: answers => !answers.availability ? 'Describe your availability and preferred working hours.' : answers.availability.length > 2000 ? 'Use 2,000 characters or fewer.' : '' },
+    availability: { control: '#availabilityStart, #availabilityEnd', field: '[data-field-key="availability"]', error: '#availabilityError', validate: validateAvailability },
     priorities: { control: '#priorities', field: '[data-field-key="priorities"]', error: '#prioritiesError', validate: answers => !answers.priorities ? 'Add at least one first-week priority.' : answers.priorities.length > 2000 ? 'Use 2,000 characters or fewer.' : '' },
     backupName: {
       control: '#backupName', field: '[data-field-key="backupName"]', error: '#backupNameError',
@@ -741,7 +767,10 @@
   function validateLiveStep() {
     let firstInvalid;
     for (const fieldName of liveSteps[liveStep].fields) {
-      if (validateLiveField(fieldName) && !firstInvalid) firstInvalid = $(liveFieldConfig[fieldName].control);
+      if (validateLiveField(fieldName) && !firstInvalid) {
+        const controls = [...document.querySelectorAll(liveFieldConfig[fieldName].control)];
+        firstInvalid = controls.find(control => !control.value) || controls[0];
+      }
     }
     if (firstInvalid) {
       $('#formAnnouncement').textContent = 'Please correct the highlighted fields before continuing.';

@@ -1309,7 +1309,7 @@
 
   function clientOnlineStatus(item, now = new Date()) {
     const timeZone = clientTimeZones.get(item.id);
-    if (!timeZone) return { className: 'unknown', text: 'Time zone not set', localTime: '', utcOffset: '' };
+    if (!timeZone) return { className: 'unknown', text: 'Time zone not set', localTime: '', utcOffset: '', country: '' };
     try {
       const parts = new Intl.DateTimeFormat('en-US', {
         timeZone,
@@ -1321,7 +1321,7 @@
       const part = type => parts.find(value => value.type === type)?.value;
       const weekday = part('weekday');
       const hour = Number(part('hour'));
-      if (!weekday || !Number.isInteger(hour)) return { className: 'unknown', text: 'Time zone not set', localTime: '', utcOffset: '' };
+      if (!weekday || !Number.isInteger(hour)) return { className: 'unknown', text: 'Time zone not set', localTime: '', utcOffset: '', country: '' };
       const localTime = new Intl.DateTimeFormat('en-US', {
         timeZone,
         hour: 'numeric',
@@ -1334,22 +1334,46 @@
       const utcOffset = offsetLabel === 'GMT' || offsetLabel === 'UTC'
         ? 'UTC+00:00'
         : offsetLabel.replace(/^GMT/, 'UTC');
-      const isOnline = !['Sat', 'Sun'].includes(weekday) && hour >= 9 && hour < 17;
+      const availabilityMatch = String(item.clientAvailability || '').match(/^\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*[–-]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*$/i);
+      const validAvailability = availabilityMatch
+        && [1, 4].every(index => Number(availabilityMatch[index]) >= 1 && Number(availabilityMatch[index]) <= 12)
+        && [2, 5].every(index => !availabilityMatch[index] || Number(availabilityMatch[index]) <= 59);
+      const availabilityMinutes = validAvailability ? availabilityMatch.slice(1).map(Number) : null;
+      const toMinutes = (hours, minutes, meridiem) => ((hours % 12) + (meridiem.toUpperCase() === 'PM' ? 12 : 0)) * 60 + minutes;
+      const parsedStartMinutes = availabilityMinutes
+        ? toMinutes(availabilityMinutes[0], availabilityMinutes[1] || 0, availabilityMatch[3])
+        : 9 * 60;
+      const parsedEndMinutes = availabilityMinutes
+        ? toMinutes(availabilityMinutes[3], availabilityMinutes[4] || 0, availabilityMatch[6])
+        : 17 * 60;
+      const hasAvailability = Boolean(availabilityMinutes && parsedEndMinutes > parsedStartMinutes);
+      const startMinutes = hasAvailability ? parsedStartMinutes : 9 * 60;
+      const endMinutes = hasAvailability ? parsedEndMinutes : 17 * 60;
+      const availability = hasAvailability ? item.clientAvailability : '';
+      const localMinutes = hour * 60 + Number(part('minute'));
+      const isOnline = !['Sat', 'Sun'].includes(weekday) && localMinutes >= startMinutes && localMinutes < endMinutes;
+      const country = String(item.location || '').trim();
       return {
         className: isOnline ? 'online' : 'offline',
-        text: `${isOnline ? 'Online now' : 'Offline'} · ${localTime} · ${utcOffset}`,
+        text: `${isOnline ? 'Online now' : 'Offline'} · ${localTime} · ${utcOffset}${country ? ` · ${country}` : ''}${availability ? ` · ${availability}` : ''}`,
         localTime,
-        utcOffset
+        utcOffset,
+        country,
+        availability
       };
     } catch (error) {
-      if (error instanceof RangeError) return { className: 'unknown', text: 'Time zone not set', localTime: '', utcOffset: '' };
+      if (error instanceof RangeError) return { className: 'unknown', text: 'Time zone not set', localTime: '', utcOffset: '', country: '' };
       throw error;
     }
   }
 
+  function clientOnlineStatusTitle(status) {
+    return `Estimated from weekdays and the client's submitted work hours${status.availability ? ` (${status.availability})` : ' (9 AM–5 PM default)'}`;
+  }
+
   function renderClientOnlineStatus(item, includeLabel = true) {
     const status = clientOnlineStatus(item);
-    return `<span class="client-online-status ${status.className}${includeLabel ? '' : ' status-dot-only'}" title="${includeLabel ? 'Estimated from weekdays, 9 AM–5 PM client local time' : escapeHtml(status.text)}" aria-label="${escapeHtml(status.text)}" data-client-online-status="${escapeHtml(item.id)}" data-status-dot-only="${!includeLabel}">${includeLabel ? escapeHtml(status.text) : ''}</span>`;
+    return `<span class="client-online-status ${status.className}${includeLabel ? '' : ' status-dot-only'}" title="${includeLabel ? escapeHtml(clientOnlineStatusTitle(status)) : escapeHtml(status.text)}" aria-label="${escapeHtml(status.text)}" data-client-online-status="${escapeHtml(item.id)}" data-status-dot-only="${!includeLabel}">${includeLabel ? escapeHtml(status.text) : ''}</span>`;
   }
 
   function updateClientOnlineIndicators() {
@@ -1363,12 +1387,20 @@
         indicator.title = status.text;
         indicator.setAttribute('aria-label', status.text);
         const timeZoneText = indicator.closest('.hired-card-timezone')?.querySelector('[data-client-timezone-text]');
-        if (timeZoneText && status.localTime) timeZoneText.textContent = `${status.localTime} (${status.utcOffset})`;
+        if (timeZoneText && status.localTime) timeZoneText.textContent = `${status.localTime} (${status.utcOffset})${status.country ? ` · ${status.country}` : ''}${status.availability ? ` · ${status.availability}` : ''}`;
       } else {
         indicator.textContent = status.text;
-        indicator.title = 'Estimated from weekdays, 9 AM–5 PM client local time';
+        indicator.title = clientOnlineStatusTitle(status);
       }
     });
+    const detailIndicator = $('#hiredDetailOnlineStatus');
+    const detailClient = data.applications.find(application => application.id === hiredEditingId);
+    if (detailIndicator && detailClient) {
+      const status = clientOnlineStatus(detailClient);
+      detailIndicator.className = `client-online-status ${status.className}`;
+      detailIndicator.textContent = status.text;
+      detailIndicator.title = clientOnlineStatusTitle(status);
+    }
   }
 
   setInterval(updateClientOnlineIndicators, 60000);
@@ -1462,7 +1494,7 @@
       : '';
     const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
     const timeZoneMarkup = timeZone?.localTime
-      ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})`)}</span></span>`
+      ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span></span>`
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
@@ -1522,7 +1554,7 @@
     const clientStatus = clientOnlineStatus(item);
     onlineStatus.className = `client-online-status ${clientStatus.className}`;
     onlineStatus.textContent = clientStatus.text;
-    onlineStatus.title = 'Estimated from weekdays, 9 AM–5 PM client local time';
+    onlineStatus.title = clientOnlineStatusTitle(clientStatus);
     const contactDetails = [
       item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '',
       item.phone ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>` : ''
@@ -1622,6 +1654,41 @@
     if (scroll) $('#hiredDetailPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function updateHiredClientPhoneDisplay(item) {
+    const contactDetails = [
+      item.email ? `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>` : '',
+      item.phone ? `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>` : ''
+    ].filter(Boolean);
+    $('#hiredDetailContact').innerHTML = contactDetails.length
+      ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
+      : '';
+
+    const contactSection = $('#hiredDetailGrid .hired-detail-info-group');
+    if (!contactSection) return;
+    let details = contactSection.querySelector('dl');
+    const phoneRow = [...(details?.children || [])].find(row => row.querySelector('dt')?.textContent === 'Phone');
+    if (!item.phone) {
+      phoneRow?.remove();
+      return;
+    }
+    if (!details) {
+      contactSection.querySelector('.client-detail-empty-copy')?.remove();
+      details = document.createElement('dl');
+      contactSection.append(details);
+    }
+    const row = phoneRow || document.createElement('div');
+    if (!phoneRow) {
+      const term = document.createElement('dt');
+      term.textContent = 'Phone';
+      row.append(term, document.createElement('dd'));
+      details.append(row);
+    }
+    const phoneLink = document.createElement('a');
+    phoneLink.href = `tel:${item.phone.replace(/[^+\d]/g, '')}`;
+    phoneLink.textContent = item.phone;
+    row.querySelector('dd').replaceChildren(phoneLink);
+  }
+
   async function loadClientOnboardingSubmission(item) {
     const target = $('#activeOnboardingResponse');
     if (!target) return;
@@ -1640,6 +1707,31 @@
         updateClientOnboardingStatus('Not submitted', 'empty');
         target.innerHTML = '<div class="client-section-empty"><h4>No onboarding submission yet</h4><p>Use Actions → Send onboarding form to invite this client.</p></div>';
         return;
+      }
+      const submissionTimestamp = String(submission.submitted_at || '');
+      let onboardingDetailsChanged = false;
+      const submittedContactName = String(submission.contact_name || '').trim();
+      if (submittedContactName && submissionTimestamp && item.onboardingContactSubmissionAppliedAt !== submissionTimestamp) {
+        item.contact = submittedContactName;
+        item.onboardingContactSubmissionAppliedAt = submissionTimestamp;
+        onboardingDetailsChanged = true;
+      }
+      const submittedPhone = String(submission.phone || '').trim();
+      if (submittedPhone && submissionTimestamp && item.onboardingPhoneSubmissionAppliedAt !== submissionTimestamp) {
+        item.phone = submittedPhone;
+        item.onboardingPhoneSubmissionAppliedAt = submissionTimestamp;
+        onboardingDetailsChanged = true;
+      }
+      const submittedAvailability = String(submission.availability || '').trim();
+      if (submittedAvailability && submissionTimestamp && item.onboardingAvailabilitySubmissionAppliedAt !== submissionTimestamp) {
+        item.clientAvailability = submittedAvailability;
+        item.onboardingAvailabilitySubmissionAppliedAt = submissionTimestamp;
+        onboardingDetailsChanged = true;
+      }
+      if (onboardingDetailsChanged) {
+        item.updatedAt = new Date().toISOString();
+        if (submittedPhone) updateHiredClientPhoneDisplay(item);
+        await persist();
       }
       if (submission.timezone) clientTimeZones.set(item.id, submission.timezone);
       else clientTimeZones.delete(item.id);

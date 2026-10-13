@@ -46,7 +46,7 @@
     'updated-contract': {
       name: 'Updated contract',
       subject: 'Updated Contract Of Agreement',
-      body: 'Dear {{clientName}},\n\nPlease find attached the updated Contract of Agreement for your review and records.\n\nShould you have any questions or require further clarification, please feel free to contact me.\n\nThank you.\n\nBest regards,\n**Jeffrey S. Almocera**\nalmocerajeffreys@gmail.com | +63 975-683-4839'
+      body: 'Dear {{contactPerson}},\n\nPlease find attached the updated Contract of Agreement for your review and records.\n\nShould you have any questions or require further clarification, please feel free to contact me.\n\nThank you.\n\nBest regards,\n**Jeffrey S. Almocera**\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     }
   };
   let gmailTokenClient = null;
@@ -238,6 +238,7 @@
     const template = DOCUMENT_TEMPLATE_DEFINITIONS[templateType] || DOCUMENT_TEMPLATE_DEFINITIONS['contract-signing'];
     const clientName = application.clientName || 'Client';
     const contactName = application.contact || clientName;
+    const contactPerson = application.contact || 'Client';
     const roleName = application.role || 'your project';
     const duration = additional.duration || contractDuration(application) || 'the project period';
     const invoiceNumber = additional.invoiceNumber || 'INV-000';
@@ -247,6 +248,7 @@
     const subject = (additional.subject || template.subject)
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
+      .replace(/{{contactPerson}}/g, contactPerson)
       .replace(/{{role}}/g, roleName)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)
@@ -256,6 +258,7 @@
     const body = (additional.body || template.body)
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
+      .replace(/{{contactPerson}}/g, contactPerson)
       .replace(/{{role}}/g, roleName)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)

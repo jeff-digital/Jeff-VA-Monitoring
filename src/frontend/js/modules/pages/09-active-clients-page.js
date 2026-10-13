@@ -96,13 +96,15 @@
     back.hidden = view === 'list';
     close.hidden = view === 'email';
     title.textContent = view === 'list'
-      ? 'Actions'
+      ? client.clientName || 'Active client'
       : view === 'email'
         ? 'Send email'
         : view === 'onboarding'
           ? 'Request corrected onboarding details'
           : 'Edit details';
-    $('#activeClientDrawerClientName').textContent = client.clientName || 'Active client';
+    $('#activeClientDrawerClientName').textContent = view === 'list'
+      ? client.role || client.service || ''
+      : client.clientName || 'Active client';
     if (view === 'email') mountActiveClientDrawerForm('emailComposeForm', 'activeClientDrawerEmailSlot');
     if (view === 'edit') mountActiveClientDrawerForm('clientForm', 'activeClientDrawerClientFormSlot');
     layer.dataset.view = view;

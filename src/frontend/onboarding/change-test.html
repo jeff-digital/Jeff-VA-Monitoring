@@ -208,9 +208,13 @@
 
           <div class="form-field form-field-wide" data-field-key="availability">
             <div class="field-label-row">
-              <label for="availability">Availability and preferred working hours <span class="required-mark" aria-hidden="true">*</span></label>
+              <span>Availability and preferred working hours <span class="required-mark" aria-hidden="true">*</span></span>
             </div>
-            <textarea id="availability" name="availability" rows="2" maxlength="2000" aria-describedby="availabilityError" required placeholder="For example, weekdays 9 AM–1 PM and 3 PM–5 PM"></textarea>
+            <div class="working-hours-fields">
+              <label class="form-field" for="availabilityStart">Start time<input id="availabilityStart" name="availabilityStart" type="time" required aria-describedby="availabilityError" /></label>
+              <label class="form-field" for="availabilityEnd">End time<input id="availabilityEnd" name="availabilityEnd" type="time" required aria-describedby="availabilityError" /></label>
+            </div>
+            <small class="field-help">Choose the hours you are usually available in your selected time zone.</small>
             <p class="field-error" id="availabilityError" aria-live="polite" hidden></p>
           </div>
 

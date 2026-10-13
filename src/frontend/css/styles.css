@@ -2955,7 +2955,9 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 
 #hiredView .hired-detail-subtitle { color: var(--workspace-muted); font-size: 13px; }
 #hiredView .hired-detail-header-meta .status-pill { margin: 0; }
-#hiredView #hiredDetailContact { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-width: 0; color: var(--workspace-muted); font-size: 12px; }
+#hiredView #hiredDetailContact { display: block; flex: 0 0 100%; min-width: 0; color: var(--workspace-muted); font-size: 12px; }
+#hiredView #hiredDetailContact > .hired-detail-contact-separator:first-child { display: none; }
+#hiredView #hiredDetailContact > .hired-detail-contact-separator:not(:first-child) { margin: 0 7px; }
 #hiredView #hiredDetailContact a { overflow-wrap: anywhere; color: var(--workspace-accent); text-decoration: none; }
 #hiredView #hiredDetailContact a:hover { text-decoration: underline; }
 #hiredView .hired-detail-heading-actions { flex-wrap: wrap; align-items: center; gap: 8px; }

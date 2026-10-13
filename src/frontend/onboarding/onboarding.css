@@ -74,6 +74,7 @@ h1 { margin: 0; color: #12372a; font-size: clamp(26px, 4vw, 34px); font-weight: 
 .form-field textarea[aria-invalid="true"], .form-field input[aria-invalid="true"], .form-field select[aria-invalid="true"] { background: #fffafa; }
 .phone-number-fields { display: grid; grid-template-columns: minmax(120px, .75fr) minmax(0, 1.25fr); gap: 10px; min-width: 0; }
 .phone-number-fields > .form-field { min-width: 0; }
+.working-hours-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .searchable-picker { position: relative; min-width: 0; }
 .searchable-picker-input { padding-right: 38px; }
 .searchable-picker-selected-flag { display: none; }
