@@ -2058,6 +2058,7 @@
       if (data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({
         id: alertId,
+        type: 'to-apply',
         clientName: 'To apply',
         subject: `Apply today: ${item.title}`,
         from: 'Application reminder',
@@ -4654,28 +4655,69 @@
     return (data.alerts || []).filter(alert => !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
   }
 
-  function notificationGroup(alert) {
-    return alert.type?.startsWith('task-') || alert.type?.startsWith('client-task-') ? 'Tasks' : 'Clients';
+  function notificationCategory(alert) {
+    if (alert.type?.startsWith('task-')) return 'daily-tasks';
+    if (alert.type === 'to-apply' || alert.id?.startsWith('to-apply|due|')) return 'to-apply';
+    if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission'].includes(alert.type)) return 'active-clients';
+    const linkedApplication = (data.applications || []).find(item =>
+      item.id === alert.applicationId || alert.id?.endsWith(`|${item.id}`)
+    );
+    return linkedApplication?.status === 'Active client' ? 'active-clients' : 'applications';
   }
 
   function renderAlerts() {
     refreshGeneratedNotifications();
     const alerts = visibleNotificationAlerts().sort((first, second) => new Date(second.date) - new Date(first.date));
-    const unread = alerts.filter(alert => alert.unread).length;
+    let unread = 0;
+    const unreadByCategory = new Map();
+    for (const alert of alerts) {
+      if (!alert.unread) continue;
+      unread += 1;
+      const category = notificationCategory(alert);
+      unreadByCategory.set(category, (unreadByCategory.get(category) || 0) + 1);
+    }
     const badge = $('#notificationBadge');
     const button = $('#notificationButton');
     if (badge) { badge.textContent = unread > 9 ? '9+' : String(unread); badge.hidden = unread === 0; }
     if (button) button.setAttribute('aria-label', unread ? `Notifications, ${unread} unread` : 'Notifications');
     updateTabNotification(unread);
+    $$('.notification-tabs [role="tab"]').forEach(tab => {
+      const filter = tab.dataset.notificationFilter;
+      const count = filter === 'all' || filter === 'unread' ? unread : (unreadByCategory.get(filter) || 0);
+      const countPill = tab.querySelector('.notification-tab-count');
+      if (countPill) {
+        countPill.textContent = count > 9 ? '9+' : String(count);
+        countPill.hidden = count === 0;
+      }
+      const label = tab.querySelector('.notification-tab-text')?.textContent.trim() || '';
+      const accessibleLabel = count ? `${label}, ${count} unread ${count === 1 ? 'notification' : 'notifications'}` : label;
+      tab.setAttribute('aria-label', accessibleLabel);
+    });
     const list = $('#notificationList');
     if (!list) return;
-    const shownAlerts = notificationFilter === 'unread' ? alerts.filter(alert => alert.unread) : alerts;
-    const groups = ['Tasks', 'Clients'].map(label => ({
-      label,
-      items: shownAlerts.filter(alert => notificationGroup(alert) === label)
+    const shownAlerts = alerts.filter(alert => {
+      if (notificationFilter === 'unread') return alert.unread;
+      return notificationFilter === 'all' || notificationCategory(alert) === notificationFilter;
+    });
+    const groups = [
+      { key: 'applications', label: 'Applications' },
+      { key: 'active-clients', label: 'Active Clients' },
+      { key: 'daily-tasks', label: 'Daily Tasks' },
+      { key: 'to-apply', label: 'To Apply' }
+    ].map(group => ({
+      label: group.label,
+      items: shownAlerts.filter(alert => notificationCategory(alert) === group.key)
     })).filter(group => group.items.length);
     if (!groups.length) {
-      list.innerHTML = `<div class="notification-empty">${notificationFilter === 'unread' ? 'You’re all caught up. No unread notifications.' : 'No notifications right now. Tasks and client updates will appear here.'}</div>`;
+      const emptyMessages = {
+        all: 'No notifications right now. Tasks and client updates will appear here.',
+        applications: 'No application notifications right now.',
+        'active-clients': 'No active client notifications right now.',
+        'daily-tasks': 'No daily task notifications right now.',
+        'to-apply': 'No To Apply notifications right now.',
+        unread: 'You’re all caught up. No unread notifications.'
+      };
+      list.innerHTML = `<div class="notification-empty">${emptyMessages[notificationFilter]}</div>`;
       return;
     }
     list.innerHTML = groups.map(group => `
@@ -4731,14 +4773,13 @@
 
   function setNotificationFilter(filter) {
     notificationFilter = filter;
-    const allTab = $('#notificationAllTab');
-    const unreadTab = $('#notificationUnreadTab');
-    [allTab, unreadTab].forEach(tab => {
+    const tabs = $$('.notification-tabs [role="tab"]');
+    tabs.forEach(tab => {
       const selected = tab.dataset.notificationFilter === filter;
       tab.setAttribute('aria-selected', String(selected));
       tab.tabIndex = selected ? 0 : -1;
     });
-    $('#notificationList').setAttribute('aria-labelledby', filter === 'unread' ? 'notificationUnreadTab' : 'notificationAllTab');
+    $('#notificationList').setAttribute('aria-labelledby', $(`[data-notification-filter="${filter}"]`).id);
     renderAlerts();
   }
 
@@ -4781,8 +4822,10 @@
     }
     if (event.target instanceof HTMLElement && event.target.matches('[role="tab"]') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
       event.preventDefault();
-      const tabs = [$('#notificationAllTab'), $('#notificationUnreadTab')];
-      const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[1] : event.key === 'ArrowRight' ? (event.target === tabs[0] ? tabs[1] : tabs[0]) : (event.target === tabs[0] ? tabs[1] : tabs[0]);
+      const tabs = $$('.notification-tabs [role="tab"]');
+      const currentIndex = tabs.indexOf(event.target);
+      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : event.key === 'ArrowRight' ? (currentIndex + 1) % tabs.length : (currentIndex - 1 + tabs.length) % tabs.length;
+      const next = tabs[nextIndex];
       next.focus();
       next.click();
       return;
@@ -7086,6 +7129,8 @@
           showView('hired');
           renderHiredDetail(item);
         }
+      } else if (alert?.type === 'to-apply' || alert?.id?.startsWith('to-apply|due|')) {
+        showView('to-apply');
       } else if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');
         openClientModal(alert.applicationId, true);

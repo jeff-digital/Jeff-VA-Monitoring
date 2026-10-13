@@ -1056,6 +1056,7 @@
       if (data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({
         id: alertId,
+        type: 'to-apply',
         clientName: 'To apply',
         subject: `Apply today: ${item.title}`,
         from: 'Application reminder',

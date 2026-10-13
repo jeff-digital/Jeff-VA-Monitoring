@@ -278,6 +278,8 @@
           showView('hired');
           renderHiredDetail(item);
         }
+      } else if (alert?.type === 'to-apply' || alert?.id?.startsWith('to-apply|due|')) {
+        showView('to-apply');
       } else if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');
         openClientModal(alert.applicationId, true);
