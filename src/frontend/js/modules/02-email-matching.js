@@ -30,7 +30,9 @@
       application.email || '',
       application.contact || '',
       application.clientName || '',
-      application.role || ''
+      application.role || '',
+      application.website || '',
+      application.platform || ''
     ].join('|')).join('~');
   }
 
@@ -43,8 +45,32 @@
       const contact = String(application.contact || '').trim().toLowerCase();
       const clientName = String(application.clientName || '').trim().toLowerCase();
       const role = String(application.role || '').trim().toLowerCase();
-      return { application, email, contact, clientName, role };
+      const matchContact = normalizeMatchText(contact);
+      const matchClientName = normalizeMatchText(clientName);
+      const matchRole = normalizeMatchText(role);
+      const platformKey = platformKeyForName(application.platform);
+      return {
+        application,
+        email,
+        emailIsPlatformSender: PLATFORM_SENDER_EMAIL_SET.has(email),
+        contact,
+        clientName,
+        role,
+        matchContact,
+        matchClientName,
+        matchRole,
+        roleIsSpecific: isSpecificApplicationRole(matchRole),
+        platformKey,
+        jobLinkTokens: applicationLinkTokens(application.website),
+        roleGroupKey: `${platformKey || 'unknown'}|${matchRole}`,
+        roleGroupCount: 0
+      };
     });
+    const roleGroupCounts = new Map();
+    for (const item of applicationMatchIndex) {
+      if (item.roleIsSpecific) roleGroupCounts.set(item.roleGroupKey, (roleGroupCounts.get(item.roleGroupKey) || 0) + 1);
+    }
+    for (const item of applicationMatchIndex) item.roleGroupCount = roleGroupCounts.get(item.roleGroupKey) || 0;
     applicationMatchIndexSignature = signature;
     return applicationMatchIndex;
   }
@@ -99,12 +125,32 @@
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
     const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
+    const senderPlatformKey = platformKeyForName(platformNameForSender(fromAddress));
     const matches = [];
+    if (senderPlatformKey) {
+      const subjectText = normalizeMatchText(emailItem.subject);
+      const bodySource = String(emailItem.body || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\bsent\s+via\s+[\w.-]+\s+contact\s+form\b/gi, ' ');
+      const bodyText = normalizeMatchText(bodySource);
+      const bodyLinkTokens = applicationLinkTokens(emailItem.body);
+      const scoredMatches = [];
+      for (const item of buildApplicationMatchIndex(data.applications)) {
+        const score = platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens);
+        if (score !== null) scoredMatches.push({ application: item.application, score });
+      }
+      if (scoredMatches.length) {
+        const highestScore = Math.max(...scoredMatches.map(match => match.score));
+        matches.push(...scoredMatches.filter(match => match.score === highestScore).map(match => match.application));
+      }
+      applicationEmailMatchesCache.set(emailItem, matches);
+      return matches;
+    }
     for (const item of buildApplicationMatchIndex(data.applications)) {
       const { application, email, contact, clientName, role } = item;
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
-      if (email && email === fromAddress) {
+      if (email && !item.emailIsPlatformSender && email === fromAddress) {
         matches.push(application);
         continue;
       }
@@ -845,7 +891,7 @@
     target.innerHTML = applications.map(item => `
       <tr>
         <td><div class="table-client">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
-        <td>${escapeHtml(item.platform)}</td><td>${statusPill(item.status)}${matchBadge(item)}</td><td>${formatDate(item.appliedDate)}</td>
+        <td>${escapeHtml(item.platform)}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${formatDate(item.appliedDate)}</td>
         <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
       </tr>
     `).join('');
@@ -946,7 +992,7 @@
       const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
         : '—';
-      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td>${statusPill(item.status)}${matchBadge(item)}</td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><div class="application-row-menu"><button class="icon-button application-row-menu-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="true" aria-expanded="false" data-application-menu="${escapeHtml(item.id)}">⋯</button><div class="application-row-menu-items hidden" role="menu" data-application-menu-items="${escapeHtml(item.id)}"><button type="button" role="menuitem" data-view-details="${escapeHtml(item.id)}">View details</button><button type="button" role="menuitem" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-application="${escapeHtml(item.id)}">Delete</button></div></div></td></tr>`;
+      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><div class="application-row-menu"><button class="icon-button application-row-menu-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="true" aria-expanded="false" data-application-menu="${escapeHtml(item.id)}">⋯</button><div class="application-row-menu-items hidden" role="menu" data-application-menu-items="${escapeHtml(item.id)}"><button type="button" role="menuitem" data-view-details="${escapeHtml(item.id)}">View details</button><button type="button" role="menuitem" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-application="${escapeHtml(item.id)}">Delete</button></div></div></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
@@ -1883,7 +1929,6 @@
     $('#clientCountry').value = '';
     $('#clientRegion').value = '';
     $('#clientRegionField').classList.add('hidden');
-    $('#deleteClientButton').hidden = !id;
     $('#clientFollowUpHistory').classList.add('hidden');
     $('#clientEmailHistory').classList.add('hidden');
     if (id) {
@@ -1968,7 +2013,6 @@
       $('#clientStatus').value = 'Active client';
       $('#clientStatus').disabled = true;
     }
-    $('#deleteClientButton').hidden = !id || viewOnly;
     $('#saveClientButton').hidden = viewOnly;
     $('#closeClientDetailsButton').hidden = !viewOnly;
     $('#clientForm').classList.toggle('view-details-form', viewOnly);
@@ -2065,7 +2109,6 @@
     $('#sendClientEmailButton').hidden = false;
     $('#sendEmailMenu').classList.add('hidden');
     $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
-    $('#deleteClientButton').hidden = !editingId || viewingClientDetails || activeClientDrawerEdit;
     $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';

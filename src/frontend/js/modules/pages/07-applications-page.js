@@ -139,7 +139,6 @@
       if ($('#clientModal').open && !editingId && !viewingClientDetails) saveNewClientApplicationDraft();
     });
   });
-  $('#deleteClientButton').addEventListener('click', () => deleteClient(editingId));
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
   $('#automaticFollowUp').addEventListener('change', event => {
     if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);

@@ -114,6 +114,7 @@
     activeClientDrawerOpen = true;
     activeClientDrawerView = 'list';
     clearTimeout(activeClientDrawerCloseTimer);
+    document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
     layer.hidden = false;
     layer.setAttribute('aria-hidden', 'false');
     layer.classList.remove('closing');
@@ -147,6 +148,7 @@
       layer.hidden = true;
       layer.classList.remove('closing');
       document.body.classList.remove('active-client-drawer-open');
+      document.body.style.removeProperty('--active-client-drawer-width');
       restoreActiveClientDrawerForms();
       updateClientActionLabel();
       activeClientDrawerReturnFocus?.focus();
@@ -154,6 +156,12 @@
       onClosed?.();
     }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 270);
   }
+
+  window.addEventListener('resize', () => {
+    if (activeClientDrawerOpen) {
+      document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
+    }
+  });
 
   function drawerTabStops() {
     return $$('#activeClientDrawer button:not([disabled]), #activeClientDrawer input:not([disabled]), #activeClientDrawer select:not([disabled]), #activeClientDrawer textarea:not([disabled]), #activeClientDrawer a[href]')
@@ -246,6 +254,8 @@
       } else if (actionRow.dataset.activeClientAction === 'edit') {
         const clientId = hiredEditingId;
         closeActiveClientActionsDrawer(false, () => openClientModal(clientId, false, true, false, true));
+      } else if (actionRow.dataset.activeClientAction === 'delete') {
+        await deleteClient(hiredEditingId, true);
       }
       return;
     }

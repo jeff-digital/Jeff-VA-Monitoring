@@ -26,19 +26,90 @@
 
   function dailyTaskRelatedOptions() {
     const selected = $('#dailyTaskRelated').value;
-    const clients = data.applications.filter(item => item.status === 'Active client');
-    const applications = data.applications.filter(item => item.status !== 'Active client');
+    const clients = sortByDate(data.applications.filter(item => item.status === 'Active client'), applicationAddedDate);
+    const applications = sortByDate(data.applications.filter(item => item.status !== 'Active client'), applicationAddedDate);
     const option = (item, type) => {
       const name = item.clientName || item.role || 'Untitled record';
       const detail = item.role && item.clientName ? ` - ${item.role}` : '';
-      return `<option value="${type}:${escapeHtml(item.id)}">${escapeHtml(name + detail)}</option>`;
+      return { value: `${type}:${item.id}`, name, detail: detail.replace(/^ - /, ''), searchText: `${name} ${detail}`.toLowerCase() };
     };
     const groups = [
-      clients.length ? `<optgroup label="Active clients">${clients.map(item => option(item, 'client')).join('')}</optgroup>` : '',
-      applications.length ? `<optgroup label="Applications">${applications.map(item => option(item, 'application')).join('')}</optgroup>` : ''
-    ].join('');
-    $('#dailyTaskRelated').innerHTML = `<option value="">No linked record</option>${groups}`;
-    if ([...$('#dailyTaskRelated').options].some(item => item.value === selected)) $('#dailyTaskRelated').value = selected;
+      { label: 'Active clients', records: clients.map(item => option(item, 'client')) },
+      { label: 'Applications', records: applications.map(item => option(item, 'application')) }
+    ];
+    const records = groups.flatMap(group => group.records);
+    const select = $('#dailyTaskRelated');
+    select.innerHTML = `<option value="">No linked record</option>${groups.map(group => group.records.length
+      ? `<optgroup label="${group.label}">${group.records.map(record => `<option value="${escapeHtml(record.value)}">${escapeHtml(record.name + (record.detail ? ` - ${record.detail}` : ''))}</option>`).join('')}</optgroup>`
+      : '').join('')}`;
+    select.value = records.some(record => record.value === selected) ? selected : '';
+
+    const query = $('#dailyTaskRelatedSearch').value.trim().toLowerCase();
+    const matchingRecords = records.filter(record => record.searchText.includes(query));
+    const list = $('#dailyTaskRelatedList');
+    const noLinkedSelected = select.value === '';
+    const noLinkedOption = `<div class="daily-task-related-option${noLinkedSelected ? ' is-selected' : ''}" role="option" aria-selected="${noLinkedSelected}" tabindex="-1" data-related-value=""><span class="daily-task-related-option-icon is-neutral"><i class="fa-solid fa-link-slash" aria-hidden="true"></i></span><span class="daily-task-related-option-copy"><strong>No linked record</strong><small>Keep this task independent</small></span>${noLinkedSelected ? '<i class="fa-solid fa-check daily-task-related-check" aria-hidden="true"></i>' : ''}</div>`;
+    const groupsMarkup = groups.map(group => {
+      const groupRecords = group.records.filter(record => record.searchText.includes(query));
+      if (!groupRecords.length) return '';
+      const type = group.label === 'Active clients' ? 'client' : 'application';
+      const icon = type === 'client' ? 'fa-user-tie' : 'fa-briefcase';
+      return `<section class="daily-task-related-group" role="group" aria-label="${group.label}"><div class="daily-task-related-group-heading"><span>${group.label}</span><small>${groupRecords.length}</small></div>${groupRecords.map(record => {
+        const isSelected = record.value === select.value;
+        return `<div class="daily-task-related-option${isSelected ? ' is-selected' : ''}" role="option" aria-selected="${isSelected}" tabindex="-1" data-related-value="${escapeHtml(record.value)}"><span class="daily-task-related-option-icon ${type === 'client' ? 'is-client' : 'is-application'}"><i class="fa-solid ${icon}" aria-hidden="true"></i></span><span class="daily-task-related-option-copy"><strong>${escapeHtml(record.name)}</strong>${record.detail ? `<small>${escapeHtml(record.detail)}</small>` : ''}</span>${isSelected ? '<i class="fa-solid fa-check daily-task-related-check" aria-hidden="true"></i>' : ''}</div>`;
+      }).join('')}</section>`;
+    }).join('');
+    list.innerHTML = `${noLinkedOption}${groupsMarkup}${query && !matchingRecords.length ? '<p class="daily-task-related-empty">No matching clients or applications.</p>' : ''}`;
+    $('#dailyTaskRelatedValue').textContent = select.value
+      ? (() => {
+        const record = records.find(item => item.value === select.value);
+        return record ? record.name : 'No linked record';
+      })()
+      : 'No linked record';
+    const selectedRecord = records.find(record => record.value === select.value);
+    $('#dailyTaskRelatedTrigger').querySelector('small').textContent = selectedRecord
+      ? selectedRecord.detail || (select.value.startsWith('client:') ? 'Active client' : 'Application')
+      : 'Optional — connect it to a client or application';
+  }
+
+  function setDailyTaskRelatedPickerOpen(open, focusSearch = false) {
+    const trigger = $('#dailyTaskRelatedTrigger');
+    const popover = $('#dailyTaskRelatedPopover');
+    trigger.setAttribute('aria-expanded', String(open));
+    popover.classList.toggle('hidden', !open);
+    if (open) {
+      dailyTaskRelatedOptions();
+      const triggerBounds = trigger.getBoundingClientRect();
+      const desiredHeight = Math.min(360, window.innerHeight - 24);
+      const spaceBelow = window.innerHeight - triggerBounds.bottom - 12;
+      const spaceAbove = triggerBounds.top - 12;
+      const openBelow = spaceBelow >= 210 || spaceBelow >= spaceAbove;
+      const availableSpace = Math.max(160, Math.min(desiredHeight, openBelow ? spaceBelow : spaceAbove));
+      const width = Math.min(triggerBounds.width, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(triggerBounds.left, window.innerWidth - width - 12));
+      const top = openBelow
+        ? Math.min(window.innerHeight - availableSpace - 12, triggerBounds.bottom + 6)
+        : Math.max(12, triggerBounds.top - availableSpace - 6);
+      popover.style.width = `${width}px`;
+      popover.style.maxHeight = `${availableSpace}px`;
+      popover.style.left = `${left}px`;
+      popover.style.top = `${top}px`;
+      $('#dailyTaskRelatedList').style.maxHeight = `${Math.max(90, availableSpace - 61)}px`;
+      if (focusSearch) $('#dailyTaskRelatedSearch').focus();
+    } else {
+      $('#dailyTaskRelatedSearch').value = '';
+      dailyTaskRelatedOptions();
+    }
+  }
+
+  function moveDailyTaskRelatedOption(currentOption, direction) {
+    const options = [...$('#dailyTaskRelatedList').querySelectorAll('[role="option"]')];
+    if (!options.length) return;
+    const currentIndex = options.indexOf(currentOption);
+    const nextIndex = currentIndex < 0
+      ? (direction > 0 ? 0 : options.length - 1)
+      : Math.max(0, Math.min(options.length - 1, currentIndex + direction));
+    options[nextIndex].focus();
   }
 
   function dailyTaskRelatedName(task) {
@@ -77,6 +148,7 @@
     $('#dailyTaskForm').reset();
     pendingDailyTaskChecklist = [];
     $('#dailyTaskDestinationField').classList.add('hidden');
+    setDailyTaskRelatedPickerOpen(false);
     renderDailyTaskDraftChecklist();
   }
 
@@ -205,6 +277,63 @@
 
   $('#dailyTaskType').addEventListener('change', event => {
     $('#dailyTaskDestinationField').classList.toggle('hidden', event.target.value !== 'apply');
+  });
+  $('#dailyTaskRelatedTrigger').addEventListener('click', () => {
+    setDailyTaskRelatedPickerOpen($('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') !== 'true', true);
+  });
+  $('#dailyTaskRelatedSearch').addEventListener('input', dailyTaskRelatedOptions);
+  $('#dailyTaskRelatedSearch').addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(null, 1);
+    }
+  });
+  $('#dailyTaskRelatedPicker').addEventListener('click', event => {
+    const option = event.target.closest('[data-related-value]');
+    if (!option) return;
+    $('#dailyTaskRelated').value = option.dataset.relatedValue;
+    dailyTaskRelatedOptions();
+    setDailyTaskRelatedPickerOpen(false);
+    $('#dailyTaskRelatedTrigger').focus();
+  });
+  $('#dailyTaskRelatedPicker').addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!$('#dailyTaskRelatedPicker').contains(document.activeElement) && $('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') {
+        setDailyTaskRelatedPickerOpen(false);
+      }
+    }, 0);
+  });
+  $('#dailyTaskRelatedPicker').addEventListener('keydown', event => {
+    const option = event.target.closest('[role="option"]');
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setDailyTaskRelatedPickerOpen(false);
+      $('#dailyTaskRelatedTrigger').focus();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(option, event.key === 'ArrowDown' ? 1 : -1);
+    } else if (option && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      option.click();
+    } else if (option && event.key === 'Home') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(null, 1);
+    } else if (option && event.key === 'End') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(null, -1);
+    }
+  });
+  document.addEventListener('click', event => {
+    const picker = $('#dailyTaskRelatedPicker');
+    if (!picker.contains(event.target) && $('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') {
+      setDailyTaskRelatedPickerOpen(false);
+    }
+  });
+  window.addEventListener('resize', () => {
+    if ($('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') setDailyTaskRelatedPickerOpen(false);
+  });
+  $('#dailyTaskAddModal').addEventListener('scroll', () => {
+    if ($('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') setDailyTaskRelatedPickerOpen(false);
   });
   $('#openDailyTaskAddModal').addEventListener('click', () => {
     resetDailyTaskDraft();

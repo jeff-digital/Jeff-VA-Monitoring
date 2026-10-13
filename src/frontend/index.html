@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261012-03" />
+    <link rel="stylesheet" href="css/styles.css?v=20261013-07" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -763,7 +763,20 @@
         <label class="form-field">Task <span class="required">*</span><input id="dailyTaskTitle" maxlength="160" required placeholder="e.g. Prepare a proposal for the launch" /></label>
         <div class="daily-task-form-row">
           <label class="form-field">Type<select id="dailyTaskType"><option value="task">General task</option><option value="client">Client work</option><option value="application">Application</option><option value="apply">Apply somewhere</option><option value="content">Content</option></select></label>
-          <label class="form-field" id="dailyTaskRelatedField">Client or application<select id="dailyTaskRelated"><option value="">No linked record</option></select></label>
+          <div class="form-field daily-task-related-field" id="dailyTaskRelatedField">
+            <span id="dailyTaskRelatedLabel">Client or application</span>
+            <select id="dailyTaskRelated" hidden><option value="">No linked record</option></select>
+            <div class="daily-task-related-picker" id="dailyTaskRelatedPicker">
+              <button class="daily-task-related-trigger" id="dailyTaskRelatedTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="dailyTaskRelatedList" aria-labelledby="dailyTaskRelatedLabel dailyTaskRelatedValue">
+                <span class="daily-task-related-trigger-copy"><strong id="dailyTaskRelatedValue">No linked record</strong><small>Optional — connect it to a client or application</small></span>
+                <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+              </button>
+              <div class="daily-task-related-popover hidden" id="dailyTaskRelatedPopover">
+                <label class="daily-task-related-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="dailyTaskRelatedSearch" type="search" autocomplete="off" placeholder="Search clients or applications" aria-label="Search clients or applications" /></label>
+                <div class="daily-task-related-options" id="dailyTaskRelatedList" role="listbox" aria-labelledby="dailyTaskRelatedLabel"></div>
+              </div>
+            </div>
+          </div>
         </div>
         <label class="form-field hidden" id="dailyTaskDestinationField">Where should you apply?<input id="dailyTaskDestination" maxlength="200" placeholder="Company, platform, or application link" /></label>
         <label class="form-field">Notes or content<textarea id="dailyTaskNotes" maxlength="2000" rows="3" placeholder="Add a brief, ideas, or anything to remember"></textarea></label>
@@ -954,7 +967,6 @@
           </section>
         </div>
         <div class="modal-actions modal-actions-split">
-          <button class="danger-button" type="button" id="deleteClientButton" hidden>Delete</button>
           <div class="modal-actions-right"><div class="send-email-menu"><button class="button button-secondary send-email-menu-button" type="button" id="sendEmailMenuButton" aria-haspopup="true" aria-expanded="false" hidden>Send <span aria-hidden="true">▾</span></button><div class="send-email-menu-panel hidden" id="sendEmailMenu" role="menu"><button type="button" id="sendClientEmailButton" role="menuitem">Send email</button><button type="button" id="sendProceedEmailButton" role="menuitem" hidden>Send proceed email</button></div></div><button class="button button-secondary" value="cancel" type="submit" formnovalidate id="closeClientDetailsButton">Close</button><button class="button button-primary" type="submit" id="saveClientButton">Save application</button></div>
         </div>
       </form>
@@ -1278,6 +1290,11 @@
             <span class="active-client-action-row-copy"><strong>Edit details</strong><small>Update this client's information.</small></span>
             <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
           </button>
+          <button class="active-client-action-row is-danger" type="button" data-active-client-action="delete">
+            <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-trash-can"></i></span>
+            <span class="active-client-action-row-copy"><strong>Delete client</strong><small>Remove this client and their attached files.</small></span>
+            <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+          </button>
         </div>
         <section class="active-client-drawer-view" id="activeClientDrawerEmailView" hidden>
           <div id="activeClientDrawerEmailSlot"></div>
@@ -1421,6 +1438,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261012-08"></script>
+    <script src="js/app.js?v=20261013-04"></script>
   </body>
 </html>

@@ -532,7 +532,10 @@
     const parsed = new DOMParser().parseFromString(value, 'text/html');
     parsed.querySelectorAll('script, style, noscript, template, comment').forEach(node => node.remove());
     parsed.querySelectorAll('br').forEach(node => node.replaceWith('\n'));
-    parsed.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, h5, h6').forEach(node => node.append('\n'));
+    parsed.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, h5, h6').forEach(node => {
+      node.before('\n');
+      node.after('\n');
+    });
     return (parsed.body?.textContent || '')
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n[ \t]+/g, '\n')
@@ -543,15 +546,15 @@
   function gmailMessageBody(payload) {
     if (!payload) return '';
     if (payload.body?.data) return emailContentText(decodeGmailBody(payload.body.data));
+    let plainBody = '';
+    let htmlBody = '';
     for (const part of payload.parts || []) {
       const body = gmailMessageBody(part);
-      if (body && part.mimeType === 'text/plain') return body;
+      if (body && part.mimeType === 'text/plain') plainBody = body;
+      if (body && part.mimeType === 'text/html') htmlBody = body;
     }
-    for (const part of payload.parts || []) {
-      const body = gmailMessageBody(part);
-      if (body) return emailContentText(body);
-    }
-    return '';
+    if (plainBody && /[\r\n]/.test(plainBody)) return plainBody;
+    return htmlBody || plainBody;
   }
 
   function requestGmailAccessToken(prompt = '') {

@@ -1011,7 +1011,9 @@
       application.email || '',
       application.contact || '',
       application.clientName || '',
-      application.role || ''
+      application.role || '',
+      application.website || '',
+      application.platform || ''
     ].join('|')).join('~');
   }
 
@@ -1024,8 +1026,32 @@
       const contact = String(application.contact || '').trim().toLowerCase();
       const clientName = String(application.clientName || '').trim().toLowerCase();
       const role = String(application.role || '').trim().toLowerCase();
-      return { application, email, contact, clientName, role };
+      const matchContact = normalizeMatchText(contact);
+      const matchClientName = normalizeMatchText(clientName);
+      const matchRole = normalizeMatchText(role);
+      const platformKey = platformKeyForName(application.platform);
+      return {
+        application,
+        email,
+        emailIsPlatformSender: PLATFORM_SENDER_EMAIL_SET.has(email),
+        contact,
+        clientName,
+        role,
+        matchContact,
+        matchClientName,
+        matchRole,
+        roleIsSpecific: isSpecificApplicationRole(matchRole),
+        platformKey,
+        jobLinkTokens: applicationLinkTokens(application.website),
+        roleGroupKey: `${platformKey || 'unknown'}|${matchRole}`,
+        roleGroupCount: 0
+      };
     });
+    const roleGroupCounts = new Map();
+    for (const item of applicationMatchIndex) {
+      if (item.roleIsSpecific) roleGroupCounts.set(item.roleGroupKey, (roleGroupCounts.get(item.roleGroupKey) || 0) + 1);
+    }
+    for (const item of applicationMatchIndex) item.roleGroupCount = roleGroupCounts.get(item.roleGroupKey) || 0;
     applicationMatchIndexSignature = signature;
     return applicationMatchIndex;
   }
@@ -1080,12 +1106,32 @@
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
     const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
+    const senderPlatformKey = platformKeyForName(platformNameForSender(fromAddress));
     const matches = [];
+    if (senderPlatformKey) {
+      const subjectText = normalizeMatchText(emailItem.subject);
+      const bodySource = String(emailItem.body || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\bsent\s+via\s+[\w.-]+\s+contact\s+form\b/gi, ' ');
+      const bodyText = normalizeMatchText(bodySource);
+      const bodyLinkTokens = applicationLinkTokens(emailItem.body);
+      const scoredMatches = [];
+      for (const item of buildApplicationMatchIndex(data.applications)) {
+        const score = platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens);
+        if (score !== null) scoredMatches.push({ application: item.application, score });
+      }
+      if (scoredMatches.length) {
+        const highestScore = Math.max(...scoredMatches.map(match => match.score));
+        matches.push(...scoredMatches.filter(match => match.score === highestScore).map(match => match.application));
+      }
+      applicationEmailMatchesCache.set(emailItem, matches);
+      return matches;
+    }
     for (const item of buildApplicationMatchIndex(data.applications)) {
       const { application, email, contact, clientName, role } = item;
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
-      if (email && email === fromAddress) {
+      if (email && !item.emailIsPlatformSender && email === fromAddress) {
         matches.push(application);
         continue;
       }
@@ -1826,7 +1872,7 @@
     target.innerHTML = applications.map(item => `
       <tr>
         <td><div class="table-client">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
-        <td>${escapeHtml(item.platform)}</td><td>${statusPill(item.status)}${matchBadge(item)}</td><td>${formatDate(item.appliedDate)}</td>
+        <td>${escapeHtml(item.platform)}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${formatDate(item.appliedDate)}</td>
         <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
       </tr>
     `).join('');
@@ -1927,7 +1973,7 @@
       const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
         : '—';
-      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td>${statusPill(item.status)}${matchBadge(item)}</td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><div class="application-row-menu"><button class="icon-button application-row-menu-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="true" aria-expanded="false" data-application-menu="${escapeHtml(item.id)}">⋯</button><div class="application-row-menu-items hidden" role="menu" data-application-menu-items="${escapeHtml(item.id)}"><button type="button" role="menuitem" data-view-details="${escapeHtml(item.id)}">View details</button><button type="button" role="menuitem" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-application="${escapeHtml(item.id)}">Delete</button></div></div></td></tr>`;
+      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><div class="application-row-menu"><button class="icon-button application-row-menu-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="true" aria-expanded="false" data-application-menu="${escapeHtml(item.id)}">⋯</button><div class="application-row-menu-items hidden" role="menu" data-application-menu-items="${escapeHtml(item.id)}"><button type="button" role="menuitem" data-view-details="${escapeHtml(item.id)}">View details</button><button type="button" role="menuitem" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-application="${escapeHtml(item.id)}">Delete</button></div></div></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
@@ -2864,7 +2910,6 @@
     $('#clientCountry').value = '';
     $('#clientRegion').value = '';
     $('#clientRegionField').classList.add('hidden');
-    $('#deleteClientButton').hidden = !id;
     $('#clientFollowUpHistory').classList.add('hidden');
     $('#clientEmailHistory').classList.add('hidden');
     if (id) {
@@ -2949,7 +2994,6 @@
       $('#clientStatus').value = 'Active client';
       $('#clientStatus').disabled = true;
     }
-    $('#deleteClientButton').hidden = !id || viewOnly;
     $('#saveClientButton').hidden = viewOnly;
     $('#closeClientDetailsButton').hidden = !viewOnly;
     $('#clientForm').classList.toggle('view-details-form', viewOnly);
@@ -3046,7 +3090,6 @@
     $('#sendClientEmailButton').hidden = false;
     $('#sendEmailMenu').classList.add('hidden');
     $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
-    $('#deleteClientButton').hidden = !editingId || viewingClientDetails || activeClientDrawerEdit;
     $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
@@ -3161,6 +3204,60 @@
     if (fromActive) closeHiredDetail(false);
     renderAll();
     showActionResult({ title: 'Client deleted', message: 'The client, profile photo, and attached documents were removed.' });
+  }
+
+  const PLATFORM_SENDER_EMAIL_SET = new Set(Object.values(PLATFORM_SENDER_EMAILS).map(email => email.toLowerCase()));
+  const GENERIC_APPLICATION_ROLE_WORDS = new Set([
+    'application', 'assistant', 'candidate', 'employee', 'job', 'manager', 'opportunity',
+    'professional', 'role', 'service', 'specialist', 'staff', 'support', 'team', 'work'
+  ]);
+
+  function normalizeMatchText(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/['’]/g, '')
+      .replace(/[^\w]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function platformKeyForName(platform) {
+    const name = String(platform || '').trim().toLowerCase();
+    return Object.keys(PLATFORM_SENDER_EMAILS)
+      .find(key => key === name || PLATFORM_DISPLAY_NAMES[key].toLowerCase() === name) || '';
+  }
+
+  function isSpecificApplicationRole(role) {
+    return role.length >= 3 && role.split(' ').some(word => !GENERIC_APPLICATION_ROLE_WORDS.has(word));
+  }
+
+  function applicationLinkTokens(value) {
+    const links = String(value || '').match(/(?:https?:\/\/|www\.)[^\s<>"']+|\/(?:jobseekers\/info|jobs?|job-postings?|listings?|vacancies)\/[^\s<>"']+/gi) || [];
+    const tokens = new Set();
+    for (const link of links) {
+      const normalized = link.replace(/[),.;!?]+$/g, '').toLowerCase()
+        .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+      if (normalized) tokens.add(`url:${normalized}`);
+      for (const match of normalized.matchAll(/(?:jobseekers\/info|jobs?|job-postings?|listings?|vacancies)\/([a-z0-9_-]+)/g)) {
+        tokens.add(`id:${match[1]}`);
+      }
+    }
+    return [...tokens];
+  }
+
+  function platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens) {
+    if (item.platformKey && item.platformKey !== senderPlatformKey) return null;
+    const clientMentioned = item.matchClientName.length >= 3
+      && (containsWholeWord(subjectText, item.matchClientName) || containsWholeWord(bodyText, item.matchClientName));
+    const roleInSubject = item.roleIsSpecific && containsWholeWord(subjectText, item.matchRole);
+    const roleInBody = item.roleIsSpecific && containsWholeWord(bodyText, item.matchRole);
+    const contactInBody = item.matchContact.length >= 3 && containsWholeWord(bodyText, item.matchContact);
+    const linkMentioned = item.jobLinkTokens.some(token => bodyLinkTokens.includes(token));
+    const ambiguousRoleTie = roleInSubject && item.roleGroupCount > 1;
+    if (!clientMentioned && !linkMentioned && !(roleInSubject && contactInBody) && !ambiguousRoleTie) return null;
+    return (clientMentioned ? 5 : 0) + (linkMentioned ? 5 : 0)
+      + (roleInSubject ? 3 : 0) + (roleInBody ? 1 : 0) + (contactInBody ? 1 : 0)
+      + (item.platformKey === senderPlatformKey ? 1 : -1);
   }
 
   // --- Active client documents ---
@@ -5310,7 +5407,10 @@
     const parsed = new DOMParser().parseFromString(value, 'text/html');
     parsed.querySelectorAll('script, style, noscript, template, comment').forEach(node => node.remove());
     parsed.querySelectorAll('br').forEach(node => node.replaceWith('\n'));
-    parsed.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, h5, h6').forEach(node => node.append('\n'));
+    parsed.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, h5, h6').forEach(node => {
+      node.before('\n');
+      node.after('\n');
+    });
     return (parsed.body?.textContent || '')
       .replace(/[ \t]+\n/g, '\n')
       .replace(/\n[ \t]+/g, '\n')
@@ -5321,15 +5421,15 @@
   function gmailMessageBody(payload) {
     if (!payload) return '';
     if (payload.body?.data) return emailContentText(decodeGmailBody(payload.body.data));
+    let plainBody = '';
+    let htmlBody = '';
     for (const part of payload.parts || []) {
       const body = gmailMessageBody(part);
-      if (body && part.mimeType === 'text/plain') return body;
+      if (body && part.mimeType === 'text/plain') plainBody = body;
+      if (body && part.mimeType === 'text/html') htmlBody = body;
     }
-    for (const part of payload.parts || []) {
-      const body = gmailMessageBody(part);
-      if (body) return emailContentText(body);
-    }
-    return '';
+    if (plainBody && /[\r\n]/.test(plainBody)) return plainBody;
+    return htmlBody || plainBody;
   }
 
   function requestGmailAccessToken(prompt = '') {
@@ -6683,7 +6783,6 @@
       if ($('#clientModal').open && !editingId && !viewingClientDetails) saveNewClientApplicationDraft();
     });
   });
-  $('#deleteClientButton').addEventListener('click', () => deleteClient(editingId));
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
   $('#automaticFollowUp').addEventListener('change', event => {
     if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);
@@ -6951,19 +7050,90 @@
 
   function dailyTaskRelatedOptions() {
     const selected = $('#dailyTaskRelated').value;
-    const clients = data.applications.filter(item => item.status === 'Active client');
-    const applications = data.applications.filter(item => item.status !== 'Active client');
+    const clients = sortByDate(data.applications.filter(item => item.status === 'Active client'), applicationAddedDate);
+    const applications = sortByDate(data.applications.filter(item => item.status !== 'Active client'), applicationAddedDate);
     const option = (item, type) => {
       const name = item.clientName || item.role || 'Untitled record';
       const detail = item.role && item.clientName ? ` - ${item.role}` : '';
-      return `<option value="${type}:${escapeHtml(item.id)}">${escapeHtml(name + detail)}</option>`;
+      return { value: `${type}:${item.id}`, name, detail: detail.replace(/^ - /, ''), searchText: `${name} ${detail}`.toLowerCase() };
     };
     const groups = [
-      clients.length ? `<optgroup label="Active clients">${clients.map(item => option(item, 'client')).join('')}</optgroup>` : '',
-      applications.length ? `<optgroup label="Applications">${applications.map(item => option(item, 'application')).join('')}</optgroup>` : ''
-    ].join('');
-    $('#dailyTaskRelated').innerHTML = `<option value="">No linked record</option>${groups}`;
-    if ([...$('#dailyTaskRelated').options].some(item => item.value === selected)) $('#dailyTaskRelated').value = selected;
+      { label: 'Active clients', records: clients.map(item => option(item, 'client')) },
+      { label: 'Applications', records: applications.map(item => option(item, 'application')) }
+    ];
+    const records = groups.flatMap(group => group.records);
+    const select = $('#dailyTaskRelated');
+    select.innerHTML = `<option value="">No linked record</option>${groups.map(group => group.records.length
+      ? `<optgroup label="${group.label}">${group.records.map(record => `<option value="${escapeHtml(record.value)}">${escapeHtml(record.name + (record.detail ? ` - ${record.detail}` : ''))}</option>`).join('')}</optgroup>`
+      : '').join('')}`;
+    select.value = records.some(record => record.value === selected) ? selected : '';
+
+    const query = $('#dailyTaskRelatedSearch').value.trim().toLowerCase();
+    const matchingRecords = records.filter(record => record.searchText.includes(query));
+    const list = $('#dailyTaskRelatedList');
+    const noLinkedSelected = select.value === '';
+    const noLinkedOption = `<div class="daily-task-related-option${noLinkedSelected ? ' is-selected' : ''}" role="option" aria-selected="${noLinkedSelected}" tabindex="-1" data-related-value=""><span class="daily-task-related-option-icon is-neutral"><i class="fa-solid fa-link-slash" aria-hidden="true"></i></span><span class="daily-task-related-option-copy"><strong>No linked record</strong><small>Keep this task independent</small></span>${noLinkedSelected ? '<i class="fa-solid fa-check daily-task-related-check" aria-hidden="true"></i>' : ''}</div>`;
+    const groupsMarkup = groups.map(group => {
+      const groupRecords = group.records.filter(record => record.searchText.includes(query));
+      if (!groupRecords.length) return '';
+      const type = group.label === 'Active clients' ? 'client' : 'application';
+      const icon = type === 'client' ? 'fa-user-tie' : 'fa-briefcase';
+      return `<section class="daily-task-related-group" role="group" aria-label="${group.label}"><div class="daily-task-related-group-heading"><span>${group.label}</span><small>${groupRecords.length}</small></div>${groupRecords.map(record => {
+        const isSelected = record.value === select.value;
+        return `<div class="daily-task-related-option${isSelected ? ' is-selected' : ''}" role="option" aria-selected="${isSelected}" tabindex="-1" data-related-value="${escapeHtml(record.value)}"><span class="daily-task-related-option-icon ${type === 'client' ? 'is-client' : 'is-application'}"><i class="fa-solid ${icon}" aria-hidden="true"></i></span><span class="daily-task-related-option-copy"><strong>${escapeHtml(record.name)}</strong>${record.detail ? `<small>${escapeHtml(record.detail)}</small>` : ''}</span>${isSelected ? '<i class="fa-solid fa-check daily-task-related-check" aria-hidden="true"></i>' : ''}</div>`;
+      }).join('')}</section>`;
+    }).join('');
+    list.innerHTML = `${noLinkedOption}${groupsMarkup}${query && !matchingRecords.length ? '<p class="daily-task-related-empty">No matching clients or applications.</p>' : ''}`;
+    $('#dailyTaskRelatedValue').textContent = select.value
+      ? (() => {
+        const record = records.find(item => item.value === select.value);
+        return record ? record.name : 'No linked record';
+      })()
+      : 'No linked record';
+    const selectedRecord = records.find(record => record.value === select.value);
+    $('#dailyTaskRelatedTrigger').querySelector('small').textContent = selectedRecord
+      ? selectedRecord.detail || (select.value.startsWith('client:') ? 'Active client' : 'Application')
+      : 'Optional — connect it to a client or application';
+  }
+
+  function setDailyTaskRelatedPickerOpen(open, focusSearch = false) {
+    const trigger = $('#dailyTaskRelatedTrigger');
+    const popover = $('#dailyTaskRelatedPopover');
+    trigger.setAttribute('aria-expanded', String(open));
+    popover.classList.toggle('hidden', !open);
+    if (open) {
+      dailyTaskRelatedOptions();
+      const triggerBounds = trigger.getBoundingClientRect();
+      const desiredHeight = Math.min(360, window.innerHeight - 24);
+      const spaceBelow = window.innerHeight - triggerBounds.bottom - 12;
+      const spaceAbove = triggerBounds.top - 12;
+      const openBelow = spaceBelow >= 210 || spaceBelow >= spaceAbove;
+      const availableSpace = Math.max(160, Math.min(desiredHeight, openBelow ? spaceBelow : spaceAbove));
+      const width = Math.min(triggerBounds.width, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(triggerBounds.left, window.innerWidth - width - 12));
+      const top = openBelow
+        ? Math.min(window.innerHeight - availableSpace - 12, triggerBounds.bottom + 6)
+        : Math.max(12, triggerBounds.top - availableSpace - 6);
+      popover.style.width = `${width}px`;
+      popover.style.maxHeight = `${availableSpace}px`;
+      popover.style.left = `${left}px`;
+      popover.style.top = `${top}px`;
+      $('#dailyTaskRelatedList').style.maxHeight = `${Math.max(90, availableSpace - 61)}px`;
+      if (focusSearch) $('#dailyTaskRelatedSearch').focus();
+    } else {
+      $('#dailyTaskRelatedSearch').value = '';
+      dailyTaskRelatedOptions();
+    }
+  }
+
+  function moveDailyTaskRelatedOption(currentOption, direction) {
+    const options = [...$('#dailyTaskRelatedList').querySelectorAll('[role="option"]')];
+    if (!options.length) return;
+    const currentIndex = options.indexOf(currentOption);
+    const nextIndex = currentIndex < 0
+      ? (direction > 0 ? 0 : options.length - 1)
+      : Math.max(0, Math.min(options.length - 1, currentIndex + direction));
+    options[nextIndex].focus();
   }
 
   function dailyTaskRelatedName(task) {
@@ -7002,6 +7172,7 @@
     $('#dailyTaskForm').reset();
     pendingDailyTaskChecklist = [];
     $('#dailyTaskDestinationField').classList.add('hidden');
+    setDailyTaskRelatedPickerOpen(false);
     renderDailyTaskDraftChecklist();
   }
 
@@ -7130,6 +7301,63 @@
 
   $('#dailyTaskType').addEventListener('change', event => {
     $('#dailyTaskDestinationField').classList.toggle('hidden', event.target.value !== 'apply');
+  });
+  $('#dailyTaskRelatedTrigger').addEventListener('click', () => {
+    setDailyTaskRelatedPickerOpen($('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') !== 'true', true);
+  });
+  $('#dailyTaskRelatedSearch').addEventListener('input', dailyTaskRelatedOptions);
+  $('#dailyTaskRelatedSearch').addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(null, 1);
+    }
+  });
+  $('#dailyTaskRelatedPicker').addEventListener('click', event => {
+    const option = event.target.closest('[data-related-value]');
+    if (!option) return;
+    $('#dailyTaskRelated').value = option.dataset.relatedValue;
+    dailyTaskRelatedOptions();
+    setDailyTaskRelatedPickerOpen(false);
+    $('#dailyTaskRelatedTrigger').focus();
+  });
+  $('#dailyTaskRelatedPicker').addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!$('#dailyTaskRelatedPicker').contains(document.activeElement) && $('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') {
+        setDailyTaskRelatedPickerOpen(false);
+      }
+    }, 0);
+  });
+  $('#dailyTaskRelatedPicker').addEventListener('keydown', event => {
+    const option = event.target.closest('[role="option"]');
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setDailyTaskRelatedPickerOpen(false);
+      $('#dailyTaskRelatedTrigger').focus();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(option, event.key === 'ArrowDown' ? 1 : -1);
+    } else if (option && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      option.click();
+    } else if (option && event.key === 'Home') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(null, 1);
+    } else if (option && event.key === 'End') {
+      event.preventDefault();
+      moveDailyTaskRelatedOption(null, -1);
+    }
+  });
+  document.addEventListener('click', event => {
+    const picker = $('#dailyTaskRelatedPicker');
+    if (!picker.contains(event.target) && $('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') {
+      setDailyTaskRelatedPickerOpen(false);
+    }
+  });
+  window.addEventListener('resize', () => {
+    if ($('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') setDailyTaskRelatedPickerOpen(false);
+  });
+  $('#dailyTaskAddModal').addEventListener('scroll', () => {
+    if ($('#dailyTaskRelatedTrigger').getAttribute('aria-expanded') === 'true') setDailyTaskRelatedPickerOpen(false);
   });
   $('#openDailyTaskAddModal').addEventListener('click', () => {
     resetDailyTaskDraft();
@@ -7469,6 +7697,7 @@
     activeClientDrawerOpen = true;
     activeClientDrawerView = 'list';
     clearTimeout(activeClientDrawerCloseTimer);
+    document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
     layer.hidden = false;
     layer.setAttribute('aria-hidden', 'false');
     layer.classList.remove('closing');
@@ -7502,6 +7731,7 @@
       layer.hidden = true;
       layer.classList.remove('closing');
       document.body.classList.remove('active-client-drawer-open');
+      document.body.style.removeProperty('--active-client-drawer-width');
       restoreActiveClientDrawerForms();
       updateClientActionLabel();
       activeClientDrawerReturnFocus?.focus();
@@ -7509,6 +7739,12 @@
       onClosed?.();
     }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 270);
   }
+
+  window.addEventListener('resize', () => {
+    if (activeClientDrawerOpen) {
+      document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
+    }
+  });
 
   function drawerTabStops() {
     return $$('#activeClientDrawer button:not([disabled]), #activeClientDrawer input:not([disabled]), #activeClientDrawer select:not([disabled]), #activeClientDrawer textarea:not([disabled]), #activeClientDrawer a[href]')
@@ -7601,6 +7837,8 @@
       } else if (actionRow.dataset.activeClientAction === 'edit') {
         const clientId = hiredEditingId;
         closeActiveClientActionsDrawer(false, () => openClientModal(clientId, false, true, false, true));
+      } else if (actionRow.dataset.activeClientAction === 'delete') {
+        await deleteClient(hiredEditingId, true);
       }
       return;
     }
