@@ -8,6 +8,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
+  const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
@@ -17,6 +18,7 @@
   let gmailSyncInFlight = false;
   let applyReminderTimer = null;
   let initializingUserId = null;
+  let initializingUserShowSuccess = false;
   let persistChain = Promise.resolve();
   let persistWritePending = false;
   let pendingPersistWrites = 0;
@@ -38,7 +40,7 @@
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
   let appConfirmResolve = null;
-  function appConfirm(message, { title = 'Confirm action', confirmLabel = 'Continue', danger = false } = {}) {
+  function appConfirm(message, { title = 'Confirm action', confirmLabel = 'Continue', danger = false, showCloseButton = true } = {}) {
     return new Promise(resolve => {
       const modal = $('#appConfirmModal');
       if (modal.open) {
@@ -47,6 +49,7 @@
       }
       $('#appConfirmTitle').textContent = title;
       $('#appConfirmMessage').textContent = message;
+      $('.app-confirm-close').hidden = !showCloseButton;
       const acceptButton = $('#appConfirmAccept');
       acceptButton.textContent = confirmLabel;
       acceptButton.className = `button ${danger ? 'button-danger' : 'button-primary'}`;
@@ -76,14 +79,14 @@
     if (nextResult) setTimeout(() => showActionResult(nextResult), 0);
   });
 
-  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null, details = [] } = {}) {
+  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null, details = [], showCloseButton = true } = {}) {
     const modal = $('#emailActionResultModal');
     if (!modal) {
       toast(message);
       return;
     }
     if (modal.open) {
-      actionResultQueue.push({ title, message, status, label, actionLabel, onAction, details });
+      actionResultQueue.push({ title, message, status, label, actionLabel, onAction, details, showCloseButton });
       return;
     }
     const isError = status === 'error';
@@ -92,6 +95,7 @@
     $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
     $('#emailActionResultTitle').textContent = title;
     $('#emailActionResultMessage').textContent = message;
+    $('.email-result-close').hidden = !showCloseButton;
     const detailList = $('#emailActionResultDetails');
     detailList.replaceChildren(...details.map(detail => {
       const item = document.createElement('article');
@@ -637,9 +641,25 @@
     return persistChain;
   }
 
-  async function initializeSupabaseForUser(user, { showSuccess = true, recordSignIn = false, showOverview = false } = {}) {
-    if (!user || initializingUserId === user.id) return;
+  function showWorkspaceReadyNoticeOnce(user) {
+    const noticeKey = `${WORKSPACE_READY_NOTICE_KEY}:${user.id}`;
+    if (sessionStorage.getItem(noticeKey)) return;
+    sessionStorage.setItem(noticeKey, '1');
+    showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.', showCloseButton: false });
+  }
+
+  async function initializeSupabaseForUser(user, { showSuccess = false, recordSignIn = false, showOverview = false } = {}) {
+    if (!user) return;
+    if (initializingUserId === user.id) {
+      initializingUserShowSuccess ||= showSuccess;
+      return;
+    }
+    if (currentUser?.id === user.id && dataReady) {
+      if (showSuccess) showWorkspaceReadyNoticeOnce(user);
+      return;
+    }
     initializingUserId = user.id;
+    initializingUserShowSuccess = showSuccess;
     currentUser = user;
     clientTimeZones.clear();
     renderAccountAccess();
@@ -714,7 +734,7 @@
       await persist();
       scheduleAutomaticBackup();
       if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
-      else if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
+      else if (initializingUserShowSuccess) showWorkspaceReadyNoticeOnce(user);
       if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
       console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
@@ -725,6 +745,7 @@
       });
     } finally {
       initializingUserId = null;
+      initializingUserShowSuccess = false;
     }
   }
 
@@ -780,7 +801,7 @@
         }
         const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
         initializeSupabaseForUser(session.user, {
-          showSuccess: isAuthenticationCallback && !isPasswordRecovery || activeAuthProvider === 'email',
+          showSuccess: isAuthenticationCallback && !isPasswordRecovery,
           recordSignIn: isFreshSignIn,
           showOverview: false
         });
@@ -1973,7 +1994,7 @@
       const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
         : '—';
-      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><div class="application-row-menu"><button class="icon-button application-row-menu-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="true" aria-expanded="false" data-application-menu="${escapeHtml(item.id)}">⋯</button><div class="application-row-menu-items hidden" role="menu" data-application-menu-items="${escapeHtml(item.id)}"><button type="button" role="menuitem" data-view-details="${escapeHtml(item.id)}">View details</button><button type="button" role="menuitem" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-application="${escapeHtml(item.id)}">Delete</button></div></div></td></tr>`;
+      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
@@ -3086,10 +3107,6 @@
       field.required = isInterview;
       field.setCustomValidity(isInterview ? '' : '');
     });
-    $('#sendEmailMenuButton').hidden = viewingClientDetails || activeClientDrawerEdit;
-    $('#sendClientEmailButton').hidden = false;
-    $('#sendEmailMenu').classList.add('hidden');
-    $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
     $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
@@ -3191,7 +3208,7 @@
   async function deleteClient(id, fromActive = false) {
     const item = data.applications.find(application => application.id === id);
     if (!item) return;
-    if (!(await appConfirm(`Delete ${item.clientName}? This removes the application, profile photo, and attached documents. This cannot be undone unless you've exported a backup.`, { title: 'Delete client application', confirmLabel: 'Delete', danger: true }))) return;
+    if (!(await appConfirm(`Delete ${item.clientName}? This removes the application, profile photo, and attached documents. This cannot be undone unless you've exported a backup.`, { title: 'Delete client application', confirmLabel: 'Delete', danger: true, showCloseButton: false }))) return;
     data.applications = data.applications.filter(application => application.id !== id);
     persist();
     (item.documents || []).forEach(doc => { deleteDocumentBlob(doc.storagePath || doc.id).catch(() => {}); });
@@ -6645,6 +6662,44 @@
   // Applications page and its Active Client activation flow are intentionally
   // contained here. Nothing on the inbox, tools, or active-clients page can
   // advance or cancel this transaction.
+  let applicationActionsReturnFocus = null;
+
+  function openApplicationActionsPanel(applicationId, trigger) {
+    const application = data.applications.find(item => item.id === applicationId);
+    const panel = $('#applicationActionsPanel');
+    if (!application || !panel) return;
+    applicationActionsReturnFocus = trigger;
+    panel.dataset.applicationId = applicationId;
+    $('#applicationActionsClientName').textContent = application.clientName || 'Application';
+    $('#applicationActionsFollowUpDate').textContent = application.followUpDate
+      ? `Scheduled for ${formatDate(dateKey(application.followUpDate))}`
+      : 'Set a follow-up date.';
+    panel.showModal();
+    panel.querySelector('[data-application-panel-action]')?.focus();
+  }
+
+  function openApplicationFollowUpModal(application) {
+    const modal = $('#applicationFollowUpModal');
+    modal.dataset.applicationId = application.id;
+    $('#applicationFollowUpTitle').textContent = `Follow-up date for ${application.clientName || 'Application'}`;
+    $('#applicationFollowUpDateInput').value = dateKey(application.followUpDate);
+    modal.showModal();
+    $('#applicationFollowUpDateInput').focus();
+  }
+
+  $('#applicationActionsPanel').addEventListener('close', () => {
+    applicationActionsReturnFocus?.focus();
+    applicationActionsReturnFocus = null;
+  });
+
+  $('#applicationActionsPanel').addEventListener('click', event => {
+    if (event.target.closest('.application-actions-panel-close')) {
+      event.currentTarget.close();
+      return;
+    }
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
+
   function updateClientLocation() {
     const country = $('#clientCountry');
     const region = $('#clientRegion');
@@ -6699,28 +6754,34 @@
       : `(approx. ${conversionCurrencySymbol}0)`;
   }
 
-  document.addEventListener('click', event => {
-    if (!event.target.closest('.send-email-menu')) {
-      $('#sendEmailMenu')?.classList.add('hidden');
-      $('#sendEmailMenuButton')?.setAttribute('aria-expanded', 'false');
-    }
+  document.addEventListener('click', async event => {
     const addButton = event.target.closest('[data-open-add]');
     const editButton = event.target.closest('[data-edit-id]');
     const applicationEmailsButton = event.target.closest('[data-application-emails]');
     const viewDetailsButton = event.target.closest('[data-view-details]');
     const clientDocumentAttachButton = event.target.closest('[data-client-document-attach]');
-    const sendEmailMenuButton = event.target.closest('#sendEmailMenuButton');
-    const sendClientEmailButton = event.target.closest('#sendClientEmailButton');
     const sendProceedEmailButton = event.target.closest('#sendProceedEmailButton');
-    if (sendEmailMenuButton) {
-      const menu = $('#sendEmailMenu');
-      const willOpen = menu.classList.contains('hidden');
-      menu.classList.toggle('hidden', !willOpen);
-      sendEmailMenuButton.setAttribute('aria-expanded', String(willOpen));
-      return;
-    }
+    const applicationActionsTrigger = event.target.closest('[data-open-application-actions]');
+    const applicationPanelAction = event.target.closest('[data-application-panel-action]');
     if (addButton) {
       openClientModal();
+      return;
+    }
+    if (applicationActionsTrigger) {
+      openApplicationActionsPanel(applicationActionsTrigger.dataset.openApplicationActions, applicationActionsTrigger);
+      return;
+    }
+    if (applicationPanelAction) {
+      const panel = $('#applicationActionsPanel');
+      const applicationId = panel.dataset.applicationId;
+      const action = applicationPanelAction.dataset.applicationPanelAction;
+      const application = data.applications.find(item => item.id === applicationId);
+      applicationActionsReturnFocus = null;
+      panel.close();
+      if (action === 'email' && application) openPlainClientEmailComposer(application);
+      else if (action === 'follow-up' && application) openApplicationFollowUpModal(application);
+      else if (action === 'edit') openClientModal(applicationId);
+      else if (action === 'delete') await deleteClient(applicationId);
       return;
     }
     if (editButton) {
@@ -6736,22 +6797,37 @@
       return;
     }
     if (clientDocumentAttachButton) attachPersonalDocumentToClient(clientDocumentAttachButton.dataset.clientDocumentAttach);
-    if (sendClientEmailButton) {
-      $('#sendEmailMenu').classList.add('hidden');
-      $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
-      const application = data.applications.find(item => item.id === editingId);
-      if (application) openPlainClientEmailComposer(application);
-      else toast('Save the application first, then open it again to send an email.');
-      return;
-    }
     if (sendProceedEmailButton) {
-      $('#sendEmailMenu').classList.add('hidden');
-      $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
       const application = data.applications.find(item => item.id === editingId);
       if (application) openProceedEmailComposer(application);
       else toast('Save the application first, then open it again to send the proceed email.');
       return;
     }
+  });
+
+  $('#applicationFollowUpForm').addEventListener('submit', event => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    const modal = $('#applicationFollowUpModal');
+    const application = data.applications.find(item => item.id === modal.dataset.applicationId);
+    if (!application) {
+      modal.close();
+      toast('This application could not be found. Reopen the actions panel and try again.');
+      return;
+    }
+    const followUpDate = $('#applicationFollowUpDateInput').value;
+    if (application.followUpDate !== followUpDate) {
+      application.followUpDate = followUpDate;
+      application.followUpProcessedAt = '';
+      application.followUpSentAt = '';
+    }
+    application.updatedAt = new Date().toISOString();
+    persist();
+    renderAll();
+    modal.close();
+    toast('Follow-up date saved.');
   });
 
   $('#clientPlatform').addEventListener('change', event => {
@@ -6830,8 +6906,6 @@
   });
   document.addEventListener('click', async event => {
     const removeFilter = event.target.closest('[data-remove-application-filter]');
-    const menuTrigger = event.target.closest('[data-application-menu]');
-    const menuAction = event.target.closest('[data-delete-application]');
     const detailButton = event.target.closest('button[data-view-details]');
     if (removeFilter) {
       const filter = removeFilter.dataset.removeApplicationFilter;
@@ -6850,28 +6924,9 @@
       updateWeekNavigationCounts();
       return;
     }
-    if (menuTrigger) {
-      const menu = [...document.querySelectorAll('[data-application-menu-items]')]
-        .find(item => item.dataset.applicationMenuItems === menuTrigger.dataset.applicationMenu);
-      if (!menu) return;
-      const willOpen = menu.classList.contains('hidden');
-      document.querySelectorAll('[data-application-menu-items]').forEach(item => item.classList.add('hidden'));
-      document.querySelectorAll('[data-application-menu]').forEach(item => item.setAttribute('aria-expanded', 'false'));
-      menu.classList.toggle('hidden', !willOpen);
-      menuTrigger.setAttribute('aria-expanded', String(willOpen));
-      return;
-    }
     if (detailButton) {
       openClientModal(detailButton.dataset.viewDetails, true);
       return;
-    }
-    if (menuAction) {
-      await deleteClient(menuAction.dataset.deleteApplication);
-      return;
-    }
-    if (!event.target.closest('.application-row-menu')) {
-      document.querySelectorAll('[data-application-menu-items]').forEach(item => item.classList.add('hidden'));
-      document.querySelectorAll('[data-application-menu]').forEach(item => item.setAttribute('aria-expanded', 'false'));
     }
   });
   $('#applicationList').addEventListener('change', event => {
@@ -7668,6 +7723,7 @@
     const layer = $('#activeClientDrawerLayer');
     const title = $('#activeClientActionsTitle');
     const back = $('#activeClientDrawerBack');
+    const close = $('#closeActiveClientDrawer');
     const client = data.applications.find(application => application.id === hiredEditingId);
     if (!layer || !client) return;
     activeClientDrawerView = view;
@@ -7676,6 +7732,7 @@
     $('#activeClientDrawerOnboardingView').hidden = view !== 'onboarding';
     $('#activeClientDrawerEditView').hidden = view !== 'edit';
     back.hidden = view === 'list';
+    close.hidden = view === 'email';
     title.textContent = view === 'list'
       ? 'Actions'
       : view === 'email'
@@ -9827,7 +9884,7 @@
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw error;
       loginForm.reset();
-      await initializeSupabaseForUser(authData.user, { recordSignIn: true, showOverview: true });
+      await initializeSupabaseForUser(authData.user, { showSuccess: true, recordSignIn: true, showOverview: true });
     } catch (error) {
       activeAuthProvider = null;
       sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
@@ -9921,6 +9978,7 @@
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
     sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+    if (currentUser?.id) sessionStorage.removeItem(`${WORKSPACE_READY_NOTICE_KEY}:${currentUser.id}`);
     try {
       if (supabaseClient) {
         const { error } = await supabaseClient.auth.signOut();

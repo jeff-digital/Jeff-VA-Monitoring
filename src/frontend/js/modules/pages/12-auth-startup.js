@@ -29,7 +29,7 @@
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw error;
       loginForm.reset();
-      await initializeSupabaseForUser(authData.user, { recordSignIn: true, showOverview: true });
+      await initializeSupabaseForUser(authData.user, { showSuccess: true, recordSignIn: true, showOverview: true });
     } catch (error) {
       activeAuthProvider = null;
       sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
@@ -123,6 +123,7 @@
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
     sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+    if (currentUser?.id) sessionStorage.removeItem(`${WORKSPACE_READY_NOTICE_KEY}:${currentUser.id}`);
     try {
       if (supabaseClient) {
         const { error } = await supabaseClient.auth.signOut();

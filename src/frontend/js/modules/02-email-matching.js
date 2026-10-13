@@ -992,7 +992,7 @@
       const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
         : '—';
-      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><div class="application-row-menu"><button class="icon-button application-row-menu-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="true" aria-expanded="false" data-application-menu="${escapeHtml(item.id)}">⋯</button><div class="application-row-menu-items hidden" role="menu" data-application-menu-items="${escapeHtml(item.id)}"><button type="button" role="menuitem" data-view-details="${escapeHtml(item.id)}">View details</button><button type="button" role="menuitem" data-edit-id="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-application="${escapeHtml(item.id)}">Delete</button></div></div></td></tr>`;
+      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
@@ -2105,10 +2105,6 @@
       field.required = isInterview;
       field.setCustomValidity(isInterview ? '' : '');
     });
-    $('#sendEmailMenuButton').hidden = viewingClientDetails || activeClientDrawerEdit;
-    $('#sendClientEmailButton').hidden = false;
-    $('#sendEmailMenu').classList.add('hidden');
-    $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
     $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
@@ -2210,7 +2206,7 @@
   async function deleteClient(id, fromActive = false) {
     const item = data.applications.find(application => application.id === id);
     if (!item) return;
-    if (!(await appConfirm(`Delete ${item.clientName}? This removes the application, profile photo, and attached documents. This cannot be undone unless you've exported a backup.`, { title: 'Delete client application', confirmLabel: 'Delete', danger: true }))) return;
+    if (!(await appConfirm(`Delete ${item.clientName}? This removes the application, profile photo, and attached documents. This cannot be undone unless you've exported a backup.`, { title: 'Delete client application', confirmLabel: 'Delete', danger: true, showCloseButton: false }))) return;
     data.applications = data.applications.filter(application => application.id !== id);
     persist();
     (item.documents || []).forEach(doc => { deleteDocumentBlob(doc.storagePath || doc.id).catch(() => {}); });

@@ -1,6 +1,44 @@
   // Applications page and its Active Client activation flow are intentionally
   // contained here. Nothing on the inbox, tools, or active-clients page can
   // advance or cancel this transaction.
+  let applicationActionsReturnFocus = null;
+
+  function openApplicationActionsPanel(applicationId, trigger) {
+    const application = data.applications.find(item => item.id === applicationId);
+    const panel = $('#applicationActionsPanel');
+    if (!application || !panel) return;
+    applicationActionsReturnFocus = trigger;
+    panel.dataset.applicationId = applicationId;
+    $('#applicationActionsClientName').textContent = application.clientName || 'Application';
+    $('#applicationActionsFollowUpDate').textContent = application.followUpDate
+      ? `Scheduled for ${formatDate(dateKey(application.followUpDate))}`
+      : 'Set a follow-up date.';
+    panel.showModal();
+    panel.querySelector('[data-application-panel-action]')?.focus();
+  }
+
+  function openApplicationFollowUpModal(application) {
+    const modal = $('#applicationFollowUpModal');
+    modal.dataset.applicationId = application.id;
+    $('#applicationFollowUpTitle').textContent = `Follow-up date for ${application.clientName || 'Application'}`;
+    $('#applicationFollowUpDateInput').value = dateKey(application.followUpDate);
+    modal.showModal();
+    $('#applicationFollowUpDateInput').focus();
+  }
+
+  $('#applicationActionsPanel').addEventListener('close', () => {
+    applicationActionsReturnFocus?.focus();
+    applicationActionsReturnFocus = null;
+  });
+
+  $('#applicationActionsPanel').addEventListener('click', event => {
+    if (event.target.closest('.application-actions-panel-close')) {
+      event.currentTarget.close();
+      return;
+    }
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
+
   function updateClientLocation() {
     const country = $('#clientCountry');
     const region = $('#clientRegion');
@@ -55,28 +93,34 @@
       : `(approx. ${conversionCurrencySymbol}0)`;
   }
 
-  document.addEventListener('click', event => {
-    if (!event.target.closest('.send-email-menu')) {
-      $('#sendEmailMenu')?.classList.add('hidden');
-      $('#sendEmailMenuButton')?.setAttribute('aria-expanded', 'false');
-    }
+  document.addEventListener('click', async event => {
     const addButton = event.target.closest('[data-open-add]');
     const editButton = event.target.closest('[data-edit-id]');
     const applicationEmailsButton = event.target.closest('[data-application-emails]');
     const viewDetailsButton = event.target.closest('[data-view-details]');
     const clientDocumentAttachButton = event.target.closest('[data-client-document-attach]');
-    const sendEmailMenuButton = event.target.closest('#sendEmailMenuButton');
-    const sendClientEmailButton = event.target.closest('#sendClientEmailButton');
     const sendProceedEmailButton = event.target.closest('#sendProceedEmailButton');
-    if (sendEmailMenuButton) {
-      const menu = $('#sendEmailMenu');
-      const willOpen = menu.classList.contains('hidden');
-      menu.classList.toggle('hidden', !willOpen);
-      sendEmailMenuButton.setAttribute('aria-expanded', String(willOpen));
-      return;
-    }
+    const applicationActionsTrigger = event.target.closest('[data-open-application-actions]');
+    const applicationPanelAction = event.target.closest('[data-application-panel-action]');
     if (addButton) {
       openClientModal();
+      return;
+    }
+    if (applicationActionsTrigger) {
+      openApplicationActionsPanel(applicationActionsTrigger.dataset.openApplicationActions, applicationActionsTrigger);
+      return;
+    }
+    if (applicationPanelAction) {
+      const panel = $('#applicationActionsPanel');
+      const applicationId = panel.dataset.applicationId;
+      const action = applicationPanelAction.dataset.applicationPanelAction;
+      const application = data.applications.find(item => item.id === applicationId);
+      applicationActionsReturnFocus = null;
+      panel.close();
+      if (action === 'email' && application) openPlainClientEmailComposer(application);
+      else if (action === 'follow-up' && application) openApplicationFollowUpModal(application);
+      else if (action === 'edit') openClientModal(applicationId);
+      else if (action === 'delete') await deleteClient(applicationId);
       return;
     }
     if (editButton) {
@@ -92,22 +136,37 @@
       return;
     }
     if (clientDocumentAttachButton) attachPersonalDocumentToClient(clientDocumentAttachButton.dataset.clientDocumentAttach);
-    if (sendClientEmailButton) {
-      $('#sendEmailMenu').classList.add('hidden');
-      $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
-      const application = data.applications.find(item => item.id === editingId);
-      if (application) openPlainClientEmailComposer(application);
-      else toast('Save the application first, then open it again to send an email.');
-      return;
-    }
     if (sendProceedEmailButton) {
-      $('#sendEmailMenu').classList.add('hidden');
-      $('#sendEmailMenuButton').setAttribute('aria-expanded', 'false');
       const application = data.applications.find(item => item.id === editingId);
       if (application) openProceedEmailComposer(application);
       else toast('Save the application first, then open it again to send the proceed email.');
       return;
     }
+  });
+
+  $('#applicationFollowUpForm').addEventListener('submit', event => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    const modal = $('#applicationFollowUpModal');
+    const application = data.applications.find(item => item.id === modal.dataset.applicationId);
+    if (!application) {
+      modal.close();
+      toast('This application could not be found. Reopen the actions panel and try again.');
+      return;
+    }
+    const followUpDate = $('#applicationFollowUpDateInput').value;
+    if (application.followUpDate !== followUpDate) {
+      application.followUpDate = followUpDate;
+      application.followUpProcessedAt = '';
+      application.followUpSentAt = '';
+    }
+    application.updatedAt = new Date().toISOString();
+    persist();
+    renderAll();
+    modal.close();
+    toast('Follow-up date saved.');
   });
 
   $('#clientPlatform').addEventListener('change', event => {
@@ -186,8 +245,6 @@
   });
   document.addEventListener('click', async event => {
     const removeFilter = event.target.closest('[data-remove-application-filter]');
-    const menuTrigger = event.target.closest('[data-application-menu]');
-    const menuAction = event.target.closest('[data-delete-application]');
     const detailButton = event.target.closest('button[data-view-details]');
     if (removeFilter) {
       const filter = removeFilter.dataset.removeApplicationFilter;
@@ -206,28 +263,9 @@
       updateWeekNavigationCounts();
       return;
     }
-    if (menuTrigger) {
-      const menu = [...document.querySelectorAll('[data-application-menu-items]')]
-        .find(item => item.dataset.applicationMenuItems === menuTrigger.dataset.applicationMenu);
-      if (!menu) return;
-      const willOpen = menu.classList.contains('hidden');
-      document.querySelectorAll('[data-application-menu-items]').forEach(item => item.classList.add('hidden'));
-      document.querySelectorAll('[data-application-menu]').forEach(item => item.setAttribute('aria-expanded', 'false'));
-      menu.classList.toggle('hidden', !willOpen);
-      menuTrigger.setAttribute('aria-expanded', String(willOpen));
-      return;
-    }
     if (detailButton) {
       openClientModal(detailButton.dataset.viewDetails, true);
       return;
-    }
-    if (menuAction) {
-      await deleteClient(menuAction.dataset.deleteApplication);
-      return;
-    }
-    if (!event.target.closest('.application-row-menu')) {
-      document.querySelectorAll('[data-application-menu-items]').forEach(item => item.classList.add('hidden'));
-      document.querySelectorAll('[data-application-menu]').forEach(item => item.setAttribute('aria-expanded', 'false'));
     }
   });
   $('#applicationList').addEventListener('change', event => {

@@ -85,6 +85,7 @@
     const layer = $('#activeClientDrawerLayer');
     const title = $('#activeClientActionsTitle');
     const back = $('#activeClientDrawerBack');
+    const close = $('#closeActiveClientDrawer');
     const client = data.applications.find(application => application.id === hiredEditingId);
     if (!layer || !client) return;
     activeClientDrawerView = view;
@@ -93,6 +94,7 @@
     $('#activeClientDrawerOnboardingView').hidden = view !== 'onboarding';
     $('#activeClientDrawerEditView').hidden = view !== 'edit';
     back.hidden = view === 'list';
+    close.hidden = view === 'email';
     title.textContent = view === 'list'
       ? 'Actions'
       : view === 'email'

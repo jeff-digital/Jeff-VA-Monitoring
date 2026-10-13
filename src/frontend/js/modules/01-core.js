@@ -5,6 +5,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
+  const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
   let currentUser = null;
@@ -14,6 +15,7 @@
   let gmailSyncInFlight = false;
   let applyReminderTimer = null;
   let initializingUserId = null;
+  let initializingUserShowSuccess = false;
   let persistChain = Promise.resolve();
   let persistWritePending = false;
   let pendingPersistWrites = 0;
@@ -35,7 +37,7 @@
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
   let appConfirmResolve = null;
-  function appConfirm(message, { title = 'Confirm action', confirmLabel = 'Continue', danger = false } = {}) {
+  function appConfirm(message, { title = 'Confirm action', confirmLabel = 'Continue', danger = false, showCloseButton = true } = {}) {
     return new Promise(resolve => {
       const modal = $('#appConfirmModal');
       if (modal.open) {
@@ -44,6 +46,7 @@
       }
       $('#appConfirmTitle').textContent = title;
       $('#appConfirmMessage').textContent = message;
+      $('.app-confirm-close').hidden = !showCloseButton;
       const acceptButton = $('#appConfirmAccept');
       acceptButton.textContent = confirmLabel;
       acceptButton.className = `button ${danger ? 'button-danger' : 'button-primary'}`;
@@ -73,14 +76,14 @@
     if (nextResult) setTimeout(() => showActionResult(nextResult), 0);
   });
 
-  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null, details = [] } = {}) {
+  function showActionResult({ title = 'Action complete', message = '', status = 'success', label = '', actionLabel = '', onAction = null, details = [], showCloseButton = true } = {}) {
     const modal = $('#emailActionResultModal');
     if (!modal) {
       toast(message);
       return;
     }
     if (modal.open) {
-      actionResultQueue.push({ title, message, status, label, actionLabel, onAction, details });
+      actionResultQueue.push({ title, message, status, label, actionLabel, onAction, details, showCloseButton });
       return;
     }
     const isError = status === 'error';
@@ -89,6 +92,7 @@
     $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
     $('#emailActionResultTitle').textContent = title;
     $('#emailActionResultMessage').textContent = message;
+    $('.email-result-close').hidden = !showCloseButton;
     const detailList = $('#emailActionResultDetails');
     detailList.replaceChildren(...details.map(detail => {
       const item = document.createElement('article');
@@ -634,9 +638,25 @@
     return persistChain;
   }
 
-  async function initializeSupabaseForUser(user, { showSuccess = true, recordSignIn = false, showOverview = false } = {}) {
-    if (!user || initializingUserId === user.id) return;
+  function showWorkspaceReadyNoticeOnce(user) {
+    const noticeKey = `${WORKSPACE_READY_NOTICE_KEY}:${user.id}`;
+    if (sessionStorage.getItem(noticeKey)) return;
+    sessionStorage.setItem(noticeKey, '1');
+    showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.', showCloseButton: false });
+  }
+
+  async function initializeSupabaseForUser(user, { showSuccess = false, recordSignIn = false, showOverview = false } = {}) {
+    if (!user) return;
+    if (initializingUserId === user.id) {
+      initializingUserShowSuccess ||= showSuccess;
+      return;
+    }
+    if (currentUser?.id === user.id && dataReady) {
+      if (showSuccess) showWorkspaceReadyNoticeOnce(user);
+      return;
+    }
     initializingUserId = user.id;
+    initializingUserShowSuccess = showSuccess;
     currentUser = user;
     clientTimeZones.clear();
     renderAccountAccess();
@@ -711,7 +731,7 @@
       await persist();
       scheduleAutomaticBackup();
       if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
-      else if (showSuccess) showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.' });
+      else if (initializingUserShowSuccess) showWorkspaceReadyNoticeOnce(user);
       if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
       console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
@@ -722,6 +742,7 @@
       });
     } finally {
       initializingUserId = null;
+      initializingUserShowSuccess = false;
     }
   }
 
@@ -777,7 +798,7 @@
         }
         const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
         initializeSupabaseForUser(session.user, {
-          showSuccess: isAuthenticationCallback && !isPasswordRecovery || activeAuthProvider === 'email',
+          showSuccess: isAuthenticationCallback && !isPasswordRecovery,
           recordSignIn: isFreshSignIn,
           showOverview: false
         });
