@@ -37,6 +37,26 @@
     return { ...row, checklist: Array.isArray(checklist) ? checklist : [] };
   }
 
+  function rowToInvoice(row) {
+    const invoice = { ...row };
+    if (String(row.paymentStatus || '').toLowerCase() === 'paid') invoice.paymentStatus = 'paid';
+    else delete invoice.paymentStatus;
+    ['paidAt', 'paymentCurrency', 'paymentMethod', 'paymentNote'].forEach(field => {
+      if (row[field] === '' || row[field] === null || row[field] === undefined) delete invoice[field];
+      else invoice[field] = String(row[field]);
+    });
+    ['amountInvoiced', 'amountReceived', 'paymentFee', 'amountReceivedPhp'].forEach(field => {
+      if (row[field] === '' || row[field] === null || row[field] === undefined) {
+        delete invoice[field];
+        return;
+      }
+      const value = Number(row[field]);
+      if (!Number.isFinite(value)) throw new Error(`Invalid ${field} in invoice backup.`);
+      invoice[field] = value;
+    });
+    return invoice;
+  }
+
   function createDataSheet(records, columns, widths = {}) {
     const sheet = XLSX.utils.json_to_sheet(records || [], { header: columns });
     sheet['!cols'] = columns.map(column => ({ wch: widths[column] || (column === 'content' || column === 'notes' ? 48 : column.length + 4) }));
@@ -90,10 +110,10 @@
     const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, location: 24, documents: 48, updatedAt: 24 };
     const applicationsSheet = createDataSheet(pipelineApplications().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const activeClientsSheet = createDataSheet(hiredClients().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
-    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt'];
+    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote'];
     XLSX.utils.book_append_sheet(workbook, applicationsSheet, 'Applications');
     XLSX.utils.book_append_sheet(workbook, activeClientsSheet, 'Active clients');
-    XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24 }), 'Invoices');
+    XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.toApply || [], TO_APPLY_COLUMNS, { id: 38, title: 28, link: 48, dueDate: 16, notes: 48 }), 'To apply');
     XLSX.utils.book_append_sheet(workbook, createDataSheet((data.dailyTasks || []).map(dailyTaskToRow), DAILY_TASK_COLUMNS, { id: 38, title: 40, type: 18, taskDate: 16, relatedType: 18, relatedId: 38, relatedName: 28, destination: 40, notes: 60, checklist: 60, createdAt: 24, completedAt: 24 }), 'Daily tasks');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.workLinks || [], LINK_COLUMNS, { id: 38, name: 28, url: 55, createdAt: 24, updatedAt: 24 }), 'Links');
@@ -229,7 +249,7 @@
       if (!applicationsSheet || !activeClientsSheet) throw new Error('invalid');
       const applications = XLSX.utils.sheet_to_json(applicationsSheet, { defval: '' }).map(rowToApplication);
       const activeClients = XLSX.utils.sheet_to_json(activeClientsSheet, { defval: '' }).map(rowToApplication).map(item => ({ ...item, status: 'Active client', activePendingDocument: false }));
-      const invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }) : data.invoices || [];
+      const invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }).map(rowToInvoice) : data.invoices || [];
       const toApply = workbook.Sheets['To apply'] ? XLSX.utils.sheet_to_json(workbook.Sheets['To apply'], { defval: '' }) : data.toApply || [];
       const dailyTasks = workbook.Sheets['Daily tasks'] ? XLSX.utils.sheet_to_json(workbook.Sheets['Daily tasks'], { defval: '' }).map(rowToDailyTask) : data.dailyTasks || [];
       const workLinks = workbook.Sheets.Links ? XLSX.utils.sheet_to_json(workbook.Sheets.Links, { defval: '' }) : data.workLinks || [];
@@ -250,5 +270,3 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => target.classList.remove('show'), 2800);
   }
-
-

@@ -57,6 +57,8 @@
   let composeActivationClientId = null;
   let composeInvoiceDraft = null;
   let composeDocumentUpdateClientId = null;
+  let composeContractEmailMode = false;
+  let contractEmailSendPending = false;
   let composeRequiresConfirmation = false;
   let gmailTokenRequest = null;
   let gmailAuthorizationRecovery = null;
@@ -72,6 +74,25 @@
   const GMAIL_CONNECTED_KEY = 'jeff-va-gmail-connected-v1';
   const GMAIL_TOKEN_SESSION_KEY = 'jeff-va-gmail-token-session-v1';
   const GMAIL_RECONNECT_REQUIRED_KEY = 'jeff-va-gmail-reconnect-required-v1';
+
+  $('#emailComposeModal').addEventListener('close', () => {
+    if (composeContractEmailMode) {
+      composeContractEmailMode = false;
+      contractEmailSendPending = false;
+      composeAttachment = null;
+      composeAttachmentFile = null;
+      composeClientId = null;
+      composeActivationClientId = null;
+      composeInvoiceDraft = null;
+      composeDocumentUpdateClientId = null;
+      composeRequiresConfirmation = false;
+      updateComposeAttachmentDisplay();
+      return;
+    }
+    if (!composeDocumentUpdateClientId) return;
+    composeDocumentUpdateClientId = null;
+    toast('Contract saved. Email not sent yet.');
+  });
 
   function renderDocumentTemplateOptions(selectedId = 'contract-signing') {
     const select = $('#documentTemplateSelect');
@@ -281,6 +302,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     $('#composeAttachmentInput').value = '';
     $('#composeTo').value = recipient;
@@ -305,6 +327,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     $('#composeAttachmentInput').value = '';
     const document = application.documents?.[application.documents.length - 1];
@@ -322,7 +345,7 @@
     $('#composeBody').focus();
   }
 
-  function openPlainClientEmailComposer(application, preferDrawer = false) {
+  function openPlainClientEmailComposer(application, preferDrawer = false, sidePanel = false) {
     if (!application?.email) {
       toast('Add a client email before sending a message.');
       return;
@@ -333,6 +356,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     $('#composeAttachmentInput').value = '';
     $('#composeTo').value = application.email;
@@ -344,6 +368,7 @@
       : 'Gmail will connect automatically when you send.');
     updateComposeAttachmentDisplay();
     renderEmailTemplateOptions();
+    $('#emailComposeModal').classList.toggle('email-compose-side-panel', sidePanel);
     if (preferDrawer || isActiveClientDrawerOpen()) {
       showActiveClientDrawerView('email');
       markActiveClientDrawerFormClean('email');
@@ -368,6 +393,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = true;
     $('#composeAttachmentInput').value = '';
     const template = buildDocumentEmailTemplate('proceed-application', application);
@@ -388,6 +414,7 @@
     composeClientId = null;
     composeActivationClientId = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     composeAttachment = null;
     composeAttachmentFile = file;
@@ -417,6 +444,7 @@
     composeActivationClientId = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = application.id;
+    composeContractEmailMode = false;
     composeAttachment = document;
     composeAttachmentFile = null;
     composeRequiresConfirmation = false;
@@ -426,7 +454,33 @@
     $('#composeSubject').value = template.subject;
     $('#composeBody').value = template.body;
     $('#emailTemplateName').value = '';
-    setEmailComposeStatus(gmailAccessToken ? `Review the updated document email, then send through Gmail. Attachment: ${document.name}` : 'Gmail will connect automatically when you send.');
+    const status = `Review the updated document email, then send through Gmail. Attachment: ${document.name}`;
+    setEmailComposeStatus(gmailAccessToken ? status : `${status} Gmail will connect automatically when you send.`);
+    updateComposeAttachmentDisplay();
+    renderEmailTemplateOptions();
+    $('#emailComposeModal').showModal();
+    $('#composeBody').focus();
+  }
+
+  function openContractEmailComposer(application, file) {
+    if (!application?.email || !file) return;
+    composeClientId = null;
+    composeActivationClientId = null;
+    composeInvoiceDraft = null;
+    composeDocumentUpdateClientId = application.id;
+    composeAttachment = null;
+    composeAttachmentFile = file;
+    composeContractEmailMode = true;
+    composeRequiresConfirmation = false;
+    $('#composeAttachmentInput').value = '';
+    const template = buildDocumentEmailTemplate('updated-contract', application);
+    $('#composeTo').value = application.email;
+    $('#composeSubject').value = template.subject;
+    $('#composeBody').value = template.body;
+    $('#emailTemplateName').value = '';
+    const status = `Review the updated document email, then send through Gmail. Attachment: ${file.name}`;
+    setEmailComposeStatus(gmailAccessToken ? status : `${status} Gmail will connect automatically when you send.`);
+    updateComposeAttachmentDisplay();
     renderEmailTemplateOptions();
     $('#emailComposeModal').showModal();
     $('#composeBody').focus();
@@ -618,11 +672,32 @@
     const to = $('#composeTo').value.trim();
     const subject = $('#composeSubject').value.trim().replace(/[\r\n]+/g, ' ');
     const body = $('#composeBody').value.trim();
+    const contractEmailMode = composeContractEmailMode;
+    const contractEmailApplication = contractEmailMode
+      ? data.applications.find(item => item.id === composeDocumentUpdateClientId)
+      : null;
+    const contractEmailFile = contractEmailMode ? composeAttachmentFile : null;
+    const attachment = composeAttachment;
+    const attachmentFile = composeAttachmentFile;
     if (!to || !subject || !body || !isEmailAddress(to)) {
       setEmailComposeStatus('Enter a valid recipient, subject, and message.', 'error');
       return;
     }
-    if (composeDocumentUpdateClientId && !(await appConfirm('Send the updated document to this client now?', { title: 'Send updated document', confirmLabel: 'Send' }))) return;
+    if (contractEmailMode && !contractEmailFile) {
+      setEmailComposeStatus('Attach the contract file before sending.', 'error');
+      return;
+    }
+    if (composeDocumentUpdateClientId) {
+      if (contractEmailMode && contractEmailSendPending) return;
+      if (contractEmailMode) contractEmailSendPending = true;
+      const confirmation = contractEmailMode
+        ? await appConfirm(`Send this contract to ${to}?`, { title: 'Send contract', confirmLabel: 'Send' })
+        : await appConfirm('Send the updated document to this client now?', { title: 'Send updated document', confirmLabel: 'Send' });
+      if (!confirmation) {
+        contractEmailSendPending = false;
+        return;
+      }
+    }
     if (composeRequiresConfirmation && !(await appConfirm(`Send this application email to ${to}?`, { title: 'Confirm email', confirmLabel: 'Send' }))) return;
     const sendButton = $('#sendEmailButton');
     sendButton.disabled = true;
@@ -630,11 +705,11 @@
     let gmailAccepted = false;
     try {
       let rawMessage;
-      if (composeAttachment || composeAttachmentFile) {
-        const attachmentBlob = composeAttachmentFile || await getDocumentBlob(composeAttachment.storagePath || composeAttachment.id);
+      if (attachment || attachmentFile) {
+        const attachmentBlob = attachmentFile || await getDocumentBlob(attachment.storagePath || attachment.id);
         const attachmentBytes = new Uint8Array(await attachmentBlob.arrayBuffer());
-        const attachmentName = composeAttachment?.name || composeAttachmentFile?.name || 'attachment';
-        const attachmentType = composeAttachment?.type || attachmentBlob.type || 'application/octet-stream';
+        const attachmentName = attachment?.name || attachmentFile?.name || 'attachment';
+        const attachmentType = attachment?.type || attachmentBlob.type || 'application/octet-stream';
         const attachmentBase64 = wrapBase64(encodeBase64(attachmentBytes));
         rawMessage = buildRawEmailMessage({
           to,
@@ -653,7 +728,9 @@
       const sentEmailRecord = {
         id: gmailId ? `gmail-${gmailId}` : uid(),
         gmailId,
-        applicationId: composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
+        applicationId: contractEmailMode
+          ? contractEmailApplication?.id || ''
+          : composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
         from: 'You',
         to,
         subject,
@@ -662,7 +739,7 @@
         importedAt: new Date().toISOString(),
         source: gmailId ? 'gmail' : 'sent',
         direction: 'sent',
-        attachmentName: composeAttachment?.name || composeAttachmentFile?.name || ''
+        attachmentName: attachment?.name || attachmentFile?.name || ''
       };
       data.emails.unshift(sentEmailRecord);
       if (composeInvoiceDraft) {
@@ -675,21 +752,26 @@
         && activationCandidate.email?.trim().toLowerCase() === to.toLowerCase()
         ? activationCandidate
         : null;
-      const updatingClient = composeDocumentUpdateClientId && data.applications.find(item => item.id === composeDocumentUpdateClientId);
+      const updatingClient = contractEmailMode
+        ? contractEmailApplication
+        : composeDocumentUpdateClientId && data.applications.find(item => item.id === composeDocumentUpdateClientId);
       if (activatingClient?.activePendingEmail) {
         activatingClient.activePendingEmail = false;
         activatingClient.updatedAt = new Date().toISOString();
         clearActivationRollback();
       }
-      if (updatingClient?.documentEmailPending) {
+      if (updatingClient?.documentEmailPending && !contractEmailMode) {
         updatingClient.documentEmailPending = false;
         updatingClient.documentEmailReminderDate = '';
         updatingClient.documentEmailReminderAlertedDate = '';
         updatingClient.updatedAt = new Date().toISOString();
       }
+      if (contractEmailMode) await saveSentContractFile(contractEmailApplication, contractEmailFile);
       const savePromise = persist();
       let successMessage = 'Email sent successfully through Gmail.';
-      if (activatingClient) {
+      if (contractEmailMode) {
+        successMessage = 'Contract email sent successfully.';
+      } else if (activatingClient) {
         successMessage = 'Email sent successfully. Client moved to Active Clients.';
       } else if (updatingClient) {
         successMessage = 'Updated document email sent successfully.';
@@ -715,6 +797,7 @@
       composeClientId = null;
       composeActivationClientId = null;
       composeDocumentUpdateClientId = null;
+      composeContractEmailMode = false;
       composeRequiresConfirmation = false;
     } catch (error) {
       console.error(error);
@@ -738,8 +821,10 @@
         composeClientId = null;
         composeActivationClientId = null;
         composeDocumentUpdateClientId = null;
+        composeContractEmailMode = false;
         composeRequiresConfirmation = false;
       }
+      contractEmailSendPending = false;
       sendButton.disabled = false;
     }
   }

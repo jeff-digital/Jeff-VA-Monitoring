@@ -1584,19 +1584,36 @@
       </dl>`;
     $('#clientInvoiceWorkspace').innerHTML = `
       <section class="invoice-send-panel client-invoice-panel${contractEnded ? ' contract-ended-readonly' : ''}" aria-labelledby="clientInvoicesTitle">
-        <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))} sent</span></div>
-        <div class="client-invoice-actions">${contractEnded ? '<p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p>' : '<p>Invoices sent to this client appear here.</p><button class="button button-primary" type="button" id="sendInvoiceButton">Send Invoice</button>'}</div>
-        ${invoices.length ? `<div class="client-invoice-list" role="list">${invoices.map(invoice => `
+        <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><div class="client-invoice-heading-actions"><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))}</span></div></div>
+        ${contractEnded ? '<div class="client-invoice-actions"><p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p></div>' : ''}
+        ${invoices.length ? `${invoicePaymentSummary(invoices)}<div class="client-invoice-list" role="list">${invoices.map(invoice => {
+          const status = invoicePaymentStatus(invoice);
+          const paid = status === 'Paid';
+          const dueDate = parseInvoiceDate(invoice.dueDate);
+          const invoiceNumber = invoice.invoiceNumber || 'Invoice';
+          const displayedStatus = paid ? 'Paid' : status === 'Overdue' ? 'Overdue' : 'Unpaid';
+          const dueDays = dueDate ? Math.round((new Date(`${dueDate}T00:00:00Z`) - new Date(`${today()}T00:00:00Z`)) / 86400000) : null;
+          const dueCopy = dueDays === null ? '' : dueDays < 0 ? `overdue by ${plural(Math.abs(dueDays), 'day')}` : dueDays === 0 ? 'due today' : `in ${plural(dueDays, 'day')}`;
+          const paidDate = parseInvoiceDate(invoice.paidAt);
+          const paidAmount = invoice.amountReceived === '' || invoice.amountReceived == null ? '' : Number(invoice.amountReceived);
+          const paidInfo = [Number.isFinite(paidAmount) ? `${paidAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}${invoice.paymentCurrency ? ` ${String(invoice.paymentCurrency).toUpperCase()}` : ''}` : '', invoice.paymentMethod || ''].filter(Boolean).join(' · ');
+          return `
           <article class="client-invoice-item" role="listitem">
-            <div class="client-invoice-main"><strong>${escapeHtml(invoice.invoiceNumber || 'Invoice')}</strong><span>${escapeHtml(invoice.fileName || 'Invoice document')}</span></div>
-            <div class="client-invoice-meta"><span>${escapeHtml(invoice.service || 'Invoice')}</span>${invoice.billingPeriod ? `<span>${escapeHtml(invoice.billingPeriod)}</span>` : ''}${invoice.dueDate ? `<span>Due ${escapeHtml(formatDate(invoice.dueDate))}</span>` : ''}</div>
-            <div class="client-invoice-date"><span class="status-pill contract-active">Sent</span><time>${escapeHtml(emailDate(invoice.sentAt))}</time></div>
-          </article>`).join('')}</div>` : `<div class="client-section-empty"><h4>No invoices yet</h4><p>${contractEnded ? 'No invoices have been sent to this client.' : 'Send an invoice to keep billing history together.'}</p>${contractEnded ? '' : '<button class="button button-secondary" type="button" id="sendInvoiceButton">Send Invoice</button>'}</div>`}
+            <div class="client-invoice-main"><div class="client-invoice-title"><strong>${escapeHtml(invoiceNumber)}</strong><span class="status-pill ${paid ? 'contract-active' : status === 'Overdue' ? 'not-active' : 'applied'}">${escapeHtml(displayedStatus)}</span></div><span class="client-invoice-file" title="${escapeHtml(invoice.fileName || 'Invoice document')}">${escapeHtml(invoice.fileName || 'Invoice document')}</span></div>
+            <div class="client-invoice-meta">
+              ${invoice.service ? `<div class="client-invoice-meta-item"><span>Service</span><strong title="${escapeHtml(invoice.service)}">${escapeHtml(invoice.service)}</strong></div>` : ''}
+              ${invoice.billingPeriod ? `<div class="client-invoice-meta-item"><span>Period</span><strong>${escapeHtml(invoice.billingPeriod)}</strong></div>` : ''}
+              ${invoice.sentAt ? `<div class="client-invoice-meta-item"><span>Sent</span><strong>${escapeHtml(emailDate(invoice.sentAt))}</strong></div>` : ''}
+              ${dueDate && !paid ? `<div class="client-invoice-meta-item"><span>Due</span><strong>${escapeHtml(formatDate(dueDate))}${dueCopy ? ` · <span class="${dueDays < 0 ? 'client-invoice-overdue-copy' : ''}">${escapeHtml(dueCopy)}</span>` : ''}</strong></div>` : ''}
+            </div>
+            <div class="client-invoice-date">${paid ? `<strong class="client-invoice-paid-date">Paid on ${escapeHtml(paidDate ? formatDate(paidDate) : emailDate(invoice.paidAt))}</strong>${paidInfo ? `<span class="client-invoice-paid-detail">${escapeHtml(paidInfo)}</span>` : ''}` : ''}<div class="client-invoice-payment-actions">${paid ? `<button class="button button-secondary" type="button" data-invoice-edit-payment="${escapeHtml(invoice.id)}" aria-label="Edit payment for invoice ${escapeHtml(invoiceNumber)}">Edit payment</button><button class="client-invoice-unpaid-action" type="button" data-invoice-mark-unpaid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as unpaid">Mark as unpaid</button>` : `<button class="button button-secondary" type="button" data-invoice-mark-paid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as paid">Mark as paid</button>`}</div></div>
+          </article>`;
+        }).join('')}</div>` : `<div class="client-section-empty client-invoice-empty"><h4>No invoices yet</h4><p>${contractEnded ? 'No invoices have been sent to this client.' : 'Send an invoice to keep billing history together.'}</p></div>`}
       </section>`;
     $('#clientEmailHistoryWorkspace').innerHTML = renderHiredEmailHistory(item);
     $('#clientDocumentActions').innerHTML = contractEnded
       ? '<span class="details-readonly-label">Read only</span>'
-      : '<button class="button button-secondary active-document-upload-button" type="button" id="hiredDetailUploadButton">Upload file</button><input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />';
+      : '<input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />';
     $('#clientDocumentBox').classList.toggle('contract-ended-readonly', contractEnded);
     $('#documentsFolderStatus').textContent = 'Files are stored securely in your account.';
     renderHiredDocumentWorkspace(item);
@@ -2071,7 +2088,7 @@
 
   function renderSentEmailHistoryItems(sentEmails, emptyMessage) {
     return sentEmails.length
-      ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}" aria-label="Open email: ${escapeHtml(email.subject || 'No subject')}, sent ${escapeHtml(emailDate(email.date))}"><span class="client-email-history-copy"><strong title="${escapeHtml(email.subject || '(No subject)')}">${escapeHtml(email.subject || '(No subject)')}</strong><small>To ${escapeHtml(email.to || 'client')}</small><small class="client-email-history-preview">${escapeHtml(emailContentText(email.body).slice(0, 150) || 'No message preview')}</small></span><span class="client-email-history-meta"><span class="client-email-direction">Sent</span><time>${escapeHtml(emailDate(email.date))}</time></span></button>`).join('')
+      ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}" aria-label="Open email: ${escapeHtml(email.subject || 'No subject')}, sent ${escapeHtml(emailDate(email.date))}"><span class="client-email-history-copy"><strong title="${escapeHtml(email.subject || '(No subject)')}">${escapeHtml(email.subject || '(No subject)')}</strong><small>To ${escapeHtml(email.to || 'client')}</small></span><span class="client-email-history-meta"><span class="client-email-direction">Sent</span><time>${escapeHtml(emailDate(email.date))}</time></span></button>`).join('')
       : `<p>${emptyMessage}</p>`;
   }
 

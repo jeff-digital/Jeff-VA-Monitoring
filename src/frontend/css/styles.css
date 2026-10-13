@@ -1638,6 +1638,7 @@ body.authenticated .login-screen { display: none; }
 .active-client-drawer-backdrop { z-index: 0; }
 .active-client-drawer { position: absolute; z-index: 1; top: 0; right: 0; display: flex; flex-direction: column; width: 420px; max-width: 100vw; height: 100%; overflow: hidden; border: 1px solid #e6e8f0; border-right: 0; border-radius: 16px 0 0 16px; background: #fff; color: var(--ink); box-shadow: -12px 0 36px rgba(17, 24, 39, .16); transform: translateX(100%); transition: transform 250ms ease-out; }
 .active-client-drawer-layer.open .active-client-drawer { transform: translateX(0); }
+.active-client-drawer-layer[data-view="email"] .active-client-drawer { width: min(620px, 100vw); }
 body.active-client-drawer-open dialog[open]::backdrop { background: linear-gradient(to right, rgba(18, 26, 51, .48) 0 calc(100% - var(--active-client-drawer-width, 420px)), transparent calc(100% - var(--active-client-drawer-width, 420px)) 100%); }
 .active-client-drawer-header { display: flex; align-items: flex-start; gap: 14px; min-height: 122px; padding: 26px 22px 20px; border-bottom: 1px solid #e6e8f0; }
 .active-client-drawer-heading { min-width: 0; flex: 1; }
@@ -4253,6 +4254,17 @@ html:has(#applicationActionsPanel[open]) { scrollbar-gutter: auto; }
 .application-actions-panel-action.is-danger:hover, .application-actions-panel-action.is-danger:focus-visible { border-color: #e5aeb3; background: #fff8f8; }
 .application-actions-panel-action.is-danger .application-actions-panel-icon { background: #fff0f0; color: #a3333e; }
 .application-actions-panel-action.is-danger small, .application-actions-panel-action.is-danger > i:last-child { color: #9b6267; }
+.email-compose-side-panel { position: fixed; inset: 0 0 0 auto; display: flex; flex-direction: column; width: min(620px, 100vw); height: 100dvh; max-width: 100vw; max-height: none; margin: 0; padding: 0; overflow: hidden; border: 1px solid #e6e8f0; border-right: 0; border-radius: 16px 0 0 16px; background: #fff; color: var(--ink); box-shadow: -12px 0 36px rgba(17, 24, 39, .16); }
+.email-compose-side-panel:not([open]) { display: none; }
+.email-compose-side-panel[open] { display: flex; }
+.email-compose-side-panel #emailComposeForm { display: flex; flex: 1; flex-direction: column; max-height: none; padding: 24px; overflow-y: auto; }
+.email-compose-side-panel #emailComposeForm > .modal-heading { flex: 0 0 auto; }
+.email-compose-side-panel #emailComposeForm .compose-template-row,
+.email-compose-side-panel #emailComposeForm .compose-fields,
+.email-compose-side-panel #emailComposeForm .compose-status,
+.email-compose-side-panel #emailComposeForm .modal-actions { flex: 0 0 auto; }
+.email-compose-side-panel #emailComposeForm .modal-actions { margin-top: auto; }
+.email-compose-side-panel::backdrop { background: rgba(20, 24, 20, .43); }
 .application-board-mode { overflow-x: auto; }
 .application-board { display: grid; grid-auto-columns: minmax(220px, 1fr); grid-auto-flow: column; gap: 12px; min-height: 320px; padding: 12px; }
 .application-board-column { min-width: 0; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-neutral-50); transition: background-color .15s ease, border-color .15s ease; }
@@ -4795,4 +4807,988 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 .daily-task-related-empty { margin: 0; padding: 20px 12px; color: #7b8494; font-size: 12px; text-align: center; }
 @media (max-width: 520px) {
   .daily-task-related-popover { max-height: min(340px, calc(100dvh - 24px)); }
+}
+
+/* ===== MOBILE-ONLY FIXES (max-width: 720px) — do not affect desktop ===== */
+@media (max-width: 720px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    --m-fs-body: 14px;
+    --m-fs-small: 12px;
+    --m-fs-label: 12px;
+    --m-fs-title: clamp(24px, 7vw, 30px);
+  }
+
+  body {
+    font-size: var(--m-fs-body);
+    line-height: 1.55;
+  }
+
+  /* Headings, copy, metadata and form controls */
+  .topbar h1 { font-size: var(--m-fs-title); line-height: 1.15; }
+  .topbar-title-area h1 { font-size: var(--m-fs-title); }
+  .panel-heading h2,
+  .email-intro h2,
+  .application-workspace-title h2,
+  .tools-workspace-heading h2,
+  .daily-task-heading h2,
+  .weekly-report-section-heading h2 { font-size: 19px; line-height: 1.3; }
+  .modal-heading h2,
+  .settings-modal-heading h2 { font-size: 21px; line-height: 1.3; }
+  .application-actions-panel-header h2,
+  .active-client-drawer-heading h2 { font-size: 21px; line-height: 1.3; }
+  .stat-card strong { font-size: clamp(28px, 9vw, 36px); }
+  .page-context,
+  .topbar .eyebrow,
+  .eyebrow,
+  .nav-group-label,
+  .form-column-label,
+  .form-subsection-label,
+  .details-readonly-label,
+  .application-filter-field,
+  .application-list-head,
+  .to-apply-list-head,
+  .hired-detail-grid dt,
+  .calendar-weekday,
+  .daily-task-related-group-heading { font-size: 11px; line-height: 1.4; }
+  .stat-label,
+  .stat-card p,
+  .weekly-report-banner p:not(.eyebrow),
+  .calendar-controls strong,
+  .calendar-day-number,
+  .calendar-empty,
+  .application-workspace-title > p:last-child,
+  .application-workspace-count small,
+  .application-platform-count,
+  .application-group-heading span,
+  .client-card-subtitle,
+  .client-card-website,
+  .hired-card-meta,
+  .hired-card-website a,
+  .hired-detail-grid dd,
+  .hired-upload-head p:not(.eyebrow),
+  .field-help,
+  .follow-up-note,
+  .salary-estimate-label,
+  .salary-estimate-php,
+  .application-email-message-heading p,
+  .application-email-message-heading time,
+  .application-emails-summary,
+  .compose-status,
+  .email-detail-meta div,
+  .email-detail-body,
+  .email-row time,
+  .email-date,
+  .email-summary-item,
+  .inbox-count,
+  .to-apply-date,
+  .daily-task-item-meta,
+  .daily-task-item-notes,
+  .daily-task-item-copy time,
+  .daily-task-empty p,
+  .daily-task-history-empty,
+  .weekly-report-muted,
+  .weekly-report-banner p,
+  .document-viewer-note,
+  .personal-document-row small,
+  .client-email-history-item time { font-size: var(--m-fs-small); line-height: 1.5; }
+  .application-email-message-body,
+  .email-detail-body,
+  .daily-task-item-title,
+  .daily-task-item-notes,
+  .weekly-report-note p,
+  .client-task-description,
+  .client-task-notes,
+  .application-data-table td { font-size: var(--m-fs-body); line-height: 1.55; }
+  .client-card-title,
+  .hired-card .client-card-title,
+  .application-data-table td strong,
+  .daily-task-item-title,
+  .application-group-heading h3 { font-size: 15px; line-height: 1.4; }
+  .form-field,
+  .form-grid .form-field,
+  .compose-fields .form-field,
+  .application-filter-field,
+  .daily-task-date-field { font-size: var(--m-fs-label); line-height: 1.4; }
+  .button,
+  .text-button,
+  .nav-link,
+  .sidebar-action,
+  .dashboard-switcher-tab,
+  .documents-tab,
+  .email-view-tab,
+  .application-actions-panel-action strong,
+  .active-client-action-row-copy strong,
+  .email-actions-trigger,
+  .email-actions-menu button,
+  .sidebar-utility-panel .sidebar-action,
+  .daily-task-plan-actions .button,
+  .daily-task-history-shortcuts .button { font-size: 14px; line-height: 1.35; }
+  .application-actions-panel-action small,
+  .active-client-action-row-copy small { font-size: 12px; line-height: 1.45; white-space: normal; }
+  .application-actions-panel-header > div > p:last-child,
+  .active-client-drawer-heading > p:last-child { font-size: 13px; line-height: 1.45; }
+  .form-field input,
+  .form-field select,
+  .form-field textarea,
+  .search-field input,
+  .select-field select,
+  .date-filter input,
+  .application-search-field input,
+  .application-filter-field input,
+  .application-filter-field select,
+  .daily-task-related-search input,
+  .compose-template-save input { font-size: 16px; }
+  .application-email-message-heading h3,
+  .email-from,
+  .email-subject,
+  .weekly-report-section-heading h3,
+  .daily-task-section-heading h3 { font-size: 16px; line-height: 1.4; }
+
+  /* Wrap long values and let mobile rows grow with their text. */
+  .page-context,
+  .application-workspace-title,
+  .application-data-table td,
+  .application-data-table td strong,
+  .application-email-message-heading,
+  .application-email-message-body,
+  .email-from,
+  .email-subject,
+  .email-detail-meta strong,
+  .hired-detail-grid dd,
+  .hired-card-meta,
+  .client-card-subtitle,
+  .client-card-website,
+  .hired-card-website a,
+  .weekly-report-table td,
+  .daily-task-item-title,
+  .daily-task-item-notes,
+  .application-actions-panel-header > div,
+  .active-client-drawer-heading { min-width: 0; overflow-wrap: anywhere; }
+  .application-data-table td,
+  .hired-detail-grid dd,
+  .client-card-subtitle,
+  .hired-card-meta,
+  .client-card-website,
+  .hired-card-website a { height: auto; white-space: normal; text-overflow: clip; }
+  .application-workspace-head,
+  .tools-workspace-heading,
+  .hired-detail-heading,
+  .weekly-report-section-heading,
+  .application-filter-footer { flex-wrap: wrap; }
+  .application-workspace-head { align-items: flex-start; }
+  .application-workspace-count { min-width: 0; max-width: 100%; }
+  .application-filter-controls,
+  .email-filter-controls { min-width: 0; }
+  .application-filter-field > span { white-space: normal; }
+  .toolbar,
+  .application-bulk-bar,
+  .to-apply-head-actions,
+  .hired-detail-heading-actions { flex-wrap: wrap; }
+  .application-table-wrap,
+  .table-wrap,
+  .weekly-report-table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #applicationsView .application-table-wrap { overflow-x: auto; }
+  #applicationsView .application-data-table { display: table; width: max-content; min-width: 100%; }
+  #applicationsView .application-data-table thead { display: table-header-group; }
+  #applicationsView .application-data-table tbody { display: table-row-group; padding: 0; }
+  #applicationsView .application-data-table tbody tr { display: table-row; width: auto; padding: 0; border: 0; border-radius: 0; }
+  #applicationsView .application-data-table td { display: table-cell; width: auto; min-width: 90px; padding: 10px 9px; border-top: 1px solid var(--color-border); vertical-align: top; }
+  #applicationsView .application-data-table td:first-child { min-width: 160px; }
+  #applicationsView .application-data-table td:last-child { position: static; right: auto; }
+  #applicationsView .application-data-table thead th { padding: 10px 9px; font-size: 11px; white-space: nowrap; }
+  #applicationsView .application-data-table td:nth-child(2),
+  #applicationsView .application-data-table td:nth-child(3),
+  #applicationsView .application-data-table td:nth-child(4),
+  #applicationsView .application-data-table td:nth-child(5),
+  #applicationsView .application-data-table td:nth-child(6),
+  #applicationsView .application-data-table td:nth-child(7) { grid-column: auto; grid-row: auto; }
+
+  /* Dialogs and drawers stay within the viewport and keep actions reachable. */
+  .modal,
+  .email-compose-modal,
+  .application-emails-modal,
+  .modal.email-detail-modal,
+  .weekly-report-modal,
+  .document-viewer-modal,
+  .email-result-modal,
+  .settings-modal,
+  #clientModal { box-sizing: border-box; max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
+  .modal form { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); padding: 16px; }
+  .modal .modal-heading > .icon-button,
+  .settings-modal-heading > .icon-button,
+  .application-actions-panel-close,
+  .active-client-drawer-close,
+  .active-client-drawer-back { min-width: 44px; min-height: 44px; }
+  .modal .modal-heading > .icon-button,
+  .settings-modal-heading > .icon-button { width: 44px; height: 44px; flex-basis: 44px; }
+  .modal form > .modal-actions,
+  .modal form > .modal-actions-split { position: sticky; bottom: -16px; z-index: 2; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); background: var(--color-surface, #fff); }
+  .modal-actions,
+  .modal-actions-right { gap: 8px; }
+  .application-actions-panel,
+  .email-compose-side-panel { width: 100vw; max-width: 100vw; max-height: 100dvh; }
+  .application-actions-panel-header,
+  .active-client-drawer-header { position: sticky; top: 0; z-index: 2; background: #fff; }
+  .application-actions-panel-list,
+  .active-client-drawer-list { min-height: 0; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .application-actions-panel-action,
+  .active-client-action-row { min-height: 72px; }
+  .active-client-drawer { width: 100vw; border-radius: 0; }
+  .active-client-drawer-layer[data-view="email"] .active-client-drawer { width: 100vw; }
+  .active-client-drawer-view { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .active-client-drawer-view #emailComposeForm .modal-actions { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+
+  /* Keep multi-column controls and cards usable at phone widths. */
+  .dashboard-switcher { max-width: 100%; overflow-x: auto; }
+  .dashboard-switcher-tab,
+  .documents-tab,
+  .email-view-tab { min-height: 44px; flex: 0 0 auto; }
+  .stat-grid,
+  .client-dashboard-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-card { min-width: 0; min-height: 118px; padding: 13px; }
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  .calendar-weekday { padding: 7px 2px; letter-spacing: .02em; text-align: center; }
+  .calendar-day { min-width: 0; min-height: 62px; padding: 4px; }
+  .calendar-interview { min-height: 32px; white-space: normal; overflow-wrap: anywhere; }
+  .application-data-table th,
+  .weekly-report-table th { font-size: 11px; }
+  .application-data-table td,
+  .weekly-report-table td { font-size: 14px; }
+  .hired-list,
+  .client-task-summary,
+  .weekly-report-overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .hired-card { min-width: 0; min-height: 0; }
+  .hired-detail-grid,
+  .hired-detail-grid-large { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .email-row { min-width: 0; }
+  .email-row-content,
+  .email-sender-line { min-width: 0; }
+  .email-actions-trigger,
+  .application-data-table .icon-button,
+  .daily-task-action,
+  .daily-task-delete { min-height: 44px; }
+  .email-actions-trigger { min-width: 84px; }
+  .to-apply-row,
+  .daily-task-item,
+  .client-task-row { min-height: 44px; }
+
+  /* Bring dense labels and badges up to a readable mobile minimum. */
+  body .nav-group-label,
+  body .nav-count,
+  body .sidebar-utility-chevron,
+  body .calendar-weekday,
+  body .calendar-interview,
+  body th,
+  body .table-client small,
+  body .status-pill,
+  body .weekly-report-period-controls label,
+  body .weekly-report-metric span,
+  body .weekly-report-section-heading span,
+  body .weekly-report-bar span,
+  body .weekly-report-email-list span,
+  body .weekly-report-activity small,
+  body .weekly-report-export-header .eyebrow,
+  body .weekly-report-export-activity small,
+  body .weekly-report-export-table th,
+  body .weekly-report-export-table td,
+  body .weekly-report-export-table td small,
+  body .client-follow-up-history-head,
+  body .client-follow-up-history-head strong,
+  body .client-follow-up-history-list small,
+  body .interview-priority-badge,
+  body .to-apply-list-head,
+  body .to-apply-date span,
+  body .script-item-head small,
+  body .script-item-actions .button,
+  body .cover-letter-editor-heading span,
+  body .cover-letter-preview-label,
+  body .invoice-email-icon,
+  body .invoice-email-row span,
+  body .invoice-card-details dt,
+  body .document-preview-title p:not(.eyebrow),
+  body .client-document-picker-item small,
+  body #applicationListLabel,
+  body .application-workspace-count small,
+  body .application-platform-count,
+  body .application-filter-field,
+  body .application-list-head,
+  body .application-list-head > span:first-child,
+  body .application-group-heading span,
+  body .interview-link-button,
+  body .application-meta small,
+  body .document-version-label,
+  body .active-document-name small,
+  body .invoice-sent-count,
+  body .client-invoice-item span,
+  body .client-invoice-item small,
+  body .client-invoice-empty,
+  body .client-invoice-more,
+  body .active-document-open,
+  body .document-menu-button,
+  body .document-update-prompt span,
+  body .document-update-prompt .button,
+  body .hired-detail-grid dt,
+  body .match-badge,
+  body .sent-email-badge,
+  body .client-match-tag,
+  body .email-time,
+  body .form-column-label,
+  body .form-subsection-label,
+  body .follow-up-note,
+  body .notification-badge,
+  body .notification-panel-head span,
+  body .notification-section-title,
+  body .notification-item-heading time,
+  body .notification-item-actions button,
+  body .client-contract-status,
+  body .compact-field span,
+  body .documents-folder-status code,
+  body .email-compose-button,
+  body .client-email-alert-heading time,
+  body .doc-type-icon,
+  body .document-history,
+  body .document-history-item,
+  body .document-archive-head span:last-child,
+  body .document-archive-date,
+  body .daily-task-item-number,
+  body .daily-task-checklist-progress,
+  body .daily-task-status,
+  body .daily-task-type,
+  body .daily-task-item-notes > span,
+  body .daily-task-detail-facts span,
+  body .daily-task-detail-notes > span,
+  body #hiredView .active-client-onboarding-details dt,
+  body #hiredDetailGrid dt,
+  body #hiredDetailGrid dt i,
+  body #accountView .account-section-heading > span,
+  body #accountView .account-connection-row dd small,
+  body #accountView .account-storage-plan-field,
+  body #accountView .account-sign-in-history time,
+  body #inboxView .email-summary-item,
+  body #hiredView .client-task-tab-count,
+  body #hiredView .client-task-summary-card > span,
+  body #hiredView .client-task-group > summary::before,
+  body #hiredView .client-task-group-count,
+  body #hiredView .client-task-category,
+  body #hiredView .client-task-row-meta,
+  body #hiredView .client-task-recurring,
+  body .client-task-weekdays label span,
+  body .client-task-manual-entry .form-field,
+  body .client-task-time-entry,
+  body .client-task-time-entry > strong,
+  body #hiredView .client-overview-summary-item > span:first-child,
+  body #hiredView #hiredDetailGrid dt,
+  body #hiredView .client-contract-facts dt,
+  body #hiredView .hired-card .client-contract-status,
+  body #hiredView .client-email-direction,
+  body #hiredView .client-overview-summary-item > small,
+  body #applicationsView .application-list-head,
+  body #dailyTaskView .daily-task-heading .eyebrow,
+  body #dailyTaskView .daily-task-section-heading .eyebrow,
+  body #dailyTaskView .daily-task-item-meta,
+  body #dailyTaskView .daily-task-checklist-progress,
+  body #dailyTaskView .daily-task-status,
+  body #dailyTaskView .daily-task-type,
+  body #dailyTaskView .daily-task-detail-facts span,
+  body #dailyTaskView .daily-task-detail-notes > span,
+  body #dailyTaskView .daily-task-summary span,
+  body .today-focus-items > span,
+  body .application-actions-panel-action small,
+  body #clientDashboardPanel .client-dashboard-table th,
+  body #clientDashboardPanel .client-dashboard-name small,
+  body #clientDashboardPanel .client-dashboard-avatar,
+  body #clientDashboardPanel .client-dashboard-status,
+  body #clientDashboardPanel .client-dashboard-row-action,
+  body #clientDashboardPanel .client-dashboard-chart-value,
+  body #clientDashboardPanel .client-dashboard-drawer-heading .eyebrow,
+  body #clientDashboardPanel .client-dashboard-drawer-section dt,
+  body #clientDashboardPanel .client-dashboard-table td::before,
+  body .daily-task-related-group-heading,
+  body .daily-task-related-group-heading small,
+  body .daily-task-related-option-copy small { font-size: 11px; }
+
+  body .weekly-report-activity small,
+  body .weekly-report-export-activity small,
+  body .weekly-report-export-table td small,
+  body .table-client small,
+  body .client-follow-up-history-list small,
+  body .script-item-head small,
+  body .document-preview-title p:not(.eyebrow),
+  body .client-document-picker-item small,
+  body .application-meta small,
+  body .active-document-name small,
+  body .client-invoice-item small,
+  body .notification-item-copy small,
+  body .client-email-alert-item small,
+  body .document-history,
+  body .document-history-item,
+  body .documents-folder-status,
+  body .client-task-time-entry,
+  body .local-indicator:not([hidden]),
+  body .login-note,
+  body #dailyTaskView .daily-task-item-copy time,
+  body #hiredView .client-overview-summary-item > small,
+  body #clientDashboardPanel .client-dashboard-attention-copy small,
+  body #clientDashboardPanel .client-dashboard-activity-item small,
+  body #clientDashboardPanel .client-dashboard-activity-item time { font-size: 12px; }
+
+  body .topbar .button,
+  body .to-apply-head-actions .button,
+  body .script-item-actions .button,
+  body .document-update-prompt .button,
+  body .notification-item-actions button,
+  body #clientDashboardPanel .client-dashboard-row-action,
+  body #clientDashboardPanel .client-dashboard-attention-item .button,
+  body #dailyTaskView .daily-task-history-shortcuts .button { font-size: 14px; }
+}
+
+@media (max-width: 400px) {
+  .application-filter-controls,
+  .email-filter-controls,
+  .hired-detail-grid,
+  .hired-detail-grid-large,
+  .client-task-summary { grid-template-columns: minmax(0, 1fr); }
+  .stat-grid,
+  .client-dashboard-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .stat-card { padding: 11px; }
+  .topbar-actions { gap: 4px; }
+  .topbar .button { max-width: 44vw; padding-inline: 8px; white-space: normal; }
+  .modal form { padding: 13px; }
+}
+
+/* ===== INVOICE PAYMENT TRACKING ===== */
+#hiredView .client-invoice-payment-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--workspace-line);
+}
+
+#hiredView .client-invoice-payment-summary > div { display: grid; gap: 4px; min-width: 0; }
+#hiredView .client-invoice-payment-summary strong { color: var(--workspace-ink); font-size: 12px; font-weight: 650; }
+#hiredView .client-invoice-payment-summary span,
+#hiredView .client-invoice-payment-detail { color: var(--workspace-muted); font-size: 12px; line-height: 1.4; }
+#hiredView .client-invoice-payment-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+#hiredView .client-invoice-payment-actions .button { min-height: 32px; padding: 6px 9px; font-size: 11px; }
+#hiredView .client-invoice-payment-detail { white-space: normal; text-align: right; }
+#invoicePaymentModal .compose-fields { margin: 0 0 16px; }
+#invoicePaymentModal .form-field-wide { grid-column: 1 / -1; }
+#invoicePaymentModal textarea { resize: vertical; }
+
+@media (max-width: 720px) {
+  #hiredView .client-invoice-item { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  #hiredView .client-invoice-meta,
+  #hiredView .client-invoice-date { grid-column: 1; grid-row: auto; justify-items: start; }
+  #hiredView .client-invoice-payment-summary { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  #hiredView .client-invoice-payment-actions { justify-content: flex-start; }
+  #hiredView .client-invoice-payment-actions .button { min-height: 40px; font-size: 12px; }
+  #hiredView .client-invoice-payment-detail { text-align: left; }
+  #invoicePaymentModal { box-sizing: border-box; width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100dvh - 16px); overflow-y: auto; }
+  #invoicePaymentModal .compose-fields { grid-template-columns: minmax(0, 1fr); }
+  #invoicePaymentModal .form-field-wide { grid-column: auto; }
+  #invoicePaymentModal .form-field { font-size: 12px; }
+  #invoicePaymentModal input,
+  #invoicePaymentModal select,
+  #invoicePaymentModal textarea { min-height: 44px; font-size: 16px; }
+  #invoicePaymentModal textarea { min-height: 84px; }
+  #invoicePaymentModal .modal-actions .button { min-height: 40px; }
+}
+
+/* ===== INVOICES TAB UI REFRESH ===== */
+#hiredView .client-invoice-panel .invoice-send-heading {
+  align-items: center;
+}
+
+#hiredView .client-invoice-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+#hiredView .client-invoice-heading-actions .button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+#hiredView .client-invoice-heading-actions .invoice-sent-count {
+  font-size: 12px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 0;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-summary > div {
+  gap: 5px;
+  min-height: 75px;
+  padding: 12px 14px;
+  border: 1px solid var(--workspace-line);
+  border-radius: 8px;
+  background: #f8f9fb;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-summary strong {
+  color: var(--workspace-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-summary span {
+  color: var(--workspace-ink);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-summary small {
+  color: var(--workspace-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-summary .client-invoice-payment-hint {
+  grid-column: 1 / -1;
+  min-height: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-summary .client-invoice-overdue-copy {
+  color: var(--workspace-danger);
+  font-weight: 650;
+}
+
+#hiredView .client-invoice-panel .client-invoice-list {
+  border-top: 1px solid var(--workspace-line);
+}
+
+#hiredView .client-invoice-panel .client-invoice-item {
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(150px, .8fr);
+  align-items: start;
+  gap: 18px;
+  padding: 18px 8px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-main,
+#hiredView .client-invoice-panel .client-invoice-meta,
+#hiredView .client-invoice-panel .client-invoice-date {
+  align-content: start;
+  min-width: 0;
+}
+
+#hiredView .client-invoice-panel .client-invoice-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+#hiredView .client-invoice-panel .client-invoice-title strong {
+  color: var(--workspace-ink);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+#hiredView .client-invoice-panel .client-invoice-title .status-pill {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: 11px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-file {
+  display: block;
+  max-width: 100%;
+  color: var(--workspace-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#hiredView .client-invoice-panel .client-invoice-meta {
+  display: grid;
+  gap: 7px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-meta-item {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  min-width: 0;
+}
+
+#hiredView .client-invoice-panel .client-invoice-meta-item > span {
+  color: var(--workspace-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+#hiredView .client-invoice-panel .client-invoice-meta-item > strong {
+  min-width: 0;
+  color: var(--workspace-ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+#hiredView .client-invoice-panel .client-invoice-overdue-copy {
+  color: var(--workspace-danger);
+  font-weight: 650;
+}
+
+#hiredView .client-invoice-panel .client-invoice-date {
+  justify-items: end;
+  gap: 6px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-paid-date {
+  color: var(--workspace-ink);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+}
+
+#hiredView .client-invoice-panel .client-invoice-paid-detail {
+  color: var(--workspace-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-actions .button {
+  width: auto;
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#hiredView .client-invoice-panel .client-invoice-unpaid-action {
+  min-height: 32px;
+  padding: 5px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--workspace-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#hiredView .client-invoice-panel .client-invoice-payment-actions button:focus-visible {
+  outline: 2px solid var(--workspace-accent);
+  outline-offset: 2px;
+}
+
+#hiredView .client-invoice-panel .client-invoice-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 20px 0;
+}
+
+#invoicePaymentModal .client-invoice-payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+#invoicePaymentModal .client-invoice-payment-subtitle {
+  margin: -5px 0 17px;
+  color: var(--workspace-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+#invoicePaymentModal .compose-fields {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin: 0 0 18px;
+}
+
+#invoicePaymentModal .client-invoice-payment-section {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 11px;
+  min-width: 0;
+}
+
+#invoicePaymentModal .client-invoice-payment-section h3 {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--workspace-line);
+  color: var(--workspace-ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#invoicePaymentModal .client-invoice-payment-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+#invoicePaymentModal .client-invoice-payment-fields .form-field {
+  min-width: 0;
+  font-size: 12px;
+}
+
+#invoicePaymentModal .client-invoice-payment-fields .form-field-wide {
+  grid-column: 1 / -1;
+}
+
+#invoicePaymentModal .client-invoice-payment-fields .form-field small {
+  color: var(--workspace-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+#invoicePaymentModal .client-invoice-payment-fields textarea {
+  resize: vertical;
+}
+
+#invoicePaymentModal .client-invoice-payment-form > .modal-actions {
+  justify-content: space-between;
+  margin-top: 0;
+}
+
+@media (max-width: 720px) {
+  #hiredView .client-invoice-panel .invoice-send-heading {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  #hiredView .client-invoice-heading-actions {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  #hiredView .client-invoice-heading-actions .button {
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-payment-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-payment-summary > div {
+    min-height: 72px;
+    padding: 9px 7px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-payment-summary span {
+    font-size: 14px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px 2px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-main,
+  #hiredView .client-invoice-panel .client-invoice-meta,
+  #hiredView .client-invoice-panel .client-invoice-date {
+    grid-column: 1;
+    grid-row: auto;
+    justify-items: start;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 10px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-meta-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-payment-actions {
+    display: flex;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-payment-actions > button {
+    flex: 1 1 0;
+    min-height: 40px;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-paid-date,
+  #hiredView .client-invoice-panel .client-invoice-paid-detail {
+    text-align: left;
+  }
+
+  #hiredView .client-invoice-panel .client-invoice-empty {
+    padding: 17px 0;
+  }
+
+  #invoicePaymentModal {
+    box-sizing: border-box;
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow: hidden;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-form {
+    max-height: calc(100dvh - 48px);
+  }
+
+  #invoicePaymentModal .modal-heading {
+    flex: 0 0 auto;
+  }
+
+  #invoicePaymentModal .modal-heading .icon-button {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-subtitle {
+    flex: 0 0 auto;
+  }
+
+  #invoicePaymentModal .compose-fields {
+    display: block;
+    min-height: 0;
+    margin: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-section + .client-invoice-payment-section {
+    margin-top: 18px;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-fields .form-field,
+  #invoicePaymentModal .client-invoice-payment-fields .form-field small {
+    font-size: 12px;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-fields input,
+  #invoicePaymentModal .client-invoice-payment-fields select,
+  #invoicePaymentModal .client-invoice-payment-fields textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-fields .form-field-wide {
+    grid-column: auto;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-form > .modal-actions {
+    position: sticky;
+    bottom: 0;
+    flex: 0 0 auto;
+    gap: 10px;
+    padding-top: 12px;
+    background: #fff;
+  }
+
+  #invoicePaymentModal .client-invoice-payment-form > .modal-actions .button {
+    min-height: 40px;
+  }
+}
+
+/* ===== CONTRACT EMAIL UPLOAD MODAL MOBILE ===== */
+@media (max-width: 720px) {
+  #contractEmailUploadModal {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow: hidden;
+  }
+
+  #contractEmailUploadModal form {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 16px);
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  #contractEmailUploadModal .modal-heading {
+    flex: 0 0 auto;
+  }
+
+  #contractEmailUploadModal #contractEmailFilePreview {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  #contractEmailUploadModal #contractEmailFileInfo {
+    font-size: 14px;
+  }
+
+  #contractEmailUploadModal #contractEmailFileInfo p,
+  #contractEmailUploadModal #contractEmailUploadStatus,
+  #contractEmailUploadModal .follow-up-editor-status {
+    font-size: 12px;
+  }
+
+  #contractEmailUploadModal .document-inline-viewer {
+    min-height: 0;
+    max-height: 40vh;
+    overflow: hidden;
+  }
+
+  #contractEmailUploadModal .document-inline-viewer iframe {
+    height: 40vh;
+  }
+
+  #contractEmailUploadModal .word-preview {
+    margin: 10px auto;
+    padding: 20px;
+  }
+
+  #contractEmailUploadModal .modal-actions {
+    position: sticky;
+    bottom: 0;
+    flex: 0 0 auto;
+    padding-top: 12px;
+    background: #fff;
+  }
+
+  #contractEmailUploadModal .button,
+  #contractEmailUploadModal .modal-heading .icon-button {
+    min-height: 40px;
+  }
 }

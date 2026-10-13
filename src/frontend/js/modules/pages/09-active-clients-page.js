@@ -106,6 +106,7 @@
     if (view === 'email') mountActiveClientDrawerForm('emailComposeForm', 'activeClientDrawerEmailSlot');
     if (view === 'edit') mountActiveClientDrawerForm('clientForm', 'activeClientDrawerClientFormSlot');
     layer.dataset.view = view;
+    document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
   }
 
   function openActiveClientActionsDrawer(trigger) {
@@ -124,6 +125,8 @@
     $('#activeClientGeneratedLink').hidden = true;
     $('#activeClientOnboardingUrl').value = '';
     $('#activeClientOnboardingStatus').textContent = '';
+    $('#activeClientDrawerList [data-active-client-action="contract-email"]').hidden = isContractEnded(client);
+    $('#activeClientDrawerList [data-active-client-action="send-invoice"]').hidden = isContractEnded(client);
     showActiveClientDrawerView('list');
     requestAnimationFrame(() => {
       if (!activeClientDrawerOpen) return;
@@ -231,7 +234,7 @@
     }
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
-    const sendInvoiceButton = event.target.closest('#sendInvoiceButton');
+    const invoicePaymentButton = event.target.closest('[data-invoice-mark-paid], [data-invoice-edit-payment], [data-invoice-mark-unpaid]');
     const actionRow = event.target.closest('[data-active-client-action]');
     const generateOnboardingLinkButton = event.target.closest('#generateClientOnboardingLinkButton');
     const copyOnboardingLinkButton = event.target.closest('#copyActiveClientOnboardingUrl');
@@ -250,6 +253,17 @@
       if (actionRow.dataset.activeClientAction === 'email') {
         const item = data.applications.find(application => application.id === hiredEditingId);
         if (item) openPlainClientEmailComposer(item, true);
+      } else if (actionRow.dataset.activeClientAction === 'send-invoice') {
+        const client = data.applications.find(application => application.id === hiredEditingId);
+        if (client) closeActiveClientActionsDrawer(false, () => openInvoiceDocumentPicker(client));
+      } else if (actionRow.dataset.activeClientAction === 'contract-email') {
+        const clientId = hiredEditingId;
+        const client = data.applications.find(application => application.id === clientId);
+        if (!client?.email?.trim()) {
+          toast('Add a client email before sending a contract.');
+        } else if (!isContractEnded(client)) {
+          closeActiveClientActionsDrawer(false, () => openContractEmailUploadModal(clientId));
+        }
       } else if (actionRow.dataset.activeClientAction === 'onboarding') {
         showActiveClientDrawerView('onboarding');
         $('#generateClientOnboardingLinkButton').focus();
@@ -286,9 +300,12 @@
       deleteClient(hiredEditingId, true);
       return;
     }
-    if (sendInvoiceButton) {
-      const item = data.applications.find(application => application.id === hiredEditingId);
-      if (item) openInvoiceDocumentPicker(item);
+    if (invoicePaymentButton) {
+      const invoiceId = invoicePaymentButton.dataset.invoiceMarkPaid
+        || invoicePaymentButton.dataset.invoiceEditPayment
+        || invoicePaymentButton.dataset.invoiceMarkUnpaid;
+      if (invoicePaymentButton.hasAttribute('data-invoice-mark-unpaid')) await markInvoiceUnpaid(invoiceId);
+      else openInvoicePayment(invoiceId);
       return;
     }
     if (hiredSelectButton && !event.target.closest('a')) {
@@ -689,6 +706,11 @@
   $('#cancelDocumentEmailReminderAction').addEventListener('click', closeDocumentEmailReminder);
 
   document.addEventListener('change', event => {
+    if (event.target.id === 'contractEmailFileInput') {
+      stageContractEmailFile(event.target.files?.[0]);
+      event.target.value = '';
+      return;
+    }
     if (event.target.id === 'invoicePickerUploadInput') {
       stageInvoiceFile(event.target.files[0]);
       event.target.value = '';
@@ -701,6 +723,19 @@
     }
   });
   document.addEventListener('click', event => {
+    if (event.target.closest('#chooseContractEmailFileButton, #chooseDifferentContractEmailFileButton')) {
+      event.preventDefault();
+      pickContractEmailFile();
+      return;
+    }
+    if (event.target.closest('#cancelContractEmailUploadButton, #closeContractEmailUploadModal')) {
+      $('#contractEmailUploadModal').close();
+      return;
+    }
+    if (event.target.closest('#continueContractEmailButton')) {
+      continueContractEmailUpload();
+      return;
+    }
     if (event.target.closest('#useInvoiceFileButton')) {
       event.preventDefault();
       continueInvoicePicker();
@@ -715,7 +750,7 @@
     if (uploadButton) {
       event.preventDefault();
       event.stopPropagation();
-      pickHiredDocumentFile();
+      openContractEmailUploadModal(hiredEditingId);
       return;
     }
     if (event.target.closest('#savePendingDocument')) {

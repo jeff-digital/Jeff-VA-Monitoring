@@ -10,6 +10,9 @@
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   };
   let pdfjsModulePromise = null;
+  let contractEmailUploadClientId = '';
+  let contractEmailUploadFile = null;
+  let contractEmailPreviewUrl = '';
 
   function loadPdfJs() {
     if (!pdfjsModulePromise) {
@@ -226,11 +229,12 @@
     const invoices = [...(data.invoices || [])].sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
     target.innerHTML = invoices.length ? invoices.map(invoice => {
       const client = data.applications.find(application => application.id === invoice.clientId);
+      const dueDate = parseInvoiceDate(invoice.dueDate);
       return `<article class="invoice-email-row">
         <span class="invoice-email-icon">PDF</span>
         <div class="invoice-email-main"><strong>${escapeHtml(invoice.invoiceNumber || '')}</strong><span>${escapeHtml(client?.clientName || 'Client unavailable')}</span></div>
         <div class="invoice-email-subject"><strong>${escapeHtml(invoice.fileName || 'Invoice')}</strong><span>${escapeHtml(invoice.service || 'Invoice')}</span></div>
-        <div class="invoice-email-meta"><strong>${emailDate(invoice.sentAt)}</strong><span>Sent invoice</span></div>
+        <div class="invoice-email-meta"><strong>${emailDate(invoice.sentAt)}</strong><span>Sent invoice${dueDate ? ` · Due ${escapeHtml(formatDate(dueDate))}` : ''}</span></div>
       </article>`;
     }).join('') : '<div class="application-empty"><h3>No invoices sent yet</h3><p>Invoices sent from an active client will appear here.</p></div>';
   }
@@ -278,19 +282,31 @@
       </button>`).join('') : '<p class="doc-empty">No saved documents yet. Upload a new document below.</p>';
   }
 
-  function extractInvoiceField(content, labelPattern) {
+  function extractInvoiceField(content, labelPattern, maxLength, dateField = false) {
     if (!content) return '';
     const labels = '(?:Invoice\\s*(?:Number|No\\.?|#)|Date\\s+of\\s+Issue|Billing\\s+Period|Due\\s+Date)';
-    const match = content.match(new RegExp(`${labelPattern}\\s*[:#-]?\\s*(.*?)(?=\\s+${labels}\\s*[:#-]?|$)`, 'i'));
-    return (match?.[1] || '').replace(/\s+/g, ' ').trim();
+    const matches = content.matchAll(new RegExp(`${labelPattern}\\s*[:#-]?\\s*(.*?)(?=\\s+${labels}\\s*[:#-]?|$)`, 'gi'));
+    for (const match of matches) {
+      if (/[\[\]]/.test(match[1] || '')) continue;
+      const candidate = (match[1] || '').replace(/\s+/g, ' ').trim();
+      if (!candidate || /[\[\]]/.test(candidate)) continue;
+      if (dateField) {
+        const dates = candidate.match(/\b(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4})\b/gi) || [];
+        const validDate = dates.find(value => parseInvoiceDate(value));
+        if (validDate) return validDate.slice(0, maxLength);
+        continue;
+      }
+      return candidate.slice(0, maxLength);
+    }
+    return '';
   }
 
   function extractInvoiceDetails(content) {
     return {
-      invoiceNumber: extractInvoiceField(content, '(?:Invoice\\s*(?:Number|No\\.?|#))'),
-      issueDate: extractInvoiceField(content, 'Date\\s+of\\s+Issue'),
-      billingPeriod: extractInvoiceField(content, 'Billing\\s+Period'),
-      dueDate: extractInvoiceField(content, 'Due\\s+Date')
+      invoiceNumber: extractInvoiceField(content, '(?:Invoice\\s*(?:Number|No\\.?|#))', 40),
+      issueDate: extractInvoiceField(content, 'Date\\s+of\\s+Issue', 40, true),
+      billingPeriod: extractInvoiceField(content, 'Billing\\s+Period', 60),
+      dueDate: extractInvoiceField(content, 'Due\\s+Date', 40, true)
     };
   }
 
@@ -643,10 +659,140 @@
     pendingDocumentFile = null;
   }
 
+  function clearContractEmailUploadStage() {
+    if (contractEmailPreviewUrl) URL.revokeObjectURL(contractEmailPreviewUrl);
+    contractEmailPreviewUrl = '';
+    contractEmailUploadFile = null;
+    contractEmailUploadClientId = '';
+    $('#contractEmailFileInput').value = '';
+    $('#contractEmailFilePreview').hidden = true;
+    $('#contractEmailFileInfo').replaceChildren();
+    $('#contractEmailInlinePreview').replaceChildren();
+    $('#contractEmailUploadStatus').textContent = '';
+    $('#continueContractEmailButton').disabled = true;
+  }
+
+  function openContractEmailUploadModal(clientId) {
+    const application = data.applications.find(item => item.id === clientId);
+    if (!application || isContractEnded(application)) return;
+    if (!application.email?.trim()) {
+      toast('Add a client email before sending a contract.');
+      return;
+    }
+    clearContractEmailUploadStage();
+    contractEmailUploadClientId = application.id;
+    $('#contractEmailUploadClientName').textContent = application.clientName || 'Active client';
+    $('#contractEmailUploadModal').showModal();
+  }
+
+  function renderContractEmailUploadPreview(file) {
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+    const fileType = isPdf ? 'PDF' : 'Word document';
+    const preview = $('#contractEmailInlinePreview');
+    $('#contractEmailFileInfo').innerHTML = `<span class="doc-type-icon">${isPdf ? 'PDF' : 'DOC'}</span><div><h3>${escapeHtml(file.name)}</h3><p>${fileType} · ${formatFileSize(file.size)}</p></div>`;
+    if (isPdf) {
+      contractEmailPreviewUrl = URL.createObjectURL(file);
+      preview.innerHTML = `<iframe src="${contractEmailPreviewUrl}" title="Preview of ${escapeHtml(file.name)}"></iframe>`;
+    } else {
+      preview.innerHTML = `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(file.name)}</h4><p>Preview is not available in the browser. The file is ready to send.</p></div>`;
+    }
+    $('#contractEmailFilePreview').hidden = false;
+    $('#contractEmailUploadStatus').textContent = '';
+    $('#continueContractEmailButton').disabled = false;
+  }
+
+  function stageContractEmailFile(file) {
+    if (!file) return;
+    const validType = /\.(pdf|doc|docx)$/i.test(file.name)
+      || ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type);
+    if (!validType) {
+      $('#contractEmailUploadStatus').textContent = 'Please choose a PDF or Word document.';
+      return;
+    }
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      $('#contractEmailUploadStatus').textContent = 'Documents must be 25 MB or smaller.';
+      return;
+    }
+    if (contractEmailPreviewUrl) URL.revokeObjectURL(contractEmailPreviewUrl);
+    contractEmailPreviewUrl = '';
+    contractEmailUploadFile = file;
+    renderContractEmailUploadPreview(file);
+  }
+
+  async function pickContractEmailFile() {
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: [{ description: 'PDF or Word document', accept: {
+            'application/pdf': ['.pdf'],
+            'application/msword': ['.doc'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+          }}]
+        });
+        stageContractEmailFile(await handle.getFile());
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          console.error('Could not open the contract file picker:', error);
+          $('#contractEmailUploadStatus').textContent = 'Could not open the file picker. Check browser permissions and try again.';
+        }
+      }
+      return;
+    }
+    $('#contractEmailFileInput').value = '';
+    $('#contractEmailFileInput').click();
+  }
+
+  function continueContractEmailUpload() {
+    const application = data.applications.find(item => item.id === contractEmailUploadClientId);
+    const file = contractEmailUploadFile;
+    if (!application || !file) return;
+    if (isContractEnded(application)) {
+      $('#contractEmailUploadModal').close();
+      return;
+    }
+    const hasEmail = Boolean(application.email?.trim());
+    clearContractEmailUploadStage();
+    $('#contractEmailUploadModal').close();
+    if (!hasEmail) {
+      toast('Add a client email before sending a contract.');
+      return;
+    }
+    openContractEmailComposer(application, file);
+  }
+
+  $('#contractEmailUploadModal').addEventListener('close', clearContractEmailUploadStage);
+
+  async function saveSentContractFile(application, file) {
+    try {
+      if (!application || !file) throw new Error('The contract or client could not be found.');
+      const id = uid();
+      const storagePath = await saveDocumentBlob(id, file);
+      application.documents = application.documents || [];
+      application.documents.push({
+        id,
+        storagePath,
+        name: file.name,
+        type: file.type || documentContentType(file),
+        size: file.size,
+        addedAt: new Date().toISOString()
+      });
+      application.updatedAt = new Date().toISOString();
+      persist();
+      renderAll();
+      return true;
+    } catch (error) {
+      console.error('Email sent, but the contract file could not be saved to the client:', error);
+      toast('Email sent, but the file could not be saved to the client. You can upload it again.');
+      return false;
+    }
+  }
+
   function renderPendingDocumentPreview(item) {
     const workspace = $('#hiredDocumentWorkspace');
     if (!workspace || !pendingDocumentFile) return;
     const file = pendingDocumentFile;
+    const openEmailAfterSave = Boolean(item && !item.activePendingEmail && item.email?.trim() && !isContractEnded(item));
     pendingDocumentPreviewUrl = URL.createObjectURL(file);
     const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
     workspace.innerHTML = `
@@ -658,7 +804,7 @@
           </div>
           <div class="document-preview-actions">
             <button class="button button-secondary" type="button" id="cancelPendingDocument">Cancel</button>
-            <button class="button button-primary" type="button" id="savePendingDocument">Save file</button>
+            <button class="button button-primary" type="button" id="savePendingDocument">${openEmailAfterSave ? 'Save &amp; send email' : 'Save file'}</button>
           </div>
         </div>
         <div class="document-inline-viewer" id="pendingInlineDocumentViewer">
@@ -666,7 +812,7 @@
             ? `<iframe src="${pendingDocumentPreviewUrl}" title="Preview of ${escapeHtml(file.name)}"></iframe>`
             : `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(file.name)}</h4><p>Your Word file is selected and ready to save. The browser cannot render .doc/.docx directly here, but you can open it after saving.</p></div>`}
         </div>
-        <p class="doc-note save-file-note">Choose <strong>Save file</strong> to attach it to this client. It's stored securely in your account and ready to preview anytime.</p>
+        <p class="doc-note save-file-note">${openEmailAfterSave ? 'Choose <strong>Save &amp; send email</strong> to attach this file and open the email to your client.' : 'Choose <strong>Save file</strong> to attach it to this client. It&#39;s stored securely in your account and ready to preview anytime.'}</p>
       </div>`;
   }
 
@@ -688,7 +834,7 @@
             <h3>Upload a client document</h3>
             <p>This client is active, but the workflow is not complete until you attach a PDF or Word document.</p>
           </div>
-          <span class="doc-empty">Use Upload file above to attach the first document.</span>
+          <span class="doc-empty">Choose Send contract email from Actions to attach the first document.</span>
         </div>`;
       return;
     }
@@ -701,7 +847,6 @@
           <button class="icon-button document-menu-button" type="button" aria-label="Document actions" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>
           <div class="document-menu hidden">
             <button type="button" data-doc-open="${escapeHtml(doc.id)}">View File</button>
-              <button type="button" data-doc-email="${escapeHtml(doc.id)}">Send Email</button>
               <button type="button" class="document-menu-danger" data-doc-remove="${escapeHtml(doc.id)}">Delete File</button>
           </div>
         </div>`}
@@ -808,7 +953,11 @@
   async function savePendingHiredDocument() {
     const item = data.applications.find(application => application.id === hiredEditingId);
     const file = pendingDocumentFile;
-    if (!item || !file) return;
+    const saveButton = $('#savePendingDocument');
+    const cancelButton = $('#cancelPendingDocument');
+    if (!item || !file || isContractEnded(item) || saveButton?.disabled) return;
+    if (saveButton) saveButton.disabled = true;
+    if (cancelButton) cancelButton.disabled = true;
     const docId = uid();
     try {
       const storagePath = await saveDocumentBlob(docId, file);
@@ -816,23 +965,35 @@
       item.documents.push({ id: docId, storagePath, name: file.name, type: file.type, size: file.size, addedAt: new Date().toISOString() });
       const activationEmailPending = Boolean(item.activePendingEmail);
       item.activePendingDocument = false;
-      item.documentEmailPending = !activationEmailPending;
-      item.documentEmailReminderDate = '';
-      item.documentEmailReminderAlertedDate = '';
+      if (activationEmailPending) {
+        item.documentEmailPending = false;
+        item.documentEmailReminderDate = '';
+        item.documentEmailReminderAlertedDate = '';
+      }
       item.updatedAt = new Date().toISOString();
-      persist();
+      await persist();
       clearPendingDocumentPreview();
       renderAll();
       if (activationEmailPending) openClientEmailComposer(item);
+      else if (item.email?.trim()) openUpdatedDocumentEmailComposer(item, docId);
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = 'Saved — ready to preview anytime.';
-      showActionResult({ title: 'Document saved', message: activationEmailPending ? 'The file was saved. Send the client email to finish activation.' : 'The file was saved. You can send the updated version now or later.' });
+      if (activationEmailPending) {
+        showActionResult({ title: 'Document saved', message: 'The file was saved. Send the client email to finish activation.' });
+      } else if (item.email?.trim()) {
+        showActionResult({ title: 'Document saved', message: 'Review the email below and send it to your client.' });
+      } else {
+        toast('Add a client email to send this contract.');
+      }
     } catch (error) {
       console.error(error);
       const message = error?.message || 'The secure file store rejected the upload';
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = `Upload failed: ${message}`;
       showActionResult({ title: 'Document save failed', message: `Could not save ${file.name}: ${message}`, status: 'error' });
+    } finally {
+      if (saveButton) saveButton.disabled = false;
+      if (cancelButton) cancelButton.disabled = false;
     }
   }
 

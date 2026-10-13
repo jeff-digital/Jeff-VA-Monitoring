@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261013-11" />
+    <link rel="stylesheet" href="css/styles.css?v=20261013-17" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -976,8 +976,8 @@
       <header class="application-actions-panel-header">
         <div>
           <p class="eyebrow">APPLICATION</p>
-          <h2 id="applicationActionsTitle">Actions</h2>
-          <p id="applicationActionsClientName"></p>
+        <h2 id="applicationActionsTitle">Application</h2>
+        <p id="applicationActionsRole"></p>
         </div>
         <button class="icon-button application-actions-panel-close" type="button" aria-label="Close application actions">×</button>
       </header>
@@ -1047,6 +1047,28 @@
       </form>
     </dialog>
 
+    <dialog class="modal small-modal" id="contractEmailUploadModal" aria-labelledby="contractEmailUploadTitle">
+      <form method="dialog">
+        <div class="modal-heading">
+          <div><p class="eyebrow">SEND CONTRACT · STEP 1 OF 2</p><h2 id="contractEmailUploadTitle">Upload contract</h2><p id="contractEmailUploadClientName"></p></div>
+          <button class="icon-button" type="button" id="closeContractEmailUploadModal" aria-label="Close">×</button>
+        </div>
+        <button class="button button-secondary" type="button" id="chooseContractEmailFileButton">Choose file</button>
+        <input id="contractEmailFileInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+        <div id="contractEmailFilePreview" hidden>
+          <div class="document-preview-title" id="contractEmailFileInfo"></div>
+          <button class="button button-secondary" type="button" id="chooseDifferentContractEmailFileButton">Choose a different file</button>
+          <div class="document-inline-viewer" id="contractEmailInlinePreview"></div>
+        </div>
+        <p class="compose-status" id="contractEmailUploadStatus" role="status" aria-live="polite"></p>
+        <p class="follow-up-editor-status">Check that this is the right document, then click Next.</p>
+        <div class="modal-actions">
+          <button class="button button-secondary" type="button" id="cancelContractEmailUploadButton">Cancel</button>
+          <button class="button button-primary" type="button" id="continueContractEmailButton" disabled>Next</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog class="modal small-modal" id="clientEmailConfirmationModal" aria-labelledby="clientEmailConfirmationTitle">
       <form method="dialog" id="clientEmailConfirmationForm">
         <div class="modal-heading">
@@ -1063,7 +1085,6 @@
       <form method="dialog">
         <div class="modal-heading">
           <div><p class="eyebrow">SEND INVOICE</p><h2 id="invoiceDocumentPickerTitle">Choose an invoice</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <div class="compose-fields invoice-fields">
           <label class="form-field">Invoice number <span class="required">*</span><input id="invoiceNumber" maxlength="60" required placeholder="Detected from the invoice" /></label>
@@ -1078,7 +1099,37 @@
         <label class="button button-primary import-label picker-upload" for="invoicePickerUploadInput">Choose invoice file</label>
         <input id="invoicePickerUploadInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
         <p class="compose-status" id="invoiceDocumentPickerStatus" role="status"></p>
-        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button><button class="button button-primary" type="button" id="useInvoiceFileButton" disabled>Continue with this file</button></div>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="button" id="useInvoiceFileButton" disabled>Continue with this file</button></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal small-modal" id="invoicePaymentModal" aria-labelledby="invoicePaymentTitle">
+      <form method="dialog" id="invoicePaymentForm" class="client-invoice-payment-form">
+        <div class="modal-heading">
+          <div><p class="eyebrow">INVOICE PAYMENT</p><h2 id="invoicePaymentTitle">Record payment</h2></div>
+        </div>
+        <p class="client-invoice-payment-subtitle">Payment details for the selected invoice.</p>
+        <div class="compose-fields">
+          <section class="client-invoice-payment-section">
+            <h3>Payment received</h3>
+            <div class="client-invoice-payment-fields">
+              <label class="form-field">Date received <span class="required">*</span><input id="invoicePaymentDate" type="date" required /></label>
+              <label class="form-field">Amount received <span class="required">*</span><input id="invoiceAmountReceived" type="number" min="0" step="any" required /></label>
+              <label class="form-field">Currency<select id="invoicePaymentCurrency"><option value="USD">USD</option><option value="PHP">PHP</option></select></label>
+            </div>
+          </section>
+          <section class="client-invoice-payment-section">
+            <h3>More details (optional)</h3>
+            <div class="client-invoice-payment-fields">
+              <label class="form-field">Fees deducted<input id="invoicePaymentFee" type="number" min="0" step="any" /><small>Charged by Wise, PayPal, etc.</small></label>
+              <label class="form-field">Amount received in PHP<input id="invoiceAmountReceivedPhp" type="number" min="0" step="any" /><small>What actually reached your account after conversion.</small></label>
+              <label class="form-field">Payment method<select id="invoicePaymentMethod"><option value="">Select method</option><option>Wise</option><option>PayPal</option><option>Payoneer</option><option>GCash</option><option>Bank transfer</option><option>Other</option></select></label>
+              <label class="form-field">Amount invoiced<input id="invoiceAmountInvoiced" type="number" min="0" step="any" /><small>The total on the invoice.</small></label>
+              <label class="form-field form-field-wide">Note<textarea id="invoicePaymentNote" maxlength="300" rows="3"></textarea></label>
+            </div>
+          </section>
+        </div>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit" id="saveInvoicePaymentButton">Save payment</button></div>
       </form>
     </dialog>
 
@@ -1325,6 +1376,16 @@
             <span class="active-client-action-row-copy"><strong>Send email</strong><small>Write a message to this client.</small></span>
             <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
           </button>
+            <button class="active-client-action-row" type="button" data-active-client-action="contract-email">
+              <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-file-lines"></i></span>
+              <span class="active-client-action-row-copy"><strong>Send contract email</strong><small>Upload a contract and email it to this client.</small></span>
+              <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+            </button>
+            <button class="active-client-action-row" type="button" data-active-client-action="send-invoice" hidden>
+              <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-file-lines"></i></span>
+              <span class="active-client-action-row-copy"><strong>Send Invoice</strong><small>Choose an invoice file and send it to this client.</small></span>
+              <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+            </button>
           <button class="active-client-action-row" type="button" data-active-client-action="onboarding">
             <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-clipboard"></i></span>
             <span class="active-client-action-row-copy"><strong>Request corrected onboarding details</strong><small>Create a private form link for this client.</small></span>
@@ -1483,6 +1544,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261013-10"></script>
+    <script src="js/app.js?v=20261013-15"></script>
   </body>
 </html>

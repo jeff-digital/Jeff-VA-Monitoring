@@ -373,3 +373,67 @@ dialog p { color: var(--muted); font-size: 13px; line-height: 1.5; }
   .live-main #formPanel { width: min(100%, 560px); min-height: 0; }
   .live-main #onboardingForm { flex: initial; }
 }
+
+/* ===== MOBILE-ONLY FIXES (max-width: 720px) — onboarding ===== */
+@media (max-width: 720px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    --m-fs-body: 14px;
+    --m-fs-small: 12px;
+  }
+
+  .intro,
+  .preview-notice,
+  .privacy-notice,
+  .form-required-note,
+  .field-error,
+  .error,
+  .success,
+  dialog p { font-size: var(--m-fs-body); line-height: 1.55; }
+  .eyebrow,
+  .field-required,
+  .field-optional,
+  .field-help,
+  .mobile-step-meta,
+  .mobile-required-explainer,
+  .live-security-label { font-size: var(--m-fs-small); line-height: 1.45; }
+  h1 { font-size: clamp(24px, 7vw, 30px); line-height: 1.2; }
+  .step-progress > h2,
+  dialog h2 { font-size: 21px; line-height: 1.3; }
+  .form-section legend { font-size: 17px; }
+  .form-field,
+  .searchable-picker-option,
+  .choice-card { font-size: 14px; line-height: 1.45; }
+  .form-field input,
+  .form-field textarea,
+  .form-field select,
+  .searchable-picker-input { min-height: 48px; font-size: 16px; }
+  .field-help { overflow-wrap: anywhere; }
+  .onboarding-card,
+  .wizard-main,
+  .form-section,
+  .preview-form { min-width: 0; }
+  .onboarding-card { width: 100%; }
+  .section-fields { grid-template-columns: minmax(0, 1fr); }
+  .section-fields > .form-field:not(.form-field-wide) { grid-column: 1 / -1; }
+  .phone-number-fields { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+  .searchable-picker-menu { width: min(100%, calc(100vw - 32px)); }
+  .searchable-picker-options { grid-template-columns: minmax(0, 1fr); }
+  .searchable-picker-option { min-height: 44px; }
+  .step-actions button,
+  .back-button,
+  .clear-draft-button { min-height: 44px; font-size: 14px; }
+  dialog { box-sizing: border-box; width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); padding: 16px; }
+  .form-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 400px) {
+  .wizard-main { padding-right: 14px; padding-left: 14px; }
+  .preview-form .about-section .section-fields { grid-template-columns: minmax(0, 1fr); }
+  .preview-form .about-section .phone-field,
+  .preview-form .about-section .form-field-wide { grid-column: 1 / -1; }
+  .form-section { padding: 13px; }
+  .step-progress > h2,
+  dialog h2 { font-size: 20px; }
+}

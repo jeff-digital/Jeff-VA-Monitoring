@@ -2586,19 +2586,36 @@
       </dl>`;
     $('#clientInvoiceWorkspace').innerHTML = `
       <section class="invoice-send-panel client-invoice-panel${contractEnded ? ' contract-ended-readonly' : ''}" aria-labelledby="clientInvoicesTitle">
-        <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))} sent</span></div>
-        <div class="client-invoice-actions">${contractEnded ? '<p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p>' : '<p>Invoices sent to this client appear here.</p><button class="button button-primary" type="button" id="sendInvoiceButton">Send Invoice</button>'}</div>
-        ${invoices.length ? `<div class="client-invoice-list" role="list">${invoices.map(invoice => `
+        <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><div class="client-invoice-heading-actions"><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))}</span></div></div>
+        ${contractEnded ? '<div class="client-invoice-actions"><p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p></div>' : ''}
+        ${invoices.length ? `${invoicePaymentSummary(invoices)}<div class="client-invoice-list" role="list">${invoices.map(invoice => {
+          const status = invoicePaymentStatus(invoice);
+          const paid = status === 'Paid';
+          const dueDate = parseInvoiceDate(invoice.dueDate);
+          const invoiceNumber = invoice.invoiceNumber || 'Invoice';
+          const displayedStatus = paid ? 'Paid' : status === 'Overdue' ? 'Overdue' : 'Unpaid';
+          const dueDays = dueDate ? Math.round((new Date(`${dueDate}T00:00:00Z`) - new Date(`${today()}T00:00:00Z`)) / 86400000) : null;
+          const dueCopy = dueDays === null ? '' : dueDays < 0 ? `overdue by ${plural(Math.abs(dueDays), 'day')}` : dueDays === 0 ? 'due today' : `in ${plural(dueDays, 'day')}`;
+          const paidDate = parseInvoiceDate(invoice.paidAt);
+          const paidAmount = invoice.amountReceived === '' || invoice.amountReceived == null ? '' : Number(invoice.amountReceived);
+          const paidInfo = [Number.isFinite(paidAmount) ? `${paidAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}${invoice.paymentCurrency ? ` ${String(invoice.paymentCurrency).toUpperCase()}` : ''}` : '', invoice.paymentMethod || ''].filter(Boolean).join(' · ');
+          return `
           <article class="client-invoice-item" role="listitem">
-            <div class="client-invoice-main"><strong>${escapeHtml(invoice.invoiceNumber || 'Invoice')}</strong><span>${escapeHtml(invoice.fileName || 'Invoice document')}</span></div>
-            <div class="client-invoice-meta"><span>${escapeHtml(invoice.service || 'Invoice')}</span>${invoice.billingPeriod ? `<span>${escapeHtml(invoice.billingPeriod)}</span>` : ''}${invoice.dueDate ? `<span>Due ${escapeHtml(formatDate(invoice.dueDate))}</span>` : ''}</div>
-            <div class="client-invoice-date"><span class="status-pill contract-active">Sent</span><time>${escapeHtml(emailDate(invoice.sentAt))}</time></div>
-          </article>`).join('')}</div>` : `<div class="client-section-empty"><h4>No invoices yet</h4><p>${contractEnded ? 'No invoices have been sent to this client.' : 'Send an invoice to keep billing history together.'}</p>${contractEnded ? '' : '<button class="button button-secondary" type="button" id="sendInvoiceButton">Send Invoice</button>'}</div>`}
+            <div class="client-invoice-main"><div class="client-invoice-title"><strong>${escapeHtml(invoiceNumber)}</strong><span class="status-pill ${paid ? 'contract-active' : status === 'Overdue' ? 'not-active' : 'applied'}">${escapeHtml(displayedStatus)}</span></div><span class="client-invoice-file" title="${escapeHtml(invoice.fileName || 'Invoice document')}">${escapeHtml(invoice.fileName || 'Invoice document')}</span></div>
+            <div class="client-invoice-meta">
+              ${invoice.service ? `<div class="client-invoice-meta-item"><span>Service</span><strong title="${escapeHtml(invoice.service)}">${escapeHtml(invoice.service)}</strong></div>` : ''}
+              ${invoice.billingPeriod ? `<div class="client-invoice-meta-item"><span>Period</span><strong>${escapeHtml(invoice.billingPeriod)}</strong></div>` : ''}
+              ${invoice.sentAt ? `<div class="client-invoice-meta-item"><span>Sent</span><strong>${escapeHtml(emailDate(invoice.sentAt))}</strong></div>` : ''}
+              ${dueDate && !paid ? `<div class="client-invoice-meta-item"><span>Due</span><strong>${escapeHtml(formatDate(dueDate))}${dueCopy ? ` · <span class="${dueDays < 0 ? 'client-invoice-overdue-copy' : ''}">${escapeHtml(dueCopy)}</span>` : ''}</strong></div>` : ''}
+            </div>
+            <div class="client-invoice-date">${paid ? `<strong class="client-invoice-paid-date">Paid on ${escapeHtml(paidDate ? formatDate(paidDate) : emailDate(invoice.paidAt))}</strong>${paidInfo ? `<span class="client-invoice-paid-detail">${escapeHtml(paidInfo)}</span>` : ''}` : ''}<div class="client-invoice-payment-actions">${paid ? `<button class="button button-secondary" type="button" data-invoice-edit-payment="${escapeHtml(invoice.id)}" aria-label="Edit payment for invoice ${escapeHtml(invoiceNumber)}">Edit payment</button><button class="client-invoice-unpaid-action" type="button" data-invoice-mark-unpaid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as unpaid">Mark as unpaid</button>` : `<button class="button button-secondary" type="button" data-invoice-mark-paid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as paid">Mark as paid</button>`}</div></div>
+          </article>`;
+        }).join('')}</div>` : `<div class="client-section-empty client-invoice-empty"><h4>No invoices yet</h4><p>${contractEnded ? 'No invoices have been sent to this client.' : 'Send an invoice to keep billing history together.'}</p></div>`}
       </section>`;
     $('#clientEmailHistoryWorkspace').innerHTML = renderHiredEmailHistory(item);
     $('#clientDocumentActions').innerHTML = contractEnded
       ? '<span class="details-readonly-label">Read only</span>'
-      : '<button class="button button-secondary active-document-upload-button" type="button" id="hiredDetailUploadButton">Upload file</button><input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />';
+      : '<input id="hiredDetailDocumentInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />';
     $('#clientDocumentBox').classList.toggle('contract-ended-readonly', contractEnded);
     $('#documentsFolderStatus').textContent = 'Files are stored securely in your account.';
     renderHiredDocumentWorkspace(item);
@@ -3073,7 +3090,7 @@
 
   function renderSentEmailHistoryItems(sentEmails, emptyMessage) {
     return sentEmails.length
-      ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}" aria-label="Open email: ${escapeHtml(email.subject || 'No subject')}, sent ${escapeHtml(emailDate(email.date))}"><span class="client-email-history-copy"><strong title="${escapeHtml(email.subject || '(No subject)')}">${escapeHtml(email.subject || '(No subject)')}</strong><small>To ${escapeHtml(email.to || 'client')}</small><small class="client-email-history-preview">${escapeHtml(emailContentText(email.body).slice(0, 150) || 'No message preview')}</small></span><span class="client-email-history-meta"><span class="client-email-direction">Sent</span><time>${escapeHtml(emailDate(email.date))}</time></span></button>`).join('')
+      ? sentEmails.map(email => `<button type="button" class="client-email-history-item" data-email-detail="${escapeHtml(email.id)}" aria-label="Open email: ${escapeHtml(email.subject || 'No subject')}, sent ${escapeHtml(emailDate(email.date))}"><span class="client-email-history-copy"><strong title="${escapeHtml(email.subject || '(No subject)')}">${escapeHtml(email.subject || '(No subject)')}</strong><small>To ${escapeHtml(email.to || 'client')}</small></span><span class="client-email-history-meta"><span class="client-email-direction">Sent</span><time>${escapeHtml(emailDate(email.date))}</time></span></button>`).join('')
       : `<p>${emptyMessage}</p>`;
   }
 
@@ -3289,6 +3306,9 @@
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   };
   let pdfjsModulePromise = null;
+  let contractEmailUploadClientId = '';
+  let contractEmailUploadFile = null;
+  let contractEmailPreviewUrl = '';
 
   function loadPdfJs() {
     if (!pdfjsModulePromise) {
@@ -3505,11 +3525,12 @@
     const invoices = [...(data.invoices || [])].sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
     target.innerHTML = invoices.length ? invoices.map(invoice => {
       const client = data.applications.find(application => application.id === invoice.clientId);
+      const dueDate = parseInvoiceDate(invoice.dueDate);
       return `<article class="invoice-email-row">
         <span class="invoice-email-icon">PDF</span>
         <div class="invoice-email-main"><strong>${escapeHtml(invoice.invoiceNumber || '')}</strong><span>${escapeHtml(client?.clientName || 'Client unavailable')}</span></div>
         <div class="invoice-email-subject"><strong>${escapeHtml(invoice.fileName || 'Invoice')}</strong><span>${escapeHtml(invoice.service || 'Invoice')}</span></div>
-        <div class="invoice-email-meta"><strong>${emailDate(invoice.sentAt)}</strong><span>Sent invoice</span></div>
+        <div class="invoice-email-meta"><strong>${emailDate(invoice.sentAt)}</strong><span>Sent invoice${dueDate ? ` · Due ${escapeHtml(formatDate(dueDate))}` : ''}</span></div>
       </article>`;
     }).join('') : '<div class="application-empty"><h3>No invoices sent yet</h3><p>Invoices sent from an active client will appear here.</p></div>';
   }
@@ -3557,19 +3578,31 @@
       </button>`).join('') : '<p class="doc-empty">No saved documents yet. Upload a new document below.</p>';
   }
 
-  function extractInvoiceField(content, labelPattern) {
+  function extractInvoiceField(content, labelPattern, maxLength, dateField = false) {
     if (!content) return '';
     const labels = '(?:Invoice\\s*(?:Number|No\\.?|#)|Date\\s+of\\s+Issue|Billing\\s+Period|Due\\s+Date)';
-    const match = content.match(new RegExp(`${labelPattern}\\s*[:#-]?\\s*(.*?)(?=\\s+${labels}\\s*[:#-]?|$)`, 'i'));
-    return (match?.[1] || '').replace(/\s+/g, ' ').trim();
+    const matches = content.matchAll(new RegExp(`${labelPattern}\\s*[:#-]?\\s*(.*?)(?=\\s+${labels}\\s*[:#-]?|$)`, 'gi'));
+    for (const match of matches) {
+      if (/[\[\]]/.test(match[1] || '')) continue;
+      const candidate = (match[1] || '').replace(/\s+/g, ' ').trim();
+      if (!candidate || /[\[\]]/.test(candidate)) continue;
+      if (dateField) {
+        const dates = candidate.match(/\b(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4})\b/gi) || [];
+        const validDate = dates.find(value => parseInvoiceDate(value));
+        if (validDate) return validDate.slice(0, maxLength);
+        continue;
+      }
+      return candidate.slice(0, maxLength);
+    }
+    return '';
   }
 
   function extractInvoiceDetails(content) {
     return {
-      invoiceNumber: extractInvoiceField(content, '(?:Invoice\\s*(?:Number|No\\.?|#))'),
-      issueDate: extractInvoiceField(content, 'Date\\s+of\\s+Issue'),
-      billingPeriod: extractInvoiceField(content, 'Billing\\s+Period'),
-      dueDate: extractInvoiceField(content, 'Due\\s+Date')
+      invoiceNumber: extractInvoiceField(content, '(?:Invoice\\s*(?:Number|No\\.?|#))', 40),
+      issueDate: extractInvoiceField(content, 'Date\\s+of\\s+Issue', 40, true),
+      billingPeriod: extractInvoiceField(content, 'Billing\\s+Period', 60),
+      dueDate: extractInvoiceField(content, 'Due\\s+Date', 40, true)
     };
   }
 
@@ -3922,10 +3955,140 @@
     pendingDocumentFile = null;
   }
 
+  function clearContractEmailUploadStage() {
+    if (contractEmailPreviewUrl) URL.revokeObjectURL(contractEmailPreviewUrl);
+    contractEmailPreviewUrl = '';
+    contractEmailUploadFile = null;
+    contractEmailUploadClientId = '';
+    $('#contractEmailFileInput').value = '';
+    $('#contractEmailFilePreview').hidden = true;
+    $('#contractEmailFileInfo').replaceChildren();
+    $('#contractEmailInlinePreview').replaceChildren();
+    $('#contractEmailUploadStatus').textContent = '';
+    $('#continueContractEmailButton').disabled = true;
+  }
+
+  function openContractEmailUploadModal(clientId) {
+    const application = data.applications.find(item => item.id === clientId);
+    if (!application || isContractEnded(application)) return;
+    if (!application.email?.trim()) {
+      toast('Add a client email before sending a contract.');
+      return;
+    }
+    clearContractEmailUploadStage();
+    contractEmailUploadClientId = application.id;
+    $('#contractEmailUploadClientName').textContent = application.clientName || 'Active client';
+    $('#contractEmailUploadModal').showModal();
+  }
+
+  function renderContractEmailUploadPreview(file) {
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+    const fileType = isPdf ? 'PDF' : 'Word document';
+    const preview = $('#contractEmailInlinePreview');
+    $('#contractEmailFileInfo').innerHTML = `<span class="doc-type-icon">${isPdf ? 'PDF' : 'DOC'}</span><div><h3>${escapeHtml(file.name)}</h3><p>${fileType} · ${formatFileSize(file.size)}</p></div>`;
+    if (isPdf) {
+      contractEmailPreviewUrl = URL.createObjectURL(file);
+      preview.innerHTML = `<iframe src="${contractEmailPreviewUrl}" title="Preview of ${escapeHtml(file.name)}"></iframe>`;
+    } else {
+      preview.innerHTML = `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(file.name)}</h4><p>Preview is not available in the browser. The file is ready to send.</p></div>`;
+    }
+    $('#contractEmailFilePreview').hidden = false;
+    $('#contractEmailUploadStatus').textContent = '';
+    $('#continueContractEmailButton').disabled = false;
+  }
+
+  function stageContractEmailFile(file) {
+    if (!file) return;
+    const validType = /\.(pdf|doc|docx)$/i.test(file.name)
+      || ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type);
+    if (!validType) {
+      $('#contractEmailUploadStatus').textContent = 'Please choose a PDF or Word document.';
+      return;
+    }
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      $('#contractEmailUploadStatus').textContent = 'Documents must be 25 MB or smaller.';
+      return;
+    }
+    if (contractEmailPreviewUrl) URL.revokeObjectURL(contractEmailPreviewUrl);
+    contractEmailPreviewUrl = '';
+    contractEmailUploadFile = file;
+    renderContractEmailUploadPreview(file);
+  }
+
+  async function pickContractEmailFile() {
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: [{ description: 'PDF or Word document', accept: {
+            'application/pdf': ['.pdf'],
+            'application/msword': ['.doc'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+          }}]
+        });
+        stageContractEmailFile(await handle.getFile());
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          console.error('Could not open the contract file picker:', error);
+          $('#contractEmailUploadStatus').textContent = 'Could not open the file picker. Check browser permissions and try again.';
+        }
+      }
+      return;
+    }
+    $('#contractEmailFileInput').value = '';
+    $('#contractEmailFileInput').click();
+  }
+
+  function continueContractEmailUpload() {
+    const application = data.applications.find(item => item.id === contractEmailUploadClientId);
+    const file = contractEmailUploadFile;
+    if (!application || !file) return;
+    if (isContractEnded(application)) {
+      $('#contractEmailUploadModal').close();
+      return;
+    }
+    const hasEmail = Boolean(application.email?.trim());
+    clearContractEmailUploadStage();
+    $('#contractEmailUploadModal').close();
+    if (!hasEmail) {
+      toast('Add a client email before sending a contract.');
+      return;
+    }
+    openContractEmailComposer(application, file);
+  }
+
+  $('#contractEmailUploadModal').addEventListener('close', clearContractEmailUploadStage);
+
+  async function saveSentContractFile(application, file) {
+    try {
+      if (!application || !file) throw new Error('The contract or client could not be found.');
+      const id = uid();
+      const storagePath = await saveDocumentBlob(id, file);
+      application.documents = application.documents || [];
+      application.documents.push({
+        id,
+        storagePath,
+        name: file.name,
+        type: file.type || documentContentType(file),
+        size: file.size,
+        addedAt: new Date().toISOString()
+      });
+      application.updatedAt = new Date().toISOString();
+      persist();
+      renderAll();
+      return true;
+    } catch (error) {
+      console.error('Email sent, but the contract file could not be saved to the client:', error);
+      toast('Email sent, but the file could not be saved to the client. You can upload it again.');
+      return false;
+    }
+  }
+
   function renderPendingDocumentPreview(item) {
     const workspace = $('#hiredDocumentWorkspace');
     if (!workspace || !pendingDocumentFile) return;
     const file = pendingDocumentFile;
+    const openEmailAfterSave = Boolean(item && !item.activePendingEmail && item.email?.trim() && !isContractEnded(item));
     pendingDocumentPreviewUrl = URL.createObjectURL(file);
     const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
     workspace.innerHTML = `
@@ -3937,7 +4100,7 @@
           </div>
           <div class="document-preview-actions">
             <button class="button button-secondary" type="button" id="cancelPendingDocument">Cancel</button>
-            <button class="button button-primary" type="button" id="savePendingDocument">Save file</button>
+            <button class="button button-primary" type="button" id="savePendingDocument">${openEmailAfterSave ? 'Save &amp; send email' : 'Save file'}</button>
           </div>
         </div>
         <div class="document-inline-viewer" id="pendingInlineDocumentViewer">
@@ -3945,7 +4108,7 @@
             ? `<iframe src="${pendingDocumentPreviewUrl}" title="Preview of ${escapeHtml(file.name)}"></iframe>`
             : `<div class="word-preview"><div class="word-preview-icon">DOC</div><h4>${escapeHtml(file.name)}</h4><p>Your Word file is selected and ready to save. The browser cannot render .doc/.docx directly here, but you can open it after saving.</p></div>`}
         </div>
-        <p class="doc-note save-file-note">Choose <strong>Save file</strong> to attach it to this client. It's stored securely in your account and ready to preview anytime.</p>
+        <p class="doc-note save-file-note">${openEmailAfterSave ? 'Choose <strong>Save &amp; send email</strong> to attach this file and open the email to your client.' : 'Choose <strong>Save file</strong> to attach it to this client. It&#39;s stored securely in your account and ready to preview anytime.'}</p>
       </div>`;
   }
 
@@ -3967,7 +4130,7 @@
             <h3>Upload a client document</h3>
             <p>This client is active, but the workflow is not complete until you attach a PDF or Word document.</p>
           </div>
-          <span class="doc-empty">Use Upload file above to attach the first document.</span>
+          <span class="doc-empty">Choose Send contract email from Actions to attach the first document.</span>
         </div>`;
       return;
     }
@@ -3980,7 +4143,6 @@
           <button class="icon-button document-menu-button" type="button" aria-label="Document actions" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>
           <div class="document-menu hidden">
             <button type="button" data-doc-open="${escapeHtml(doc.id)}">View File</button>
-              <button type="button" data-doc-email="${escapeHtml(doc.id)}">Send Email</button>
               <button type="button" class="document-menu-danger" data-doc-remove="${escapeHtml(doc.id)}">Delete File</button>
           </div>
         </div>`}
@@ -4087,7 +4249,11 @@
   async function savePendingHiredDocument() {
     const item = data.applications.find(application => application.id === hiredEditingId);
     const file = pendingDocumentFile;
-    if (!item || !file) return;
+    const saveButton = $('#savePendingDocument');
+    const cancelButton = $('#cancelPendingDocument');
+    if (!item || !file || isContractEnded(item) || saveButton?.disabled) return;
+    if (saveButton) saveButton.disabled = true;
+    if (cancelButton) cancelButton.disabled = true;
     const docId = uid();
     try {
       const storagePath = await saveDocumentBlob(docId, file);
@@ -4095,23 +4261,35 @@
       item.documents.push({ id: docId, storagePath, name: file.name, type: file.type, size: file.size, addedAt: new Date().toISOString() });
       const activationEmailPending = Boolean(item.activePendingEmail);
       item.activePendingDocument = false;
-      item.documentEmailPending = !activationEmailPending;
-      item.documentEmailReminderDate = '';
-      item.documentEmailReminderAlertedDate = '';
+      if (activationEmailPending) {
+        item.documentEmailPending = false;
+        item.documentEmailReminderDate = '';
+        item.documentEmailReminderAlertedDate = '';
+      }
       item.updatedAt = new Date().toISOString();
-      persist();
+      await persist();
       clearPendingDocumentPreview();
       renderAll();
       if (activationEmailPending) openClientEmailComposer(item);
+      else if (item.email?.trim()) openUpdatedDocumentEmailComposer(item, docId);
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = 'Saved — ready to preview anytime.';
-      showActionResult({ title: 'Document saved', message: activationEmailPending ? 'The file was saved. Send the client email to finish activation.' : 'The file was saved. You can send the updated version now or later.' });
+      if (activationEmailPending) {
+        showActionResult({ title: 'Document saved', message: 'The file was saved. Send the client email to finish activation.' });
+      } else if (item.email?.trim()) {
+        showActionResult({ title: 'Document saved', message: 'Review the email below and send it to your client.' });
+      } else {
+        toast('Add a client email to send this contract.');
+      }
     } catch (error) {
       console.error(error);
       const message = error?.message || 'The secure file store rejected the upload';
       const status = $('#documentsFolderStatus');
       if (status) status.textContent = `Upload failed: ${message}`;
       showActionResult({ title: 'Document save failed', message: `Could not save ${file.name}: ${message}`, status: 'error' });
+    } finally {
+      if (saveButton) saveButton.disabled = false;
+      if (cancelButton) cancelButton.disabled = false;
     }
   }
 
@@ -4890,6 +5068,174 @@
     renderAlerts();
   }
 
+  const INVOICE_PAYMENT_METHODS = ['Wise', 'PayPal', 'Payoneer', 'GCash', 'Bank transfer', 'Other'];
+
+  function parseInvoiceDate(value) {
+    const text = String(value || '').trim();
+    let year;
+    let month;
+    let day;
+    let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:T.*)?$/);
+    if (match) [, year, month, day] = match;
+    else if ((match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) [, day, month, year] = match;
+    else {
+      match = text.match(/^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),?\s+(\d{4})$/i);
+      if (!match) return '';
+      const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      month = monthNames.indexOf(match[1].slice(0, 3).toLowerCase()) + 1;
+      day = match[2];
+      year = match[3];
+    }
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day)) return '';
+    return `${String(date.getFullYear()).padStart(4, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
+  function invoicePaymentStatus(invoice) {
+    if (invoice.paidAt) return 'Paid';
+    const dueDate = parseInvoiceDate(invoice.dueDate);
+    return dueDate && dueDate < today() ? 'Overdue' : 'Sent';
+  }
+
+  function invoiceAmount(value) {
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '';
+  }
+
+  function invoicePaymentSummary(invoices) {
+    const totals = { invoiced: new Map(), received: new Map(), unpaid: new Map() };
+    let paidCount = 0;
+    invoices.forEach(invoice => {
+      const paid = invoicePaymentStatus(invoice) === 'Paid';
+      if (paid) paidCount += 1;
+      const currency = String(invoice.paymentCurrency || 'USD').toUpperCase();
+      const amountInvoiced = invoice.amountInvoiced === '' || invoice.amountInvoiced == null ? Number.NaN : Number(invoice.amountInvoiced);
+      const amountReceived = invoice.amountReceived === '' || invoice.amountReceived == null ? Number.NaN : Number(invoice.amountReceived);
+      if (Number.isFinite(amountInvoiced) && amountInvoiced >= 0) {
+        totals.invoiced.set(currency, (totals.invoiced.get(currency) || 0) + amountInvoiced);
+        if (!paid) totals.unpaid.set(currency, (totals.unpaid.get(currency) || 0) + Math.max(0, amountInvoiced - (Number.isFinite(amountReceived) ? amountReceived : 0)));
+      }
+      if (Number.isFinite(amountReceived) && amountReceived >= 0) totals.received.set(currency, (totals.received.get(currency) || 0) + amountReceived);
+    });
+    const formatTotals = map => [...map].map(([currency, amount]) => `${invoiceAmount(amount)} ${escapeHtml(currency)}`).join(' · ');
+    return `
+      <div class="client-invoice-payment-summary" aria-label="Invoice payment summary">
+        <div><strong>Billed</strong><span>${formatTotals(totals.invoiced) || '—'}</span><small>${invoices.length} ${plural(invoices.length, 'invoice')}</small></div>
+        <div><strong>Received</strong><span>${formatTotals(totals.received) || '—'}</span><small>${paidCount} paid</small></div>
+        <div><strong>Outstanding</strong><span>${formatTotals(totals.unpaid) || '—'}</span><small>${invoices.length - paidCount} unpaid${invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Overdue').length ? ` · <span class="client-invoice-overdue-copy">${invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Overdue').length} overdue</span>` : ''}</small></div>
+        ${invoices.some(invoice => invoice.amountInvoiced === '' || invoice.amountInvoiced == null) ? '<small class="client-invoice-payment-hint">Some invoices have no amount</small>' : ''}
+      </div>`;
+  }
+
+  function invoicePaymentDetail(invoice) {
+    const parts = [];
+    const paidDate = parseInvoiceDate(invoice.paidAt);
+    if (paidDate) parts.push(formatDate(paidDate));
+    const received = invoice.amountReceived === '' || invoice.amountReceived == null ? Number.NaN : Number(invoice.amountReceived);
+    if (Number.isFinite(received) && received >= 0) parts.push(`${invoiceAmount(received)}${invoice.paymentCurrency ? ` ${String(invoice.paymentCurrency).toUpperCase()}` : ''}`);
+    if (invoice.paymentMethod) parts.push(String(invoice.paymentMethod));
+    return parts.length ? `Paid ${parts.join(' · ')}` : '';
+  }
+
+  function openInvoicePayment(invoiceId) {
+    const invoice = (data.invoices || []).find(item => item.id === invoiceId);
+    if (!invoice) return;
+    const client = data.applications.find(item => item.id === invoice.clientId);
+    const salaryAmount = Number(client?.salaryAmount);
+    const amountPrefill = Number.isFinite(salaryAmount) && salaryAmount >= 0 && client?.salaryAmount !== '' ? String(salaryAmount) : '';
+    const currency = invoice.paymentCurrency || client?.salaryCurrency || 'USD';
+    const currencySelect = $('#invoicePaymentCurrency');
+    if (![...currencySelect.options].some(option => option.value === currency)) {
+      const option = document.createElement('option');
+      option.value = currency;
+      option.textContent = currency;
+      currencySelect.append(option);
+    }
+    $('#invoicePaymentForm').dataset.invoiceId = invoice.id;
+    $('#invoicePaymentTitle').textContent = invoice.paidAt ? 'Edit payment' : 'Mark invoice as paid';
+    $('#invoicePaymentDate').value = parseInvoiceDate(invoice.paidAt) || today();
+    $('#invoiceAmountReceived').value = invoice.amountReceived ?? amountPrefill;
+    currencySelect.value = currency;
+    $('#invoicePaymentFee').value = invoice.paymentFee ?? '';
+    $('#invoiceAmountReceivedPhp').value = invoice.amountReceivedPhp ?? '';
+    $('#invoicePaymentMethod').value = invoice.paymentMethod || '';
+    $('#invoiceAmountInvoiced').value = invoice.amountInvoiced ?? amountPrefill;
+    $('#invoicePaymentNote').value = invoice.paymentNote || '';
+    $('#invoicePaymentModal').showModal();
+    $('#invoicePaymentDate').focus();
+  }
+
+  async function markInvoiceUnpaid(invoiceId) {
+    const invoice = (data.invoices || []).find(item => item.id === invoiceId);
+    if (!invoice) return;
+    if (!(await appConfirm(`Mark invoice ${invoice.invoiceNumber || ''} as unpaid? Its payment details will be cleared.`, {
+      title: 'Mark invoice as unpaid',
+      confirmLabel: 'Mark as unpaid',
+      danger: true
+    }))) return;
+    ['paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote']
+      .forEach(field => delete invoice[field]);
+    persist();
+    const client = data.applications.find(item => item.id === invoice.clientId);
+    if (client) renderHiredDetail(client, false);
+    showActionResult({ title: 'Payment cleared', message: 'The invoice is marked as unpaid.' });
+  }
+
+  $('#invoicePaymentForm').addEventListener('submit', event => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    const invoice = (data.invoices || []).find(item => item.id === form.dataset.invoiceId);
+    if (!invoice) {
+      $('#invoicePaymentModal').close();
+      showActionResult({ title: 'Invoice not found', message: 'The invoice could not be found. Refresh the client details and try again.', status: 'error' });
+      return;
+    }
+    const dateReceived = $('#invoicePaymentDate').value;
+    const amountReceivedText = $('#invoiceAmountReceived').value;
+    const amountReceived = Number(amountReceivedText);
+    if (!parseInvoiceDate(dateReceived) || amountReceivedText === '' || !Number.isFinite(amountReceived) || amountReceived < 0) {
+      toast('Enter a valid date and a non-negative amount received.');
+      return;
+    }
+    const optionalAmounts = [
+      ['amountInvoiced', '#invoiceAmountInvoiced'],
+      ['paymentFee', '#invoicePaymentFee'],
+      ['amountReceivedPhp', '#invoiceAmountReceivedPhp']
+    ];
+    const payment = {
+      paymentStatus: 'paid',
+      paidAt: dateReceived,
+      amountReceived,
+      paymentCurrency: $('#invoicePaymentCurrency').value || 'USD',
+      paymentMethod: $('#invoicePaymentMethod').value,
+      paymentNote: $('#invoicePaymentNote').value.trim()
+    };
+    for (const [field, selector] of optionalAmounts) {
+      const value = $(selector).value;
+      if (value === '') {
+        payment[field] = '';
+        continue;
+      }
+      const amount = Number(value);
+      if (!Number.isFinite(amount) || amount < 0) {
+        toast('Enter valid non-negative amounts.');
+        return;
+      }
+      payment[field] = amount;
+    }
+    Object.entries(payment).forEach(([field, value]) => {
+      if (value === '') delete invoice[field];
+      else invoice[field] = value;
+    });
+    persist();
+    $('#invoicePaymentModal').close();
+    const client = data.applications.find(item => item.id === invoice.clientId);
+    if (client) renderHiredDetail(client, false);
+    showActionResult({ title: 'Payment saved', message: `Payment for ${invoice.invoiceNumber || 'the invoice'} was saved.` });
+  });
+
   // --- Gmail sync ---
   // Runs entirely in the browser via Google's own sign-in (Google Identity Services) and calls
   // the Gmail API directly with the resulting token. Jeff VA has no server of its own,
@@ -4949,6 +5295,8 @@
   let composeActivationClientId = null;
   let composeInvoiceDraft = null;
   let composeDocumentUpdateClientId = null;
+  let composeContractEmailMode = false;
+  let contractEmailSendPending = false;
   let composeRequiresConfirmation = false;
   let gmailTokenRequest = null;
   let gmailAuthorizationRecovery = null;
@@ -4964,6 +5312,25 @@
   const GMAIL_CONNECTED_KEY = 'jeff-va-gmail-connected-v1';
   const GMAIL_TOKEN_SESSION_KEY = 'jeff-va-gmail-token-session-v1';
   const GMAIL_RECONNECT_REQUIRED_KEY = 'jeff-va-gmail-reconnect-required-v1';
+
+  $('#emailComposeModal').addEventListener('close', () => {
+    if (composeContractEmailMode) {
+      composeContractEmailMode = false;
+      contractEmailSendPending = false;
+      composeAttachment = null;
+      composeAttachmentFile = null;
+      composeClientId = null;
+      composeActivationClientId = null;
+      composeInvoiceDraft = null;
+      composeDocumentUpdateClientId = null;
+      composeRequiresConfirmation = false;
+      updateComposeAttachmentDisplay();
+      return;
+    }
+    if (!composeDocumentUpdateClientId) return;
+    composeDocumentUpdateClientId = null;
+    toast('Contract saved. Email not sent yet.');
+  });
 
   function renderDocumentTemplateOptions(selectedId = 'contract-signing') {
     const select = $('#documentTemplateSelect');
@@ -5173,6 +5540,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     $('#composeAttachmentInput').value = '';
     $('#composeTo').value = recipient;
@@ -5197,6 +5565,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     $('#composeAttachmentInput').value = '';
     const document = application.documents?.[application.documents.length - 1];
@@ -5214,7 +5583,7 @@
     $('#composeBody').focus();
   }
 
-  function openPlainClientEmailComposer(application, preferDrawer = false) {
+  function openPlainClientEmailComposer(application, preferDrawer = false, sidePanel = false) {
     if (!application?.email) {
       toast('Add a client email before sending a message.');
       return;
@@ -5225,6 +5594,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     $('#composeAttachmentInput').value = '';
     $('#composeTo').value = application.email;
@@ -5236,6 +5606,7 @@
       : 'Gmail will connect automatically when you send.');
     updateComposeAttachmentDisplay();
     renderEmailTemplateOptions();
+    $('#emailComposeModal').classList.toggle('email-compose-side-panel', sidePanel);
     if (preferDrawer || isActiveClientDrawerOpen()) {
       showActiveClientDrawerView('email');
       markActiveClientDrawerFormClean('email');
@@ -5260,6 +5631,7 @@
     composeAttachmentFile = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = true;
     $('#composeAttachmentInput').value = '';
     const template = buildDocumentEmailTemplate('proceed-application', application);
@@ -5280,6 +5652,7 @@
     composeClientId = null;
     composeActivationClientId = null;
     composeDocumentUpdateClientId = null;
+    composeContractEmailMode = false;
     composeRequiresConfirmation = false;
     composeAttachment = null;
     composeAttachmentFile = file;
@@ -5309,6 +5682,7 @@
     composeActivationClientId = null;
     composeInvoiceDraft = null;
     composeDocumentUpdateClientId = application.id;
+    composeContractEmailMode = false;
     composeAttachment = document;
     composeAttachmentFile = null;
     composeRequiresConfirmation = false;
@@ -5318,7 +5692,33 @@
     $('#composeSubject').value = template.subject;
     $('#composeBody').value = template.body;
     $('#emailTemplateName').value = '';
-    setEmailComposeStatus(gmailAccessToken ? `Review the updated document email, then send through Gmail. Attachment: ${document.name}` : 'Gmail will connect automatically when you send.');
+    const status = `Review the updated document email, then send through Gmail. Attachment: ${document.name}`;
+    setEmailComposeStatus(gmailAccessToken ? status : `${status} Gmail will connect automatically when you send.`);
+    updateComposeAttachmentDisplay();
+    renderEmailTemplateOptions();
+    $('#emailComposeModal').showModal();
+    $('#composeBody').focus();
+  }
+
+  function openContractEmailComposer(application, file) {
+    if (!application?.email || !file) return;
+    composeClientId = null;
+    composeActivationClientId = null;
+    composeInvoiceDraft = null;
+    composeDocumentUpdateClientId = application.id;
+    composeAttachment = null;
+    composeAttachmentFile = file;
+    composeContractEmailMode = true;
+    composeRequiresConfirmation = false;
+    $('#composeAttachmentInput').value = '';
+    const template = buildDocumentEmailTemplate('updated-contract', application);
+    $('#composeTo').value = application.email;
+    $('#composeSubject').value = template.subject;
+    $('#composeBody').value = template.body;
+    $('#emailTemplateName').value = '';
+    const status = `Review the updated document email, then send through Gmail. Attachment: ${file.name}`;
+    setEmailComposeStatus(gmailAccessToken ? status : `${status} Gmail will connect automatically when you send.`);
+    updateComposeAttachmentDisplay();
     renderEmailTemplateOptions();
     $('#emailComposeModal').showModal();
     $('#composeBody').focus();
@@ -5510,11 +5910,32 @@
     const to = $('#composeTo').value.trim();
     const subject = $('#composeSubject').value.trim().replace(/[\r\n]+/g, ' ');
     const body = $('#composeBody').value.trim();
+    const contractEmailMode = composeContractEmailMode;
+    const contractEmailApplication = contractEmailMode
+      ? data.applications.find(item => item.id === composeDocumentUpdateClientId)
+      : null;
+    const contractEmailFile = contractEmailMode ? composeAttachmentFile : null;
+    const attachment = composeAttachment;
+    const attachmentFile = composeAttachmentFile;
     if (!to || !subject || !body || !isEmailAddress(to)) {
       setEmailComposeStatus('Enter a valid recipient, subject, and message.', 'error');
       return;
     }
-    if (composeDocumentUpdateClientId && !(await appConfirm('Send the updated document to this client now?', { title: 'Send updated document', confirmLabel: 'Send' }))) return;
+    if (contractEmailMode && !contractEmailFile) {
+      setEmailComposeStatus('Attach the contract file before sending.', 'error');
+      return;
+    }
+    if (composeDocumentUpdateClientId) {
+      if (contractEmailMode && contractEmailSendPending) return;
+      if (contractEmailMode) contractEmailSendPending = true;
+      const confirmation = contractEmailMode
+        ? await appConfirm(`Send this contract to ${to}?`, { title: 'Send contract', confirmLabel: 'Send' })
+        : await appConfirm('Send the updated document to this client now?', { title: 'Send updated document', confirmLabel: 'Send' });
+      if (!confirmation) {
+        contractEmailSendPending = false;
+        return;
+      }
+    }
     if (composeRequiresConfirmation && !(await appConfirm(`Send this application email to ${to}?`, { title: 'Confirm email', confirmLabel: 'Send' }))) return;
     const sendButton = $('#sendEmailButton');
     sendButton.disabled = true;
@@ -5522,11 +5943,11 @@
     let gmailAccepted = false;
     try {
       let rawMessage;
-      if (composeAttachment || composeAttachmentFile) {
-        const attachmentBlob = composeAttachmentFile || await getDocumentBlob(composeAttachment.storagePath || composeAttachment.id);
+      if (attachment || attachmentFile) {
+        const attachmentBlob = attachmentFile || await getDocumentBlob(attachment.storagePath || attachment.id);
         const attachmentBytes = new Uint8Array(await attachmentBlob.arrayBuffer());
-        const attachmentName = composeAttachment?.name || composeAttachmentFile?.name || 'attachment';
-        const attachmentType = composeAttachment?.type || attachmentBlob.type || 'application/octet-stream';
+        const attachmentName = attachment?.name || attachmentFile?.name || 'attachment';
+        const attachmentType = attachment?.type || attachmentBlob.type || 'application/octet-stream';
         const attachmentBase64 = wrapBase64(encodeBase64(attachmentBytes));
         rawMessage = buildRawEmailMessage({
           to,
@@ -5545,7 +5966,9 @@
       const sentEmailRecord = {
         id: gmailId ? `gmail-${gmailId}` : uid(),
         gmailId,
-        applicationId: composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
+        applicationId: contractEmailMode
+          ? contractEmailApplication?.id || ''
+          : composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
         from: 'You',
         to,
         subject,
@@ -5554,7 +5977,7 @@
         importedAt: new Date().toISOString(),
         source: gmailId ? 'gmail' : 'sent',
         direction: 'sent',
-        attachmentName: composeAttachment?.name || composeAttachmentFile?.name || ''
+        attachmentName: attachment?.name || attachmentFile?.name || ''
       };
       data.emails.unshift(sentEmailRecord);
       if (composeInvoiceDraft) {
@@ -5567,21 +5990,26 @@
         && activationCandidate.email?.trim().toLowerCase() === to.toLowerCase()
         ? activationCandidate
         : null;
-      const updatingClient = composeDocumentUpdateClientId && data.applications.find(item => item.id === composeDocumentUpdateClientId);
+      const updatingClient = contractEmailMode
+        ? contractEmailApplication
+        : composeDocumentUpdateClientId && data.applications.find(item => item.id === composeDocumentUpdateClientId);
       if (activatingClient?.activePendingEmail) {
         activatingClient.activePendingEmail = false;
         activatingClient.updatedAt = new Date().toISOString();
         clearActivationRollback();
       }
-      if (updatingClient?.documentEmailPending) {
+      if (updatingClient?.documentEmailPending && !contractEmailMode) {
         updatingClient.documentEmailPending = false;
         updatingClient.documentEmailReminderDate = '';
         updatingClient.documentEmailReminderAlertedDate = '';
         updatingClient.updatedAt = new Date().toISOString();
       }
+      if (contractEmailMode) await saveSentContractFile(contractEmailApplication, contractEmailFile);
       const savePromise = persist();
       let successMessage = 'Email sent successfully through Gmail.';
-      if (activatingClient) {
+      if (contractEmailMode) {
+        successMessage = 'Contract email sent successfully.';
+      } else if (activatingClient) {
         successMessage = 'Email sent successfully. Client moved to Active Clients.';
       } else if (updatingClient) {
         successMessage = 'Updated document email sent successfully.';
@@ -5607,6 +6035,7 @@
       composeClientId = null;
       composeActivationClientId = null;
       composeDocumentUpdateClientId = null;
+      composeContractEmailMode = false;
       composeRequiresConfirmation = false;
     } catch (error) {
       console.error(error);
@@ -5630,8 +6059,10 @@
         composeClientId = null;
         composeActivationClientId = null;
         composeDocumentUpdateClientId = null;
+        composeContractEmailMode = false;
         composeRequiresConfirmation = false;
       }
+      contractEmailSendPending = false;
       sendButton.disabled = false;
     }
   }
@@ -6040,6 +6471,26 @@
     return { ...row, checklist: Array.isArray(checklist) ? checklist : [] };
   }
 
+  function rowToInvoice(row) {
+    const invoice = { ...row };
+    if (String(row.paymentStatus || '').toLowerCase() === 'paid') invoice.paymentStatus = 'paid';
+    else delete invoice.paymentStatus;
+    ['paidAt', 'paymentCurrency', 'paymentMethod', 'paymentNote'].forEach(field => {
+      if (row[field] === '' || row[field] === null || row[field] === undefined) delete invoice[field];
+      else invoice[field] = String(row[field]);
+    });
+    ['amountInvoiced', 'amountReceived', 'paymentFee', 'amountReceivedPhp'].forEach(field => {
+      if (row[field] === '' || row[field] === null || row[field] === undefined) {
+        delete invoice[field];
+        return;
+      }
+      const value = Number(row[field]);
+      if (!Number.isFinite(value)) throw new Error(`Invalid ${field} in invoice backup.`);
+      invoice[field] = value;
+    });
+    return invoice;
+  }
+
   function createDataSheet(records, columns, widths = {}) {
     const sheet = XLSX.utils.json_to_sheet(records || [], { header: columns });
     sheet['!cols'] = columns.map(column => ({ wch: widths[column] || (column === 'content' || column === 'notes' ? 48 : column.length + 4) }));
@@ -6093,10 +6544,10 @@
     const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, location: 24, documents: 48, updatedAt: 24 };
     const applicationsSheet = createDataSheet(pipelineApplications().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const activeClientsSheet = createDataSheet(hiredClients().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
-    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt'];
+    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote'];
     XLSX.utils.book_append_sheet(workbook, applicationsSheet, 'Applications');
     XLSX.utils.book_append_sheet(workbook, activeClientsSheet, 'Active clients');
-    XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24 }), 'Invoices');
+    XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.toApply || [], TO_APPLY_COLUMNS, { id: 38, title: 28, link: 48, dueDate: 16, notes: 48 }), 'To apply');
     XLSX.utils.book_append_sheet(workbook, createDataSheet((data.dailyTasks || []).map(dailyTaskToRow), DAILY_TASK_COLUMNS, { id: 38, title: 40, type: 18, taskDate: 16, relatedType: 18, relatedId: 38, relatedName: 28, destination: 40, notes: 60, checklist: 60, createdAt: 24, completedAt: 24 }), 'Daily tasks');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.workLinks || [], LINK_COLUMNS, { id: 38, name: 28, url: 55, createdAt: 24, updatedAt: 24 }), 'Links');
@@ -6232,7 +6683,7 @@
       if (!applicationsSheet || !activeClientsSheet) throw new Error('invalid');
       const applications = XLSX.utils.sheet_to_json(applicationsSheet, { defval: '' }).map(rowToApplication);
       const activeClients = XLSX.utils.sheet_to_json(activeClientsSheet, { defval: '' }).map(rowToApplication).map(item => ({ ...item, status: 'Active client', activePendingDocument: false }));
-      const invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }) : data.invoices || [];
+      const invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }).map(rowToInvoice) : data.invoices || [];
       const toApply = workbook.Sheets['To apply'] ? XLSX.utils.sheet_to_json(workbook.Sheets['To apply'], { defval: '' }) : data.toApply || [];
       const dailyTasks = workbook.Sheets['Daily tasks'] ? XLSX.utils.sheet_to_json(workbook.Sheets['Daily tasks'], { defval: '' }).map(rowToDailyTask) : data.dailyTasks || [];
       const workLinks = workbook.Sheets.Links ? XLSX.utils.sheet_to_json(workbook.Sheets.Links, { defval: '' }) : data.workLinks || [];
@@ -6253,8 +6704,6 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => target.classList.remove('show'), 2800);
   }
-
-
 
   // Shared shell only: navigation, dashboard controls, notifications, and layout.
   // Page-specific handlers live beside the page they control.
@@ -6670,7 +7119,8 @@
     if (!application || !panel) return;
     applicationActionsReturnFocus = trigger;
     panel.dataset.applicationId = applicationId;
-    $('#applicationActionsClientName').textContent = application.clientName || 'Application';
+    $('#applicationActionsTitle').textContent = application.clientName || 'Application';
+    $('#applicationActionsRole').textContent = application.role || 'Role or service not specified';
     $('#applicationActionsFollowUpDate').textContent = application.followUpDate
       ? `Scheduled for ${formatDate(dateKey(application.followUpDate))}`
       : 'Set a follow-up date.';
@@ -6778,7 +7228,7 @@
       const application = data.applications.find(item => item.id === applicationId);
       applicationActionsReturnFocus = null;
       panel.close();
-      if (action === 'email' && application) openPlainClientEmailComposer(application);
+      if (action === 'email' && application) openPlainClientEmailComposer(application, false, true);
       else if (action === 'follow-up' && application) openApplicationFollowUpModal(application);
       else if (action === 'edit') openClientModal(applicationId);
       else if (action === 'delete') await deleteClient(applicationId);
@@ -7026,6 +7476,7 @@
     if (pendingActivation?.stage === 'document-selection') rollbackActivation();
   });
   $('#emailComposeModal').addEventListener('close', () => {
+    $('#emailComposeModal').classList.remove('email-compose-side-panel');
     if (pendingActivation?.stage === 'email') rollbackActivation();
   });
 
@@ -7744,6 +8195,7 @@
     if (view === 'email') mountActiveClientDrawerForm('emailComposeForm', 'activeClientDrawerEmailSlot');
     if (view === 'edit') mountActiveClientDrawerForm('clientForm', 'activeClientDrawerClientFormSlot');
     layer.dataset.view = view;
+    document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
   }
 
   function openActiveClientActionsDrawer(trigger) {
@@ -7762,6 +8214,8 @@
     $('#activeClientGeneratedLink').hidden = true;
     $('#activeClientOnboardingUrl').value = '';
     $('#activeClientOnboardingStatus').textContent = '';
+    $('#activeClientDrawerList [data-active-client-action="contract-email"]').hidden = isContractEnded(client);
+    $('#activeClientDrawerList [data-active-client-action="send-invoice"]').hidden = isContractEnded(client);
     showActiveClientDrawerView('list');
     requestAnimationFrame(() => {
       if (!activeClientDrawerOpen) return;
@@ -7869,7 +8323,7 @@
     }
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
-    const sendInvoiceButton = event.target.closest('#sendInvoiceButton');
+    const invoicePaymentButton = event.target.closest('[data-invoice-mark-paid], [data-invoice-edit-payment], [data-invoice-mark-unpaid]');
     const actionRow = event.target.closest('[data-active-client-action]');
     const generateOnboardingLinkButton = event.target.closest('#generateClientOnboardingLinkButton');
     const copyOnboardingLinkButton = event.target.closest('#copyActiveClientOnboardingUrl');
@@ -7888,6 +8342,17 @@
       if (actionRow.dataset.activeClientAction === 'email') {
         const item = data.applications.find(application => application.id === hiredEditingId);
         if (item) openPlainClientEmailComposer(item, true);
+      } else if (actionRow.dataset.activeClientAction === 'send-invoice') {
+        const client = data.applications.find(application => application.id === hiredEditingId);
+        if (client) closeActiveClientActionsDrawer(false, () => openInvoiceDocumentPicker(client));
+      } else if (actionRow.dataset.activeClientAction === 'contract-email') {
+        const clientId = hiredEditingId;
+        const client = data.applications.find(application => application.id === clientId);
+        if (!client?.email?.trim()) {
+          toast('Add a client email before sending a contract.');
+        } else if (!isContractEnded(client)) {
+          closeActiveClientActionsDrawer(false, () => openContractEmailUploadModal(clientId));
+        }
       } else if (actionRow.dataset.activeClientAction === 'onboarding') {
         showActiveClientDrawerView('onboarding');
         $('#generateClientOnboardingLinkButton').focus();
@@ -7924,9 +8389,12 @@
       deleteClient(hiredEditingId, true);
       return;
     }
-    if (sendInvoiceButton) {
-      const item = data.applications.find(application => application.id === hiredEditingId);
-      if (item) openInvoiceDocumentPicker(item);
+    if (invoicePaymentButton) {
+      const invoiceId = invoicePaymentButton.dataset.invoiceMarkPaid
+        || invoicePaymentButton.dataset.invoiceEditPayment
+        || invoicePaymentButton.dataset.invoiceMarkUnpaid;
+      if (invoicePaymentButton.hasAttribute('data-invoice-mark-unpaid')) await markInvoiceUnpaid(invoiceId);
+      else openInvoicePayment(invoiceId);
       return;
     }
     if (hiredSelectButton && !event.target.closest('a')) {
@@ -8327,6 +8795,11 @@
   $('#cancelDocumentEmailReminderAction').addEventListener('click', closeDocumentEmailReminder);
 
   document.addEventListener('change', event => {
+    if (event.target.id === 'contractEmailFileInput') {
+      stageContractEmailFile(event.target.files?.[0]);
+      event.target.value = '';
+      return;
+    }
     if (event.target.id === 'invoicePickerUploadInput') {
       stageInvoiceFile(event.target.files[0]);
       event.target.value = '';
@@ -8339,6 +8812,19 @@
     }
   });
   document.addEventListener('click', event => {
+    if (event.target.closest('#chooseContractEmailFileButton, #chooseDifferentContractEmailFileButton')) {
+      event.preventDefault();
+      pickContractEmailFile();
+      return;
+    }
+    if (event.target.closest('#cancelContractEmailUploadButton, #closeContractEmailUploadModal')) {
+      $('#contractEmailUploadModal').close();
+      return;
+    }
+    if (event.target.closest('#continueContractEmailButton')) {
+      continueContractEmailUpload();
+      return;
+    }
     if (event.target.closest('#useInvoiceFileButton')) {
       event.preventDefault();
       continueInvoicePicker();
@@ -8353,7 +8839,7 @@
     if (uploadButton) {
       event.preventDefault();
       event.stopPropagation();
-      pickHiredDocumentFile();
+      openContractEmailUploadModal(hiredEditingId);
       return;
     }
     if (event.target.closest('#savePendingDocument')) {

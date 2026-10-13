@@ -9,7 +9,8 @@
     if (!application || !panel) return;
     applicationActionsReturnFocus = trigger;
     panel.dataset.applicationId = applicationId;
-    $('#applicationActionsClientName').textContent = application.clientName || 'Application';
+    $('#applicationActionsTitle').textContent = application.clientName || 'Application';
+    $('#applicationActionsRole').textContent = application.role || 'Role or service not specified';
     $('#applicationActionsFollowUpDate').textContent = application.followUpDate
       ? `Scheduled for ${formatDate(dateKey(application.followUpDate))}`
       : 'Set a follow-up date.';
@@ -117,7 +118,7 @@
       const application = data.applications.find(item => item.id === applicationId);
       applicationActionsReturnFocus = null;
       panel.close();
-      if (action === 'email' && application) openPlainClientEmailComposer(application);
+      if (action === 'email' && application) openPlainClientEmailComposer(application, false, true);
       else if (action === 'follow-up' && application) openApplicationFollowUpModal(application);
       else if (action === 'edit') openClientModal(applicationId);
       else if (action === 'delete') await deleteClient(applicationId);
@@ -365,5 +366,6 @@
     if (pendingActivation?.stage === 'document-selection') rollbackActivation();
   });
   $('#emailComposeModal').addEventListener('close', () => {
+    $('#emailComposeModal').classList.remove('email-compose-side-panel');
     if (pendingActivation?.stage === 'email') rollbackActivation();
   });

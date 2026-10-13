@@ -2,6 +2,7 @@
 02-email-matching.js
 02a-email-match-rules.js
 03-documents.js
+03a-invoice-payments.js
 04-gmail.js
 05-backup.js
 pages/06-shell-events.js
