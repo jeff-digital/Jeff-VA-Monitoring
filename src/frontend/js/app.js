@@ -8,9 +8,8 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const GOOGLE_LOGIN_REDIRECT_URL = 'https://jeff-va-monitoring.jeffdigi.workers.dev/?auth_view=applications';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -448,6 +447,10 @@
   function weeklyActivityGoalStorageKey() {
     return `jeff-va-weekly-activity-goal-v1:${currentUser?.id || 'anonymous'}`;
   }
+  function normalizeWeeklyActivityGoal(value) {
+    const goal = Number(value);
+    return Number.isInteger(goal) && goal >= 1 && goal <= 100 ? goal : null;
+  }
   let data = emptyData();
   let clientTimeZones = new Map();
   let activeView = 'dashboard';
@@ -557,6 +560,8 @@
     const saved = row?.data || {};
     const deletedGmailIds = Array.isArray(saved.deletedGmailIds) ? saved.deletedGmailIds : [];
     const deletedGmailIdSet = new Set(deletedGmailIds);
+    const weeklyActivityGoal = normalizeWeeklyActivityGoal(saved.weeklyActivityGoal)
+      ?? normalizeWeeklyActivityGoal(localStorage.getItem(weeklyActivityGoalStorageKey()));
     return {
       applications: Array.isArray(saved.applications) ? saved.applications : [],
       toApply: Array.isArray(saved.toApply) ? saved.toApply : [],
@@ -571,7 +576,8 @@
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
       invoices: Array.isArray(saved.invoices) ? saved.invoices : [],
       scripts: Array.isArray(saved.scripts) ? saved.scripts : [],
-      workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : []
+      workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : [],
+      weeklyActivityGoal
     };
   }
 
@@ -910,6 +916,10 @@
     return item.createdAt || item.updatedAt || item.appliedDate;
   }
 
+  function applicationAppliedDate(item) {
+    return item.appliedDate || applicationAddedDate(item);
+  }
+
   function activeSinceDate(item) {
     return item.activeAt || item.appliedDate;
   }
@@ -1004,7 +1014,7 @@
   }
 
   function sortedPipelineApplications() {
-    return sortByDate(pipelineApplications(), item => item.appliedDate || applicationAddedDate(item));
+    return sortByDate(pipelineApplications(), applicationAppliedDate);
   }
 
   // --- Application/email matching ---
@@ -1181,7 +1191,13 @@
         matches.push(...disambiguateApplicationMatches(
           topCandidates, emailItem, roleSubjectText, roleBodyText, bodyLinkTokens
         ));
-      } else matches.push(...topCandidates.map(item => item.application));
+      } else if (topCandidates.length === 1) {
+        const roleSubjectText = normalizeApplicationMatchEvidence(emailItem.subject);
+        const roleBodyText = normalizeApplicationMatchEvidence(bodySource);
+        if (!emailExplicitlyNamesDifferentRole(topCandidates[0], roleSubjectText, roleBodyText)) {
+          matches.push(topCandidates[0].application);
+        }
+      }
       applicationEmailMatchesCache.set(emailItem, matches);
       return matches;
     }
@@ -1208,6 +1224,12 @@
       matches.splice(0, matches.length, ...disambiguateApplicationMatches(
         candidateItems, emailItem, subjectText, bodyText, applicationLinkTokens(emailItem.body)
       ));
+    } else if (candidateItems.length === 1) {
+      const subjectText = normalizeApplicationMatchEvidence(emailItem.subject);
+      const bodyText = normalizeApplicationMatchEvidence(emailItem.body);
+      if (emailExplicitlyNamesDifferentRole(candidateItems[0], subjectText, bodyText)) {
+        matches.length = 0;
+      }
     }
     applicationEmailMatchesCache.set(emailItem, matches);
     return matches;
@@ -1313,8 +1335,7 @@
     $('#todayInterviews').textContent = interviewsToday;
     $('#todayToApply').textContent = toApplyToday;
     const weeklyApplicationCount = weeklyReportData().applications.length;
-    const savedWeeklyGoal = Number(localStorage.getItem(weeklyActivityGoalStorageKey()));
-    const weeklyGoal = Number.isInteger(savedWeeklyGoal) && savedWeeklyGoal >= 1 && savedWeeklyGoal <= 100 ? savedWeeklyGoal : 0;
+    const weeklyGoal = normalizeWeeklyActivityGoal(data.weeklyActivityGoal) || 0;
     $('#dashboardWeeklyActivity').textContent = weeklyGoal
       ? `${weeklyApplicationCount} of ${weeklyGoal} ${weeklyGoal === 1 ? 'application' : 'applications'}`
       : plural(weeklyApplicationCount, 'application');
@@ -1967,7 +1988,7 @@
 
   function applicationWeekOptions() {
     const currentRange = weekRange();
-    const applicationDates = pipelineApplications().map(applicationAddedDate).map(dateKey).filter(Boolean);
+    const applicationDates = pipelineApplications().map(applicationAppliedDate).map(dateKey).filter(Boolean);
     const offsets = [...new Set(applicationDates.map(date => {
       const applicationDate = new Date(`${date}T12:00:00`);
       const daysSinceMonday = (applicationDate.getDay() + 6) % 7;
@@ -2002,7 +2023,7 @@
         : true;
       const alwaysVisibleStatus = isToProceedStatus(item) || item.status === 'Interview' || item.status === 'Ongoing';
       const dateMatches = alwaysVisibleStatus || !dateFilter || dateKey(item.appliedDate) === dateFilter;
-      const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAddedDate(item), weekRangeFilter);
+      const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAppliedDate(item), weekRangeFilter);
       return (!query || text.includes(query)) && statusMatches && (!platform || item.platform === platform) && dateMatches && weekMatches;
     });
     $('#applicationListLabel').textContent = `${plural(filtered.length, 'application')}${filtered.length !== pipeline.length ? ` of ${pipeline.length}` : ''}`;
@@ -2046,7 +2067,7 @@
       target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>Add your first client</button>'}</div>`;
       return;
     }
-    const newestFirst = sortByDate(filtered, applicationAddedDate);
+    const newestFirst = sortByDate(filtered, applicationAppliedDate);
     if (applicationViewMode === 'board') {
       const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', 'Active client', 'Not selected'];
       target.innerHTML = `<div class="application-board">${stages.map(stage => {
@@ -2923,7 +2944,7 @@
     const relevantReceivedEmails = receivedEmails();
     $('#navApplicationCount').textContent = !applicationDateSort || applicationDateSort === 'all'
       ? pipelineApplications().length
-      : pipelineApplications().filter(item => isInWeeklyRange(applicationAddedDate(item), applicationRange)).length;
+      : pipelineApplications().filter(item => isInWeeklyRange(applicationAppliedDate(item), applicationRange)).length;
     $('#navEmailCount').textContent = emailDateSort === 'all'
       ? relevantReceivedEmails.length
       : relevantReceivedEmails.filter(item => isInWeeklyRange(item.date, emailRange)).length;
@@ -3023,6 +3044,7 @@
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];
     $('#pageTitle').hidden = false;
+    $('#hiredCountLabel').hidden = view !== 'hired' || !showingHiredClientList;
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
@@ -3418,6 +3440,25 @@
     return false;
   }
 
+  function emailExplicitlyNamesDifferentRole(item, subjectText, bodyText) {
+    const source = `${subjectText} ${bodyText}`;
+    const rolePhrases = [];
+    const roleMentionPattern = /\bfor (?:the |a |an )?(.{2,120}?) (?:role|position|job)\b/g;
+    for (const match of source.matchAll(roleMentionPattern)) {
+      const phrase = match[1].trim();
+      const words = phrase.split(' ');
+      if (words.some(word => ['application', 'job', 'position', 'role'].includes(word))) continue;
+      if (words.length < 2 && (phrase.length < 10 || GENERIC_DISAMBIGUATION_ROLE_WORDS.has(phrase))) continue;
+      rolePhrases.push(phrase);
+    }
+    if (!rolePhrases.length) return false;
+    return !rolePhrases.some(phrase => (
+      item.roleIsMatchable && containsNormalizedPhrase(phrase, item.roleNorm)
+    ) || (
+      item.coreRoleIsMatchable && containsNormalizedPhrase(phrase, item.coreRoleNorm)
+    ));
+  }
+
   function disambiguateApplicationMatches(candidateItems, emailItem, subjectText, bodyText, bodyLinkTokens) {
     if (candidateItems.length < 2) return candidateItems.map(item => item.application);
     const indexed = candidateItems;
@@ -3453,40 +3494,38 @@
       }
     }
     const emailTime = new Date(emailItem.date || '').getTime();
-    const priorDates = new Array(indexed.length);
-    let closestPriorDate = Infinity;
-    for (let index = 0; index < indexed.length; index++) {
-      const item = indexed[index];
-      const appliedTime = item.appliedTime;
-      const days = Number.isFinite(emailTime) && Number.isFinite(appliedTime) && appliedTime <= emailTime
-        ? Math.floor((emailTime - appliedTime) / 86400000)
-        : null;
-      priorDates[index] = days;
-      if (days !== null) closestPriorDate = Math.min(closestPriorDate, days);
-    }
-    let highestScore = -Infinity;
-    const topMatches = [];
-    const topMatchesWithRoleOrLinkEvidence = [];
+    const scoredCandidates = [];
+    let highestEvidenceScore = -Infinity;
     for (let index = 0; index < indexed.length; index++) {
       const item = indexed[index];
       const roleScore = roleScores[index];
       const linkMatch = item.jobLinkTokens.some(token => bodyLinkTokenSet.has(token));
       const contactMatch = item.contactNorm.length >= 3 && emailWords.has(item.contactLastWord)
         && containsNormalizedPhrase(bodyText, item.contactNorm);
-      const days = priorDates[index];
-      const timeScore = days === null ? 0 : Math.max(1, 10 - (days - closestPriorDate));
-      const score = roleScore + (linkMatch ? 100 : 0) + (contactMatch ? 15 : 0) + timeScore;
-      if (score > highestScore) {
-        highestScore = score;
-        topMatches.length = 0;
-        topMatchesWithRoleOrLinkEvidence.length = 0;
-      }
-      if (score === highestScore) {
-        topMatches.push(item.application);
-        topMatchesWithRoleOrLinkEvidence.push(roleScore > 0 || linkMatch);
-      }
+      const appliedTime = item.appliedTime;
+      const days = Number.isFinite(emailTime) && Number.isFinite(appliedTime) && appliedTime <= emailTime
+        ? Math.floor((emailTime - appliedTime) / 86400000)
+        : null;
+      const evidenceScore = roleScore + (linkMatch ? 100 : 0) + (contactMatch ? 15 : 0);
+      highestEvidenceScore = Math.max(highestEvidenceScore, evidenceScore);
+      scoredCandidates.push({ item, evidenceScore, days, hasRoleOrLinkEvidence: roleScore > 0 || linkMatch });
     }
-    if (topMatches.length > 1 && !topMatchesWithRoleOrLinkEvidence.some(Boolean)) {
+    const evidenceTies = scoredCandidates.filter(candidate => candidate.evidenceScore === highestEvidenceScore);
+    const priorDateTies = evidenceTies.filter(candidate => candidate.days !== null);
+    const closestPriorDate = priorDateTies.length
+      ? Math.min(...priorDateTies.map(candidate => candidate.days))
+      : Infinity;
+    const topCandidates = evidenceTies.map(candidate => ({
+      ...candidate,
+      timeScore: candidate.days === null ? 0 : Math.max(1, 10 - (candidate.days - closestPriorDate))
+    }));
+    const highestTimeScore = Math.max(...topCandidates.map(candidate => candidate.timeScore));
+    const topMatches = topCandidates
+      .filter(candidate => candidate.timeScore === highestTimeScore)
+      .map(candidate => candidate.item.application);
+    if (topMatches.length > 1 && !topCandidates.some(candidate =>
+      candidate.timeScore === highestTimeScore && candidate.hasRoleOrLinkEvidence
+    )) {
       ambiguousEmailMatches.set(emailItem, topMatches);
     }
     return topMatches;
@@ -6497,7 +6536,7 @@
       const { error } = await requireSupabase().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: GOOGLE_LOGIN_REDIRECT_URL,
+          redirectTo: `${window.location.origin}${window.location.pathname}?auth_view=applications`,
           scopes: GMAIL_SCOPE
         }
       });
@@ -7090,8 +7129,9 @@
   $('#openQuickSearch').addEventListener('click', openQuickSearch);
   $('#quickSearchInput').addEventListener('input', event => renderQuickSearchResults(event.target.value));
   $('#openWeeklyGoalDialog').addEventListener('click', () => {
-    const savedGoal = localStorage.getItem(weeklyActivityGoalStorageKey()) || '';
-    $('#weeklyGoalInput').value = savedGoal;
+    const savedGoal = normalizeWeeklyActivityGoal(data.weeklyActivityGoal)
+      ?? normalizeWeeklyActivityGoal(localStorage.getItem(weeklyActivityGoalStorageKey()));
+    $('#weeklyGoalInput').value = savedGoal ?? '';
     $('#saveWeeklyGoal').disabled = !$('#weeklyGoalInput').checkValidity();
     $('#weeklyGoalDialog').showModal();
     requestAnimationFrame(() => $('#weeklyGoalInput').focus());
@@ -7112,9 +7152,11 @@
       form.reportValidity();
       return;
     }
+    data.weeklyActivityGoal = goal;
     localStorage.setItem(weeklyActivityGoalStorageKey(), String(goal));
     $('#weeklyGoalDialog').close();
     renderDashboard();
+    persist();
     toast('Weekly application goal saved.');
   });
   $('#showKeyboardShortcuts').addEventListener('click', () => {

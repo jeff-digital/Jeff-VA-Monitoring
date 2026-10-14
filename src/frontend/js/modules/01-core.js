@@ -5,9 +5,8 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const GOOGLE_LOGIN_REDIRECT_URL = 'https://jeff-va-monitoring.jeffdigi.workers.dev/?auth_view=applications';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -445,6 +444,10 @@
   function weeklyActivityGoalStorageKey() {
     return `jeff-va-weekly-activity-goal-v1:${currentUser?.id || 'anonymous'}`;
   }
+  function normalizeWeeklyActivityGoal(value) {
+    const goal = Number(value);
+    return Number.isInteger(goal) && goal >= 1 && goal <= 100 ? goal : null;
+  }
   let data = emptyData();
   let clientTimeZones = new Map();
   let activeView = 'dashboard';
@@ -554,6 +557,8 @@
     const saved = row?.data || {};
     const deletedGmailIds = Array.isArray(saved.deletedGmailIds) ? saved.deletedGmailIds : [];
     const deletedGmailIdSet = new Set(deletedGmailIds);
+    const weeklyActivityGoal = normalizeWeeklyActivityGoal(saved.weeklyActivityGoal)
+      ?? normalizeWeeklyActivityGoal(localStorage.getItem(weeklyActivityGoalStorageKey()));
     return {
       applications: Array.isArray(saved.applications) ? saved.applications : [],
       toApply: Array.isArray(saved.toApply) ? saved.toApply : [],
@@ -568,7 +573,8 @@
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
       invoices: Array.isArray(saved.invoices) ? saved.invoices : [],
       scripts: Array.isArray(saved.scripts) ? saved.scripts : [],
-      workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : []
+      workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : [],
+      weeklyActivityGoal
     };
   }
 
@@ -907,6 +913,10 @@
     return item.createdAt || item.updatedAt || item.appliedDate;
   }
 
+  function applicationAppliedDate(item) {
+    return item.appliedDate || applicationAddedDate(item);
+  }
+
   function activeSinceDate(item) {
     return item.activeAt || item.appliedDate;
   }
@@ -1001,5 +1011,5 @@
   }
 
   function sortedPipelineApplications() {
-    return sortByDate(pipelineApplications(), item => item.appliedDate || applicationAddedDate(item));
+    return sortByDate(pipelineApplications(), applicationAppliedDate);
   }

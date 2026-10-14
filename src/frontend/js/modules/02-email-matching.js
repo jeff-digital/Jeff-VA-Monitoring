@@ -172,7 +172,13 @@
         matches.push(...disambiguateApplicationMatches(
           topCandidates, emailItem, roleSubjectText, roleBodyText, bodyLinkTokens
         ));
-      } else matches.push(...topCandidates.map(item => item.application));
+      } else if (topCandidates.length === 1) {
+        const roleSubjectText = normalizeApplicationMatchEvidence(emailItem.subject);
+        const roleBodyText = normalizeApplicationMatchEvidence(bodySource);
+        if (!emailExplicitlyNamesDifferentRole(topCandidates[0], roleSubjectText, roleBodyText)) {
+          matches.push(topCandidates[0].application);
+        }
+      }
       applicationEmailMatchesCache.set(emailItem, matches);
       return matches;
     }
@@ -199,6 +205,12 @@
       matches.splice(0, matches.length, ...disambiguateApplicationMatches(
         candidateItems, emailItem, subjectText, bodyText, applicationLinkTokens(emailItem.body)
       ));
+    } else if (candidateItems.length === 1) {
+      const subjectText = normalizeApplicationMatchEvidence(emailItem.subject);
+      const bodyText = normalizeApplicationMatchEvidence(emailItem.body);
+      if (emailExplicitlyNamesDifferentRole(candidateItems[0], subjectText, bodyText)) {
+        matches.length = 0;
+      }
     }
     applicationEmailMatchesCache.set(emailItem, matches);
     return matches;
@@ -304,8 +316,7 @@
     $('#todayInterviews').textContent = interviewsToday;
     $('#todayToApply').textContent = toApplyToday;
     const weeklyApplicationCount = weeklyReportData().applications.length;
-    const savedWeeklyGoal = Number(localStorage.getItem(weeklyActivityGoalStorageKey()));
-    const weeklyGoal = Number.isInteger(savedWeeklyGoal) && savedWeeklyGoal >= 1 && savedWeeklyGoal <= 100 ? savedWeeklyGoal : 0;
+    const weeklyGoal = normalizeWeeklyActivityGoal(data.weeklyActivityGoal) || 0;
     $('#dashboardWeeklyActivity').textContent = weeklyGoal
       ? `${weeklyApplicationCount} of ${weeklyGoal} ${weeklyGoal === 1 ? 'application' : 'applications'}`
       : plural(weeklyApplicationCount, 'application');
@@ -958,7 +969,7 @@
 
   function applicationWeekOptions() {
     const currentRange = weekRange();
-    const applicationDates = pipelineApplications().map(applicationAddedDate).map(dateKey).filter(Boolean);
+    const applicationDates = pipelineApplications().map(applicationAppliedDate).map(dateKey).filter(Boolean);
     const offsets = [...new Set(applicationDates.map(date => {
       const applicationDate = new Date(`${date}T12:00:00`);
       const daysSinceMonday = (applicationDate.getDay() + 6) % 7;
@@ -993,7 +1004,7 @@
         : true;
       const alwaysVisibleStatus = isToProceedStatus(item) || item.status === 'Interview' || item.status === 'Ongoing';
       const dateMatches = alwaysVisibleStatus || !dateFilter || dateKey(item.appliedDate) === dateFilter;
-      const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAddedDate(item), weekRangeFilter);
+      const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAppliedDate(item), weekRangeFilter);
       return (!query || text.includes(query)) && statusMatches && (!platform || item.platform === platform) && dateMatches && weekMatches;
     });
     $('#applicationListLabel').textContent = `${plural(filtered.length, 'application')}${filtered.length !== pipeline.length ? ` of ${pipeline.length}` : ''}`;
@@ -1037,7 +1048,7 @@
       target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>Add your first client</button>'}</div>`;
       return;
     }
-    const newestFirst = sortByDate(filtered, applicationAddedDate);
+    const newestFirst = sortByDate(filtered, applicationAppliedDate);
     if (applicationViewMode === 'board') {
       const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', 'Active client', 'Not selected'];
       target.innerHTML = `<div class="application-board">${stages.map(stage => {
@@ -1914,7 +1925,7 @@
     const relevantReceivedEmails = receivedEmails();
     $('#navApplicationCount').textContent = !applicationDateSort || applicationDateSort === 'all'
       ? pipelineApplications().length
-      : pipelineApplications().filter(item => isInWeeklyRange(applicationAddedDate(item), applicationRange)).length;
+      : pipelineApplications().filter(item => isInWeeklyRange(applicationAppliedDate(item), applicationRange)).length;
     $('#navEmailCount').textContent = emailDateSort === 'all'
       ? relevantReceivedEmails.length
       : relevantReceivedEmails.filter(item => isInWeeklyRange(item.date, emailRange)).length;
@@ -2014,6 +2025,7 @@
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];
     $('#pageTitle').hidden = false;
+    $('#hiredCountLabel').hidden = view !== 'hired' || !showingHiredClientList;
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';

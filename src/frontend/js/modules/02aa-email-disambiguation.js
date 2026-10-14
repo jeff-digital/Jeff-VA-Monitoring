@@ -17,6 +17,25 @@
     return false;
   }
 
+  function emailExplicitlyNamesDifferentRole(item, subjectText, bodyText) {
+    const source = `${subjectText} ${bodyText}`;
+    const rolePhrases = [];
+    const roleMentionPattern = /\bfor (?:the |a |an )?(.{2,120}?) (?:role|position|job)\b/g;
+    for (const match of source.matchAll(roleMentionPattern)) {
+      const phrase = match[1].trim();
+      const words = phrase.split(' ');
+      if (words.some(word => ['application', 'job', 'position', 'role'].includes(word))) continue;
+      if (words.length < 2 && (phrase.length < 10 || GENERIC_DISAMBIGUATION_ROLE_WORDS.has(phrase))) continue;
+      rolePhrases.push(phrase);
+    }
+    if (!rolePhrases.length) return false;
+    return !rolePhrases.some(phrase => (
+      item.roleIsMatchable && containsNormalizedPhrase(phrase, item.roleNorm)
+    ) || (
+      item.coreRoleIsMatchable && containsNormalizedPhrase(phrase, item.coreRoleNorm)
+    ));
+  }
+
   function disambiguateApplicationMatches(candidateItems, emailItem, subjectText, bodyText, bodyLinkTokens) {
     if (candidateItems.length < 2) return candidateItems.map(item => item.application);
     const indexed = candidateItems;
@@ -52,40 +71,38 @@
       }
     }
     const emailTime = new Date(emailItem.date || '').getTime();
-    const priorDates = new Array(indexed.length);
-    let closestPriorDate = Infinity;
-    for (let index = 0; index < indexed.length; index++) {
-      const item = indexed[index];
-      const appliedTime = item.appliedTime;
-      const days = Number.isFinite(emailTime) && Number.isFinite(appliedTime) && appliedTime <= emailTime
-        ? Math.floor((emailTime - appliedTime) / 86400000)
-        : null;
-      priorDates[index] = days;
-      if (days !== null) closestPriorDate = Math.min(closestPriorDate, days);
-    }
-    let highestScore = -Infinity;
-    const topMatches = [];
-    const topMatchesWithRoleOrLinkEvidence = [];
+    const scoredCandidates = [];
+    let highestEvidenceScore = -Infinity;
     for (let index = 0; index < indexed.length; index++) {
       const item = indexed[index];
       const roleScore = roleScores[index];
       const linkMatch = item.jobLinkTokens.some(token => bodyLinkTokenSet.has(token));
       const contactMatch = item.contactNorm.length >= 3 && emailWords.has(item.contactLastWord)
         && containsNormalizedPhrase(bodyText, item.contactNorm);
-      const days = priorDates[index];
-      const timeScore = days === null ? 0 : Math.max(1, 10 - (days - closestPriorDate));
-      const score = roleScore + (linkMatch ? 100 : 0) + (contactMatch ? 15 : 0) + timeScore;
-      if (score > highestScore) {
-        highestScore = score;
-        topMatches.length = 0;
-        topMatchesWithRoleOrLinkEvidence.length = 0;
-      }
-      if (score === highestScore) {
-        topMatches.push(item.application);
-        topMatchesWithRoleOrLinkEvidence.push(roleScore > 0 || linkMatch);
-      }
+      const appliedTime = item.appliedTime;
+      const days = Number.isFinite(emailTime) && Number.isFinite(appliedTime) && appliedTime <= emailTime
+        ? Math.floor((emailTime - appliedTime) / 86400000)
+        : null;
+      const evidenceScore = roleScore + (linkMatch ? 100 : 0) + (contactMatch ? 15 : 0);
+      highestEvidenceScore = Math.max(highestEvidenceScore, evidenceScore);
+      scoredCandidates.push({ item, evidenceScore, days, hasRoleOrLinkEvidence: roleScore > 0 || linkMatch });
     }
-    if (topMatches.length > 1 && !topMatchesWithRoleOrLinkEvidence.some(Boolean)) {
+    const evidenceTies = scoredCandidates.filter(candidate => candidate.evidenceScore === highestEvidenceScore);
+    const priorDateTies = evidenceTies.filter(candidate => candidate.days !== null);
+    const closestPriorDate = priorDateTies.length
+      ? Math.min(...priorDateTies.map(candidate => candidate.days))
+      : Infinity;
+    const topCandidates = evidenceTies.map(candidate => ({
+      ...candidate,
+      timeScore: candidate.days === null ? 0 : Math.max(1, 10 - (candidate.days - closestPriorDate))
+    }));
+    const highestTimeScore = Math.max(...topCandidates.map(candidate => candidate.timeScore));
+    const topMatches = topCandidates
+      .filter(candidate => candidate.timeScore === highestTimeScore)
+      .map(candidate => candidate.item.application);
+    if (topMatches.length > 1 && !topCandidates.some(candidate =>
+      candidate.timeScore === highestTimeScore && candidate.hasRoleOrLinkEvidence
+    )) {
       ambiguousEmailMatches.set(emailItem, topMatches);
     }
     return topMatches;

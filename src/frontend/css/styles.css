@@ -3767,9 +3767,6 @@ body:has(#hiredView.active) .hired-card-meta { display: none; }
   body:has(#hiredView.active) .hired-list { grid-template-columns: minmax(0, 1fr); }
 }
 
-body:has(#hiredView.active) .nav-group { gap: 7px; }
-body:has(#hiredView.active) .nav-link { min-height: 46px; gap: 13px; border-radius: 9px; }
-body:has(#hiredView.active) .nav-link > .nav-icon { width: 20px; flex: 0 0 20px; font-size: 15px; }
 body:has(#hiredView.active) .nav-link.active { background: #7a2a44; box-shadow: inset 3px 0 0 #e5b7c4; }
 body:has(#hiredView.active) .hired-card { display: flex; min-height: 222px; padding: 17px; gap: 12px; border-left: 1px solid #e6e8f0; }
 body:has(#hiredView.active) .hired-card.contract-ended-card { border-left-color: #e6e8f0; }

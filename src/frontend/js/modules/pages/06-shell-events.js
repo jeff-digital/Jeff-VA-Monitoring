@@ -80,8 +80,9 @@
   $('#openQuickSearch').addEventListener('click', openQuickSearch);
   $('#quickSearchInput').addEventListener('input', event => renderQuickSearchResults(event.target.value));
   $('#openWeeklyGoalDialog').addEventListener('click', () => {
-    const savedGoal = localStorage.getItem(weeklyActivityGoalStorageKey()) || '';
-    $('#weeklyGoalInput').value = savedGoal;
+    const savedGoal = normalizeWeeklyActivityGoal(data.weeklyActivityGoal)
+      ?? normalizeWeeklyActivityGoal(localStorage.getItem(weeklyActivityGoalStorageKey()));
+    $('#weeklyGoalInput').value = savedGoal ?? '';
     $('#saveWeeklyGoal').disabled = !$('#weeklyGoalInput').checkValidity();
     $('#weeklyGoalDialog').showModal();
     requestAnimationFrame(() => $('#weeklyGoalInput').focus());
@@ -102,9 +103,11 @@
       form.reportValidity();
       return;
     }
+    data.weeklyActivityGoal = goal;
     localStorage.setItem(weeklyActivityGoalStorageKey(), String(goal));
     $('#weeklyGoalDialog').close();
     renderDashboard();
+    persist();
     toast('Weekly application goal saved.');
   });
   $('#showKeyboardShortcuts').addEventListener('click', () => {
