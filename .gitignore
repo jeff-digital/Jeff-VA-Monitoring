@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *.xlsx
 /dist/
+/Jeff-VA-Monitoring/
 /.venv/
 /src/frontend/documents/*
 !/src/frontend/documents/.gitkeep
