@@ -959,7 +959,7 @@
       const { error } = await requireSupabase().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${window.location.pathname}#applications`,
+          redirectTo: GOOGLE_LOGIN_REDIRECT_URL,
           scopes: GMAIL_SCOPE
         }
       });

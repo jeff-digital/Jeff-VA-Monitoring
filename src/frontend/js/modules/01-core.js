@@ -5,6 +5,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
+  const GOOGLE_LOGIN_REDIRECT_URL = 'https://management.jeffdigi.workers.dev/?auth_view=applications';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
@@ -775,7 +776,9 @@
     const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
     if (callbackKeys.some(key => callbackParams.has(key))) {
       const callbackView = isAuthenticationCallback
-        && sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY) === 'google'
+        && !isPasswordRecovery
+        && (callbackParams.get('auth_view') === 'applications'
+          || sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY) === 'google')
         ? 'applications'
         : 'dashboard';
       window.history.replaceState({}, document.title, `${window.location.pathname}#${callbackView}`);
