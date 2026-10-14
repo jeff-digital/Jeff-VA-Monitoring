@@ -8,7 +8,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
-  const GOOGLE_LOGIN_REDIRECT_URL = 'https://management.jeffdigi.workers.dev/?auth_view=applications';
+  const GOOGLE_LOGIN_REDIRECT_URL = 'https://jeff-va-monitoring.jeffdigi.workers.dev/?auth_view=applications';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [] });
   let supabaseClient = null;
