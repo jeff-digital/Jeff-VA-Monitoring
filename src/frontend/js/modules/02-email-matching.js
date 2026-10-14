@@ -19,6 +19,10 @@
   });
   let applicationEmailMatchesCache = new WeakMap();
   let applicationEmailSummaryCache = null;
+  let ambiguousEmailMatches = new WeakMap();
+  const GENERIC_DISAMBIGUATION_ROLE_WORDS = new Set([
+    'virtual', 'assistant', 'manager', 'specialist', 'marketing', 'digital', 'remote', 'wfh', 'wfo'
+  ]);
   let applicationMatchIndex = [];
   let applicationMatchIndexSignature = '';
   let activeClientDetailsModalEdit = false;
@@ -31,6 +35,7 @@
       application.contact || '',
       application.clientName || '',
       application.role || '',
+      application.appliedDate || '',
       application.website || '',
       application.platform || ''
     ].join('|')).join('~');
@@ -48,6 +53,11 @@
       const matchContact = normalizeMatchText(contact);
       const matchClientName = normalizeMatchText(clientName);
       const matchRole = normalizeMatchText(role);
+      const roleNorm = normalizeApplicationMatchEvidence(role);
+      const coreRoleNorm = roleNorm.replace(/\s+(?:wfh|wfo|remote|hybrid|on(?: site|site)?|work from (?:home|office))$/i, '');
+      const contactNorm = normalizeApplicationMatchEvidence(contact);
+      const roleWordCount = roleNorm.split(' ').length;
+      const coreRoleWordCount = coreRoleNorm.split(' ').length;
       const platformKey = platformKeyForName(application.platform);
       return {
         application,
@@ -59,6 +69,16 @@
         matchContact,
         matchClientName,
         matchRole,
+        roleNorm,
+        coreRoleNorm,
+        roleIsMatchable: roleWordCount > 1 || (roleNorm.length >= 10 && !GENERIC_DISAMBIGUATION_ROLE_WORDS.has(roleNorm)),
+        coreRoleIsMatchable: coreRoleWordCount > 1 || (coreRoleNorm.length >= 10 && !GENERIC_DISAMBIGUATION_ROLE_WORDS.has(coreRoleNorm)),
+        roleLastWord: roleNorm.split(' ').pop(),
+        coreRoleLastWord: coreRoleNorm.split(' ').pop(),
+        appliedDate: application.appliedDate || '',
+        appliedTime: new Date(application.appliedDate || '').getTime(),
+        contactNorm,
+        contactLastWord: contactNorm.split(' ').pop(),
         roleIsSpecific: isSpecificApplicationRole(matchRole),
         platformKey,
         jobLinkTokens: applicationLinkTokens(application.website),
@@ -80,6 +100,7 @@
     if (nextSignature !== applicationMatchIndexSignature) {
       applicationEmailMatchesCache = new WeakMap();
       applicationEmailSummaryCache = null;
+      ambiguousEmailMatches = new WeakMap();
       buildApplicationMatchIndex(applications);
     }
   }
@@ -135,29 +156,49 @@
       const bodyText = normalizeMatchText(bodySource);
       const bodyLinkTokens = applicationLinkTokens(emailItem.body);
       const scoredMatches = [];
-      for (const item of buildApplicationMatchIndex(data.applications)) {
+      const applicationIndex = buildApplicationMatchIndex(data.applications);
+      for (const item of applicationIndex) {
         const score = platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens);
-        if (score !== null) scoredMatches.push({ application: item.application, score });
+        if (score !== null) scoredMatches.push({ item, score });
       }
+      let topCandidates = [];
       if (scoredMatches.length) {
         const highestScore = Math.max(...scoredMatches.map(match => match.score));
-        matches.push(...scoredMatches.filter(match => match.score === highestScore).map(match => match.application));
+        topCandidates = scoredMatches.filter(match => match.score === highestScore).map(match => match.item);
       }
+      if (topCandidates.length > 1) {
+        const roleSubjectText = normalizeApplicationMatchEvidence(emailItem.subject);
+        const roleBodyText = normalizeApplicationMatchEvidence(bodySource);
+        matches.push(...disambiguateApplicationMatches(
+          topCandidates, emailItem, roleSubjectText, roleBodyText, bodyLinkTokens
+        ));
+      } else matches.push(...topCandidates.map(item => item.application));
       applicationEmailMatchesCache.set(emailItem, matches);
       return matches;
     }
-    for (const item of buildApplicationMatchIndex(data.applications)) {
+    const applicationIndex = buildApplicationMatchIndex(data.applications);
+    const candidateItems = [];
+    for (const item of applicationIndex) {
       const { application, email, contact, clientName, role } = item;
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
       if (email && !item.emailIsPlatformSender && email === fromAddress) {
         matches.push(application);
+        candidateItems.push(item);
         continue;
       }
       if (!roleReferenced && !companyReferenced) continue;
       if ([contact, clientName].filter(name => name.length >= 3).some(name => containsWholeWord(senderName, name))) {
         matches.push(application);
+        candidateItems.push(item);
       }
+    }
+    if (candidateItems.length > 1) {
+      const subjectText = normalizeApplicationMatchEvidence(emailItem.subject);
+      const bodyText = normalizeApplicationMatchEvidence(emailItem.body);
+      matches.splice(0, matches.length, ...disambiguateApplicationMatches(
+        candidateItems, emailItem, subjectText, bodyText, applicationLinkTokens(emailItem.body)
+      ));
     }
     applicationEmailMatchesCache.set(emailItem, matches);
     return matches;
@@ -175,9 +216,19 @@
 
   function buildApplicationEmailSummary() {
     const summary = new Map((data.applications || []).map(application => [application.id, []]));
+    const seenIds = new Map((data.applications || []).map(application => [application.id, new Set()]));
+    const seenGmailIds = new Map((data.applications || []).map(application => [application.id, new Set()]));
     for (const emailItem of data.emails || []) {
       for (const application of matchApplicationsForEmail(emailItem)) {
-        summary.get(application.id)?.push(emailItem);
+        const ids = seenIds.get(application.id);
+        const gmailIds = seenGmailIds.get(application.id);
+        if (!ids || !gmailIds) continue;
+        const id = String(emailItem.id || '');
+        const gmailId = String(emailItem.gmailId || '');
+        const alreadySeen = (id && ids.has(id)) || (gmailId && gmailIds.has(gmailId));
+        if (id) ids.add(id);
+        if (gmailId) gmailIds.add(gmailId);
+        if (!alreadySeen) summary.get(application.id)?.push(emailItem);
       }
     }
     return summary;
@@ -200,7 +251,15 @@
     $('#applicationEmailsList').innerHTML = emails.map(emailItem => `
       <article class="application-email-message">
         <header class="application-email-message-heading">
-          <div><h3>${escapeHtml(emailItem.subject || '(No subject)')}</h3><p>${escapeHtml(emailItem.from || 'Unknown sender')}</p></div>
+          <div><h3>${escapeHtml(emailItem.subject || '(No subject)')}</h3><p>${escapeHtml(emailItem.from || 'Unknown sender')}</p>${(() => {
+            const otherRoles = (ambiguousEmailMatches.get(emailItem) || [])
+              .filter(other => other !== application)
+              .map(other => other.role)
+              .filter(Boolean);
+            return otherRoles.length
+              ? `<small class="field-help">Could also belong to: ${escapeHtml([...new Set(otherRoles)].join(', '))}</small>`
+              : '';
+          })()}</div>
           <time>${escapeHtml(emailDate(emailItem.date))}</time>
         </header>
         <div class="application-email-message-body">${escapeHtml(emailContentText(emailItem.body) || 'No message body available.')}</div>
