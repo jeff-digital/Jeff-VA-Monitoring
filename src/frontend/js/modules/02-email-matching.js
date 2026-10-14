@@ -438,8 +438,7 @@
       $('#clientDashboardEmptyTitle').textContent = hasClients ? 'No matching clients' : 'No clients yet';
       $('#clientDashboardEmptyMessage').textContent = hasClients
         ? 'Try changing your search or status filter.'
-        : 'Add your first client to start tracking contracts and work.';
-      empty.querySelector('[data-client-dashboard-add]').hidden = hasClients;
+        : 'Clients you add from Applications will appear here for tracking.';
       tbody.innerHTML = '';
       return;
     }
@@ -762,16 +761,13 @@
     }
   });
   $('#clientDashboardPanel').addEventListener('click', event => {
-    const addButton = event.target.closest('[data-client-dashboard-add]');
     const actionButton = event.target.closest('[data-client-dashboard-action]');
     const closeButton = event.target.closest('[data-client-dashboard-close], [data-client-dashboard-action-close]');
     const drawerMessage = event.target.closest('[data-client-dashboard-drawer-action="message"]');
     const editButton = event.target.closest('[data-client-dashboard-edit]');
     const cancelEditButton = event.target.closest('[data-client-dashboard-cancel-edit]');
     const attentionButton = event.target.closest('[data-client-dashboard-attention]');
-    if (addButton) {
-      openClientModal(null, false, true);
-    } else if (actionButton) {
+    if (actionButton) {
       openClientDashboardAction(actionButton.dataset.clientDashboardAction);
     } else if (closeButton) {
       if (closeButton.closest('#clientDashboardActionDialog')) $('#clientDashboardActionDialog').close();
@@ -1314,7 +1310,7 @@
   }
 
   function renderHiredClientAvatars() {
-    $$('.hired-card-avatar-image[data-client-avatar-path]').forEach(async image => {
+    $$('[data-client-avatar-path]').forEach(async image => {
       const clientId = image.dataset.clientAvatarId;
       const storagePath = image.dataset.clientAvatarPath;
       const cached = hiredClientAvatarUrls.get(clientId);
@@ -1569,7 +1565,7 @@
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}<button class="hired-card-avatar-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${avatarPath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${avatarPath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button><input class="hired-card-avatar-input" type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden /></span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
       ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
       ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
       ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
@@ -1616,7 +1612,7 @@
         : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0
           ? `$${Number(item.salaryAmount).toLocaleString()} / hour`
           : '';
-    $('#hiredDetailTitle').textContent = item.clientName || 'Active client';
+    $('#hiredDetailTitle').textContent = 'Client details';
     $('#hiredDetailSubtitle').textContent = item.role || 'Client workspace';
     $('#hiredDetailStatus').className = `status-pill ${contractStatusClass}`;
     $('#hiredDetailStatus').textContent = contractStatus;
@@ -1637,8 +1633,28 @@
     const sentEmails = sentEmailsForApplication(item);
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
+    const profileImagePath = item.profileImage?.storagePath || '';
+    $('#clientOverviewProfile').innerHTML = `
+      <article class="client-overview-profile-card">
+        <div class="client-overview-profile-main">
+          <span class="client-overview-profile-photo" data-client-avatar-control>
+            <span class="client-overview-profile-avatar"><span aria-hidden="true">${escapeHtml(clientInitials(item.clientName))}</span>${profileImagePath ? `<img class="client-overview-profile-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(profileImagePath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span>
+            <button class="client-overview-profile-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${profileImagePath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${profileImagePath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
+            <input type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden />
+          </span>
+          <div class="client-overview-profile-identity"><span>CLIENT PROFILE</span><h3>${escapeHtml(item.clientName || 'Active client')}</h3><p>${escapeHtml([item.role, item.companyName || item.company].filter(Boolean).join(' · ') || 'Client workspace')}</p></div>
+          <span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span>
+        </div>
+        <div class="client-overview-profile-facts">
+          ${item.email ? `<a href="mailto:${escapeHtml(item.email)}"><i class="fa-regular fa-envelope" aria-hidden="true"></i><span>${escapeHtml(item.email)}</span></a>` : ''}
+          ${item.phone ? `<a href="tel:${escapeHtml(item.phone)}"><i class="fa-solid fa-phone" aria-hidden="true"></i><span>${escapeHtml(item.phone)}</span></a>` : ''}
+          <span><i class="fa-regular fa-calendar" aria-hidden="true"></i><span>${item.contractEndDate ? `Ends ${escapeHtml(formatDate(item.contractEndDate))}` : 'No end date set'}</span></span>
+          ${salaryLabel ? `<span><i class="fa-solid fa-coins" aria-hidden="true"></i><span>${escapeHtml(salaryLabel)}</span></span>` : ''}
+        </div>
+      </article>`;
+    renderHiredClientAvatars();
     $('#clientOverviewSummary').innerHTML = `
-      <div class="client-overview-summary-item"><span>Contract</span><strong>${escapeHtml(contractStatus)}</strong><small>${item.contractEndDate ? `Ends ${escapeHtml(formatDate(item.contractEndDate))}` : 'No end date set'}</small></div>
+      <div class="client-overview-summary-item"><span>Active since</span><strong>${escapeHtml(emailDate(activeSinceDate(item)))}</strong><small>${escapeHtml(contractStatus)} engagement</small></div>
       <div class="client-overview-summary-item"><span>Onboarding</span><strong id="clientOverviewOnboardingStatus">Checking status</strong><small>Client form response</small></div>
       <div class="client-overview-summary-item"><span>Invoices</span><strong>${escapeHtml(plural(invoices.length, 'invoice'))}</strong><small>${latestInvoice ? `Last sent ${escapeHtml(emailDate(latestInvoice.sentAt))}` : 'No invoices sent yet'}</small></div>
       <div class="client-overview-summary-item"><span>Email History</span><strong>${escapeHtml(plural(sentEmails.length, 'email'))}</strong><small>${latestEmail ? `Last sent ${escapeHtml(emailDate(latestEmail.date))}` : 'No emails sent yet'}</small></div>`;

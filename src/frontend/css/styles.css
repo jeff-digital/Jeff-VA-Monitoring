@@ -576,10 +576,6 @@ td:first-child { color: #242522; font-weight: 650; }
 .work-link-copy a { color: var(--navy); font-size: 11px; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .work-link-copy a:hover { text-decoration: underline; }
 .small-empty { padding: 12px 0; }
-.tools-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 3px 2px 17px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-.tools-workspace-heading .eyebrow { display: flex; align-items: center; gap: 7px; color: #65766e; }
-.tools-workspace-heading .eyebrow i { font-size: 11px; }
-.tools-workspace-heading h2 { margin: 6px 0 0; color: #242824; font-size: 22px; line-height: 1.2; font-weight: 650; }
 .documents-page-panel { padding: 0; overflow: hidden; }
 .documents-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .documents-page-heading h2 { margin: 5px 0 0; font-size: 24px; }
@@ -1252,10 +1248,12 @@ dialog[open] { overscroll-behavior: contain; }
 .danger-button { border: 1px solid #eacfd0; background: #fffafa; color: #a4595d; border-radius: 6px; padding: 9px 12px; font-weight: 700; font-size: 12px; }
 .danger-button:hover { background: #fceff0; }
 .notification-menu { position: relative; }
-.notification-button { position: relative; width: 40px; height: 40px; border: 1px solid var(--line); background: #fff; color: var(--navy); border-radius: 9px; display: grid; place-items: center; font-size: 18px; }
-.notification-button:hover { border-color: #c6c7c2; background: #f8f8f5; }
+.notification-button { position: relative; width: 40px; height: 40px; border: 1px solid var(--line); background: #fff; color: var(--navy); border-radius: 12px; display: grid; place-items: center; font-size: 17px; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease; }
+.notification-button:hover { border-color: #cdd7ce; background: #f7faf7; box-shadow: 0 4px 12px rgba(23, 43, 31, .08); transform: translateY(-1px); }
+.notification-button[aria-expanded="true"] { border-color: #b9cfbe; background: #f1f7f2; box-shadow: 0 4px 14px rgba(35, 74, 48, .1); }
 .notification-button:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
-.notification-badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 10px; background: var(--rose); color: #fff; font-size: 9px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--paper); }
+.notification-badge { position: absolute; top: 6px; right: 6px; box-sizing: border-box; min-width: 17px; height: 17px; padding: 0 4px; border: 2px solid #fff; border-radius: 999px; background: #bd3c4a; color: #fff; font-size: 9px; font-variant-numeric: tabular-nums; font-weight: 800; line-height: 1; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(112, 28, 38, .28); }
+.notification-badge.is-single { top: 8px; right: 8px; width: 9px; min-width: 9px; height: 9px; padding: 0; color: transparent; box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(112, 28, 38, .28); }
 .notification-panel { position: absolute; right: 0; top: 48px; z-index: 30; width: min(420px, calc(100vw - 32px)); max-height: min(70vh, 460px); background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 35px rgba(23,26,22,.13); overflow-y: auto; font-family: inherit; }
 .notification-panel-head { padding: 14px 15px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .notification-panel-actions { display: flex; gap: 10px; flex: 0 0 auto; }
@@ -1435,8 +1433,6 @@ dialog[open] { overscroll-behavior: contain; }
   .follow-up-note { max-width: none; text-align: left; }
   .interview-calendar-panel { padding: 18px 16px; overflow-x: auto; }
   .interview-calendar { min-width: 560px; }
-  .tools-workspace-heading { padding-bottom: 14px; margin-bottom: 12px; }
-  .tools-workspace-heading h2 { font-size: 20px; }
   .documents-page-panel { padding: 0; overflow: hidden; }
   .documents-tabs { display: flex; overflow-x: auto; margin: 0; padding: 6px; scrollbar-width: thin; }
   .documents-tab { flex: 0 0 auto; min-height: 38px; padding: 8px 11px; }
@@ -3203,6 +3199,28 @@ body.client-task-drawer-open { overflow: hidden; }
 #hiredView .client-detail-section-heading .eyebrow { margin-bottom: 3px; }
 #hiredView .client-detail-section-heading h3 { margin: 0; color: var(--workspace-ink); font-size: 17px; font-weight: 650; }
 
+#hiredView .client-overview-profile { margin: 10px 0 4px; }
+#hiredView .client-overview-profile-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; padding: 16px 18px; border: 1px solid #dfe7e1; border-radius: 10px; background: linear-gradient(115deg, #f7fbf8 0%, #fff 58%); box-shadow: 0 2px 8px rgba(26, 35, 64, .04); }
+#hiredView .client-overview-profile-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+#hiredView .client-overview-profile-photo { position: relative; width: 48px; height: 48px; flex: 0 0 48px; }
+#hiredView .client-overview-profile-avatar { position: relative; display: grid; place-items: center; width: 48px; height: 48px; overflow: hidden; border-radius: 14px; background: #1b2244; color: #fff; font-size: 14px; font-weight: 750; letter-spacing: .04em; }
+#hiredView .client-overview-profile-image { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#hiredView .client-overview-profile-upload { position: absolute; z-index: 2; right: -5px; bottom: -4px; display: grid; place-items: center; width: 23px; height: 23px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: #4f5aa3; color: #fff; font-size: 10px; box-shadow: 0 1px 3px rgba(16,24,40,.2); }
+#hiredView .client-overview-profile-upload:hover { background: #3f498d; }
+#hiredView .client-overview-profile-upload:focus-visible { outline: 2px solid #4f5aa3; outline-offset: 2px; }
+#hiredView .client-overview-profile-upload:disabled { cursor: wait; opacity: .7; }
+#hiredView .client-overview-profile-identity { min-width: 0; }
+#hiredView .client-overview-profile-identity > span { display: block; margin-bottom: 3px; color: var(--workspace-muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+#hiredView .client-overview-profile-identity h3 { margin: 0; overflow: hidden; color: var(--workspace-ink); font-size: 17px; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+#hiredView .client-overview-profile-identity p { margin: 3px 0 0; overflow: hidden; color: var(--workspace-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+#hiredView .client-overview-profile-main > .status-pill { align-self: flex-start; margin-left: auto; }
+#hiredView .client-overview-profile-facts { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px 12px; }
+#hiredView .client-overview-profile-facts > a,
+#hiredView .client-overview-profile-facts > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: #58655d; font-size: 11px; }
+#hiredView .client-overview-profile-facts > a { color: var(--workspace-accent); text-decoration: none; }
+#hiredView .client-overview-profile-facts > a:hover { text-decoration: underline; }
+#hiredView .client-overview-profile-facts i { color: #718076; font-size: 10px; }
+
 #hiredView .client-overview-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3795,10 +3813,6 @@ body:has(#hiredView.active) .hired-card-heading { align-items: flex-start; gap: 
 body:has(#hiredView.active) .hired-card-profile { display: flex; align-items: center; gap: 11px; min-width: 0; }
 body:has(#hiredView.active) .hired-card-avatar { position: relative; display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 46px; overflow: visible; border: 1px solid hsl(calc(238deg + var(--avatar-tone) * 4deg) 55% 88%); border-radius: 50%; background: hsl(calc(238deg + var(--avatar-tone) * 4deg) 75% 96%); color: hsl(calc(238deg + var(--avatar-tone) * 4deg) 42% 42%); font-size: 14px; font-weight: 700; letter-spacing: .02em; }
 body:has(#hiredView.active) .hired-card-avatar-image { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; border: 0; border-radius: inherit; object-fit: cover; }
-body:has(#hiredView.active) .hired-card-avatar-upload { position: absolute; z-index: 2; right: -5px; bottom: -4px; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: #4f5aa3; color: #fff; font-size: 10px; box-shadow: 0 1px 3px rgba(16,24,40,.2); }
-body:has(#hiredView.active) .hired-card-avatar-upload:hover { background: #3f498d; }
-body:has(#hiredView.active) .hired-card-avatar-upload:focus-visible { outline: 2px solid #4f5aa3; outline-offset: 2px; }
-body:has(#hiredView.active) .hired-card-avatar-upload:disabled { cursor: wait; opacity: .7; }
 body:has(#hiredView.active) .hired-card-identity { display: grid; align-content: center; gap: 4px; min-width: 0; }
 body:has(#hiredView.active) .hired-card .client-card-title { font-size: 16px; font-weight: 650; }
 body:has(#hiredView.active) .hired-card .client-card-subtitle { font-size: 13px; }
@@ -4606,15 +4620,33 @@ body:has(#dashboardView.active) .dashboard-switcher-tab:focus-visible { outline:
 #clientDashboardPanel .client-dashboard-search { position: relative; display: block; width: min(220px, 26vw); }
 #clientDashboardPanel .client-dashboard-search > i { position: absolute; top: 11px; left: 10px; color: #667085; font-size: 12px; pointer-events: none; }
 #clientDashboardPanel .client-dashboard-search input { width: 100%; min-height: 34px; padding: 6px 9px 6px 29px; border: 1px solid #d8dee8; border-radius: 7px; color: #344054; font: inherit; font-size: 12px; }
-#clientDashboardPanel .client-dashboard-table-wrap { width: 100%; overflow-x: auto; }
-#clientDashboardPanel .client-dashboard-table { width: 100%; border-collapse: collapse; table-layout: auto; text-align: left; }
+#clientDashboardPanel .client-dashboard-table-wrap { width: 100%; overflow-x: hidden; }
+#clientDashboardPanel .client-dashboard-table { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: left; }
 #clientDashboardPanel .client-dashboard-table th { padding: 10px 9px; border-bottom: 1px solid #edf0f4; color: #667085; font-size: 10px; font-weight: 650; white-space: nowrap; }
 #clientDashboardPanel .client-dashboard-table th button { display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 #clientDashboardPanel .client-dashboard-table th button:hover { color: #1b2244; }
 #clientDashboardPanel .client-dashboard-table td { padding: 10px 9px; border-bottom: 1px solid #f0f2f5; color: #475467; font-size: 11px; white-space: nowrap; }
+#clientDashboardPanel .client-dashboard-table th,
+#clientDashboardPanel .client-dashboard-table td { overflow: hidden; text-overflow: ellipsis; }
+#clientDashboardPanel .client-dashboard-table th:nth-child(1),
+#clientDashboardPanel .client-dashboard-table td:nth-child(1) { width: 38%; }
+#clientDashboardPanel .client-dashboard-table th:nth-child(2),
+#clientDashboardPanel .client-dashboard-table td:nth-child(2) { width: 15%; }
+#clientDashboardPanel .client-dashboard-table th:nth-child(4),
+#clientDashboardPanel .client-dashboard-table td:nth-child(4) { width: 21%; }
+#clientDashboardPanel .client-dashboard-table th:nth-child(6),
+#clientDashboardPanel .client-dashboard-table td:nth-child(6) { width: 17%; }
+#clientDashboardPanel .client-dashboard-table th:nth-child(8),
+#clientDashboardPanel .client-dashboard-table td:nth-child(8) { width: 38px; padding-right: 5px; padding-left: 5px; }
+#clientDashboardPanel .client-dashboard-table th:nth-child(3),
+#clientDashboardPanel .client-dashboard-table td:nth-child(3),
+#clientDashboardPanel .client-dashboard-table th:nth-child(5),
+#clientDashboardPanel .client-dashboard-table td:nth-child(5),
+#clientDashboardPanel .client-dashboard-table th:nth-child(7),
+#clientDashboardPanel .client-dashboard-table td:nth-child(7) { display: none; }
 #clientDashboardPanel .client-dashboard-table tbody tr:last-child td { border-bottom: 0; }
 #clientDashboardPanel .client-dashboard-table tbody tr:hover { background: #f8fafc; }
-#clientDashboardPanel .client-dashboard-name { display: flex; align-items: center; gap: 8px; min-width: 132px; padding: 0; border: 0; background: transparent; color: #1f2937; text-align: left; font: inherit; font-weight: 650; cursor: pointer; }
+#clientDashboardPanel .client-dashboard-name { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; padding: 0; border: 0; background: transparent; color: #1f2937; text-align: left; font: inherit; font-weight: 650; cursor: pointer; }
 #clientDashboardPanel .client-dashboard-name > span:last-child { display: grid; min-width: 0; gap: 2px; overflow: hidden; text-overflow: ellipsis; }
 #clientDashboardPanel .client-dashboard-name small { overflow: hidden; color: #667085; font-size: 10px; font-weight: 450; text-overflow: ellipsis; }
 #clientDashboardPanel .client-dashboard-avatar { display: grid; place-items: center; width: 31px; height: 31px; flex: 0 0 31px; border: 1px solid #d8e3f2; border-radius: 50%; background: #edf3fa; color: #385478; font-size: 10px; font-weight: 750; }
@@ -4626,6 +4658,7 @@ body:has(#dashboardView.active) .dashboard-switcher-tab:focus-visible { outline:
 #clientDashboardPanel .client-dashboard-status.is-paused { background: #e8f1fb; color: #31577f; }
 #clientDashboardPanel .client-dashboard-row-action { display: inline-flex; align-items: center; gap: 5px; padding: 5px 6px; border: 0; border-radius: 5px; background: transparent; color: #344e78; font: inherit; font-size: 10px; font-weight: 650; cursor: pointer; }
 #clientDashboardPanel .client-dashboard-row-action:hover { background: #edf2f8; }
+#clientDashboardPanel .client-dashboard-row-action span { display: none; }
 #clientDashboardPanel .client-dashboard-empty { display: grid; justify-items: center; gap: 8px; padding: 34px 18px; text-align: center; }
 #clientDashboardPanel .client-dashboard-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #eef2f7; color: #52647e; }
 #clientDashboardPanel .client-dashboard-empty h3 { margin: 4px 0 0; color: #1f2937; font-size: 15px; }
@@ -4738,11 +4771,15 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   #clientDashboardPanel .client-dashboard-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px 10px; padding: 11px; border: 1px solid #e7ebf0; border-radius: 10px; background: #fff; }
   #clientDashboardPanel .client-dashboard-table tbody tr:hover { background: #f8fafc; }
   #clientDashboardPanel .client-dashboard-table td { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 3px 0; border: 0; white-space: normal; }
+  #clientDashboardPanel .client-dashboard-table td:nth-child(3),
+  #clientDashboardPanel .client-dashboard-table td:nth-child(5),
+  #clientDashboardPanel .client-dashboard-table td:nth-child(7) { display: flex; }
   #clientDashboardPanel .client-dashboard-table td::before { content: attr(data-label); flex: 0 0 auto; color: #667085; font-size: 10px; }
   #clientDashboardPanel .client-dashboard-table td:first-child { grid-column: 1 / -1; }
   #clientDashboardPanel .client-dashboard-table td:first-child::before,
   #clientDashboardPanel .client-dashboard-table td:last-child::before { display: none; }
   #clientDashboardPanel .client-dashboard-table td:last-child { justify-content: flex-end; grid-column: 1 / -1; }
+  #clientDashboardPanel .client-dashboard-row-action span { display: inline; }
   #clientDashboardPanel .client-dashboard-name { min-width: 0; }
 }
 @media (max-width: 520px) {
@@ -4851,7 +4888,6 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   .panel-heading h2,
   .email-intro h2,
   .application-workspace-title h2,
-  .tools-workspace-heading h2,
   .daily-task-heading h2,
   .weekly-report-section-heading h2 { font-size: 19px; line-height: 1.3; }
   .modal-heading h2,
@@ -4993,7 +5029,6 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   .client-card-website,
   .hired-card-website a { height: auto; white-space: normal; text-overflow: clip; }
   .application-workspace-head,
-  .tools-workspace-heading,
   .hired-detail-heading,
   .weekly-report-section-heading,
   .application-filter-footer { flex-wrap: wrap; }
@@ -5936,17 +5971,27 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 
 .notification-tabs [role="tab"] .notification-tab-count {
   display: inline-grid;
-  min-width: 17px;
-  height: 17px;
+  min-width: 18px;
+  height: 18px;
   place-items: center;
   padding: 0 4px;
-  border: 2px solid var(--paper);
-  border-radius: 10px;
-  background: var(--rose);
-  color: rgba(255, 255, 255, .85);
+  border: 0;
+  border-radius: 999px;
+  background: #f8e8ea;
+  color: #ad3443;
   font-size: 9px;
+  font-variant-numeric: tabular-nums;
   font-weight: 800;
   line-height: 1;
+}
+
+.notification-tabs [role="tab"] .notification-tab-count.is-single {
+  display: none;
+}
+
+.notification-tabs [role="tab"].has-unread:not([aria-selected="true"]) {
+  background: #fffafb;
+  box-shadow: inset 0 -2px #efc4ca;
 }
 
 @media (max-width: 720px) {
@@ -5974,4 +6019,172 @@ body.client-dashboard-drawer-open { overflow: hidden; }
     font-size: 10px;
     line-height: 1;
   }
+
+}
+
+/* ===== COMPACT, FRIENDLY WORKSPACE DENSITY =====
+   Visual-only adjustments: data, actions, and responsive behavior are unchanged. */
+@media (min-width: 721px) {
+  body:has(#hiredView.active) .hired-card {
+    min-height: 188px;
+    padding: 14px;
+    gap: 9px;
+    border-radius: 11px;
+  }
+
+  body:has(#hiredView.active) .hired-card-profile { gap: 9px; }
+  body:has(#hiredView.active) .hired-card-avatar { width: 42px; height: 42px; flex-basis: 42px; font-size: 13px; }
+  body:has(#hiredView.active) .hired-card .client-card-title { font-size: 15px; }
+  body:has(#hiredView.active) .hired-card .client-card-subtitle,
+  body:has(#hiredView.active) .hired-card-email,
+  body:has(#hiredView.active) .hired-card-company,
+  body:has(#hiredView.active) .hired-card-contract,
+  body:has(#hiredView.active) .hired-card-contact,
+  body:has(#hiredView.active) .hired-card-footer { font-size: 11px; }
+  body:has(#hiredView.active) .hired-card .client-contract-status { padding: 4px 7px; font-size: 11px; }
+  body:has(#hiredView.active) .hired-card-footer { min-height: 29px; padding-top: 7px; }
+
+  #clientDashboardPanel .client-dashboard-stat-grid { gap: 10px; margin-bottom: 12px; }
+  #clientDashboardPanel .client-dashboard-kpi { min-height: 122px; padding: 13px; gap: 7px; border-radius: 12px; }
+  #clientDashboardPanel .client-dashboard-kpi > strong { font-size: 26px; }
+  #clientDashboardPanel .client-dashboard-kpi .stat-label { font-size: 11px; }
+  #clientDashboardPanel .client-dashboard-kpi > p { font-size: 10px; }
+  #clientDashboardPanel .client-dashboard-panel-heading { padding: 12px 14px; }
+  #clientDashboardPanel .client-dashboard-attention-item { padding: 10px 12px; }
+  #clientDashboardPanel .client-dashboard-activity-item { padding: 9px 12px; }
+}
+
+@media (max-width: 720px) {
+  html { --m-fs-title: clamp(22px, 6.5vw, 27px); }
+
+  .panel-heading h2,
+  .email-intro h2,
+  .application-workspace-title h2,
+  .daily-task-heading h2,
+  .weekly-report-section-heading h2 { font-size: 18px; }
+
+  .stat-card strong { font-size: clamp(24px, 7.5vw, 30px); }
+  .stat-card { min-height: 108px; padding: 12px; }
+
+  body:has(#hiredView.active) .hired-card { padding: 13px; gap: 9px; }
+  body:has(#hiredView.active) .hired-card-avatar { width: 40px; height: 40px; flex-basis: 40px; }
+  body:has(#hiredView.active) .hired-card .client-card-title { font-size: 14px; }
+  body:has(#hiredView.active) .hired-card .client-card-subtitle,
+  body:has(#hiredView.active) .hired-card-email,
+  body:has(#hiredView.active) .hired-card-company,
+  body:has(#hiredView.active) .hired-card-contract,
+  body:has(#hiredView.active) .hired-card-contact,
+  body:has(#hiredView.active) .hired-card-footer { font-size: 11px; }
+
+  #clientDashboardPanel .client-dashboard-kpi { min-height: 104px; padding: 12px; gap: 6px; }
+  #clientDashboardPanel .client-dashboard-kpi > strong { font-size: 24px; }
+  #clientDashboardPanel .client-dashboard-panel-heading { padding: 12px; }
+}
+
+/* Desktop Client Dashboard: fit the working overview in a single viewport. */
+@media (min-width: 1100px) {
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) { height: 100dvh; overflow: hidden; background: #f6f7fb; color: #111827; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .app-shell { height: 100dvh; min-height: 0; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .content { display: grid; grid-template-rows: 56px minmax(0, 1fr); gap: 14px; width: 100%; height: 100dvh; min-width: 0; min-height: 0; max-width: 1500px; margin: 0 auto; padding: 12px 24px 16px; overflow: hidden; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .topbar { min-height: 0; height: 56px; margin: 0; border-bottom: 0; gap: 18px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .topbar h1 { margin: 0; color: #111827; font-size: 23px; font-weight: 650; letter-spacing: -.025em; white-space: nowrap; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .topbar-copy > .eyebrow { display: none; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .topbar-actions { flex: 0 0 auto; gap: 12px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .local-indicator { color: #6b7280; font-size: 12px; white-space: nowrap; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .notification-button { width: 36px; height: 36px; border-color: #e6e8f0; border-radius: 9px; background: #fff; }
+
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) #dashboardView { display: grid; grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) #clientDashboardPanel,
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) #clientDashboardContent { min-width: 0; min-height: 0; height: 100%; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) #clientDashboardContent { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: 38px 94px 42px minmax(0, 1fr); gap: 10px 14px; }
+
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-heading { grid-column: 1 / -1; grid-row: 1; align-items: center; margin: 0; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-heading h2 { font-size: 17px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-heading p { margin-top: 2px; font-size: 11px; }
+
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-stat-grid { grid-column: 1 / -1; grid-row: 2; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-height: 0; margin: 0; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-stat-grid:not(.has-income) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi { min-height: 0; padding: 11px 13px; gap: 5px; border-color: #e6e8f0; border-radius: 12px; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi .stat-label { gap: 7px; font-size: 11px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi .stat-icon { width: 25px; height: 25px; flex-basis: 25px; border-radius: 7px; font-size: 11px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi > strong { font-size: 25px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi-income > strong { font-size: clamp(16px, 1.6vw, 22px); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi > p { font-size: 10px; }
+
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-quickbar { grid-column: 1 / -1; grid-row: 3; display: grid; grid-template-columns: minmax(220px, 1fr) auto; align-items: center; gap: 12px; min-height: 0; margin: 0; padding: 4px 10px; border-color: #e6e8f0; border-radius: 9px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-client-picker { font-size: 11px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-client-picker select { min-height: 30px; padding-top: 4px; padding-bottom: 4px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-quick-actions { flex-wrap: nowrap; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-quick-actions .button { min-height: 30px; padding: 5px 8px; }
+
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-main-grid { grid-column: 1 / 10; grid-row: 4; grid-template-columns: minmax(0, 2.15fr) minmax(225px, .85fr); align-items: stretch; min-height: 0; gap: 12px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-bottom-grid { grid-column: 10 / -1; grid-row: 4; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; gap: 12px; margin: 0; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-panel { display: flex; flex-direction: column; min-height: 0; border-color: #e6e8f0; border-radius: 12px; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-panel-heading { flex: 0 0 auto; padding: 10px 12px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-panel-heading h2 { font-size: 13px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-filters { gap: 6px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-search { width: min(172px, 19vw); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-search > i { top: 9px; left: 8px; font-size: 10px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-search input,
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-filters select { min-height: 29px; padding-top: 4px; padding-bottom: 4px; font-size: 11px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-search input { padding-left: 25px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-filters select { min-width: 108px; padding-right: 24px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-table-wrap,
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-attention-list,
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-activity-list { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-table th,
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-table td { padding: 7px 8px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-attention-item { padding: 9px 10px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-activity-item { padding: 8px 10px; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-chart-wrap { flex: 1; min-height: 0; padding: 2px 8px 0; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-chart-wrap svg { height: 100%; min-height: 96px; }
+}
+
+/* Keep an active-client profile open in the same desktop workspace. */
+@media (min-width: 1100px) {
+  body:has(#hiredView.active):has(#hiredView.client-focused) { height: 100dvh; overflow: hidden; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .app-shell { height: 100dvh; min-height: 0; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .content { display: grid; grid-template-rows: 56px minmax(0, 1fr); gap: 12px; height: 100dvh; min-height: 0; padding: 12px 24px 16px; overflow: hidden; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .topbar { min-height: 0; height: 56px; margin: 0; border-bottom: 0; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) #hiredView { min-height: 0; overflow: hidden; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-detail-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); height: 100%; min-height: 0; margin: 0; padding: 14px 16px 0; overflow: hidden; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-detail-heading { display: flex; align-items: center; justify-content: space-between; min-height: 48px; gap: 10px; padding: 7px 2px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-detail-identity { text-align: left; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-detail-heading h2 { font-size: 18px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-detail-heading-actions { justify-self: auto; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-detail-heading-actions .button { min-height: 30px; padding: 5px 9px; border-radius: 7px; font-size: 11px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-list-back-button { gap: 6px; padding-left: 6px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-list-back-button > i { width: 19px; height: 19px; font-size: 9px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .hired-detail-header-meta { display: none; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile { margin: 8px 0 2px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-detail-tabs { min-height: 36px; gap: 17px; padding: 0 2px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-detail-tab { min-height: 36px; padding: 0; font-size: 11px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-detail-panels { min-height: 0; overflow: auto; scrollbar-width: thin; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-detail-panel { min-height: 0; padding: 10px 2px 16px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-card { gap: 10px 16px; padding: 9px 11px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-photo { width: 38px; height: 38px; flex-basis: 38px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-avatar { width: 38px; height: 38px; border-radius: 10px; font-size: 11px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-upload { width: 20px; height: 20px; right: -4px; bottom: -3px; font-size: 8px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-identity h3 { font-size: 15px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-facts { gap: 5px 10px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-facts > a,
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-facts > span { font-size: 10px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-summary { gap: 8px; margin-bottom: 10px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-summary-item { min-height: 64px; padding: 8px 10px; gap: 3px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-summary-item > strong { font-size: 12px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) #hiredDetailGrid { gap: 8px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) #hiredDetailGrid .hired-detail-info-group { padding: 10px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) #hiredDetailGrid .hired-detail-info-group h4 { margin-bottom: 7px; font-size: 11px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) #hiredDetailGrid .hired-detail-info-group dl { gap: 6px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) #hiredDetailGrid .hired-detail-info-group dl > div { padding: 6px 7px; }
+  body:has(#hiredView.active):has(#hiredView.client-focused) #hiredDetailGrid dd { font-size: 11px; }
+}
+
+@media (max-width: 640px) {
+  #hiredView .client-overview-profile-card { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 14px; }
+  #hiredView .client-overview-profile-main { align-items: flex-start; }
+  #hiredView .client-overview-profile-main > .status-pill { margin-left: 0; }
+  #hiredView .client-overview-profile-identity h3,
+  #hiredView .client-overview-profile-identity p { white-space: normal; }
+  #hiredView .client-overview-profile-facts { justify-content: flex-start; }
 }

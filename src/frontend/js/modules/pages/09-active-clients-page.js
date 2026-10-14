@@ -225,7 +225,7 @@
     event.stopPropagation();
     if (!avatarUploadButton) return;
     event.preventDefault();
-    avatarUploadButton.closest('.hired-card')?.querySelector('[data-client-avatar-input]')?.click();
+    avatarUploadButton.closest('[data-client-avatar-control]')?.querySelector('[data-client-avatar-input]')?.click();
   }, true);
 
   document.addEventListener('click', async event => {
@@ -461,8 +461,7 @@
     const item = data.applications.find(application => application.id === clientId);
     if (!item) throw new Error('This client could not be found.');
     if (!currentUser) throw new Error('Sign in before uploading a client photo.');
-    const card = document.querySelector(`[data-hired-select="${CSS.escape(clientId)}"]`);
-    const button = card?.querySelector('[data-client-avatar-upload]');
+    const button = document.querySelector(`[data-client-avatar-upload="${CSS.escape(clientId)}"]`);
     if (button) button.disabled = true;
     const storagePath = `${currentUser.id}/client-avatars/${item.id}/${uid()}.jpg`;
     let uploaded = false;

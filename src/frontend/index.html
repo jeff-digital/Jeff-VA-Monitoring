@@ -123,7 +123,7 @@
             <p class="local-indicator" id="saveIndicator" role="status" aria-live="polite" hidden><span></span><span id="saveIndicatorText"></span></p>
             <div class="notification-menu" id="notificationMenu">
               <button class="notification-button" type="button" id="notificationButton" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notificationPanel">
-                <span aria-hidden="true"><i class="fa-solid fa-bell"></i></span><span class="notification-badge" id="notificationBadge" hidden>0</span>
+                <span aria-hidden="true"><i class="fa-solid fa-bell"></i></span><span class="notification-badge" id="notificationBadge" aria-hidden="true" hidden>0</span>
               </button>
               <div class="notification-panel hidden" id="notificationPanel" role="dialog" aria-modal="true" aria-labelledby="notificationTitle" tabindex="-1">
                 <div class="notification-panel-head">
@@ -156,7 +156,6 @@
             <div id="clientDashboardContent">
               <div class="client-dashboard-heading">
                 <div><h2>Client overview</h2><p>Contracts, follow-ups, and tracked hours in one place.</p></div>
-                <button class="button button-primary" type="button" data-client-dashboard-add><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Client</button>
               </div>
               <section class="stat-grid client-dashboard-stat-grid" aria-label="Client summary">
                 <article class="stat-card client-dashboard-kpi client-dashboard-kpi-active">
@@ -211,7 +210,7 @@
                       </tr></thead>
                       <tbody id="clientDashboardTableBody"></tbody>
                     </table>
-                    <div class="client-dashboard-empty" id="clientDashboardEmpty" hidden><span class="client-dashboard-empty-icon" aria-hidden="true"><i class="fa-solid fa-user-group"></i></span><h3 id="clientDashboardEmptyTitle">No clients yet</h3><p id="clientDashboardEmptyMessage">Add your first client to start tracking contracts and work.</p><button class="button button-primary" type="button" data-client-dashboard-add><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Client</button></div>
+                    <div class="client-dashboard-empty" id="clientDashboardEmpty" hidden><span class="client-dashboard-empty-icon" aria-hidden="true"><i class="fa-solid fa-user-group"></i></span><h3 id="clientDashboardEmptyTitle">No clients yet</h3><p id="clientDashboardEmptyMessage">Clients you add from Applications will appear here for tracking.</p></div>
                   </div>
                 </section>
                 <aside class="client-dashboard-panel client-dashboard-attention" aria-labelledby="clientDashboardAttentionTitle">
@@ -442,7 +441,6 @@
           <section class="panel hired-detail-panel hidden" id="hiredDetailPanel">
             <div class="hired-detail-heading">
               <div class="hired-detail-identity">
-                <p class="eyebrow">ACTIVE CLIENT</p>
                 <h2 id="hiredDetailTitle">Client details</h2>
                 <div class="hired-detail-header-meta">
                   <p class="hired-detail-subtitle" id="hiredDetailSubtitle"></p>
@@ -456,6 +454,7 @@
                 <button class="button button-secondary hired-actions-trigger" type="button" id="activeClientActionsButton">Actions</button>
               </div>
             </div>
+            <div class="client-overview-profile" id="clientOverviewProfile"></div>
             <div class="client-detail-tabs" role="tablist" aria-label="Client details">
               <button class="client-detail-tab active" id="clientOverviewTab" type="button" role="tab" aria-selected="true" aria-controls="clientOverviewPanel" data-client-detail-tab="overview">Overview</button>
               <button class="client-detail-tab" id="clientTasksTab" type="button" role="tab" aria-selected="false" aria-controls="clientTasksPanel" data-client-detail-tab="tasks">Tasks <span class="client-task-tab-count" id="clientTaskTabCount">0</span></button>
@@ -468,7 +467,7 @@
               <section class="client-detail-panel" id="clientOverviewPanel" role="tabpanel" tabindex="0" aria-labelledby="clientOverviewTab" data-client-detail-panel="overview">
                 <div class="client-overview-summary" id="clientOverviewSummary"></div>
                 <section class="client-overview-details" aria-labelledby="clientDetailsTitle">
-                  <div class="client-detail-section-heading"><div><p class="eyebrow">PROFILE</p><h3 id="clientDetailsTitle">Client Details</h3></div></div>
+                  <h3 class="sr-only" id="clientDetailsTitle">Client details</h3>
                   <div class="hired-detail-grid hired-detail-sections" id="hiredDetailGrid"></div>
                 </section>
               </section>
@@ -562,12 +561,6 @@
         </section>
 
         <section class="view" id="documentsView" data-view-panel="documents" data-page="tools">
-          <section class="tools-workspace-heading">
-            <div>
-              <p class="eyebrow"><i class="fa-solid fa-toolbox" aria-hidden="true"></i> WORKSPACE RESOURCES</p>
-              <h2>Tools library</h2>
-            </div>
-          </section>
           <section class="panel documents-page-panel">
             <div class="documents-tabs" role="tablist" aria-label="Tools">
               <button class="documents-tab active" type="button" role="tab" aria-selected="true" data-documents-tab="cover-letter"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Cover letter</span></button>

@@ -50,6 +50,12 @@ Set up a Supabase project and apply the schema in `src/backend/supabase/supabase
 
 To enable client profile photo uploads on an existing Supabase project, run `src/backend/supabase/profile-photo-storage-migration.sql` in the Supabase Dashboard SQL Editor. It allows JPEG, PNG, and WebP images in the existing private client documents bucket while preserving the bucket's other allowed file types.
 
+### Workspace recovery history
+
+The app's design and static-code deployments do not delete Supabase data. To protect against an accidental overwrite, restore action, or a future application change that saves an incomplete workspace, run `src/backend/supabase/app-state-history-migration.sql` once in the Supabase SQL Editor. It preserves the version immediately before every workspace update or deletion, retaining the most recent 60 recovery points per user. It does not modify existing data when installed.
+
+Excel exports remain a separate, recommended offline backup. The automatic Documents backup works only when the app is launched locally with `start-jeff-va.bat`; browser downloads depend on the device and browser settings.
+
 ### Client onboarding
 
 - The real, invitation-only form is served at `/onboarding/`. It requires the Supabase setup above and an active client's invitation.

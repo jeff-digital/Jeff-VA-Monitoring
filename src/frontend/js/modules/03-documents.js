@@ -1289,7 +1289,11 @@
     }
     const badge = $('#notificationBadge');
     const button = $('#notificationButton');
-    if (badge) { badge.textContent = unread > 9 ? '9+' : String(unread); badge.hidden = unread === 0; }
+    if (badge) {
+      badge.textContent = unread > 9 ? '9+' : String(unread);
+      badge.hidden = unread === 0;
+      badge.classList.toggle('is-single', unread === 1);
+    }
     if (button) button.setAttribute('aria-label', unread ? `Notifications, ${unread} unread` : 'Notifications');
     updateTabNotification(unread);
     $$('.notification-tabs [role="tab"]').forEach(tab => {
@@ -1299,7 +1303,9 @@
       if (countPill) {
         countPill.textContent = count > 9 ? '9+' : String(count);
         countPill.hidden = count === 0;
+        countPill.classList.toggle('is-single', count === 1);
       }
+      tab.classList.toggle('has-unread', count > 0);
       const label = tab.querySelector('.notification-tab-text')?.textContent.trim() || '';
       const accessibleLabel = count ? `${label}, ${count} unread ${count === 1 ? 'notification' : 'notifications'}` : label;
       tab.setAttribute('aria-label', accessibleLabel);
