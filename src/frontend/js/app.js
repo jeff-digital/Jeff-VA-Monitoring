@@ -777,7 +777,11 @@
       || (callbackParams.has('access_token') && callbackParams.has('refresh_token'));
     const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
     if (callbackKeys.some(key => callbackParams.has(key))) {
-      window.history.replaceState({}, document.title, `${window.location.pathname}#dashboard`);
+      const callbackView = isAuthenticationCallback
+        && sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY) === 'google'
+        ? 'applications'
+        : 'dashboard';
+      window.history.replaceState({}, document.title, `${window.location.pathname}#${callbackView}`);
     }
     if (callbackParams.get('error')) {
       const description = callbackParams.get('error_description') || callbackParams.get('error');
@@ -6490,7 +6494,7 @@
       const { error } = await requireSupabase().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${window.location.pathname}`,
+          redirectTo: `${window.location.origin}${window.location.pathname}#applications`,
           scopes: GMAIL_SCOPE
         }
       });
