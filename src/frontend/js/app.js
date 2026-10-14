@@ -8,6 +8,7 @@
   const STORAGE_PLAN_KEY = 'jeff-va-storage-plan-v1';
   const CUSTOM_STORAGE_QUOTA_KEY = 'jeff-va-custom-storage-quota-gb-v1';
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
+  const AUTH_TAB_READY_KEY = 'jeff-va-auth-tab-ready-v1';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
@@ -18,7 +19,7 @@
   let gmailSyncInFlight = false;
   let applyReminderTimer = null;
   let initializingUserId = null;
-  let initializingUserShowSuccess = false;
+  let welcomeTransitionStartedAt = 0;
   let persistChain = Promise.resolve();
   let persistWritePending = false;
   let pendingPersistWrites = 0;
@@ -648,25 +649,60 @@
     return persistChain;
   }
 
-  function showWorkspaceReadyNoticeOnce(user) {
-    const noticeKey = `${WORKSPACE_READY_NOTICE_KEY}:${user.id}`;
-    if (sessionStorage.getItem(noticeKey)) return;
-    sessionStorage.setItem(noticeKey, '1');
-    showActionResult({ title: 'Signed in successfully', message: 'Your workspace is ready.', showCloseButton: false });
+  function startAuthTransition(title, copy, name = '') {
+    const transition = $('#welcomeTransition');
+    if (!transition || !transition.hidden) return;
+    const titleElement = $('#welcomeTransitionTitle');
+    titleElement.firstChild.textContent = title;
+    const nameElement = $('#welcomeTransitionName');
+    nameElement.hidden = !name;
+    nameElement.textContent = name;
+    $('#welcomeTransitionCopy').textContent = copy;
+    transition.classList.remove('is-visible', 'is-leaving');
+    transition.hidden = false;
+    document.body.classList.add('auth-loading');
+    welcomeTransitionStartedAt = performance.now();
+    requestAnimationFrame(() => transition.classList.add('is-visible'));
   }
 
-  async function initializeSupabaseForUser(user, { showSuccess = false, recordSignIn = false, showOverview = false } = {}) {
+  function startWelcomeTransition(user) {
+    const metadata = user.user_metadata || {};
+    const metadataName = [metadata.full_name, metadata.name, metadata.display_name]
+      .find(value => typeof value === 'string' && value.trim());
+    const displayName = metadataName || user.email?.split('@')[0] || 'there';
+    startAuthTransition('Welcome back, ', 'Getting your workspace ready…', displayName.trim().split(/\s+/)[0] || 'there');
+  }
+
+  async function finishWelcomeTransition() {
+    const transition = $('#welcomeTransition');
+    if (!transition || transition.hidden) return;
+    const minimumDuration = 1800;
+    const elapsed = performance.now() - welcomeTransitionStartedAt;
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, minimumDuration - elapsed)));
+    transition.classList.remove('is-visible');
+    transition.classList.add('is-leaving');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    await new Promise(resolve => setTimeout(resolve, reducedMotion ? 0 : 320));
+    transition.hidden = true;
+    transition.classList.remove('is-leaving');
+    document.body.classList.remove('auth-loading');
+  }
+
+  async function initializeSupabaseForUser(user, { showLoading = true, recordSignIn = false, showOverview = false } = {}) {
     if (!user) return;
     if (initializingUserId === user.id) {
-      initializingUserShowSuccess ||= showSuccess;
+      if (showLoading) startWelcomeTransition(user);
       return;
     }
     if (currentUser?.id === user.id && dataReady) {
-      if (showSuccess) showWorkspaceReadyNoticeOnce(user);
+      if (showLoading) {
+        startWelcomeTransition(user);
+        await finishWelcomeTransition();
+      }
       return;
     }
     initializingUserId = user.id;
-    initializingUserShowSuccess = showSuccess;
+    if (showLoading) startWelcomeTransition(user);
     currentUser = user;
     clientTimeZones.clear();
     renderAccountAccess();
@@ -705,6 +741,7 @@
         message: `The request for your saved account data failed${error?.message ? `: ${error.message}` : '.'} Check the service connection and try again.`,
         status: 'error'
       });
+      await finishWelcomeTransition();
       initializingUserId = null;
       renderAll();
       renderAccountPage();
@@ -741,7 +778,6 @@
       await persist();
       scheduleAutomaticBackup();
       if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
-      else if (initializingUserShowSuccess) showWorkspaceReadyNoticeOnce(user);
       if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
     } catch (error) {
       console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
@@ -751,8 +787,8 @@
         status: 'error'
       });
     } finally {
+      await finishWelcomeTransition();
       initializingUserId = null;
-      initializingUserShowSuccess = false;
     }
   }
 
@@ -778,6 +814,8 @@
 
   async function restoreSupabaseSession() {
     if (!supabaseConfigured()) return;
+    const isFirstLoadInTab = sessionStorage.getItem(AUTH_TAB_READY_KEY) !== '1';
+    sessionStorage.setItem(AUTH_TAB_READY_KEY, '1');
     const callbackParams = new URLSearchParams(`${window.location.search}&${window.location.hash.slice(1)}`);
     const isPasswordRecovery = callbackParams.get('type') === 'recovery';
     const isAuthenticationCallback = callbackParams.has('code')
@@ -814,7 +852,7 @@
         }
         const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
         initializeSupabaseForUser(session.user, {
-          showSuccess: isAuthenticationCallback && !isPasswordRecovery,
+          showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
           recordSignIn: isFreshSignIn,
           showOverview: false
         });
@@ -847,7 +885,7 @@
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
         await initializeSupabaseForUser(sessionData.session.user, {
-          showSuccess: isAuthenticationCallback && !isPasswordRecovery,
+          showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
           showOverview: isAuthenticationCallback && !isPasswordRecovery
         });
@@ -10723,7 +10761,7 @@
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
       if (error) throw error;
       loginForm.reset();
-      await initializeSupabaseForUser(authData.user, { showSuccess: true, recordSignIn: true, showOverview: true });
+      await initializeSupabaseForUser(authData.user, { recordSignIn: true, showOverview: true });
     } catch (error) {
       activeAuthProvider = null;
       sessionStorage.removeItem(AUTH_PROVIDER_SESSION_KEY);
@@ -10808,6 +10846,7 @@
     }
   });
   $('#logoutButton')?.addEventListener('click', async () => {
+    startAuthTransition('Signing you out…', 'Ending your session securely.');
     if (gmailSyncTimer) {
       clearInterval(gmailSyncTimer);
       gmailSyncTimer = null;
@@ -10817,6 +10856,9 @@
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
     sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+    updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
+    updateGmailConnectionUI(false);
+    setGmailStatus('Gmail ready — log in with Google to sync your inbox');
     if (currentUser?.id) sessionStorage.removeItem(`${WORKSPACE_READY_NOTICE_KEY}:${currentUser.id}`);
     try {
       if (supabaseClient) {
@@ -10856,6 +10898,7 @@
     applicationDateSort = 'all';
     $('#applicationDateSort').value = 'all';
     renderAll();
+    await finishWelcomeTransition();
     $('#loginUsername').focus();
   });
 

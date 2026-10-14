@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261013-17" />
+    <link rel="stylesheet" href="css/styles.css?v=20261015-spinner-motion" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -27,6 +27,14 @@
         <p class="login-note">Your session stays active until you sign out.</p>
       </div>
     </section>
+    <div class="welcome-transition" id="welcomeTransition" role="status" aria-live="polite" hidden>
+      <div class="welcome-transition-card">
+        <span class="welcome-transition-spinner" aria-hidden="true"></span>
+        <p class="welcome-transition-eyebrow">JEFF VA</p>
+        <h1 id="welcomeTransitionTitle">Welcome back, <span id="welcomeTransitionName">there</span></h1>
+        <p class="welcome-transition-copy" id="welcomeTransitionCopy">Getting your workspace ready…</p>
+      </div>
+    </div>
     <div class="app-shell">
       <button class="sidebar-backdrop" type="button" id="mobileSidebarBackdrop" aria-label="Close navigation" hidden></button>
       <aside class="sidebar" id="mainSidebar" aria-label="Main navigation" aria-hidden="false">
@@ -1552,6 +1560,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261015-auth-old-host"></script>
+    <script src="js/app.js?v=20261015-google-logout"></script>
   </body>
 </html>
