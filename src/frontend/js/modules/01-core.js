@@ -37,6 +37,32 @@
   const STATUS_LABELS = { 'Not selected': 'Rejected', 'To Proceeding': 'To Proceed' };
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+  function setButtonLoading(button, loading) {
+    if (!button) return;
+    button.classList.toggle('is-loading', loading);
+    button.toggleAttribute('aria-busy', loading);
+    button.disabled = loading;
+  }
+
+  function showButtonFeedback(button) {
+    if (!button || button.disabled) return;
+    button.classList.remove('is-pressed');
+    void button.offsetWidth;
+    button.classList.add('is-pressed');
+    window.setTimeout(() => button.classList.remove('is-pressed'), 180);
+  }
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button, .button');
+    if (button) showButtonFeedback(button);
+  });
+
+  document.addEventListener('submit', event => {
+    const submitter = event.submitter;
+    if (!submitter || submitter.disabled || submitter.value === 'cancel') return;
+    submitter.classList.add('is-submitting');
+    window.setTimeout(() => submitter.classList.remove('is-submitting'), 520);
+  });
   let appConfirmResolve = null;
   function appConfirm(message, { title = 'Confirm action', confirmLabel = 'Continue', danger = false, showCloseButton = true } = {}) {
     return new Promise(resolve => {
@@ -610,7 +636,11 @@
   }
 
   function persist() {
-    if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) return Promise.resolve();
+    if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) {
+      console.warn('Skipped cloud save because the workspace is not ready.');
+      if (currentUser) updateSaveIndicator('error');
+      return Promise.resolve(false);
+    }
     const snapshot = JSON.parse(JSON.stringify(data));
     const userId = currentUser.id;
     const client = supabaseClient;
@@ -623,27 +653,36 @@
     let saved = false;
     const write = persistChain.then(async () => {
       if (!client || !userId) return;
-      const { error } = await client.from('app_state').upsert({
-        user_id: userId,
-        data: snapshot,
-        updated_at: updatedAt
-      }, { onConflict: 'user_id' });
-      if (error) {
-        console.error('Supabase save failed:', error);
-        showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
-        throw error;
+      let lastError = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const { error } = await client.from('app_state').upsert({
+          user_id: userId,
+          data: snapshot,
+          updated_at: updatedAt
+        }, { onConflict: 'user_id' });
+        if (!error) {
+          saved = true;
+          return;
+        }
+        lastError = error;
+        if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 350 * (attempt + 1)));
       }
-      saved = true;
-    }).catch(() => {}).finally(() => {
+      console.error('Supabase save failed after retries:', lastError);
+      showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
+      throw lastError || new Error('Cloud save failed.');
+    });
+    const result = write.then(() => true).catch(() => false).finally(() => {
       pendingPersistWrites = Math.max(0, pendingPersistWrites - 1);
       persistWritePending = pendingPersistWrites > 0;
       if (!pendingPersistWrites) updateSaveIndicator(saved ? 'saved' : 'error');
     });
-    persistChain = write.then(() => undefined);
+    // Keep the queue alive after a failure, while allowing the caller that
+    // initiated this save to know whether its snapshot reached Supabase.
+    persistChain = result.then(() => undefined);
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
     queueDocumentsBackup({ immediate: true });
-    return persistChain;
+    return result;
   }
 
   function startAuthTransition(title, copy, name = '') {

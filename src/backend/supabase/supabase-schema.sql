@@ -485,6 +485,9 @@ begin
       order by archived_at desc, id desc
       offset 60
     );
+  if tg_op = 'UPDATE' then
+    return new;
+  end if;
   return old;
 end;
 $$;

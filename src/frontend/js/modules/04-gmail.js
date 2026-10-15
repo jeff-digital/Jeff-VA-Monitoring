@@ -703,7 +703,7 @@
     }
     if (composeRequiresConfirmation && !(await appConfirm(`Send this application email to ${to}?`, { title: 'Confirm email', confirmLabel: 'Send' }))) return;
     const sendButton = $('#sendEmailButton');
-    sendButton.disabled = true;
+    setButtonLoading(sendButton, true);
     setEmailComposeStatus('Sending through Gmail...');
     let gmailAccepted = false;
     try {
@@ -828,7 +828,7 @@
         composeRequiresConfirmation = false;
       }
       contractEmailSendPending = false;
-      sendButton.disabled = false;
+      setButtonLoading(sendButton, false);
     }
   }
 

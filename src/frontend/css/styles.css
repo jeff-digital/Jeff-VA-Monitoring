@@ -69,7 +69,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { min-height: 100%; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--paper); }
+body { margin: 0; min-width: 0; min-height: 100vh; background: var(--paper); }
 button, input, select, textarea { font: inherit; }
 button, label { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
@@ -1328,7 +1328,7 @@ dialog[open] { overscroll-behavior: contain; }
   .app-shell { display: block; }
   .sidebar-brand-row { margin-bottom: 30px; justify-content: space-between; }
   .sidebar-toggle { display: none; }
-  .sidebar { position: fixed; z-index: 30; inset: 0 auto 0 0; width: min(86vw, 320px); height: 100dvh; max-height: 100dvh; min-height: 100dvh; padding: calc(18px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom)); transform: translateX(-102%); transition: transform .2s ease; box-shadow: 8px 0 30px rgba(0,0,0,.16); overflow-y: auto; overscroll-behavior: contain; }
+  .sidebar { position: fixed; z-index: 30; inset: 0 auto 0 0; width: min(80vw, 288px); height: 100dvh; max-height: 100dvh; min-height: 100dvh; padding: calc(16px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom)); transform: translateX(-102%); transition: transform .2s ease; box-shadow: 8px 0 30px rgba(0,0,0,.16); overflow-y: auto; overscroll-behavior: contain; }
   .sidebar.open { transform: none; }
   .sidebar-backdrop { position: fixed; z-index: 29; inset: 0; display: block; border: 0; background: rgba(13, 20, 42, .44); backdrop-filter: blur(2px); }
   .mobile-sidebar-close { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; margin-left: auto; border: 1px solid rgba(255,255,255,.2); border-radius: 7px; background: rgba(255,255,255,.08); color: #fff; font-size: 24px; line-height: 1; }
@@ -3695,7 +3695,9 @@ body:has(#hiredView.active) #hiredView > .toolbar { display: grid; grid-template
 body:has(#hiredView.active) #hiredView > .toolbar > .search-field,
 body:has(#hiredView.active) #hiredView > .toolbar > .date-filter,
 body:has(#hiredView.active) #hiredView > .toolbar > .select-field { min-width: 0; height: 40px; }
-body:has(#hiredView.active) #hiredView > .toolbar .search-field input,
+body:has(#hiredView.active) #hiredView > .toolbar .search-field { border-color: #e6e8f0; border-radius: 8px; }
+body:has(#hiredView.active) #hiredView > .toolbar .search-field input { width: 100%; min-width: 0; height: auto; min-height: 0; border: 0; border-radius: 0; background: transparent; color: #374151; font-size: 13px; }
+body:has(#hiredView.active) #hiredView > .toolbar .search-field:focus-within { border-color: #718c78; box-shadow: 0 0 0 3px rgba(93,128,105,.12); }
 body:has(#hiredView.active) #hiredView > .toolbar .select-field select,
 body:has(#hiredView.active) #hiredView > .toolbar .date-filter input { width: 100%; height: 40px; min-height: 40px; border-color: #e6e8f0; border-radius: 8px; background: #fff; color: #374151; font-size: 13px; }
 body:has(#hiredView.active) #hiredView > .toolbar .hired-date-filter { position: relative; }
@@ -6187,4 +6189,198 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   #hiredView .client-overview-profile-identity h3,
   #hiredView .client-overview-profile-identity p { white-space: normal; }
   #hiredView .client-overview-profile-facts { justify-content: flex-start; }
+}
+
+/* Mobile dashboard header: reserve a full row for the dashboard picker. */
+@media (max-width: 720px) {
+  .topbar-title-area,
+  .topbar-copy { min-width: 0; }
+  .topbar-title-area { flex: 1 1 0; }
+  .topbar h1 { min-width: 0; overflow: hidden; overflow-wrap: normal; text-overflow: ellipsis; white-space: nowrap; }
+
+  body:has(#dashboardView.active) .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    min-height: 0;
+    height: auto;
+    margin-bottom: 16px;
+    padding: 12px 0 0;
+  }
+  body:has(#dashboardView.active) .topbar-title-area { display: block; order: 2; }
+  body:has(#dashboardView.active) .mobile-menu { order: 1; }
+  body:has(#dashboardView.active) .topbar-actions { order: 3; }
+  body:has(#dashboardView.active) .topbar h1 { font-size: clamp(20px, 5.8vw, 24px); }
+  body:has(#dashboardView.active) .dashboard-switcher {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    order: 4;
+    width: 100%;
+    max-width: none;
+    flex: 1 0 100%;
+    gap: 3px;
+    margin: 10px 0 0;
+    overflow: hidden;
+  }
+  body:has(#dashboardView.active) .dashboard-switcher-tab {
+    min-width: 0;
+    min-height: 42px;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+}
+
+/* Mobile and small-tablet usability pass: keep navigation, controls, and long
+   user-provided content legible without changing the desktop workspace. */
+@media (max-width: 720px) {
+  img, svg, video, canvas { max-width: 100%; }
+  input, select, textarea, button { max-width: 100%; }
+
+  .sidebar-brand-row { margin-bottom: 18px; padding-bottom: 14px; }
+  .main-nav { gap: 13px; }
+  .nav-group { gap: 3px; }
+  .nav-group + .nav-group { padding-top: 12px; }
+  .nav-group-label { margin: 0 9px 3px; font-size: 9px; }
+  .sidebar .nav-link,
+  .sidebar .sidebar-action { min-width: 0; min-height: 44px; padding: 8px 10px; gap: 10px; font-size: 14px; }
+  .sidebar .nav-link > span:first-child,
+  .sidebar .sidebar-action > span:first-child { width: 18px; flex-basis: 18px; font-size: 13px; }
+  .sidebar .nav-label,
+  .sidebar .sidebar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sidebar .nav-label { flex: 1 1 auto; }
+  .sidebar .nav-count { flex: 0 0 auto; min-width: 22px; padding: 3px 6px; }
+  .sidebar-bottom { padding-top: 9px; }
+  .mobile-sidebar-close { width: 36px; height: 36px; flex-basis: 36px; font-size: 22px; }
+
+  .topbar, .topbar-title-area, .topbar-copy, .topbar-actions,
+  .panel-heading, .application-workspace-head, .hired-detail-heading,
+  .weekly-report-section-heading { min-width: 0; }
+  .topbar h1, .panel-heading h2, .application-workspace-title h2,
+  .hired-detail-heading h2, .weekly-report-section-heading h2 { overflow-wrap: anywhere; }
+  .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .topbar-actions .button { min-height: 40px; }
+  .global-search-trigger span, .global-search-trigger kbd { display: none; }
+  .global-search-trigger { width: 40px; padding: 0 !important; }
+
+  .view, .dashboard-tab-panel, .panel, .card, .modal, .hired-card,
+  .client-dashboard-panel, .client-overview-profile-card { min-width: 0; }
+  .panel-heading, .application-workspace-head, .hired-detail-heading,
+  .client-dashboard-heading, .client-dashboard-panel-heading { gap: 10px; }
+  .panel-heading > *, .application-workspace-head > *, .hired-detail-heading > *,
+  .client-dashboard-heading > *, .client-dashboard-panel-heading > * { min-width: 0; }
+
+  .client-detail-tabs, .documents-tabs, .email-view-tabs, .application-view-toggle {
+    max-width: 100%; -webkit-overflow-scrolling: touch;
+  }
+  .client-detail-tabs { overflow-x: auto; scrollbar-width: thin; }
+  .client-detail-tab { flex: 0 0 auto; }
+  .hired-detail-grid, .hired-detail-grid-large, .client-overview-summary,
+  .client-invoice-panel .client-invoice-payment-summary { grid-template-columns: minmax(0, 1fr); }
+  .client-overview-profile-facts, .hired-card-meta, .application-card-meta { overflow-wrap: anywhere; }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+  .app-shell { grid-template-columns: 218px minmax(0, 1fr); }
+  .sidebar { padding: 18px 12px 14px; }
+  .sidebar-brand-row { margin-bottom: 18px; padding-bottom: 14px; }
+  .main-nav { gap: 14px; }
+  .nav-group + .nav-group { padding-top: 12px; }
+  .nav-link, .sidebar-action { min-width: 0; min-height: 42px; padding: 9px 10px; gap: 10px; font-size: 12px; }
+  .nav-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-count { min-width: 22px; padding: 3px 6px; }
+  .content { padding-right: 22px; padding-left: 22px; }
+}
+
+/* Keep the dashboard chooser directly beside its dashboard title on wider screens. */
+@media (min-width: 721px) {
+  body:has(#dashboardView.active) .topbar {
+    display: flex;
+    justify-content: normal;
+  }
+  body:has(#dashboardView.active) .topbar-title-area { flex: 0 1 auto; min-width: 0; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .topbar-title-area { flex: 0 1 auto; }
+  body:has(#dashboardView.active) .dashboard-switcher { flex: 0 0 auto; margin-right: auto; }
+  body:has(#dashboardView.active) .topbar-actions { flex: 0 0 auto; margin-left: 0; }
+}
+
+/* Desktop Applications workspace: retain the controls while only the records scroll. */
+@media (min-width: 1100px) {
+  body:has(#applicationsView.active) { height: 100dvh; overflow: hidden; }
+  body:has(#applicationsView.active) .app-shell { height: 100dvh; min-height: 0; }
+  body:has(#applicationsView.active) .content {
+    display: grid;
+    grid-template-rows: 56px minmax(0, 1fr);
+    gap: 12px;
+    height: 100dvh;
+    min-height: 0;
+    padding: 12px 24px 16px;
+    overflow: hidden;
+  }
+  body:has(#applicationsView.active) .topbar {
+    min-height: 0;
+    height: 56px;
+    margin: 0;
+    border-bottom: 0;
+  }
+  body:has(#applicationsView.active) #applicationsView {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  body:has(#applicationsView.active) .application-workspace-head { padding-bottom: 12px; }
+  body:has(#applicationsView.active) .application-filters { margin: 10px 0; padding-bottom: 10px; }
+  body:has(#applicationsView.active) .application-panel {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+  body:has(#applicationsView.active) .application-bulk-bar { grid-row: 1; }
+  body:has(#applicationsView.active) .application-list-head { grid-row: 2; }
+  body:has(#applicationsView.active) .application-list {
+    grid-row: 3;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
+
+/* Shared action feedback: lightweight for navigation, explicit while a real
+   save, send, upload, or onboarding request is in progress. */
+button, .button {
+  transition: transform .16s ease, opacity .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease;
+}
+button:not(:disabled):active, .button:not(:disabled):active,
+button.is-pressed, .button.is-pressed { transform: scale(.975); }
+button.is-submitting, .button.is-submitting { animation: button-submit-pulse .52s ease both; }
+button.is-loading, .button.is-loading {
+  cursor: wait;
+  opacity: .82;
+}
+button.is-loading::before, .button.is-loading::before {
+  content: '';
+  width: .9em;
+  height: .9em;
+  flex: 0 0 .9em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: button-loading-spin .7s linear infinite;
+}
+@keyframes button-loading-spin { to { transform: rotate(360deg); } }
+@keyframes button-submit-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(64, 88, 135, .26); }
+  55% { box-shadow: 0 0 0 5px rgba(64, 88, 135, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(64, 88, 135, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  button, .button { transition-duration: 0ms; }
+  button.is-submitting, .button.is-submitting,
+  button.is-loading::before, .button.is-loading::before { animation: none; }
 }

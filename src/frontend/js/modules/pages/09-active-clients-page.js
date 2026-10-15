@@ -567,7 +567,7 @@
   $('#useClientAvatarCrop').addEventListener('click', async event => {
     if (!clientAvatarCropState) return;
     const button = event.currentTarget;
-    button.disabled = true;
+    setButtonLoading(button, true);
     $('#clientAvatarCropStatus').textContent = 'Cropping and uploading photo…';
     const clientId = clientAvatarCropState.clientId;
     try {
@@ -577,7 +577,7 @@
     } catch (error) {
       console.error('Could not crop client profile photo:', error);
       $('#clientAvatarCropStatus').textContent = error.message || 'The photo could not be cropped.';
-      button.disabled = false;
+      setButtonLoading(button, false);
       return;
     }
     button.disabled = false;

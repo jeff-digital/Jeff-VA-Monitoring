@@ -40,6 +40,32 @@
   const STATUS_LABELS = { 'Not selected': 'Rejected', 'To Proceeding': 'To Proceed' };
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
+  function setButtonLoading(button, loading) {
+    if (!button) return;
+    button.classList.toggle('is-loading', loading);
+    button.toggleAttribute('aria-busy', loading);
+    button.disabled = loading;
+  }
+
+  function showButtonFeedback(button) {
+    if (!button || button.disabled) return;
+    button.classList.remove('is-pressed');
+    void button.offsetWidth;
+    button.classList.add('is-pressed');
+    window.setTimeout(() => button.classList.remove('is-pressed'), 180);
+  }
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button, .button');
+    if (button) showButtonFeedback(button);
+  });
+
+  document.addEventListener('submit', event => {
+    const submitter = event.submitter;
+    if (!submitter || submitter.disabled || submitter.value === 'cancel') return;
+    submitter.classList.add('is-submitting');
+    window.setTimeout(() => submitter.classList.remove('is-submitting'), 520);
+  });
   let appConfirmResolve = null;
   function appConfirm(message, { title = 'Confirm action', confirmLabel = 'Continue', danger = false, showCloseButton = true } = {}) {
     return new Promise(resolve => {
@@ -613,7 +639,11 @@
   }
 
   function persist() {
-    if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) return Promise.resolve();
+    if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) {
+      console.warn('Skipped cloud save because the workspace is not ready.');
+      if (currentUser) updateSaveIndicator('error');
+      return Promise.resolve(false);
+    }
     const snapshot = JSON.parse(JSON.stringify(data));
     const userId = currentUser.id;
     const client = supabaseClient;
@@ -626,27 +656,36 @@
     let saved = false;
     const write = persistChain.then(async () => {
       if (!client || !userId) return;
-      const { error } = await client.from('app_state').upsert({
-        user_id: userId,
-        data: snapshot,
-        updated_at: updatedAt
-      }, { onConflict: 'user_id' });
-      if (error) {
-        console.error('Supabase save failed:', error);
-        showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
-        throw error;
+      let lastError = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const { error } = await client.from('app_state').upsert({
+          user_id: userId,
+          data: snapshot,
+          updated_at: updatedAt
+        }, { onConflict: 'user_id' });
+        if (!error) {
+          saved = true;
+          return;
+        }
+        lastError = error;
+        if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 350 * (attempt + 1)));
       }
-      saved = true;
-    }).catch(() => {}).finally(() => {
+      console.error('Supabase save failed after retries:', lastError);
+      showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
+      throw lastError || new Error('Cloud save failed.');
+    });
+    const result = write.then(() => true).catch(() => false).finally(() => {
       pendingPersistWrites = Math.max(0, pendingPersistWrites - 1);
       persistWritePending = pendingPersistWrites > 0;
       if (!pendingPersistWrites) updateSaveIndicator(saved ? 'saved' : 'error');
     });
-    persistChain = write.then(() => undefined);
+    // Keep the queue alive after a failure, while allowing the caller that
+    // initiated this save to know whether its snapshot reached Supabase.
+    persistChain = result.then(() => undefined);
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
     queueDocumentsBackup({ immediate: true });
-    return persistChain;
+    return result;
   }
 
   function startAuthTransition(title, copy, name = '') {
@@ -1781,7 +1820,7 @@
     }
     const action = clientDashboardAction;
     try {
-      await persist();
+      if (!(await persist())) throw new Error('Cloud save failed.');
     } catch (error) {
       console.error('Could not save client dashboard action:', error);
       showActionResult({ title: 'Could not save client update', message: error.message || 'Check your connection and try again.', status: 'error' });
@@ -1879,6 +1918,7 @@
     event.preventDefault();
     const client = hiredClients().find(item => item.id === form.dataset.clientDashboardSave);
     if (!client) return;
+    const previousClient = JSON.parse(JSON.stringify(client));
     const fields = new FormData(form);
     Object.assign(client, {
       clientName: String(fields.get('clientName') || '').trim(),
@@ -1897,7 +1937,10 @@
       updatedAt: new Date().toISOString()
     });
     try {
-      await persist();
+      if (!(await persist())) {
+        Object.assign(client, previousClient);
+        throw new Error('Cloud save failed.');
+      }
       renderClientDashboard();
       toast('Client details saved.');
     } catch (error) {
@@ -3379,6 +3422,8 @@
     }
     const platformChoice = $('#clientPlatform').value;
     const existing = editingId ? data.applications.find(item => item.id === editingId) : null;
+    const existingIndex = editingId ? data.applications.findIndex(item => item.id === editingId) : -1;
+    const previousApplication = existing ? JSON.parse(JSON.stringify(existing)) : null;
     const isActiveClient = $('#clientStatus').value === 'Active client';
     const contractEndDate = $('#contractEndDate').value;
     if (isActiveClient && contractEndDate && dateKey(contractEndDate) < today()
@@ -3429,12 +3474,19 @@
         application.documents = existing.documents;
         application.profileImage = existing.profileImage;
       }
-      const index = data.applications.findIndex(item => item.id === editingId);
-      if (index >= 0) data.applications[index] = application;
+      if (existingIndex >= 0) data.applications[existingIndex] = application;
     } else {
       data.applications.push(application);
     }
-    persist();
+    if (submitter) setButtonLoading(submitter, true);
+    const saved = await persist();
+    if (submitter) setButtonLoading(submitter, false);
+    if (!saved) {
+      if (previousApplication && existingIndex >= 0) data.applications[existingIndex] = previousApplication;
+      else data.applications = data.applications.filter(item => item.id !== application.id);
+      renderAll();
+      return;
+    }
     if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
     if ($('#clientModal').open) $('#clientModal').close();
     if (savingInDrawer) closeActiveClientActionsDrawer(true);
@@ -6340,7 +6392,7 @@
     }
     if (composeRequiresConfirmation && !(await appConfirm(`Send this application email to ${to}?`, { title: 'Confirm email', confirmLabel: 'Send' }))) return;
     const sendButton = $('#sendEmailButton');
-    sendButton.disabled = true;
+    setButtonLoading(sendButton, true);
     setEmailComposeStatus('Sending through Gmail...');
     let gmailAccepted = false;
     try {
@@ -6465,7 +6517,7 @@
         composeRequiresConfirmation = false;
       }
       contractEmailSendPending = false;
-      sendButton.disabled = false;
+      setButtonLoading(sendButton, false);
     }
   }
 
@@ -9063,7 +9115,7 @@
   $('#useClientAvatarCrop').addEventListener('click', async event => {
     if (!clientAvatarCropState) return;
     const button = event.currentTarget;
-    button.disabled = true;
+    setButtonLoading(button, true);
     $('#clientAvatarCropStatus').textContent = 'Cropping and uploading photo…';
     const clientId = clientAvatarCropState.clientId;
     try {
@@ -9073,7 +9125,7 @@
     } catch (error) {
       console.error('Could not crop client profile photo:', error);
       $('#clientAvatarCropStatus').textContent = error.message || 'The photo could not be cropped.';
-      button.disabled = false;
+      setButtonLoading(button, false);
       return;
     }
     button.disabled = false;

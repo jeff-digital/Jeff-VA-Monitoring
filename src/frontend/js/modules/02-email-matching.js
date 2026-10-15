@@ -724,7 +724,7 @@
     }
     const action = clientDashboardAction;
     try {
-      await persist();
+      if (!(await persist())) throw new Error('Cloud save failed.');
     } catch (error) {
       console.error('Could not save client dashboard action:', error);
       showActionResult({ title: 'Could not save client update', message: error.message || 'Check your connection and try again.', status: 'error' });
@@ -822,6 +822,7 @@
     event.preventDefault();
     const client = hiredClients().find(item => item.id === form.dataset.clientDashboardSave);
     if (!client) return;
+    const previousClient = JSON.parse(JSON.stringify(client));
     const fields = new FormData(form);
     Object.assign(client, {
       clientName: String(fields.get('clientName') || '').trim(),
@@ -840,7 +841,10 @@
       updatedAt: new Date().toISOString()
     });
     try {
-      await persist();
+      if (!(await persist())) {
+        Object.assign(client, previousClient);
+        throw new Error('Cloud save failed.');
+      }
       renderClientDashboard();
       toast('Client details saved.');
     } catch (error) {
@@ -2322,6 +2326,8 @@
     }
     const platformChoice = $('#clientPlatform').value;
     const existing = editingId ? data.applications.find(item => item.id === editingId) : null;
+    const existingIndex = editingId ? data.applications.findIndex(item => item.id === editingId) : -1;
+    const previousApplication = existing ? JSON.parse(JSON.stringify(existing)) : null;
     const isActiveClient = $('#clientStatus').value === 'Active client';
     const contractEndDate = $('#contractEndDate').value;
     if (isActiveClient && contractEndDate && dateKey(contractEndDate) < today()
@@ -2372,12 +2378,19 @@
         application.documents = existing.documents;
         application.profileImage = existing.profileImage;
       }
-      const index = data.applications.findIndex(item => item.id === editingId);
-      if (index >= 0) data.applications[index] = application;
+      if (existingIndex >= 0) data.applications[existingIndex] = application;
     } else {
       data.applications.push(application);
     }
-    persist();
+    if (submitter) setButtonLoading(submitter, true);
+    const saved = await persist();
+    if (submitter) setButtonLoading(submitter, false);
+    if (!saved) {
+      if (previousApplication && existingIndex >= 0) data.applications[existingIndex] = previousApplication;
+      else data.applications = data.applications.filter(item => item.id !== application.id);
+      renderAll();
+      return;
+    }
     if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
     if ($('#clientModal').open) $('#clientModal').close();
     if (savingInDrawer) closeActiveClientActionsDrawer(true);
