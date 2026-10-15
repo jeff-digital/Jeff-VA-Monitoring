@@ -2742,8 +2742,7 @@
             <button class="client-overview-profile-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${profileImagePath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${profileImagePath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
             <input type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden />
           </span>
-          <div class="client-overview-profile-identity"><span>CLIENT PROFILE</span><h3>${escapeHtml(item.clientName || 'Active client')}</h3><p>${escapeHtml([item.role, item.companyName || item.company].filter(Boolean).join(' · ') || 'Client workspace')}</p></div>
-          <span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span>
+          <div class="client-overview-profile-identity"><span>CLIENT PROFILE</span><div class="client-overview-profile-name"><h3>${escapeHtml(item.clientName || 'Active client')}</h3><span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span></div><p>${escapeHtml([item.role, item.companyName || item.company].filter(Boolean).join(' · ') || 'Client workspace')}</p></div>
         </div>
         <div class="client-overview-profile-facts">
           ${item.email ? `<a href="mailto:${escapeHtml(item.email)}"><i class="fa-regular fa-envelope" aria-hidden="true"></i><span>${escapeHtml(item.email)}</span></a>` : ''}

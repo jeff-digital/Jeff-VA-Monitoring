@@ -528,24 +528,19 @@
           <section class="panel inbox-panel">
             <header class="email-panel-header">
               <div class="email-panel-heading">
-                <div class="email-panel-title">
-                  <p class="eyebrow">EMAIL WORKSPACE</p>
-                  <h2>Emails</h2>
-                  <p class="email-page-description">Review incoming messages.</p>
+                <div class="email-summary" role="group" aria-label="Email views">
+                  <button class="email-summary-item active" type="button" data-email-view="client" aria-pressed="true">
+                    <span>Received</span><strong id="emailReceivedCount">0</strong>
+                  </button>
+                  <button class="email-summary-item" type="button" data-email-view="sent" aria-pressed="false">
+                    <span>Sent</span><strong id="emailSentCount">0</strong>
+                  </button>
                 </div>
                 <div class="email-panel-heading-actions">
                   <strong id="emailCountLabel">0 emails</strong>
                   <button class="button button-secondary email-refresh-button" type="button" data-email-refresh><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
                   <div id="emailSelectionActions"></div>
                 </div>
-              </div>
-              <div class="email-summary" role="group" aria-label="Email views">
-                <button class="email-summary-item active" type="button" data-email-view="client" aria-pressed="true">
-                  <span>Received</span><strong id="emailReceivedCount">0</strong>
-                </button>
-                <button class="email-summary-item" type="button" data-email-view="sent" aria-pressed="false">
-                  <span>Sent</span><strong id="emailSentCount">0</strong>
-                </button>
               </div>
               <section class="application-filters email-filters" aria-label="Email filters">
                 <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>

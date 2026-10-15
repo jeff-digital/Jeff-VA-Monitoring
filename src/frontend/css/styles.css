@@ -2740,15 +2740,11 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 
 #inboxView .email-filters { margin: 14px 0 8px; padding: 0; border: 0; }
 #inboxView .email-panel-header { padding: 22px 24px 0; border-bottom: 1px solid var(--workspace-line); background: #fff; }
-#inboxView .email-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-#inboxView .email-panel-title { min-width: 0; }
-#inboxView .email-panel-title .eyebrow { margin: 0; }
-#inboxView .email-panel-title h2 { margin: 4px 0 0; color: var(--workspace-ink); font-size: 22px; font-weight: 650; }
-#inboxView .email-page-description { margin: 5px 0 0; color: var(--workspace-muted); font-size: 12px; }
+#inboxView .email-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--workspace-line); }
 #inboxView .email-panel-heading-actions { display: flex; align-items: center; gap: 9px; }
 #inboxView #emailCountLabel { color: var(--workspace-muted); font-size: 11px; font-weight: 600; white-space: nowrap; }
 #inboxView #emailSelectionActions { display: flex; justify-content: flex-end; }
-#inboxView .email-summary { display: flex; gap: 8px; margin-top: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--workspace-line); }
+#inboxView .email-summary { display: flex; flex-shrink: 0; gap: 8px; }
 #inboxView .email-summary-item { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 7px 11px; border: 1px solid #e1e5e1; border-radius: 5px; background: #fff; color: #59635b; font-size: 11px; font-weight: 600; cursor: pointer; }
 #inboxView .email-summary-item strong { color: #404a42; font-size: 12px; font-weight: 700; }
 #inboxView .email-summary-item:hover { border-color: #bac9bc; background: #f8faf8; }
@@ -2929,7 +2925,7 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
   #inboxView .application-workspace-title h2 { font-size: 20px; }
   #applicationsView .application-filter-controls,
   #inboxView .email-filter-controls { grid-template-columns: 1fr 1fr; }
-  #inboxView .email-panel-heading-actions { width: 100%; justify-content: space-between; }
+  #inboxView .email-panel-heading-actions { flex-wrap: wrap; justify-content: flex-end; }
   #inboxView .email-summary { gap: 6px; }
   #inboxView .email-summary-item { gap: 6px; padding: 7px 9px; font-size: 10px; }
 }
@@ -3213,7 +3209,9 @@ body.client-task-drawer-open { overflow: hidden; }
 #hiredView .client-overview-profile-identity > span { display: block; margin-bottom: 3px; color: var(--workspace-muted); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
 #hiredView .client-overview-profile-identity h3 { margin: 0; overflow: hidden; color: var(--workspace-ink); font-size: 17px; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 #hiredView .client-overview-profile-identity p { margin: 3px 0 0; overflow: hidden; color: var(--workspace-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-#hiredView .client-overview-profile-main > .status-pill { align-self: flex-start; margin-left: auto; }
+#hiredView .client-overview-profile-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#hiredView .client-overview-profile-name h3 { min-width: 0; }
+#hiredView .client-overview-profile-name > .status-pill { flex-shrink: 0; }
 #hiredView .client-overview-profile-facts { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px 12px; }
 #hiredView .client-overview-profile-facts > a,
 #hiredView .client-overview-profile-facts > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: #58655d; font-size: 11px; }
@@ -3830,11 +3828,11 @@ body:has(#hiredView.active) .hired-card .view-details-label { min-height: 30px; 
 body:has(#hiredView.active) .hired-card .view-details-label i { font-size: 11px; transition: transform .15s ease; }
 body:has(#hiredView.active) .hired-card:hover .view-details-label i { transform: translateX(2px); }
 body:has(#hiredView.active) .hired-card.contract-ended-card .client-contract-status { opacity: 1; }
-body:has(#hiredView.active) .hired-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+body:has(#hiredView.active) .hired-list { grid-template-columns: repeat(3, minmax(0, 360px)); justify-content: start; }
 
 @media (max-width: 1240px) {
   body:has(#hiredView.active) #hiredView > .toolbar { grid-template-columns: minmax(180px, 1fr) 140px 140px 150px; }
-  body:has(#hiredView.active) .hired-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body:has(#hiredView.active) .hired-list { grid-template-columns: repeat(2, minmax(0, 360px)); }
 }
 
 @media (max-width: 760px) {
@@ -6185,7 +6183,6 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 @media (max-width: 640px) {
   #hiredView .client-overview-profile-card { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 14px; }
   #hiredView .client-overview-profile-main { align-items: flex-start; }
-  #hiredView .client-overview-profile-main > .status-pill { margin-left: 0; }
   #hiredView .client-overview-profile-identity h3,
   #hiredView .client-overview-profile-identity p { white-space: normal; }
   #hiredView .client-overview-profile-facts { justify-content: flex-start; }
