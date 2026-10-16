@@ -76,7 +76,7 @@
       }
       $('#appConfirmTitle').textContent = title;
       $('#appConfirmMessage').textContent = message;
-      $('.app-confirm-close').hidden = !showCloseButton;
+      $('.app-confirm-close')?.toggleAttribute('hidden', !showCloseButton);
       const acceptButton = $('#appConfirmAccept');
       acceptButton.textContent = confirmLabel;
       acceptButton.className = `button ${danger ? 'button-danger' : 'button-primary'}`;
@@ -2612,6 +2612,7 @@
     if (showingHiredClientList) {
       hiredView.classList.remove('client-focused');
       $('#hiredCountLabel').hidden = false;
+      $('#hiredHeaderSummary').hidden = false;
       detailPanel.classList.add('hidden');
       detailPanel.dataset.clientId = '';
       panel.hidden = false;
@@ -2630,6 +2631,7 @@
     }
     hiredView.classList.remove('client-focused');
     $('#hiredCountLabel').hidden = false;
+    $('#hiredHeaderSummary').hidden = false;
     target.innerHTML = '<div class="application-empty"><h3>No active clients yet</h3><p>Clients with an active contract will appear here.</p></div>';
     panel.hidden = false;
     detailPanel.classList.add('hidden');
@@ -2666,7 +2668,7 @@
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name">${escapeHtml([item.contact, item.companyName || item.company || item.clientName].map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client')}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
       ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
       ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
       ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
@@ -2693,6 +2695,7 @@
     if (!item) return;
     showingHiredClientList = false;
     $('#hiredCountLabel').hidden = true;
+    $('#hiredHeaderSummary').hidden = true;
     hiredEditingId = item.id;
     $('#hiredView').classList.add('client-focused');
     $('#hiredList').innerHTML = '';
@@ -2735,6 +2738,8 @@
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
     const profileImagePath = item.profileImage?.storagePath || '';
+    const clientDetailName = [item.contact, item.companyName || item.company || item.clientName]
+      .map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client';
     $('#clientOverviewProfile').innerHTML = `
       <article class="client-overview-profile-card">
         <div class="client-overview-profile-main">
@@ -2743,7 +2748,7 @@
             <button class="client-overview-profile-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${profileImagePath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${profileImagePath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
             <input type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden />
           </span>
-          <div class="client-overview-profile-identity"><span>CLIENT PROFILE</span><div class="client-overview-profile-name"><h3>${escapeHtml(item.clientName || 'Active client')}</h3><span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span></div><p>${escapeHtml([item.role, item.companyName || item.company].filter(Boolean).join(' · ') || 'Client workspace')}</p></div>
+          <div class="client-overview-profile-identity"><span>CLIENT PROFILE</span><div class="client-overview-profile-name"><h3 title="${escapeHtml(clientDetailName)}">${escapeHtml(clientDetailName)}</h3><span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span></div><p>${escapeHtml(item.role || 'Client workspace')}</p></div>
         </div>
         <div class="client-overview-profile-facts">
           ${item.email ? `<a href="mailto:${escapeHtml(item.email)}"><i class="fa-regular fa-envelope" aria-hidden="true"></i><span>${escapeHtml(item.email)}</span></a>` : ''}
@@ -2917,6 +2922,12 @@
       }
       if (onboardingDetailsChanged) {
         item.updatedAt = new Date().toISOString();
+        const profileName = $('#clientOverviewProfile .client-overview-profile-name h3');
+        if (profileName) {
+          profileName.textContent = [item.contact, item.companyName || item.company || item.clientName]
+            .map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client';
+          profileName.title = profileName.textContent;
+        }
         if (submittedPhone) updateHiredClientPhoneDisplay(item);
         await persist();
       }
@@ -3406,7 +3417,8 @@
       field.required = isInterview;
       field.setCustomValidity(isInterview ? '' : '');
     });
-    $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
+    $('#closeClientDetailsButton').hidden = false;
+    if (!activeClientDrawerEdit) $('#closeClientDetailsButton').textContent = (viewingClientDetails || editingId) ? 'Close' : 'Cancel';
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
   }
@@ -7261,7 +7273,7 @@
     event.target.setCustomValidity('');
     $('#saveWeeklyGoal').disabled = !event.target.checkValidity();
   });
-  $('#closeWeeklyGoalDialog').addEventListener('click', () => $('#weeklyGoalDialog').close());
+  $('#closeWeeklyGoalDialog')?.addEventListener('click', () => $('#weeklyGoalDialog').close());
   $('#cancelWeeklyGoal').addEventListener('click', () => $('#weeklyGoalDialog').close());
   $('#weeklyGoalForm').addEventListener('submit', event => {
     event.preventDefault();
@@ -8338,7 +8350,7 @@
     $('#dailyTaskAddModal').showModal();
     $('#dailyTaskTitle').focus();
   });
-  $('#closeDailyTaskAddModal').addEventListener('click', closeDailyTaskAddModal);
+  $('#closeDailyTaskAddModal')?.addEventListener('click', closeDailyTaskAddModal);
   $('#cancelDailyTaskAddModal').addEventListener('click', closeDailyTaskAddModal);
   $('#dailyTaskAddModal').addEventListener('close', resetDailyTaskDraft);
   $('#dailyTaskAddChecklistButton').addEventListener('click', addDailyTaskDraftChecklistItem);
@@ -8440,7 +8452,7 @@
     $('#openDailyTaskAddModal').focus();
   });
   $('#dailyTaskDetailModal').addEventListener('close', () => { activeDailyTaskId = ''; });
-  $('#closeDailyTaskDetails').addEventListener('click', () => $('#dailyTaskDetailModal').close());
+  $('#closeDailyTaskDetails')?.addEventListener('click', () => $('#dailyTaskDetailModal').close());
   $('#closeDailyTaskDetailsAction').addEventListener('click', () => $('#dailyTaskDetailModal').close());
   $('#dailyTaskChecklistForm').addEventListener('submit', event => {
     event.preventDefault();
@@ -8555,6 +8567,7 @@
   });
 
   renderDailyTasks();
+
   // Active Clients page controls, including its document and invoice tools.
   let activeClientDrawerOpen = false;
   let activeClientDrawerView = 'list';
@@ -8732,7 +8745,7 @@
       .filter(element => !element.closest('[hidden]') && element.getClientRects().length);
   }
 
-  $('#closeActiveClientDrawer').addEventListener('click', () => closeActiveClientActionsDrawer());
+  $('#closeActiveClientDrawer')?.addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBack').addEventListener('click', () => {
     if (activeClientDrawerFormChanged(activeClientDrawerView)) {
@@ -9113,7 +9126,7 @@
   cropViewport.addEventListener('pointerup', stopClientAvatarCropDrag);
   cropViewport.addEventListener('pointercancel', stopClientAvatarCropDrag);
   $('#clientAvatarZoom').addEventListener('input', () => updateClientAvatarCropScale(true));
-  $('#cancelClientAvatarCrop').addEventListener('click', closeClientAvatarCrop);
+  $('#cancelClientAvatarCrop')?.addEventListener('click', closeClientAvatarCrop);
   $('#cancelClientAvatarCropAction').addEventListener('click', closeClientAvatarCrop);
   $('#clientAvatarCropModal').addEventListener('close', () => {
     if (clientAvatarCropObjectUrl) URL.revokeObjectURL(clientAvatarCropObjectUrl);
@@ -9260,7 +9273,7 @@
     showActionResult({ title: 'Reminder set', message: `The document email reminder is set for ${formatDate(reminderDate)}.` });
   });
 
-  $('#cancelDocumentEmailReminder').addEventListener('click', closeDocumentEmailReminder);
+  $('#cancelDocumentEmailReminder')?.addEventListener('click', closeDocumentEmailReminder);
   $('#cancelDocumentEmailReminderAction').addEventListener('click', closeDocumentEmailReminder);
 
   document.addEventListener('change', event => {
@@ -9520,7 +9533,7 @@
   const coverLetterFields = [...document.querySelectorAll('[data-cover-letter-field]')];
 
   function coverLetterValues() {
-    return Object.fromEntries(coverLetterFields.map(field => [field.dataset.coverLetterField, field.value.trim()]));
+    return { ...COVER_LETTER_DEFAULTS, ...Object.fromEntries(coverLetterFields.map(field => [field.dataset.coverLetterField, field.value.trim()])) };
   }
 
   function coverLetterDate() {
@@ -9537,14 +9550,12 @@
     const recipientName = (values.recipient || '').trim();
     const defaultRecipient = 'Hiring Manager';
     const salutationRecipient = recipientName || defaultRecipient;
-    const recipientAddress = recipientName && recipientName.toLowerCase() !== defaultRecipient.toLowerCase() ? recipientName : '';
     $('#coverLetterPreview').innerHTML = `
       <header class="cover-letter-page-header">
         <img src="images/tab.png" alt="Jeff VA logo" />
         <div><h1>Jeffrey S. Almocera</h1><div class="cover-letter-contact">${escapeHtml(contact)}</div></div>
       </header>
       <p class="cover-letter-date">${coverLetterDate()}</p>
-      ${recipientAddress ? `<p class="cover-letter-recipient">${escapeHtml(recipientAddress)}</p>` : ''}
       <p class="cover-letter-greeting">Dear ${escapeHtml(salutationRecipient)},</p>
       <div class="cover-letter-copy">${bodyHtml}</div>
       <p class="cover-letter-signoff">Best regards,<br><strong>Jeffrey S. Almocera</strong></p>`;
@@ -9602,8 +9613,9 @@
       showActionResult({ title: 'PDF export unavailable', message: 'The PDF tools are still loading. Try again in a moment.', status: 'error' });
       return;
     }
+    if (!await appConfirm('Create a PDF file from the current cover letter?', { title: 'Download PDF', confirmLabel: 'Download PDF' })) return;
     const button = $('#downloadCoverLetterPdf');
-    button.disabled = true;
+    setButtonLoading(button, true);
     try {
       const canvas = await renderCoverLetterCanvas();
       const pdf = new pdfLib({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -9615,12 +9627,12 @@
       const imageHeight = canvas.height * fitScale;
       pdf.addImage(image, 'JPEG', (pageWidth - imageWidth) / 2, (pageHeight - imageHeight) / 2, imageWidth, imageHeight);
       pdf.save(coverLetterFilename('pdf'));
-      showActionResult({ title: 'Cover letter downloaded', message: 'Your cover letter PDF is ready.' });
+      showActionResult({ title: 'Download complete', message: 'Your cover letter PDF is ready.' });
     } catch (error) {
       console.error('Cover letter PDF export failed:', error);
       showActionResult({ title: 'Could not create PDF', message: 'The cover letter PDF could not be generated. Try again.', status: 'error' });
     } finally {
-      button.disabled = false;
+      setButtonLoading(button, false);
     }
   }
 
@@ -9630,8 +9642,9 @@
       showActionResult({ title: 'Word export unavailable', message: 'The Word document tool could not load. Check your connection and try again.', status: 'error' });
       return;
     }
+    if (!await appConfirm('Create a Word file from the current cover letter?', { title: 'Download Word document', confirmLabel: 'Download Word' })) return;
     const button = $('#downloadCoverLetterWord');
-    button.disabled = true;
+    setButtonLoading(button, true);
     try {
       const values = coverLetterValues();
       const logoResponse = await fetch('images/tab.png');
@@ -9642,7 +9655,6 @@
       const recipientName = (values.recipient || '').trim();
       const defaultRecipient = 'Hiring Manager';
       const salutationRecipient = recipientName || defaultRecipient;
-      const recipientAddress = recipientName && recipientName.toLowerCase() !== defaultRecipient.toLowerCase() ? recipientName : '';
       const textParagraph = (text, options = {}) => {
         const { fontSize = 20, color, bold = false, ...paragraphOptions } = options;
         return new Paragraph({
@@ -9691,7 +9703,6 @@
         header,
         headerDivider,
         textParagraph(coverLetterDate(), { fontSize: 18, spacing: { before: 200, after: 200 } }),
-        ...(recipientAddress ? [textParagraph(recipientAddress, { spacing: { after: 200 } })] : []),
         textParagraph(`Dear ${salutationRecipient},`, { spacing: { after: 165 } }),
         textParagraph(`I am excited to apply for the ${values.role || 'position'}${values.company ? ` at ${values.company}` : ''}.`, { alignment: AlignmentType.JUSTIFIED })
       ];
@@ -9706,12 +9717,12 @@
       }] });
       const blob = await Packer.toBlob(document);
       downloadCoverLetterBlob(blob, coverLetterFilename('docx'));
-      showActionResult({ title: 'Cover letter downloaded', message: 'Your Word document is ready.' });
+      showActionResult({ title: 'Download complete', message: 'Your Word document is ready.' });
     } catch (error) {
       console.error('Cover letter Word export failed:', error);
       showActionResult({ title: 'Could not create Word document', message: 'The Word document could not be generated. Try again.', status: 'error' });
     } finally {
-      button.disabled = false;
+      setButtonLoading(button, false);
     }
   }
 
@@ -11555,7 +11566,7 @@ function initClientTaskDrawer() {
   $('#clientTaskForm').dataset.initialSnapshot = clientTaskFormSnapshot();
   $('#newClientTaskButton').addEventListener('click', event => openClientTaskDrawer(null, event.currentTarget));
   $('#clientTaskDrawerBackdrop').addEventListener('click', closeClientTaskDrawer);
-  $('#closeClientTaskDrawer').addEventListener('click', closeClientTaskDrawer);
+  $('#closeClientTaskDrawer')?.addEventListener('click', closeClientTaskDrawer);
   $('#cancelClientTaskDrawer').addEventListener('click', closeClientTaskDrawer);
   $('#clientTaskRepeat').addEventListener('change', updateClientTaskRepeatFields);
   $('#clientTaskWeekdays').addEventListener('change', updateClientTaskRepeatFields);

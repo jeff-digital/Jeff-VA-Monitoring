@@ -73,7 +73,7 @@
       }
       $('#appConfirmTitle').textContent = title;
       $('#appConfirmMessage').textContent = message;
-      $('.app-confirm-close').hidden = !showCloseButton;
+      $('.app-confirm-close')?.toggleAttribute('hidden', !showCloseButton);
       const acceptButton = $('#appConfirmAccept');
       acceptButton.textContent = confirmLabel;
       acceptButton.className = `button ${danger ? 'button-danger' : 'button-primary'}`;

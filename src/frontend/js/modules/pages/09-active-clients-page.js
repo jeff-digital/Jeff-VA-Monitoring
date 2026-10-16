@@ -175,7 +175,7 @@
       .filter(element => !element.closest('[hidden]') && element.getClientRects().length);
   }
 
-  $('#closeActiveClientDrawer').addEventListener('click', () => closeActiveClientActionsDrawer());
+  $('#closeActiveClientDrawer')?.addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBack').addEventListener('click', () => {
     if (activeClientDrawerFormChanged(activeClientDrawerView)) {
@@ -556,7 +556,7 @@
   cropViewport.addEventListener('pointerup', stopClientAvatarCropDrag);
   cropViewport.addEventListener('pointercancel', stopClientAvatarCropDrag);
   $('#clientAvatarZoom').addEventListener('input', () => updateClientAvatarCropScale(true));
-  $('#cancelClientAvatarCrop').addEventListener('click', closeClientAvatarCrop);
+  $('#cancelClientAvatarCrop')?.addEventListener('click', closeClientAvatarCrop);
   $('#cancelClientAvatarCropAction').addEventListener('click', closeClientAvatarCrop);
   $('#clientAvatarCropModal').addEventListener('close', () => {
     if (clientAvatarCropObjectUrl) URL.revokeObjectURL(clientAvatarCropObjectUrl);
@@ -703,7 +703,7 @@
     showActionResult({ title: 'Reminder set', message: `The document email reminder is set for ${formatDate(reminderDate)}.` });
   });
 
-  $('#cancelDocumentEmailReminder').addEventListener('click', closeDocumentEmailReminder);
+  $('#cancelDocumentEmailReminder')?.addEventListener('click', closeDocumentEmailReminder);
   $('#cancelDocumentEmailReminderAction').addEventListener('click', closeDocumentEmailReminder);
 
   document.addEventListener('change', event => {

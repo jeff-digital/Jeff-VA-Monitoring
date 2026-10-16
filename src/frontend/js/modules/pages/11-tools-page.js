@@ -13,7 +13,7 @@
   const coverLetterFields = [...document.querySelectorAll('[data-cover-letter-field]')];
 
   function coverLetterValues() {
-    return Object.fromEntries(coverLetterFields.map(field => [field.dataset.coverLetterField, field.value.trim()]));
+    return { ...COVER_LETTER_DEFAULTS, ...Object.fromEntries(coverLetterFields.map(field => [field.dataset.coverLetterField, field.value.trim()])) };
   }
 
   function coverLetterDate() {
@@ -30,14 +30,12 @@
     const recipientName = (values.recipient || '').trim();
     const defaultRecipient = 'Hiring Manager';
     const salutationRecipient = recipientName || defaultRecipient;
-    const recipientAddress = recipientName && recipientName.toLowerCase() !== defaultRecipient.toLowerCase() ? recipientName : '';
     $('#coverLetterPreview').innerHTML = `
       <header class="cover-letter-page-header">
         <img src="images/tab.png" alt="Jeff VA logo" />
         <div><h1>Jeffrey S. Almocera</h1><div class="cover-letter-contact">${escapeHtml(contact)}</div></div>
       </header>
       <p class="cover-letter-date">${coverLetterDate()}</p>
-      ${recipientAddress ? `<p class="cover-letter-recipient">${escapeHtml(recipientAddress)}</p>` : ''}
       <p class="cover-letter-greeting">Dear ${escapeHtml(salutationRecipient)},</p>
       <div class="cover-letter-copy">${bodyHtml}</div>
       <p class="cover-letter-signoff">Best regards,<br><strong>Jeffrey S. Almocera</strong></p>`;
@@ -95,8 +93,9 @@
       showActionResult({ title: 'PDF export unavailable', message: 'The PDF tools are still loading. Try again in a moment.', status: 'error' });
       return;
     }
+    if (!await appConfirm('Create a PDF file from the current cover letter?', { title: 'Download PDF', confirmLabel: 'Download PDF' })) return;
     const button = $('#downloadCoverLetterPdf');
-    button.disabled = true;
+    setButtonLoading(button, true);
     try {
       const canvas = await renderCoverLetterCanvas();
       const pdf = new pdfLib({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -108,12 +107,12 @@
       const imageHeight = canvas.height * fitScale;
       pdf.addImage(image, 'JPEG', (pageWidth - imageWidth) / 2, (pageHeight - imageHeight) / 2, imageWidth, imageHeight);
       pdf.save(coverLetterFilename('pdf'));
-      showActionResult({ title: 'Cover letter downloaded', message: 'Your cover letter PDF is ready.' });
+      showActionResult({ title: 'Download complete', message: 'Your cover letter PDF is ready.' });
     } catch (error) {
       console.error('Cover letter PDF export failed:', error);
       showActionResult({ title: 'Could not create PDF', message: 'The cover letter PDF could not be generated. Try again.', status: 'error' });
     } finally {
-      button.disabled = false;
+      setButtonLoading(button, false);
     }
   }
 
@@ -123,8 +122,9 @@
       showActionResult({ title: 'Word export unavailable', message: 'The Word document tool could not load. Check your connection and try again.', status: 'error' });
       return;
     }
+    if (!await appConfirm('Create a Word file from the current cover letter?', { title: 'Download Word document', confirmLabel: 'Download Word' })) return;
     const button = $('#downloadCoverLetterWord');
-    button.disabled = true;
+    setButtonLoading(button, true);
     try {
       const values = coverLetterValues();
       const logoResponse = await fetch('images/tab.png');
@@ -135,7 +135,6 @@
       const recipientName = (values.recipient || '').trim();
       const defaultRecipient = 'Hiring Manager';
       const salutationRecipient = recipientName || defaultRecipient;
-      const recipientAddress = recipientName && recipientName.toLowerCase() !== defaultRecipient.toLowerCase() ? recipientName : '';
       const textParagraph = (text, options = {}) => {
         const { fontSize = 20, color, bold = false, ...paragraphOptions } = options;
         return new Paragraph({
@@ -184,7 +183,6 @@
         header,
         headerDivider,
         textParagraph(coverLetterDate(), { fontSize: 18, spacing: { before: 200, after: 200 } }),
-        ...(recipientAddress ? [textParagraph(recipientAddress, { spacing: { after: 200 } })] : []),
         textParagraph(`Dear ${salutationRecipient},`, { spacing: { after: 165 } }),
         textParagraph(`I am excited to apply for the ${values.role || 'position'}${values.company ? ` at ${values.company}` : ''}.`, { alignment: AlignmentType.JUSTIFIED })
       ];
@@ -199,12 +197,12 @@
       }] });
       const blob = await Packer.toBlob(document);
       downloadCoverLetterBlob(blob, coverLetterFilename('docx'));
-      showActionResult({ title: 'Cover letter downloaded', message: 'Your Word document is ready.' });
+      showActionResult({ title: 'Download complete', message: 'Your Word document is ready.' });
     } catch (error) {
       console.error('Cover letter Word export failed:', error);
       showActionResult({ title: 'Could not create Word document', message: 'The Word document could not be generated. Try again.', status: 'error' });
     } finally {
-      button.disabled = false;
+      setButtonLoading(button, false);
     }
   }
 

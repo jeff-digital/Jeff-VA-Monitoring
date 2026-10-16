@@ -114,7 +114,7 @@
           <div class="topbar-title-area">
             <div class="topbar-copy">
               <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
-              <h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span>
+              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" hidden><span>Active clients <strong id="hiredActiveSummary">0</strong></span><span>Ended contracts <strong id="hiredEndedSummary">0</strong></span></span></div>
               <p class="page-context" id="applicationWeekDate" hidden></p>
               <p class="page-context" id="emailWeekDate" hidden></p>
               <p class="page-context daily-task-header-date" id="dailyTaskHeaderDate" hidden></p>
@@ -242,7 +242,7 @@
             </aside>
             <dialog class="client-dashboard-action-dialog" id="clientDashboardActionDialog" aria-labelledby="clientDashboardActionTitle">
               <form id="clientDashboardActionForm">
-                <div class="client-dashboard-drawer-heading"><div><span class="eyebrow">QUICK ACTION</span><h2 id="clientDashboardActionTitle">Add a note</h2></div><button class="icon-button" type="button" data-client-dashboard-action-close aria-label="Close quick action"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+                <div class="client-dashboard-drawer-heading"><div><span class="eyebrow">QUICK ACTION</span><h2 id="clientDashboardActionTitle">Add a note</h2></div></div>
                 <div id="clientDashboardActionFields"></div>
                 <div class="modal-actions"><button class="button button-secondary" type="button" data-client-dashboard-action-close>Cancel</button><button class="button button-primary" type="submit">Save</button></div>
               </form>
@@ -437,10 +437,6 @@
             <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
             <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
           </section>
-          <section class="hired-summary" aria-label="Client summary">
-            <div><span>Active clients</span><strong id="hiredActiveSummary">0</strong></div>
-            <div><span>Ended contracts</span><strong id="hiredEndedSummary">0</strong></div>
-          </section>
           <section class="panel hired-panel" hidden>
             <div class="hired-list" id="hiredList"></div>
           </section>
@@ -576,8 +572,8 @@
               <div class="cover-letter-heading">
                 <div><p class="eyebrow">DOCUMENT BUILDER</p><h3>Cover letter</h3></div>
                 <div class="cover-letter-downloads">
-                  <button class="button button-secondary" type="button" id="downloadCoverLetterWord"><i class="fa-regular fa-file-word" aria-hidden="true"></i> Word</button>
-                  <button class="button button-primary" type="button" id="downloadCoverLetterPdf"><i class="fa-regular fa-file-pdf" aria-hidden="true"></i> PDF</button>
+                  <button class="button button-secondary cover-letter-download-button" type="button" id="downloadCoverLetterWord"><i class="fa-solid fa-file-word" aria-hidden="true"></i><span>Word</span></button>
+                  <button class="button button-primary cover-letter-download-button" type="button" id="downloadCoverLetterPdf"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i><span>PDF</span></button>
                 </div>
               </div>
               <div class="cover-letter-workspace">
@@ -587,10 +583,7 @@
                     <label class="form-field">Hiring manager<input data-cover-letter-field="recipient" maxlength="120" /></label>
                     <label class="form-field">Company<input data-cover-letter-field="company" maxlength="120" placeholder="Company name" /></label>
                     <label class="form-field">Position<input data-cover-letter-field="role" maxlength="140" /></label>
-                    <label class="form-field">Email<input data-cover-letter-field="email" type="email" maxlength="140" /></label>
-                    <label class="form-field">Phone<input data-cover-letter-field="phone" maxlength="50" /></label>
-                    <label class="form-field">Location<input data-cover-letter-field="location" maxlength="100" /></label>
-                    <label class="form-field">Website<input data-cover-letter-field="website" maxlength="160" /></label>
+                    <p class="cover-letter-fixed-contact">Your email, phone, location, and website are included automatically in the exported letter.</p>
                     <label class="form-field cover-letter-body-field">Letter body<textarea data-cover-letter-field="body" rows="16" maxlength="8000"></textarea></label>
                   </div>
                 </section>
@@ -791,7 +784,6 @@
       <form class="daily-task-form" id="dailyTaskForm">
         <div class="modal-heading">
           <div><h2 id="dailyTaskAddModalTitle">Add Task</h2></div>
-          <button class="icon-button" type="button" id="closeDailyTaskAddModal" aria-label="Close add task form">×</button>
         </div>
         <label class="form-field">Task <span class="required">*</span><input id="dailyTaskTitle" maxlength="160" required placeholder="e.g. Prepare a proposal for the launch" /></label>
         <div class="daily-task-form-row">
@@ -826,7 +818,6 @@
       <div class="daily-task-detail-shell">
         <div class="modal-heading">
           <div><h2 id="dailyTaskDetailTitle">Task</h2></div>
-          <button class="icon-button" type="button" id="closeDailyTaskDetails" aria-label="Close task details">×</button>
         </div>
         <div id="dailyTaskDetailSummary"></div>
         <section class="daily-task-detail-checklist" aria-labelledby="dailyTaskDetailChecklistTitle">
@@ -846,7 +837,6 @@
       <form method="dialog" class="app-confirm-form">
         <div class="modal-heading">
           <div><p class="eyebrow">CONFIRMATION</p><h2 id="appConfirmTitle">Confirm action</h2></div>
-          <button class="icon-button app-confirm-close" type="submit" value="cancel" formnovalidate aria-label="Cancel">×</button>
         </div>
         <p class="app-confirm-message" id="appConfirmMessage"></p>
         <div class="modal-actions">
@@ -869,7 +859,7 @@
     </dialog>
     <dialog class="modal small-modal weekly-goal-modal" id="weeklyGoalDialog" aria-labelledby="weeklyGoalTitle">
       <form id="weeklyGoalForm">
-        <div class="modal-heading"><div><p class="eyebrow">DASHBOARD GOAL</p><h2 id="weeklyGoalTitle">Weekly application goal</h2></div><button class="icon-button" type="button" id="closeWeeklyGoalDialog" aria-label="Close weekly goal">×</button></div>
+        <div class="modal-heading"><div><p class="eyebrow">DASHBOARD GOAL</p><h2 id="weeklyGoalTitle">Weekly application goal</h2></div></div>
         <label class="form-field" for="weeklyGoalInput">Target applications per week<input id="weeklyGoalInput" type="number" min="1" max="100" step="1" required inputmode="numeric" placeholder="e.g. 10" /></label>
         <p class="weekly-goal-help">Progress counts applications submitted this week. This goal is saved on this device.</p>
         <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelWeeklyGoal">Cancel</button><button class="button button-primary" type="submit" id="saveWeeklyGoal" disabled>Save goal</button></div>
@@ -898,7 +888,6 @@
       <form method="dialog" id="scriptForm" class="script-form">
         <div class="modal-heading">
           <div><p class="eyebrow">SCRIPT</p><h2 id="scriptDialogTitle">Add script</h2></div>
-          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Close">×</button>
         </div>
         <input type="hidden" id="scriptId" />
         <label class="form-field"><span>Script name</span><input id="scriptTitle" maxlength="120" required placeholder="e.g. Client introduction" /></label>
@@ -914,7 +903,6 @@
       <div class="script-detail-shell">
         <div class="modal-heading">
           <div><p class="eyebrow">SCRIPT DETAILS</p><h2 id="scriptDetailTitle">Script</h2><p class="script-detail-updated" id="scriptDetailUpdated"></p></div>
-          <button class="icon-button" type="button" data-script-detail-close aria-label="Close script details">×</button>
         </div>
         <pre class="script-detail-content" id="scriptDetailContent"></pre>
         <div class="modal-actions"><button class="button button-secondary" type="button" data-script-detail-close>Close</button><button class="button button-primary" type="button" id="scriptDetailEdit">Edit script</button></div>
@@ -925,7 +913,6 @@
       <form method="dialog" id="workLinkForm" class="work-link-form">
         <div class="modal-heading">
           <div><p class="eyebrow">SOFTCOPY LINK</p><h2 id="workLinkDialogTitle">Add softcopy link</h2></div>
-          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Close">×</button>
         </div>
         <label class="form-field"><span>Link name</span><input id="workLinkName" maxlength="120" placeholder="e.g. Shared tracker or project doc" /></label>
         <label class="form-field"><span>URL</span><input id="workLinkUrl" type="url" maxlength="500" placeholder="https://docs.google.com/..." required /></label>
@@ -940,7 +927,6 @@
       <form method="dialog" id="toApplyForm" class="to-apply-form">
         <div class="modal-heading">
           <div><h2 id="toApplyModalTitle">Add reminder</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <input type="hidden" id="toApplyId" />
         <label class="form-field">Title <span class="required">*</span><input id="toApplyTitle" maxlength="150" required placeholder="e.g. Virtual assistant role" /></label>
@@ -955,7 +941,6 @@
       <form method="dialog" id="clientForm">
         <div class="modal-heading">
           <div><p class="eyebrow" id="modalEyebrow">NEW RECORD</p><h2 id="clientModalTitle">Add an applied job</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <input type="hidden" id="clientId" />
         <div class="client-form-layout">
@@ -1042,7 +1027,6 @@
       <form method="dialog" id="applicationFollowUpForm">
         <div class="modal-heading">
           <div><p class="eyebrow">APPLICATION FOLLOW-UP</p><h2 id="applicationFollowUpTitle">Set follow-up date</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <label class="form-field">Follow-up date <input id="applicationFollowUpDateInput" type="date" required /></label>
         <p class="settings-copy">The application's automatic follow-up setting will remain unchanged.</p>
@@ -1054,7 +1038,6 @@
       <form method="dialog" id="followUpEditorForm">
         <div class="modal-heading">
           <div><p class="eyebrow">APPLICATION FOLLOW-UP</p><h2 id="followUpEditorTitle">Edit follow-up</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <div class="follow-up-editor-fields">
           <label class="form-field form-field-wide">Subject <input id="followUpEditorSubject" maxlength="200" required /></label>
@@ -1069,7 +1052,6 @@
       <form method="dialog">
         <div class="modal-heading">
           <div><p class="eyebrow">NEXT STEP</p><h2 id="clientDocumentPickerTitle">Add a document to this client</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <p class="settings-copy">Upload the contract file for this client. It will be attached to the client for this one-time email and will not be saved in Tools.</p>
         <div class="activation-file-info hidden" id="activationFileInfo"></div>
@@ -1084,7 +1066,6 @@
       <form method="dialog">
         <div class="modal-heading">
           <div><p class="eyebrow">SEND CONTRACT · STEP 1 OF 2</p><h2 id="contractEmailUploadTitle">Upload contract</h2><p id="contractEmailUploadClientName"></p></div>
-          <button class="icon-button" type="button" id="closeContractEmailUploadModal" aria-label="Close">×</button>
         </div>
         <div id="contractEmailFileBox">
           <button class="button button-secondary" type="button" id="chooseContractEmailFileButton">Choose file</button>
@@ -1110,7 +1091,6 @@
       <form method="dialog" id="clientEmailConfirmationForm">
         <div class="modal-heading">
           <div><p class="eyebrow">ACTIVE CLIENT SETUP</p><h2 id="clientEmailConfirmationTitle">Confirm client email</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <p class="settings-copy" id="clientEmailConfirmationStatus"></p>
         <p class="follow-up-editor-status">The client will be changed to Active Client after the file is attached. Choose a saved email template in the next step, review it, and send it through Gmail.</p>
@@ -1186,7 +1166,6 @@
       <form id="documentEmailReminderForm">
         <div class="modal-heading">
           <div><p class="eyebrow">CLIENT FILES</p><h2 id="documentEmailReminderTitle">Send updated version later</h2></div>
-          <button class="icon-button" value="cancel" type="button" id="cancelDocumentEmailReminder" aria-label="Close">×</button>
         </div>
         <p class="settings-copy">Choose when you want to be reminded to send the updated document.</p>
         <label class="form-field">Reminder date <span class="required">*</span><input id="documentEmailReminderDate" type="date" required /></label>
@@ -1303,7 +1282,7 @@
 
     <dialog class="modal small-modal" id="weeklyReportDownloadConfirmation" aria-labelledby="weeklyReportDownloadTitle">
       <form method="dialog">
-        <div class="modal-heading"><div><p class="eyebrow">WEEKLY REPORT</p><h2 id="weeklyReportDownloadTitle">Download PDF report?</h2></div><button class="icon-button" value="cancel" type="submit" aria-label="Close">×</button></div>
+        <div class="modal-heading"><div><p class="eyebrow">WEEKLY REPORT</p><h2 id="weeklyReportDownloadTitle">Download PDF report?</h2></div></div>
         <p class="settings-copy">This downloads a PDF snapshot of the current weekly report as you see it on screen.</p>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit">Cancel</button><button class="button button-primary" type="button" id="confirmWeeklyReportDownload">Download report</button></div>
       </form>
@@ -1313,7 +1292,6 @@
       <div class="client-avatar-crop-shell">
         <div class="modal-heading">
           <div><p class="eyebrow">CLIENT PROFILE</p><h2 id="clientAvatarCropTitle">Crop profile photo</h2></div>
-          <button class="icon-button" type="button" id="cancelClientAvatarCrop" aria-label="Cancel profile photo crop">×</button>
         </div>
         <p class="client-avatar-crop-help">Drag the image to position it. Use the slider to zoom.</p>
         <div class="client-avatar-crop-viewport" id="clientAvatarCropViewport" aria-label="Drag image to adjust the crop">
@@ -1330,7 +1308,6 @@
       <form method="dialog" id="hiredForm">
         <div class="modal-heading">
           <div><p class="eyebrow">CONTRACT &amp; DOCUMENTS</p><h2 id="hiredModalTitle">Client documents</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <div class="hired-documents-field hired-documents-field-standalone">
           <div class="hired-documents-field-head">
@@ -1350,7 +1327,6 @@
       <aside class="client-task-drawer" id="clientTaskDrawer" role="dialog" aria-modal="true" aria-labelledby="clientTaskDrawerTitle" tabindex="-1">
         <header class="client-task-drawer-header">
           <div><p class="eyebrow">ACTIVE CLIENT</p><h2 id="clientTaskDrawerTitle">New task</h2><p id="clientTaskDrawerClientName"></p></div>
-          <button class="icon-button" id="closeClientTaskDrawer" type="button" aria-label="Close task editor">×</button>
         </header>
         <form id="clientTaskForm" class="client-task-drawer-form">
           <div class="client-task-drawer-fields">
@@ -1406,7 +1382,6 @@
             <h2 id="activeClientActionsTitle">Actions</h2>
             <p id="activeClientDrawerClientName"></p>
           </div>
-          <button class="icon-button active-client-drawer-close" id="closeActiveClientDrawer" type="button" aria-label="Close actions">×</button>
         </header>
         <div class="active-client-drawer-list" id="activeClientDrawerList">
           <button class="active-client-action-row" type="button" data-active-client-action="email">
@@ -1470,7 +1445,6 @@
       <form method="dialog">
         <div class="modal-heading">
           <div><p class="eyebrow">DOCUMENT VIEWER</p><h2 id="documentViewerTitle">Document</h2><p class="document-viewer-note" id="documentViewerNote"></p></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <iframe id="documentViewerFrame" title="Document preview"></iframe>
         <div class="modal-actions"><a class="button button-secondary" id="documentViewerOpen" target="_blank" rel="noopener">Open / download</a><button class="button button-primary" value="done" type="submit">Done</button></div>
@@ -1481,7 +1455,6 @@
       <form method="dialog" id="emailComposeForm">
         <div class="modal-heading">
           <div><p class="eyebrow">CLIENT EMAIL</p><h2 id="emailComposeTitle">Write an email</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <div class="compose-template-row">
           <label class="form-field">Template
@@ -1516,7 +1489,6 @@
       <form method="dialog">
         <div class="modal-heading">
           <div><p class="eyebrow" id="emailDetailEyebrow">EMAIL DETAILS</p><h2 id="emailDetailTitle">Email</h2></div>
-          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <div class="email-detail-meta">
           <div><span>From</span><strong id="emailDetailFrom"></strong></div>
@@ -1536,7 +1508,6 @@
       <form method="dialog" class="application-emails-form">
         <div class="modal-heading">
           <div><p class="eyebrow">APPLICATION EMAILS</p><h2 id="applicationEmailsTitle">Matching emails</h2></div>
-          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Close">×</button>
         </div>
         <p class="application-emails-summary" id="applicationEmailsSummary"></p>
         <div class="application-emails-list" id="applicationEmailsList"></div>

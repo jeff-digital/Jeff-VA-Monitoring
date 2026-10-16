@@ -654,16 +654,20 @@ td:first-child { color: #242522; font-weight: 650; }
 .cover-letter-heading h3 { margin: 4px 0 0; color: #303631; font-size: 18px; }
 .cover-letter-downloads { display: flex; gap: 8px; }
 .cover-letter-downloads .button { min-height: 36px; }
+.cover-letter-download-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.cover-letter-download-button i { font-size: 13px; line-height: 1; }
 .cover-letter-workspace { display: grid; grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); gap: 24px; align-items: start; padding-top: 20px; }
 .cover-letter-editor { min-width: 0; }
 .cover-letter-editor-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .cover-letter-editor-heading h4 { margin: 0; color: #343b35; font-size: 13px; }
 .cover-letter-editor-heading span { color: #7b837d; font-size: 10px; white-space: nowrap; }
+.cover-letter-fixed-contact { margin: -2px 0 2px; padding: 9px 10px; border: 1px solid #e0e7e1; border-radius: 5px; background: #f6faf6; color: #637066; font-size: 10px; line-height: 1.45; }
 .cover-letter-editor-fields { display: grid; gap: 11px; }
 .cover-letter-editor-fields .form-field { display: grid; gap: 5px; color: #4a514b; font-size: 11px; font-weight: 650; }
 .cover-letter-editor-fields input, .cover-letter-editor-fields textarea { width: 100%; border: 1px solid #d9dfda; border-radius: 4px; background: #fff; color: #303631; padding: 9px 10px; font: 12px/1.45 Arial, sans-serif; }
 .cover-letter-editor-fields input:focus, .cover-letter-editor-fields textarea:focus { outline: 0; border-color: #6c9275; box-shadow: 0 0 0 2px rgba(75, 112, 83, .13); }
 .cover-letter-editor-fields textarea { min-height: 250px; resize: vertical; }
+.cover-letter-editor-fields textarea[data-cover-letter-field="body"] { text-align: justify; text-justify: inter-word; }
 .cover-letter-preview-area { min-width: 0; overflow: auto; padding: 0 4px 8px; background: #f0f2ef; }
 .cover-letter-preview-label { display: flex; justify-content: space-between; padding: 10px 12px; color: #747d76; font-size: 9px; font-weight: 750; letter-spacing: .08em; }
 .cover-letter-page { width: min(100%, 794px); min-height: 1123px; margin: 0 auto; padding: 48px 52px; background: #fff; color: #252925; box-shadow: 0 2px 12px rgba(27, 35, 29, .12); font: 13px/1.55 Arial, Helvetica, sans-serif; }
@@ -3748,6 +3752,12 @@ body:has(#hiredView.active) .topbar-copy { display: flex; align-items: baseline;
 body:has(#hiredView.active) .topbar-copy > .eyebrow { display: none; }
 body:has(#hiredView.active) .topbar h1 { margin: 0; color: #111827; font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
 body:has(#hiredView.active) .hired-header-count:not([hidden]) { display: inline-flex; align-items: center; color: #6b7280; font-size: 14px; font-weight: 550; font-variant-numeric: tabular-nums; }
+body:has(#hiredView.active) .page-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
+body:has(#hiredView.active) .page-title-row h1 { margin: 0; }
+body:has(#hiredView.active) .hired-header-summary:not([hidden]) { display: inline-flex; align-items: center; gap: 8px; }
+body:has(#hiredView.active) .hired-header-summary > span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid #e1e5ee; border-radius: 999px; background: #fff; color: #697386; font-size: 11px; white-space: nowrap; }
+body:has(#hiredView.active) .hired-header-summary strong { color: #252d4f; font-size: 13px; font-variant-numeric: tabular-nums; }
+body:has(#hiredView.active):has(#hiredView.client-focused) .hired-header-summary { display: none; }
 body:has(#hiredView.active) .local-indicator { gap: 0; color: #6b7280; font-size: 12px; }
 body:has(#hiredView.active) .local-indicator > span:first-child { display: none; }
 body:has(#hiredView.active) #hiredView { min-width: 0; }
@@ -6433,6 +6443,7 @@ button.is-loading::before, .button.is-loading::before {
   animation: button-loading-spin .7s linear infinite;
 }
 @keyframes button-loading-spin { to { transform: rotate(360deg); } }
+body:has(#hiredView.active) .hired-card .hired-client-contact-name { white-space: normal; overflow-wrap: anywhere; }
 /* Navigation must shrink within its column instead of creating horizontal scroll. */
 .sidebar .main-nav { grid-template-columns: minmax(0, 1fr); min-width: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #65718b transparent; overscroll-behavior: contain; }
 .sidebar .nav-group { grid-template-columns: minmax(0, 1fr); min-width: 0; }
@@ -6457,8 +6468,8 @@ button.is-loading::before, .button.is-loading::before {
   .sidebar .nav-link { padding-left: 8px; padding-right: 8px; font-size: 12px; }
 }
 /* Compact Wallet workspace; dialogs and long lists scroll independently. */
-#walletView #walletEntryPanel { width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); margin: auto; overflow-y: auto; box-shadow: 0 24px 80px #17213b30; }
-#walletEntryPanel::backdrop { background: #17213b66; backdrop-filter: blur(3px); }
+#walletView #walletEntryPanel { position: fixed; width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); margin: auto; overflow-y: auto; contain: layout paint style; will-change: transform; box-shadow: 0 24px 80px #17213b30; }
+#walletEntryPanel::backdrop { background: #17213b66; }
 #walletEntryPanel .wallet-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 900px) and (min-height: 600px) {
   body:has(#walletView.active) { height: 100dvh; overflow: hidden; background: #f5f6fa; }

@@ -340,7 +340,7 @@
     $('#dailyTaskAddModal').showModal();
     $('#dailyTaskTitle').focus();
   });
-  $('#closeDailyTaskAddModal').addEventListener('click', closeDailyTaskAddModal);
+  $('#closeDailyTaskAddModal')?.addEventListener('click', closeDailyTaskAddModal);
   $('#cancelDailyTaskAddModal').addEventListener('click', closeDailyTaskAddModal);
   $('#dailyTaskAddModal').addEventListener('close', resetDailyTaskDraft);
   $('#dailyTaskAddChecklistButton').addEventListener('click', addDailyTaskDraftChecklistItem);
@@ -442,7 +442,7 @@
     $('#openDailyTaskAddModal').focus();
   });
   $('#dailyTaskDetailModal').addEventListener('close', () => { activeDailyTaskId = ''; });
-  $('#closeDailyTaskDetails').addEventListener('click', () => $('#dailyTaskDetailModal').close());
+  $('#closeDailyTaskDetails')?.addEventListener('click', () => $('#dailyTaskDetailModal').close());
   $('#closeDailyTaskDetailsAction').addEventListener('click', () => $('#dailyTaskDetailModal').close());
   $('#dailyTaskChecklistForm').addEventListener('submit', event => {
     event.preventDefault();

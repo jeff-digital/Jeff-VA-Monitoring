@@ -1515,6 +1515,7 @@
     if (showingHiredClientList) {
       hiredView.classList.remove('client-focused');
       $('#hiredCountLabel').hidden = false;
+      $('#hiredHeaderSummary').hidden = false;
       detailPanel.classList.add('hidden');
       detailPanel.dataset.clientId = '';
       panel.hidden = false;
@@ -1533,6 +1534,7 @@
     }
     hiredView.classList.remove('client-focused');
     $('#hiredCountLabel').hidden = false;
+    $('#hiredHeaderSummary').hidden = false;
     target.innerHTML = '<div class="application-empty"><h3>No active clients yet</h3><p>Clients with an active contract will appear here.</p></div>';
     panel.hidden = false;
     detailPanel.classList.add('hidden');
@@ -1569,7 +1571,7 @@
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title">${escapeHtml(item.clientName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name">${escapeHtml([item.contact, item.companyName || item.company || item.clientName].map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client')}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
       ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
       ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
       ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
@@ -1596,6 +1598,7 @@
     if (!item) return;
     showingHiredClientList = false;
     $('#hiredCountLabel').hidden = true;
+    $('#hiredHeaderSummary').hidden = true;
     hiredEditingId = item.id;
     $('#hiredView').classList.add('client-focused');
     $('#hiredList').innerHTML = '';
@@ -1638,6 +1641,8 @@
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
     const profileImagePath = item.profileImage?.storagePath || '';
+    const clientDetailName = [item.contact, item.companyName || item.company || item.clientName]
+      .map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client';
     $('#clientOverviewProfile').innerHTML = `
       <article class="client-overview-profile-card">
         <div class="client-overview-profile-main">
@@ -1646,7 +1651,7 @@
             <button class="client-overview-profile-upload" type="button" data-client-avatar-upload="${escapeHtml(item.id)}" aria-label="${profileImagePath ? 'Change' : 'Upload'} profile photo for ${escapeHtml(item.clientName)}" title="${profileImagePath ? 'Change profile photo' : 'Upload profile photo'}"><i class="fa-solid fa-camera" aria-hidden="true"></i></button>
             <input type="file" accept=".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/jpg,image/pjpeg,image/png,image/x-png,image/webp" data-client-avatar-input="${escapeHtml(item.id)}" aria-label="Choose a profile photo for ${escapeHtml(item.clientName)}" hidden />
           </span>
-          <div class="client-overview-profile-identity"><span>CLIENT PROFILE</span><div class="client-overview-profile-name"><h3>${escapeHtml(item.clientName || 'Active client')}</h3><span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span></div><p>${escapeHtml([item.role, item.companyName || item.company].filter(Boolean).join(' · ') || 'Client workspace')}</p></div>
+          <div class="client-overview-profile-identity"><span>CLIENT PROFILE</span><div class="client-overview-profile-name"><h3 title="${escapeHtml(clientDetailName)}">${escapeHtml(clientDetailName)}</h3><span class="status-pill ${contractStatusClass}">${escapeHtml(contractStatus)}</span></div><p>${escapeHtml(item.role || 'Client workspace')}</p></div>
         </div>
         <div class="client-overview-profile-facts">
           ${item.email ? `<a href="mailto:${escapeHtml(item.email)}"><i class="fa-regular fa-envelope" aria-hidden="true"></i><span>${escapeHtml(item.email)}</span></a>` : ''}
@@ -1820,6 +1825,12 @@
       }
       if (onboardingDetailsChanged) {
         item.updatedAt = new Date().toISOString();
+        const profileName = $('#clientOverviewProfile .client-overview-profile-name h3');
+        if (profileName) {
+          profileName.textContent = [item.contact, item.companyName || item.company || item.clientName]
+            .map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client';
+          profileName.title = profileName.textContent;
+        }
         if (submittedPhone) updateHiredClientPhoneDisplay(item);
         await persist();
       }
@@ -2309,7 +2320,8 @@
       field.required = isInterview;
       field.setCustomValidity(isInterview ? '' : '');
     });
-    $('#closeClientDetailsButton').hidden = !viewingClientDetails && !activeClientDrawerEdit;
+    $('#closeClientDetailsButton').hidden = false;
+    if (!activeClientDrawerEdit) $('#closeClientDetailsButton').textContent = (viewingClientDetails || editingId) ? 'Close' : 'Cancel';
     $('#nextStepField').classList.toggle('hidden', $('#clientStatus').value !== 'To Proceed');
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
   }

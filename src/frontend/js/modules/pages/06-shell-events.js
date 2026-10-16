@@ -92,7 +92,7 @@
     event.target.setCustomValidity('');
     $('#saveWeeklyGoal').disabled = !event.target.checkValidity();
   });
-  $('#closeWeeklyGoalDialog').addEventListener('click', () => $('#weeklyGoalDialog').close());
+  $('#closeWeeklyGoalDialog')?.addEventListener('click', () => $('#weeklyGoalDialog').close());
   $('#cancelWeeklyGoal').addEventListener('click', () => $('#weeklyGoalDialog').close());
   $('#weeklyGoalForm').addEventListener('submit', event => {
     event.preventDefault();

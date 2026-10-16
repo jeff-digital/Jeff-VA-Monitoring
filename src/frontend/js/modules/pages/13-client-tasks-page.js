@@ -448,7 +448,7 @@ function initClientTaskDrawer() {
   $('#clientTaskForm').dataset.initialSnapshot = clientTaskFormSnapshot();
   $('#newClientTaskButton').addEventListener('click', event => openClientTaskDrawer(null, event.currentTarget));
   $('#clientTaskDrawerBackdrop').addEventListener('click', closeClientTaskDrawer);
-  $('#closeClientTaskDrawer').addEventListener('click', closeClientTaskDrawer);
+  $('#closeClientTaskDrawer')?.addEventListener('click', closeClientTaskDrawer);
   $('#cancelClientTaskDrawer').addEventListener('click', closeClientTaskDrawer);
   $('#clientTaskRepeat').addEventListener('change', updateClientTaskRepeatFields);
   $('#clientTaskWeekdays').addEventListener('change', updateClientTaskRepeatFields);
