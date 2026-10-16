@@ -3170,6 +3170,7 @@
     $('#pageEyebrow').hidden = !labels[view][0];
     $('#pageTitle').hidden = false;
     $('#hiredCountLabel').hidden = view !== 'hired' || !showingHiredClientList;
+    $('#hiredHeaderSummary').hidden = view !== 'hired' || !showingHiredClientList;
     $('#applicationWeekDate').hidden = view !== 'applications';
     $('#toApplyHeaderContext').hidden = view !== 'to-apply';
     $('#emailWeekDate').hidden = view !== 'inbox';
