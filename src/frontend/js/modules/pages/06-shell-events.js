@@ -175,6 +175,9 @@
       event.preventDefault();
       if (activeView !== 'applications') showView('applications');
       $('#applicationSearch').focus();
+    } else if (event.key.toLowerCase() === 'n' && activeView === 'wallet') {
+      event.preventDefault();
+      openWalletEntry();
     } else if (event.key.toLowerCase() === 'n' && activeView !== 'inbox') {
       event.preventDefault();
       if (activeView !== 'applications') showView('applications');

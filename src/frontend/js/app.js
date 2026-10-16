@@ -2123,6 +2123,13 @@
       applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
+    document.querySelectorAll('[data-application-quick-filter]').forEach(button => {
+      const active = button.dataset.applicationQuickFilter === 'week'
+        ? applicationDateSort === '0'
+        : status === 'Applied';
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
     $('#clearApplicationFilters').hidden = filterChips.length === 0;
     $$('[data-application-view]').forEach(button => {
       const selected = button.dataset.applicationView === applicationViewMode;
@@ -2200,13 +2207,13 @@
       return;
     }
     const currentDate = today();
-    target.innerHTML = `<div class="to-apply-list-head"><span>Title &amp; link</span><span>Apply by</span><span>Actions</span></div>${reminders.map(item => {
+    target.innerHTML = `<div class="to-apply-list-head"><span><i class="fa-regular fa-bookmark" aria-hidden="true"></i> Opportunity</span><span>Deadline</span><span>Manage</span></div>${reminders.map(item => {
       const overdue = item.dueDate < currentDate;
       const dueToday = item.dueDate === currentDate;
       return `<article class="to-apply-row${overdue ? ' overdue' : dueToday ? ' due-today' : ''}">
         <div class="to-apply-title"><strong>${escapeHtml(item.title)}</strong><a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener">${escapeHtml(item.link)}</a></div>
         <time class="to-apply-date"><span>${overdue ? 'Missed' : dueToday ? 'Apply today' : 'Apply by'}</span>${escapeHtml(formatDate(item.dueDate))}</time>
-        <div class="to-apply-actions"><div class="to-apply-row-menu"><button class="button button-secondary to-apply-actions-trigger" type="button" data-to-apply-menu aria-haspopup="true" aria-expanded="false" aria-label="Actions for ${escapeHtml(item.title)}">Actions</button><div class="to-apply-menu-panel hidden" role="menu"><button type="button" role="menuitem" data-edit-to-apply="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-to-apply="${escapeHtml(item.id)}">Delete</button></div></div></div>
+        <div class="to-apply-actions"><button class="button button-secondary to-apply-actions-trigger" type="button" data-to-apply-actions="${escapeHtml(item.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(item.title)}">Actions</button></div>
       </article>`;
     }).join('')}`;
   }
@@ -2253,7 +2260,6 @@
     $('#toApplyForm').reset();
     $('#toApplyId').value = id || '';
     $('#toApplyModalTitle').textContent = id ? 'Edit reminder' : 'Add reminder';
-    $('#deleteToApplyButton').hidden = !id;
     if (item) {
       $('#toApplyTitle').value = item.title || '';
       $('#toApplyLink').value = item.link || '';
@@ -3139,6 +3145,13 @@
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
+    if (view === 'applications') {
+      applicationDateSort = '0';
+      applicationDateFilter = '';
+      $('#applicationDateSort').value = '0';
+      $('#applicationDateFilter').value = '';
+      $('#statusFilter').value = 'Applied';
+    }
     if (view === 'hired') {
       showingHiredClientList = true;
       hiredEditingId = null;
@@ -3150,7 +3163,7 @@
       renderAccountPage();
       refreshAccountStorageUsage();
     }
-    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
@@ -3158,6 +3171,7 @@
     $('#pageTitle').hidden = false;
     $('#hiredCountLabel').hidden = view !== 'hired' || !showingHiredClientList;
     $('#applicationWeekDate').hidden = view !== 'applications';
+    $('#toApplyHeaderContext').hidden = view !== 'to-apply';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
     $$('.view').forEach(panel => panel.classList.toggle('active', panel.dataset.viewPanel === view));
@@ -7356,6 +7370,9 @@
       event.preventDefault();
       if (activeView !== 'applications') showView('applications');
       $('#applicationSearch').focus();
+    } else if (event.key.toLowerCase() === 'n' && activeView === 'wallet') {
+      event.preventDefault();
+      openWalletEntry();
     } else if (event.key.toLowerCase() === 'n' && activeView !== 'inbox') {
       event.preventDefault();
       if (activeView !== 'applications') showView('applications');
@@ -7834,6 +7851,22 @@
     renderApplications();
     updateWeekNavigationCounts();
   });
+  document.querySelectorAll('[data-application-quick-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      const filter = button.dataset.applicationQuickFilter;
+      if (filter === 'week') {
+        applicationDateSort = '0';
+        applicationDateFilter = '';
+        $('#applicationDateFilter').value = '';
+        $('#applicationDateSort').value = '0';
+      }
+      if (filter === 'applied') {
+        $('#statusFilter').value = 'Applied';
+      }
+      renderApplications();
+      updateWeekNavigationCounts();
+    });
+  });
   document.addEventListener('click', async event => {
     const removeFilter = event.target.closest('[data-remove-application-filter]');
     const detailButton = event.target.closest('button[data-view-details]');
@@ -7961,11 +7994,37 @@
   });
 
   // To Apply page controls.
-  $('#addToApplyButton').addEventListener('click', () => openToApplyModal());
-  $('#toApplySearch').addEventListener('input', renderToApplyList);
-  $('#toApplySort').addEventListener('change', renderToApplyList);
-  $('#toApplyForm').addEventListener('submit', saveToApply);
-  $('#deleteToApplyButton').addEventListener('click', () => deleteToApply($('#toApplyId').value));
+  $('#addToApplyButton')?.addEventListener('click', () => openToApplyModal());
+  $('#toApplySearch')?.addEventListener('input', renderToApplyList);
+  $('#toApplySort')?.addEventListener('change', renderToApplyList);
+  $('#toApplyForm')?.addEventListener('submit', saveToApply);
+  let toApplyActionId = null;
+  function openToApplyActions(id) {
+    const item = (data.toApply || []).find(reminder => reminder.id === id);
+    if (!item) return;
+    toApplyActionId = id;
+    const panel = $('#toApplyActionsPanel');
+    if (!panel) return;
+    $('#toApplyActionsSubtitle').textContent = item.title || 'Application reminder';
+    panel.showModal();
+    $('#editToApplyAction')?.focus();
+  }
+  function closeToApplyActions() {
+    const panel = $('#toApplyActionsPanel');
+    if (panel?.open) panel.close();
+    toApplyActionId = null;
+  }
+  $('#cancelToApplyActions')?.addEventListener('click', closeToApplyActions);
+  $('#editToApplyAction')?.addEventListener('click', () => {
+    const id = toApplyActionId;
+    closeToApplyActions();
+    if (id) openToApplyModal(id);
+  });
+  $('#deleteToApplyAction')?.addEventListener('click', async () => {
+    const id = toApplyActionId;
+    closeToApplyActions();
+    if (id) await deleteToApply(id);
+  });
   function closeToApplyActionMenus(restoreFocus = false) {
     document.querySelectorAll('[data-to-apply-menu][aria-expanded="true"]').forEach(button => {
       button.setAttribute('aria-expanded', 'false');
@@ -7976,30 +8035,10 @@
   }
 
   document.addEventListener('click', event => {
-    const menuButton = event.target.closest('[data-to-apply-menu]');
-    const editButton = event.target.closest('[data-edit-to-apply]');
-    const deleteButton = event.target.closest('[data-delete-to-apply]');
+    const menuButton = event.target.closest('[data-to-apply-actions]');
     if (menuButton) {
-      const menu = menuButton.nextElementSibling;
-      const willOpen = menu.classList.contains('hidden');
       closeToApplyActionMenus();
-      if (willOpen) {
-        const listBounds = menuButton.closest('.to-apply-list').getBoundingClientRect();
-        const buttonBounds = menuButton.getBoundingClientRect();
-        menu.classList.toggle('opens-up', listBounds.bottom - buttonBounds.bottom < 84);
-        menu.classList.remove('hidden');
-        menuButton.setAttribute('aria-expanded', 'true');
-      }
-      return;
-    }
-    if (editButton) {
-      closeToApplyActionMenus();
-      openToApplyModal(editButton.dataset.editToApply);
-      return;
-    }
-    if (deleteButton) {
-      closeToApplyActionMenus();
-      deleteToApply(deleteButton.dataset.deleteToApply);
+      openToApplyActions(menuButton.dataset.toApplyActions);
       return;
     }
     closeToApplyActionMenus();
@@ -11011,6 +11050,18 @@
   $('#walletAddEntry').addEventListener('click', () => openWalletEntry());
   $('#walletCancelEntry').addEventListener('click', () => { $('#walletEntryPanel').close(); $('#walletAddEntry').focus(); });
   $('#walletAccountFilter').addEventListener('change', renderWallet);
+  $('#walletAmountKeypad').addEventListener('click', event => {
+    const key = event.target.closest('[data-wallet-key]')?.dataset.walletKey;
+    const amount = $('#walletEntryAmount');
+    if (!key || !amount) return;
+    const current = String(amount.value || '');
+    if (key === 'clear') amount.value = '';
+    else if (key === 'backspace') amount.value = current.slice(0, -1);
+    else if (key === '.' && !current.includes('.')) amount.value = current ? `${current}.` : '0.';
+    else if (/^\d$/.test(key) && current.length < 12 && !(current === '0' && key === '0')) amount.value = current === '0' ? key : `${current}${key}`;
+    amount.focus();
+    amount.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   $('#walletEntryForm').addEventListener('submit', async event => {
     event.preventDefault();
     if (!event.currentTarget.reportValidity()) return;

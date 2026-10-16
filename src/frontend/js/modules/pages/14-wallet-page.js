@@ -70,6 +70,18 @@
   $('#walletAddEntry').addEventListener('click', () => openWalletEntry());
   $('#walletCancelEntry').addEventListener('click', () => { $('#walletEntryPanel').close(); $('#walletAddEntry').focus(); });
   $('#walletAccountFilter').addEventListener('change', renderWallet);
+  $('#walletAmountKeypad').addEventListener('click', event => {
+    const key = event.target.closest('[data-wallet-key]')?.dataset.walletKey;
+    const amount = $('#walletEntryAmount');
+    if (!key || !amount) return;
+    const current = String(amount.value || '');
+    if (key === 'clear') amount.value = '';
+    else if (key === 'backspace') amount.value = current.slice(0, -1);
+    else if (key === '.' && !current.includes('.')) amount.value = current ? `${current}.` : '0.';
+    else if (/^\d$/.test(key) && current.length < 12 && !(current === '0' && key === '0')) amount.value = current === '0' ? key : `${current}${key}`;
+    amount.focus();
+    amount.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   $('#walletEntryForm').addEventListener('submit', async event => {
     event.preventDefault();
     if (!event.currentTarget.reportValidity()) return;

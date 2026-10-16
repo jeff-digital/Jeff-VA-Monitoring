@@ -1,9 +1,35 @@
   // To Apply page controls.
-  $('#addToApplyButton').addEventListener('click', () => openToApplyModal());
-  $('#toApplySearch').addEventListener('input', renderToApplyList);
-  $('#toApplySort').addEventListener('change', renderToApplyList);
-  $('#toApplyForm').addEventListener('submit', saveToApply);
-  $('#deleteToApplyButton').addEventListener('click', () => deleteToApply($('#toApplyId').value));
+  $('#addToApplyButton')?.addEventListener('click', () => openToApplyModal());
+  $('#toApplySearch')?.addEventListener('input', renderToApplyList);
+  $('#toApplySort')?.addEventListener('change', renderToApplyList);
+  $('#toApplyForm')?.addEventListener('submit', saveToApply);
+  let toApplyActionId = null;
+  function openToApplyActions(id) {
+    const item = (data.toApply || []).find(reminder => reminder.id === id);
+    if (!item) return;
+    toApplyActionId = id;
+    const panel = $('#toApplyActionsPanel');
+    if (!panel) return;
+    $('#toApplyActionsSubtitle').textContent = item.title || 'Application reminder';
+    panel.showModal();
+    $('#editToApplyAction')?.focus();
+  }
+  function closeToApplyActions() {
+    const panel = $('#toApplyActionsPanel');
+    if (panel?.open) panel.close();
+    toApplyActionId = null;
+  }
+  $('#cancelToApplyActions')?.addEventListener('click', closeToApplyActions);
+  $('#editToApplyAction')?.addEventListener('click', () => {
+    const id = toApplyActionId;
+    closeToApplyActions();
+    if (id) openToApplyModal(id);
+  });
+  $('#deleteToApplyAction')?.addEventListener('click', async () => {
+    const id = toApplyActionId;
+    closeToApplyActions();
+    if (id) await deleteToApply(id);
+  });
   function closeToApplyActionMenus(restoreFocus = false) {
     document.querySelectorAll('[data-to-apply-menu][aria-expanded="true"]').forEach(button => {
       button.setAttribute('aria-expanded', 'false');
@@ -14,30 +40,10 @@
   }
 
   document.addEventListener('click', event => {
-    const menuButton = event.target.closest('[data-to-apply-menu]');
-    const editButton = event.target.closest('[data-edit-to-apply]');
-    const deleteButton = event.target.closest('[data-delete-to-apply]');
+    const menuButton = event.target.closest('[data-to-apply-actions]');
     if (menuButton) {
-      const menu = menuButton.nextElementSibling;
-      const willOpen = menu.classList.contains('hidden');
       closeToApplyActionMenus();
-      if (willOpen) {
-        const listBounds = menuButton.closest('.to-apply-list').getBoundingClientRect();
-        const buttonBounds = menuButton.getBoundingClientRect();
-        menu.classList.toggle('opens-up', listBounds.bottom - buttonBounds.bottom < 84);
-        menu.classList.remove('hidden');
-        menuButton.setAttribute('aria-expanded', 'true');
-      }
-      return;
-    }
-    if (editButton) {
-      closeToApplyActionMenus();
-      openToApplyModal(editButton.dataset.editToApply);
-      return;
-    }
-    if (deleteButton) {
-      closeToApplyActionMenus();
-      deleteToApply(deleteButton.dataset.deleteToApply);
+      openToApplyActions(menuButton.dataset.toApplyActions);
       return;
     }
     closeToApplyActionMenus();

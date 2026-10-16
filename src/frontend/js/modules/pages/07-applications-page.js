@@ -244,6 +244,22 @@
     renderApplications();
     updateWeekNavigationCounts();
   });
+  document.querySelectorAll('[data-application-quick-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      const filter = button.dataset.applicationQuickFilter;
+      if (filter === 'week') {
+        applicationDateSort = '0';
+        applicationDateFilter = '';
+        $('#applicationDateFilter').value = '';
+        $('#applicationDateSort').value = '0';
+      }
+      if (filter === 'applied') {
+        $('#statusFilter').value = 'Applied';
+      }
+      renderApplications();
+      updateWeekNavigationCounts();
+    });
+  });
   document.addEventListener('click', async event => {
     const removeFilter = event.target.closest('[data-remove-application-filter]');
     const detailButton = event.target.closest('button[data-view-details]');

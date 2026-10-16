@@ -116,6 +116,7 @@
               <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
               <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" hidden><span>Active clients <strong id="hiredActiveSummary">0</strong></span><span>Ended contracts <strong id="hiredEndedSummary">0</strong></span></span></div>
               <p class="page-context" id="applicationWeekDate" hidden></p>
+              <p class="page-context" id="toApplyHeaderContext" hidden>Keep your next opportunities organized and ready for action.</p>
               <p class="page-context" id="emailWeekDate" hidden></p>
               <p class="page-context daily-task-header-date" id="dailyTaskHeaderDate" hidden></p>
             </div>
@@ -389,6 +390,7 @@
             </div>
             <div class="application-filter-footer">
               <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
+              <div class="application-quick-filters" role="group" aria-label="Quick application filters"><button class="button button-ghost" type="button" data-application-quick-filter="week">This week</button><button class="button button-ghost" type="button" data-application-quick-filter="applied">Applied</button></div>
               <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
               <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
               <div class="application-view-toggle" role="group" aria-label="Application view">
@@ -412,11 +414,12 @@
 
         <section class="view" id="toApplyView" data-view-panel="to-apply" data-page="to-apply">
           <section class="application-workspace-head to-apply-workspace-head">
+            <div class="application-workspace-count to-apply-count-card">
+              <span class="to-apply-workspace-count-icon"><i class="fa-regular fa-bookmark" aria-hidden="true"></i></span>
+              <span class="to-apply-count-copy"><small>Saved reminders</small><strong id="toApplyCountLabel">0 reminders</strong></span>
+            </div>
             <div class="to-apply-head-actions">
-              <div class="application-workspace-count">
-                <span><strong id="toApplyCountLabel">0 reminders</strong></span>
-              </div>
-              <button class="button button-primary" type="button" id="addToApplyButton">Add reminder</button>
+              <button class="button button-primary to-apply-add-button" type="button" id="addToApplyButton"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add reminder</button>
             </div>
           </section>
           <section class="application-filters to-apply-filters" aria-label="Reminder filters">
@@ -667,7 +670,7 @@
         </section>
 
         <section class="view" id="walletView" data-view-panel="wallet" data-page="wallet">
-          <div class="wallet-intro"><div><h2>Your money at a glance</h2><p>Track your accounts, earnings, and everyday spending. All amounts are in PHP.</p></div><button class="button button-primary" type="button" id="walletAddEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add transaction</button></div>
+          <div class="wallet-intro"><div><h2>Your money at a glance</h2><p>Track your accounts, earnings, and everyday spending. All amounts are in PHP.</p></div><button class="button button-primary wallet-add-entry-button" type="button" id="walletAddEntry" title="Add transaction (N)"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add transaction <kbd aria-label="Keyboard shortcut N">N</kbd></button></div>
           <div class="wallet-summary" id="walletSummary" aria-label="Wallet totals"></div>
           <p class="wallet-hint" id="walletInvoiceNotice" role="status"></p>
           <section class="wallet-section" aria-labelledby="walletClientRatesTitle"><div class="wallet-section-heading"><h3 id="walletClientRatesTitle">Active client salary rates</h3><span>Contracted earnings, not yet received</span></div><div class="wallet-accounts" id="walletClientRates"></div></section>
@@ -679,7 +682,7 @@
               <div class="wallet-form-grid">
                 <label class="form-field">Type<select id="walletEntryType"><option value="expense">Expense</option><option value="income">Income</option><option value="salary">Salary</option><option value="opening">Opening balance</option></select></label>
                 <label class="form-field">Account<select id="walletEntryAccount"><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option></select></label>
-                <label class="form-field">Amount (PHP)<input id="walletEntryAmount" type="number" min="0.01" max="999999999.99" step="0.01" required /></label>
+                <div class="wallet-amount-field"><label class="form-field">Amount (PHP)<input id="walletEntryAmount" type="number" min="0.01" max="999999999.99" step="0.01" required /></label><div class="wallet-amount-keypad" id="walletAmountKeypad" role="group" aria-label="Amount keypad"><button type="button" data-wallet-key="7">7</button><button type="button" data-wallet-key="8">8</button><button type="button" data-wallet-key="9">9</button><button type="button" data-wallet-key="backspace" aria-label="Delete last digit">⌫</button><button type="button" data-wallet-key="4">4</button><button type="button" data-wallet-key="5">5</button><button type="button" data-wallet-key="6">6</button><button type="button" data-wallet-key="clear">Clear</button><button type="button" data-wallet-key="1">1</button><button type="button" data-wallet-key="2">2</button><button type="button" data-wallet-key="3">3</button><span aria-hidden="true"></span><button type="button" data-wallet-key="0" class="wallet-keypad-zero">0</button><button type="button" data-wallet-key=".">.</button></div></div>
                 <label class="form-field">Date<input id="walletEntryDate" type="date" required /></label>
                 <label class="form-field wallet-description">Description<input id="walletEntryDescription" maxlength="160" placeholder="e.g. Monthly salary or groceries" required /></label>
               </div>
@@ -855,7 +858,7 @@
     </dialog>
     <dialog class="modal small-modal shortcuts-modal" id="shortcutsModal" aria-labelledby="shortcutsTitle">
       <div class="modal-heading"><div><p class="eyebrow">QUICK REFERENCE</p><h2 id="shortcutsTitle">Keyboard shortcuts</h2></div><button class="icon-button" type="button" id="closeShortcuts" aria-label="Close shortcuts">×</button></div>
-      <dl class="shortcut-list"><div><dt>Open quick search</dt><dd><kbd>Ctrl</kbd> <kbd>K</kbd></dd></div><div><dt>Focus search</dt><dd><kbd>/</kbd></dd></div><div><dt>Add application</dt><dd><kbd>N</kbd></dd></div><div><dt>Close dialog or panel</dt><dd><kbd>Esc</kbd></dd></div><div><dt>Change report week</dt><dd><kbd>←</kbd> <kbd>→</kbd></dd></div></dl>
+      <dl class="shortcut-list"><div><dt>Open quick search</dt><dd><kbd>Ctrl</kbd> <kbd>K</kbd></dd></div><div><dt>Focus search</dt><dd><kbd>/</kbd></dd></div><div><dt>Add application</dt><dd><kbd>N</kbd></dd></div><div><dt>Add wallet transaction</dt><dd><kbd>N</kbd> <small>on Wallet</small></dd></div><div><dt>Close dialog or panel</dt><dd><kbd>Esc</kbd></dd></div><div><dt>Change report week</dt><dd><kbd>←</kbd> <kbd>→</kbd></dd></div></dl>
     </dialog>
     <dialog class="modal small-modal weekly-goal-modal" id="weeklyGoalDialog" aria-labelledby="weeklyGoalTitle">
       <form id="weeklyGoalForm">
@@ -932,8 +935,13 @@
         <label class="form-field">Application link <span class="required">*</span><input id="toApplyLink" type="url" maxlength="500" required placeholder="https://example.com/job" /></label>
         <label class="form-field">Date needed to apply <span class="required">*</span><input id="toApplyDate" type="date" required /></label>
         <label class="form-field form-field-wide">Reason or notes <textarea id="toApplyNotes" maxlength="1000" rows="4" placeholder="Why is this on hold or what should I remember before applying?"></textarea></label>
-        <div class="modal-actions modal-actions-split"><button class="danger-button" type="button" id="deleteToApplyButton" hidden>Delete</button><div class="modal-actions-right"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit">Save reminder</button></div></div>
+        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit">Save reminder</button></div>
       </form>
+    </dialog>
+    <dialog class="to-apply-actions-panel" id="toApplyActionsPanel" aria-labelledby="toApplyActionsTitle">
+      <header class="to-apply-actions-header"><div><p class="eyebrow">TO APPLY</p><h2 id="toApplyActionsTitle">Reminder actions</h2><p id="toApplyActionsSubtitle"></p></div></header>
+      <div class="to-apply-actions-list"><button class="to-apply-action-panel-button" type="button" id="editToApplyAction"><span class="to-apply-action-panel-icon"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></span><span><strong>Edit reminder</strong><small>Update the title, link, date, or notes.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button><button class="to-apply-action-panel-button is-danger" type="button" id="deleteToApplyAction"><span class="to-apply-action-panel-icon"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></span><span><strong>Delete reminder</strong><small>Remove this reminder permanently.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></div>
+      <footer class="to-apply-actions-footer"><button class="button button-secondary" type="button" id="cancelToApplyActions">Cancel</button></footer>
     </dialog>
 
     <dialog class="modal" id="clientModal" aria-labelledby="clientModalTitle">
@@ -1571,6 +1579,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261015-google-logout"></script>
+    <script src="js/app.js?v=20261017-to-apply-fix"></script>
   </body>
 </html>

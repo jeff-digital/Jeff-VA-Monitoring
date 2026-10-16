@@ -1026,6 +1026,13 @@
       applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
+    document.querySelectorAll('[data-application-quick-filter]').forEach(button => {
+      const active = button.dataset.applicationQuickFilter === 'week'
+        ? applicationDateSort === '0'
+        : status === 'Applied';
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
     $('#clearApplicationFilters').hidden = filterChips.length === 0;
     $$('[data-application-view]').forEach(button => {
       const selected = button.dataset.applicationView === applicationViewMode;
@@ -1103,13 +1110,13 @@
       return;
     }
     const currentDate = today();
-    target.innerHTML = `<div class="to-apply-list-head"><span>Title &amp; link</span><span>Apply by</span><span>Actions</span></div>${reminders.map(item => {
+    target.innerHTML = `<div class="to-apply-list-head"><span><i class="fa-regular fa-bookmark" aria-hidden="true"></i> Opportunity</span><span>Deadline</span><span>Manage</span></div>${reminders.map(item => {
       const overdue = item.dueDate < currentDate;
       const dueToday = item.dueDate === currentDate;
       return `<article class="to-apply-row${overdue ? ' overdue' : dueToday ? ' due-today' : ''}">
         <div class="to-apply-title"><strong>${escapeHtml(item.title)}</strong><a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener">${escapeHtml(item.link)}</a></div>
         <time class="to-apply-date"><span>${overdue ? 'Missed' : dueToday ? 'Apply today' : 'Apply by'}</span>${escapeHtml(formatDate(item.dueDate))}</time>
-        <div class="to-apply-actions"><div class="to-apply-row-menu"><button class="button button-secondary to-apply-actions-trigger" type="button" data-to-apply-menu aria-haspopup="true" aria-expanded="false" aria-label="Actions for ${escapeHtml(item.title)}">Actions</button><div class="to-apply-menu-panel hidden" role="menu"><button type="button" role="menuitem" data-edit-to-apply="${escapeHtml(item.id)}">Edit</button><button type="button" role="menuitem" data-delete-to-apply="${escapeHtml(item.id)}">Delete</button></div></div></div>
+        <div class="to-apply-actions"><button class="button button-secondary to-apply-actions-trigger" type="button" data-to-apply-actions="${escapeHtml(item.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(item.title)}">Actions</button></div>
       </article>`;
     }).join('')}`;
   }
@@ -1156,7 +1163,6 @@
     $('#toApplyForm').reset();
     $('#toApplyId').value = id || '';
     $('#toApplyModalTitle').textContent = id ? 'Edit reminder' : 'Add reminder';
-    $('#deleteToApplyButton').hidden = !id;
     if (item) {
       $('#toApplyTitle').value = item.title || '';
       $('#toApplyLink').value = item.link || '';
@@ -2042,6 +2048,13 @@
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
+    if (view === 'applications') {
+      applicationDateSort = '0';
+      applicationDateFilter = '';
+      $('#applicationDateSort').value = '0';
+      $('#applicationDateFilter').value = '';
+      $('#statusFilter').value = 'Applied';
+    }
     if (view === 'hired') {
       showingHiredClientList = true;
       hiredEditingId = null;
@@ -2053,7 +2066,7 @@
       renderAccountPage();
       refreshAccountStorageUsage();
     }
-    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
@@ -2061,6 +2074,7 @@
     $('#pageTitle').hidden = false;
     $('#hiredCountLabel').hidden = view !== 'hired' || !showingHiredClientList;
     $('#applicationWeekDate').hidden = view !== 'applications';
+    $('#toApplyHeaderContext').hidden = view !== 'to-apply';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
     $$('.view').forEach(panel => panel.classList.toggle('active', panel.dataset.viewPanel === view));
