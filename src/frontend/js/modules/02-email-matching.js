@@ -1610,11 +1610,11 @@
     const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
     const contractStatusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
     const salaryLabel = item.salaryType === 'monthly' && Number(item.salaryAmount) > 0
-      ? `$${Number(item.salaryAmount).toLocaleString()} / month`
+      ? `${salaryCurrencySymbol(item.salaryCurrency)}${Number(item.salaryAmount).toLocaleString()} / month`
       : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0 && Number(item.hoursPerWeek) > 0
-        ? `$${Math.round(Number(item.salaryAmount) * Number(item.hoursPerWeek) * 4).toLocaleString()} / month`
+        ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(Number(item.salaryAmount) * Number(item.hoursPerWeek) * 4).toLocaleString()} / month (estimated)`
         : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0
-          ? `$${Number(item.salaryAmount).toLocaleString()} / hour`
+          ? `${salaryCurrencySymbol(item.salaryCurrency)}${Number(item.salaryAmount).toLocaleString()} / hour`
           : '';
     $('#hiredDetailTitle').textContent = 'Client details';
     $('#hiredDetailSubtitle').textContent = item.role || 'Client workspace';
@@ -1985,6 +1985,9 @@
         renderWorkLinks();
         renderInvoiceList();
         break;
+      case 'wallet':
+        renderWallet();
+        break;
       case 'account':
         renderAccountPage();
         break;
@@ -2011,7 +2014,7 @@
 
   function showView(view, { updateUrl = true } = {}) {
     if (view === 'password') view = 'account';
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'account'];
+    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'wallet', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (view !== 'dashboard') closeClientDashboardDrawer();
@@ -2040,6 +2043,7 @@
       refreshAccountStorageUsage();
     }
     const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    labels.wallet = ['', 'Wallet'];
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];

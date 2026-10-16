@@ -82,6 +82,12 @@
               <span class="nav-count" id="navToApplyCount">0</span>
             </a>
           </div>
+          <div class="nav-group">
+            <p class="nav-group-label">WALLET</p>
+            <a class="nav-link" href="#wallet" data-view="wallet" title="Wallet">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span><span class="nav-label">Wallet</span>
+            </a>
+          </div>
         </nav>
 
         <div class="sidebar-bottom">
@@ -667,6 +673,33 @@
           </section>
         </section>
 
+        <section class="view" id="walletView" data-view-panel="wallet" data-page="wallet">
+          <div class="wallet-intro"><div><h2>Your money at a glance</h2><p>Track your accounts, earnings, and everyday spending. All amounts are in PHP.</p></div><button class="button button-primary" type="button" id="walletAddEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add transaction</button></div>
+          <div class="wallet-summary" id="walletSummary" aria-label="Wallet totals"></div>
+          <p class="wallet-hint" id="walletInvoiceNotice" role="status"></p>
+          <section class="wallet-section" aria-labelledby="walletClientRatesTitle"><div class="wallet-section-heading"><h3 id="walletClientRatesTitle">Active client salary rates</h3><span>Contracted earnings, not yet received</span></div><div class="wallet-accounts" id="walletClientRates"></div></section>
+          <section class="wallet-section" aria-labelledby="walletAccountsTitle"><div class="wallet-section-heading"><h3 id="walletAccountsTitle">Bank accounts & wallets</h3><span>Manually tracked balances</span></div><div class="wallet-accounts" id="walletAccounts"></div></section>
+          <dialog class="panel wallet-entry-panel" id="walletEntryPanel" aria-labelledby="walletEntryTitle">
+            <h3 id="walletEntryTitle">Add transaction</h3>
+            <form id="walletEntryForm">
+              <input type="hidden" id="walletEntryId" />
+              <div class="wallet-form-grid">
+                <label class="form-field">Type<select id="walletEntryType"><option value="expense">Expense</option><option value="income">Income</option><option value="salary">Salary</option><option value="opening">Opening balance</option></select></label>
+                <label class="form-field">Account<select id="walletEntryAccount"><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option></select></label>
+                <label class="form-field">Amount (PHP)<input id="walletEntryAmount" type="number" min="0.01" max="999999999.99" step="0.01" required /></label>
+                <label class="form-field">Date<input id="walletEntryDate" type="date" required /></label>
+                <label class="form-field wallet-description">Description<input id="walletEntryDescription" maxlength="160" placeholder="e.g. Monthly salary or groceries" required /></label>
+              </div>
+              <p class="wallet-hint">Income excludes salary. Opening balances affect your account totals only. Record Wise amounts in their PHP equivalent.</p>
+              <div class="wallet-form-actions"><button class="button button-secondary" id="walletCancelEntry" type="button">Cancel</button><button class="button button-primary" type="submit">Save transaction</button></div>
+            </form>
+          </dialog>
+          <section class="panel wallet-transactions" aria-labelledby="walletTransactionsTitle">
+            <div class="wallet-section-heading"><h3 id="walletTransactionsTitle">Transactions</h3><label class="wallet-filter">Account <select id="walletAccountFilter"><option value="all">All accounts</option><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option><option value="unassigned">Other / unassigned</option></select></label></div>
+            <div id="walletTransactionList"></div>
+          </section>
+        </section>
+
         <section class="view account-view" id="accountView" data-view-panel="account" data-page="account">
           <section class="account-identity-section">
             <div class="account-avatar" aria-hidden="true"><i class="fa-solid fa-user"></i></div>
@@ -1127,7 +1160,8 @@
             <div class="client-invoice-payment-fields">
               <label class="form-field">Fees deducted<input id="invoicePaymentFee" type="number" min="0" step="any" /><small>Charged by Wise, PayPal, etc.</small></label>
               <label class="form-field">Amount received in PHP<input id="invoiceAmountReceivedPhp" type="number" min="0" step="any" /><small>What actually reached your account after conversion.</small></label>
-              <label class="form-field">Payment method<select id="invoicePaymentMethod"><option value="">Select method</option><option>Wise</option><option>PayPal</option><option>Payoneer</option><option>GCash</option><option>Bank transfer</option><option>Other</option></select></label>
+              <label class="form-field">Payment method<select id="invoicePaymentMethod"><option value="">Select method</option><option>Wise</option><option>PayPal</option><option>Payoneer</option><option>GCash</option><option>MariBank</option><option>Bank transfer</option><option>Other</option></select></label>
+              <label class="form-field">Receiving wallet account<select id="invoiceWalletAccount"><option value="">Use payment method</option><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option><option value="unassigned">Other / unassigned</option></select><small>Paid invoices appear in Wallet as salary. Enter the PHP amount for foreign-currency payments.</small></label>
               <label class="form-field">Amount invoiced<input id="invoiceAmountInvoiced" type="number" min="0" step="any" /><small>The total on the invoice.</small></label>
               <label class="form-field form-field-wide">Note<textarea id="invoicePaymentNote" maxlength="300" rows="3"></textarea></label>
             </div>

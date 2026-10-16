@@ -1,4 +1,4 @@
-  const INVOICE_PAYMENT_METHODS = ['Wise', 'PayPal', 'Payoneer', 'GCash', 'Bank transfer', 'Other'];
+  const INVOICE_PAYMENT_METHODS = ['Wise', 'PayPal', 'Payoneer', 'GCash', 'MariBank', 'Bank transfer', 'Other'];
 
   function parseInvoiceDate(value) {
     const text = String(value || '').trim();
@@ -45,7 +45,7 @@
         totals.invoiced.set(currency, (totals.invoiced.get(currency) || 0) + amountInvoiced);
         if (!paid) totals.unpaid.set(currency, (totals.unpaid.get(currency) || 0) + Math.max(0, amountInvoiced - (Number.isFinite(amountReceived) ? amountReceived : 0)));
       }
-      if (Number.isFinite(amountReceived) && amountReceived >= 0) totals.received.set(currency, (totals.received.get(currency) || 0) + amountReceived);
+      if (paid && Number.isFinite(amountReceived) && amountReceived >= 0) totals.received.set(currency, (totals.received.get(currency) || 0) + amountReceived);
     });
     const formatTotals = map => [...map].map(([currency, amount]) => `${invoiceAmount(amount)} ${escapeHtml(currency)}`).join(' · ');
     return `
@@ -89,6 +89,7 @@
     $('#invoicePaymentFee').value = invoice.paymentFee ?? '';
     $('#invoiceAmountReceivedPhp').value = invoice.amountReceivedPhp ?? '';
     $('#invoicePaymentMethod').value = invoice.paymentMethod || '';
+    $('#invoiceWalletAccount').value = invoice.walletAccount || '';
     $('#invoiceAmountInvoiced').value = invoice.amountInvoiced ?? amountPrefill;
     $('#invoicePaymentNote').value = invoice.paymentNote || '';
     $('#invoicePaymentModal').showModal();
@@ -103,11 +104,12 @@
       confirmLabel: 'Mark as unpaid',
       danger: true
     }))) return;
-    ['paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote']
+    ['paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount']
       .forEach(field => delete invoice[field]);
     persist();
     const client = data.applications.find(item => item.id === invoice.clientId);
-    if (client) renderHiredDetail(client, false);
+    if (activeView === 'wallet') renderWallet();
+    else if (client) renderHiredDetail(client, false);
     showActionResult({ title: 'Payment cleared', message: 'The invoice is marked as unpaid.' });
   }
 
@@ -140,6 +142,7 @@
       amountReceived,
       paymentCurrency: $('#invoicePaymentCurrency').value || 'USD',
       paymentMethod: $('#invoicePaymentMethod').value,
+      walletAccount: $('#invoiceWalletAccount').value,
       paymentNote: $('#invoicePaymentNote').value.trim()
     };
     for (const [field, selector] of optionalAmounts) {
@@ -162,6 +165,7 @@
     persist();
     $('#invoicePaymentModal').close();
     const client = data.applications.find(item => item.id === invoice.clientId);
-    if (client) renderHiredDetail(client, false);
+    if (activeView === 'wallet') renderWallet();
+    else if (client) renderHiredDetail(client, false);
     showActionResult({ title: 'Payment saved', message: `Payment for ${invoice.invoiceNumber || 'the invoice'} was saved.` });
   });

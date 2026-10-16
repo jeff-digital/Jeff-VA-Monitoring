@@ -10,7 +10,7 @@
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const AUTH_TAB_READY_KEY = 'jeff-va-auth-tab-ready-v1';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [], weeklyActivityGoal: null });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -604,6 +604,7 @@
       invoices: Array.isArray(saved.invoices) ? saved.invoices : [],
       scripts: Array.isArray(saved.scripts) ? saved.scripts : [],
       workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : [],
+      walletEntries: Array.isArray(saved.walletEntries) ? saved.walletEntries : [],
       weeklyActivityGoal
     };
   }
@@ -2706,11 +2707,11 @@
     const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
     const contractStatusClass = contractEnded ? 'contract-ended' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active');
     const salaryLabel = item.salaryType === 'monthly' && Number(item.salaryAmount) > 0
-      ? `$${Number(item.salaryAmount).toLocaleString()} / month`
+      ? `${salaryCurrencySymbol(item.salaryCurrency)}${Number(item.salaryAmount).toLocaleString()} / month`
       : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0 && Number(item.hoursPerWeek) > 0
-        ? `$${Math.round(Number(item.salaryAmount) * Number(item.hoursPerWeek) * 4).toLocaleString()} / month`
+        ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(Number(item.salaryAmount) * Number(item.hoursPerWeek) * 4).toLocaleString()} / month (estimated)`
         : item.salaryType === 'hourly' && Number(item.salaryAmount) > 0
-          ? `$${Number(item.salaryAmount).toLocaleString()} / hour`
+          ? `${salaryCurrencySymbol(item.salaryCurrency)}${Number(item.salaryAmount).toLocaleString()} / hour`
           : '';
     $('#hiredDetailTitle').textContent = 'Client details';
     $('#hiredDetailSubtitle').textContent = item.role || 'Client workspace';
@@ -3081,6 +3082,9 @@
         renderWorkLinks();
         renderInvoiceList();
         break;
+      case 'wallet':
+        renderWallet();
+        break;
       case 'account':
         renderAccountPage();
         break;
@@ -3107,7 +3111,7 @@
 
   function showView(view, { updateUrl = true } = {}) {
     if (view === 'password') view = 'account';
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'account'];
+    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'wallet', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (view !== 'dashboard') closeClientDashboardDrawer();
@@ -3136,6 +3140,7 @@
       refreshAccountStorageUsage();
     }
     const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    labels.wallet = ['', 'Wallet'];
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];
@@ -5518,7 +5523,7 @@
     renderAlerts();
   }
 
-  const INVOICE_PAYMENT_METHODS = ['Wise', 'PayPal', 'Payoneer', 'GCash', 'Bank transfer', 'Other'];
+  const INVOICE_PAYMENT_METHODS = ['Wise', 'PayPal', 'Payoneer', 'GCash', 'MariBank', 'Bank transfer', 'Other'];
 
   function parseInvoiceDate(value) {
     const text = String(value || '').trim();
@@ -5565,7 +5570,7 @@
         totals.invoiced.set(currency, (totals.invoiced.get(currency) || 0) + amountInvoiced);
         if (!paid) totals.unpaid.set(currency, (totals.unpaid.get(currency) || 0) + Math.max(0, amountInvoiced - (Number.isFinite(amountReceived) ? amountReceived : 0)));
       }
-      if (Number.isFinite(amountReceived) && amountReceived >= 0) totals.received.set(currency, (totals.received.get(currency) || 0) + amountReceived);
+      if (paid && Number.isFinite(amountReceived) && amountReceived >= 0) totals.received.set(currency, (totals.received.get(currency) || 0) + amountReceived);
     });
     const formatTotals = map => [...map].map(([currency, amount]) => `${invoiceAmount(amount)} ${escapeHtml(currency)}`).join(' · ');
     return `
@@ -5609,6 +5614,7 @@
     $('#invoicePaymentFee').value = invoice.paymentFee ?? '';
     $('#invoiceAmountReceivedPhp').value = invoice.amountReceivedPhp ?? '';
     $('#invoicePaymentMethod').value = invoice.paymentMethod || '';
+    $('#invoiceWalletAccount').value = invoice.walletAccount || '';
     $('#invoiceAmountInvoiced').value = invoice.amountInvoiced ?? amountPrefill;
     $('#invoicePaymentNote').value = invoice.paymentNote || '';
     $('#invoicePaymentModal').showModal();
@@ -5623,11 +5629,12 @@
       confirmLabel: 'Mark as unpaid',
       danger: true
     }))) return;
-    ['paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote']
+    ['paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount']
       .forEach(field => delete invoice[field]);
     persist();
     const client = data.applications.find(item => item.id === invoice.clientId);
-    if (client) renderHiredDetail(client, false);
+    if (activeView === 'wallet') renderWallet();
+    else if (client) renderHiredDetail(client, false);
     showActionResult({ title: 'Payment cleared', message: 'The invoice is marked as unpaid.' });
   }
 
@@ -5660,6 +5667,7 @@
       amountReceived,
       paymentCurrency: $('#invoicePaymentCurrency').value || 'USD',
       paymentMethod: $('#invoicePaymentMethod').value,
+      walletAccount: $('#invoiceWalletAccount').value,
       paymentNote: $('#invoicePaymentNote').value.trim()
     };
     for (const [field, selector] of optionalAmounts) {
@@ -5682,7 +5690,8 @@
     persist();
     $('#invoicePaymentModal').close();
     const client = data.applications.find(item => item.id === invoice.clientId);
-    if (client) renderHiredDetail(client, false);
+    if (activeView === 'wallet') renderWallet();
+    else if (client) renderHiredDetail(client, false);
     showActionResult({ title: 'Payment saved', message: `Payment for ${invoice.invoiceNumber || 'the invoice'} was saved.` });
   });
 
@@ -6928,7 +6937,7 @@
     const invoice = { ...row };
     if (String(row.paymentStatus || '').toLowerCase() === 'paid') invoice.paymentStatus = 'paid';
     else delete invoice.paymentStatus;
-    ['paidAt', 'paymentCurrency', 'paymentMethod', 'paymentNote'].forEach(field => {
+    ['paidAt', 'paymentCurrency', 'paymentMethod', 'paymentNote', 'walletAccount'].forEach(field => {
       if (row[field] === '' || row[field] === null || row[field] === undefined) delete invoice[field];
       else invoice[field] = String(row[field]);
     });
@@ -6997,7 +7006,7 @@
     const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, location: 24, documents: 48, updatedAt: 24 };
     const applicationsSheet = createDataSheet(pipelineApplications().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const activeClientsSheet = createDataSheet(hiredClients().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
-    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote'];
+    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];
     XLSX.utils.book_append_sheet(workbook, applicationsSheet, 'Applications');
     XLSX.utils.book_append_sheet(workbook, activeClientsSheet, 'Active clients');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
@@ -7143,7 +7152,7 @@
       const scripts = workbook.Sheets.Scripts ? XLSX.utils.sheet_to_json(workbook.Sheets.Scripts, { defval: '' }) : data.scripts || [];
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
-      data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks };
+      data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks, walletEntries: data.walletEntries || [] };
       persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });
     } catch {
       showActionResult({ title: 'Could not restore backup', message: 'That file is not a valid Jeff VA export.', status: 'error' });
@@ -7207,6 +7216,7 @@
     { id: 'to-apply', label: 'To Apply', detail: 'Review application reminders', icon: 'fa-calendar-check' },
     { id: 'hired', label: 'Active clients', detail: 'View your active client list', icon: 'fa-user-tie' },
     { id: 'documents', label: 'Tools', detail: 'Open your tools library', icon: 'fa-toolbox' },
+    { id: 'wallet', label: 'Wallet', detail: 'Income, expenses, salary and account balances', icon: 'fa-wallet' },
     { id: 'weekly-report', label: 'Weekly report', detail: 'Review or export this week’s report', icon: 'fa-chart-column' },
     { id: 'settings', label: 'Settings', detail: 'Manage your workspace preferences', icon: 'fa-gear' }
   ];
@@ -10800,6 +10810,112 @@
       $('#weeklyReportDownloadMenuButton').setAttribute('aria-expanded', 'false');
       $('#weeklyReportDownloadMenuButton').focus();
     }
+  });
+
+  const walletAccountNames = { maribank: 'MariBank', gcash: 'GCash', wise: 'Wise', unassigned: 'Other / unassigned' };
+  const walletTypeNames = { income: 'Income', expense: 'Expense', salary: 'Salary', opening: 'Opening balance' };
+  const walletMoney = cents => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(cents / 100);
+
+  function walletTotals(entries) {
+    const totals = { income: 0, expense: 0, salary: 0, balance: 0, accounts: { maribank: 0, gcash: 0, wise: 0, unassigned: 0 } };
+    entries.forEach(entry => {
+      if (!Object.hasOwn(walletAccountNames, entry.account) || !Object.hasOwn(walletTypeNames, entry.type) || !Number.isSafeInteger(entry.cents) || entry.cents <= 0) return;
+      const signed = entry.type === 'expense' ? -entry.cents : entry.cents;
+      totals.accounts[entry.account] += signed;
+      totals.balance += signed;
+      if (entry.type !== 'opening') totals[entry.type] += entry.cents;
+    });
+    return totals;
+  }
+
+  function walletInvoiceAccount(invoice) {
+    if (Object.hasOwn(walletAccountNames, invoice.walletAccount)) return invoice.walletAccount;
+    const method = String(invoice.paymentMethod || '').trim().toLowerCase();
+    return ['maribank', 'gcash', 'wise'].includes(method) ? method : 'unassigned';
+  }
+
+  function walletInvoiceEntries() {
+    const seen = new Set();
+    return (data.invoices || []).flatMap(invoice => {
+      if (!invoice.id || seen.has(invoice.id) || invoicePaymentStatus(invoice) !== 'Paid') return [];
+      seen.add(invoice.id);
+      const php = invoice.amountReceivedPhp;
+      const amount = php !== '' && php != null ? Number(php)
+        : String(invoice.paymentCurrency || 'USD').toUpperCase() === 'PHP' && invoice.amountReceived !== '' && invoice.amountReceived != null ? Number(invoice.amountReceived) : NaN;
+      const cents = Math.round(amount * 100);
+      const client = (data.applications || []).find(item => item.id === invoice.clientId);
+      return [{ id: `invoice:${invoice.id}`, invoiceId: invoice.id, type: 'salary', account: walletInvoiceAccount(invoice), cents: Number.isSafeInteger(cents) && cents >= 0 ? cents : null, description: `${client?.clientName || 'Client'} · Invoice ${invoice.invoiceNumber || invoice.id}`, date: parseInvoiceDate(invoice.paidAt), createdAt: invoice.sentAt || '' }];
+    });
+  }
+
+  function renderWallet() {
+    // Derive payments from invoices instead of copying them: edits and unpaid status stay in sync.
+    const invoiceEntries = walletInvoiceEntries();
+    const entries = [...(data.walletEntries || []), ...invoiceEntries];
+    const totals = walletTotals(entries);
+    $('#walletSummary').innerHTML = [
+      ['balance', 'Total balance', 'All recorded PHP balances', 'fa-wallet'],
+      ['income', 'Income', 'Other earnings · all time', 'fa-arrow-trend-up'],
+      ['salary', 'Salary', 'Salary received · all time', 'fa-briefcase'],
+      ['expense', 'Expenses', 'Spending · all time', 'fa-arrow-trend-down']
+    ].map(([key, label, detail, icon]) => `<article class="wallet-stat wallet-stat-${key}"><span><i class="fa-solid ${icon}" aria-hidden="true"></i> ${label}</span><strong>${walletMoney(totals[key])}</strong><small>${detail}</small></article>`).join('');
+    $('#walletAccounts').innerHTML = Object.entries(walletAccountNames).filter(([key]) => key !== 'unassigned' || entries.some(entry => entry.account === key)).map(([key, name]) => `<article class="wallet-account wallet-account-${key}"><div><span class="wallet-account-mark" aria-hidden="true">${name[0]}</span><h4>${name}</h4></div><strong>${walletMoney(totals.accounts[key])}</strong><span>Recorded balance · PHP</span></article>`).join('');
+    const missingPhp = invoiceEntries.filter(entry => entry.cents === null).length;
+    $('#walletInvoiceNotice').textContent = missingPhp ? `${missingPhp} paid invoice(s) need an amount received in PHP. They appear below but are excluded from PHP totals until you edit the payment.` : 'Paid invoices appear automatically as salary. Edit their payment details to update the amount or receiving account; do not add the same payment manually.';
+    $('#walletClientRates').innerHTML = hiredClients().filter(isActiveContract).map(client => `<article class="wallet-account"><h4>${escapeHtml(client.clientName || 'Client')}</h4><strong>${escapeHtml(clientDashboardRate(client) || 'Rate not set')}</strong><span>Contract rate · counted as received only after payment</span></article>`).join('') || '<p class="wallet-hint">No active client contracts.</p>';
+    const account = $('#walletAccountFilter').value;
+    const visible = entries.filter(entry => account === 'all' || entry.account === account).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
+    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletTypeNames[entry.type] || entry.type)}</small></td><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-edit="${escapeHtml(entry.id)}" aria-label="Edit ${escapeHtml(entry.description)}">Edit</button><button type="button" class="button button-secondary" data-wallet-delete="${escapeHtml(entry.id)}" aria-label="Delete ${escapeHtml(entry.description)}">Delete</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, or expense to start tracking.</p></div>';
+  }
+
+  function openWalletEntry(entry = null) {
+    $('#walletEntryForm').reset();
+    $('#walletEntryId').value = entry?.id || '';
+    $('#walletEntryTitle').textContent = entry ? 'Edit transaction' : 'Add transaction';
+    $('#walletEntryType').value = entry?.type || 'expense';
+    $('#walletEntryAccount').value = entry?.account || 'maribank';
+    $('#walletEntryAmount').value = entry ? (entry.cents / 100).toFixed(2) : '';
+    $('#walletEntryDate').value = entry?.date || today();
+    $('#walletEntryDescription').value = entry?.description || '';
+    $('#walletEntryPanel').showModal();
+    $('#walletEntryType').focus();
+  }
+
+  $('#walletAddEntry').addEventListener('click', () => openWalletEntry());
+  $('#walletCancelEntry').addEventListener('click', () => { $('#walletEntryPanel').close(); $('#walletAddEntry').focus(); });
+  $('#walletAccountFilter').addEventListener('change', renderWallet);
+  $('#walletEntryForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!event.currentTarget.reportValidity()) return;
+    if (!dataReady || !supabaseDataLoaded || !currentUser) { toast('Wait for your workspace to finish loading.'); return; }
+    const cents = Math.round(Number($('#walletEntryAmount').value) * 100);
+    const description = $('#walletEntryDescription').value.trim();
+    if (!Number.isSafeInteger(cents) || cents <= 0 || !description) { toast('Enter a valid amount and description.'); return; }
+    const entries = data.walletEntries || [];
+    const id = $('#walletEntryId').value;
+    const existing = entries.find(entry => entry.id === id);
+    if (id && !existing) { toast('This transaction no longer exists. Cancel and add a new entry.'); return; }
+    const entry = { id: existing?.id || crypto.randomUUID(), type: $('#walletEntryType').value, account: $('#walletEntryAccount').value, cents, description, date: $('#walletEntryDate').value, createdAt: existing?.createdAt || new Date().toISOString() };
+    data.walletEntries = existing ? entries.map(item => item.id === id ? entry : item) : [...entries, entry];
+    $('#walletEntryPanel').close();
+    renderWallet();
+    if (await persist()) toast('Wallet transaction saved.');
+  });
+  $('#walletTransactionList').addEventListener('click', async event => {
+    const invoiceButton = event.target.closest('[data-wallet-invoice]');
+    if (invoiceButton) { openInvoicePayment(invoiceButton.dataset.walletInvoice); return; }
+    const edit = event.target.closest('[data-wallet-edit]');
+    const remove = event.target.closest('[data-wallet-delete]');
+    const id = edit?.dataset.walletEdit || remove?.dataset.walletDelete;
+    if (!id) return;
+    const entry = (data.walletEntries || []).find(item => item.id === id);
+    if (!entry) return;
+    if (edit) { openWalletEntry(entry); return; }
+    if (!await appConfirm('Delete this transaction? Its amount will be removed from your wallet totals.', { title: 'Delete transaction', confirmLabel: 'Delete', danger: true })) return;
+    data.walletEntries = (data.walletEntries || []).filter(item => item.id !== id);
+    if ($('#walletEntryId').value === id) $('#walletEntryPanel').close();
+    renderWallet();
+    if (await persist()) toast('Wallet transaction deleted.');
   });
 
   // Authentication stays isolated from page interactions. Its login behavior is

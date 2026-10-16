@@ -7,7 +7,7 @@
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const AUTH_TAB_READY_KEY = 'jeff-va-auth-tab-ready-v1';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], accountSignInHistory: [], weeklyActivityGoal: null });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -601,6 +601,7 @@
       invoices: Array.isArray(saved.invoices) ? saved.invoices : [],
       scripts: Array.isArray(saved.scripts) ? saved.scripts : [],
       workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : [],
+      walletEntries: Array.isArray(saved.walletEntries) ? saved.walletEntries : [],
       weeklyActivityGoal
     };
   }

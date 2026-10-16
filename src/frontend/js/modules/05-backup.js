@@ -41,7 +41,7 @@
     const invoice = { ...row };
     if (String(row.paymentStatus || '').toLowerCase() === 'paid') invoice.paymentStatus = 'paid';
     else delete invoice.paymentStatus;
-    ['paidAt', 'paymentCurrency', 'paymentMethod', 'paymentNote'].forEach(field => {
+    ['paidAt', 'paymentCurrency', 'paymentMethod', 'paymentNote', 'walletAccount'].forEach(field => {
       if (row[field] === '' || row[field] === null || row[field] === undefined) delete invoice[field];
       else invoice[field] = String(row[field]);
     });
@@ -110,7 +110,7 @@
     const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, location: 24, documents: 48, updatedAt: 24 };
     const applicationsSheet = createDataSheet(pipelineApplications().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const activeClientsSheet = createDataSheet(hiredClients().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
-    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote'];
+    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];
     XLSX.utils.book_append_sheet(workbook, applicationsSheet, 'Applications');
     XLSX.utils.book_append_sheet(workbook, activeClientsSheet, 'Active clients');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
@@ -256,7 +256,7 @@
       const scripts = workbook.Sheets.Scripts ? XLSX.utils.sheet_to_json(workbook.Sheets.Scripts, { defval: '' }) : data.scripts || [];
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
-      data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks };
+      data = { applications: restoredApplications, toApply, dailyTasks, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks, walletEntries: data.walletEntries || [] };
       persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });
     } catch {
       showActionResult({ title: 'Could not restore backup', message: 'That file is not a valid Jeff VA export.', status: 'error' });

@@ -47,6 +47,7 @@
     { id: 'to-apply', label: 'To Apply', detail: 'Review application reminders', icon: 'fa-calendar-check' },
     { id: 'hired', label: 'Active clients', detail: 'View your active client list', icon: 'fa-user-tie' },
     { id: 'documents', label: 'Tools', detail: 'Open your tools library', icon: 'fa-toolbox' },
+    { id: 'wallet', label: 'Wallet', detail: 'Income, expenses, salary and account balances', icon: 'fa-wallet' },
     { id: 'weekly-report', label: 'Weekly report', detail: 'Review or export this week’s report', icon: 'fa-chart-column' },
     { id: 'settings', label: 'Settings', detail: 'Manage your workspace preferences', icon: 'fa-gear' }
   ];
