@@ -119,7 +119,7 @@
     $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
     $('#emailActionResultTitle').textContent = title;
     $('#emailActionResultMessage').textContent = message;
-    $('.email-result-close').hidden = !showCloseButton;
+    $('.email-result-close')?.toggleAttribute('hidden', !showCloseButton);
     const detailList = $('#emailActionResultDetails');
     detailList.replaceChildren(...details.map(detail => {
       const item = document.createElement('article');

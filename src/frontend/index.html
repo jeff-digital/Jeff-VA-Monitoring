@@ -873,7 +873,6 @@
             <div class="email-result-badge success" id="emailActionResultBadge" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
             <div><p class="eyebrow" id="emailActionResultEyebrow">EMAIL STATUS</p><h2 id="emailActionResultTitle">Email</h2></div>
           </div>
-          <button class="icon-button email-result-close" value="cancel" type="submit" formnovalidate aria-label="Close">×</button>
         </div>
         <p class="email-result-message" id="emailActionResultMessage"></p>
         <div class="client-email-alert-list" id="emailActionResultDetails" role="list" aria-label="Matched client emails" hidden></div>
@@ -1288,6 +1287,25 @@
       </form>
     </dialog>
 
+    <dialog class="modal small-modal client-avatar-upload-modal" id="clientAvatarUploadModal" aria-labelledby="clientAvatarUploadTitle">
+      <form method="dialog" class="client-avatar-upload-shell">
+        <div class="modal-heading">
+          <div><p class="eyebrow">CLIENT PROFILE</p><h2 id="clientAvatarUploadTitle">Upload profile picture</h2></div>
+        </div>
+        <p class="client-avatar-upload-help">Choose a clear picture for this client. You can crop and preview it before saving.</p>
+        <div class="client-avatar-upload-preview" id="clientAvatarUploadPreview" role="button" tabindex="0" aria-label="Upload a profile picture" aria-live="polite">
+          <span class="client-avatar-upload-placeholder"><i class="fa-solid fa-image" aria-hidden="true"></i><span>Upload a picture to begin</span></span>
+          <img id="clientAvatarUploadImage" alt="Selected profile photo preview" hidden />
+        </div>
+        <p class="client-avatar-upload-file" id="clientAvatarUploadFile">No picture selected</p>
+        <div class="modal-actions client-avatar-upload-actions">
+          <button class="button button-secondary" value="cancel" type="submit" id="cancelClientAvatarUpload">Cancel</button>
+          <button class="danger-button" type="button" id="removeClientAvatarButton" hidden><i class="fa-solid fa-trash" aria-hidden="true"></i> Remove photo</button>
+          <button class="button button-primary" type="button" id="continueClientAvatarUpload" disabled>Continue</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog class="modal client-avatar-crop-modal" id="clientAvatarCropModal" aria-labelledby="clientAvatarCropTitle">
       <div class="client-avatar-crop-shell">
         <div class="modal-heading">
@@ -1300,7 +1318,7 @@
         </div>
         <label class="client-avatar-zoom-label" for="clientAvatarZoom">Zoom <input id="clientAvatarZoom" type="range" min="1" max="3" step="0.01" value="1" /></label>
         <p class="client-avatar-crop-status" id="clientAvatarCropStatus" role="status"></p>
-        <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelClientAvatarCropAction">Cancel</button><button class="button button-primary" type="button" id="useClientAvatarCrop">Use photo</button></div>
+        <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelClientAvatarCropAction">Back</button><button class="button button-primary" type="button" id="useClientAvatarCrop">Upload photo</button></div>
       </div>
     </dialog>
 

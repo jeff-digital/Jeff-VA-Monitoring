@@ -122,7 +122,7 @@
     $('#emailActionResultEyebrow').textContent = label || (isError ? 'ACTION FAILED' : isInfo ? 'NOTICE' : 'SUCCESS');
     $('#emailActionResultTitle').textContent = title;
     $('#emailActionResultMessage').textContent = message;
-    $('.email-result-close').hidden = !showCloseButton;
+    $('.email-result-close')?.toggleAttribute('hidden', !showCloseButton);
     const detailList = $('#emailActionResultDetails');
     detailList.replaceChildren(...details.map(detail => {
       const item = document.createElement('article');
@@ -8664,7 +8664,7 @@
     $('#activeClientDrawerOnboardingView').hidden = view !== 'onboarding';
     $('#activeClientDrawerEditView').hidden = view !== 'edit';
     back.hidden = view === 'list';
-    close.hidden = view === 'email';
+    if (close) close.hidden = view === 'email';
     title.textContent = view === 'list'
       ? client.clientName || 'Active client'
       : view === 'email'
@@ -8682,8 +8682,11 @@
   }
 
   function openActiveClientActionsDrawer(trigger) {
-    const client = data.applications.find(application => application.id === hiredEditingId);
+    const detailClientId = $('#hiredDetailPanel')?.dataset.clientId;
+    const clientId = hiredEditingId || detailClientId;
+    const client = data.applications.find(application => application.id === clientId);
     if (!client) return;
+    hiredEditingId = client.id;
     const layer = $('#activeClientDrawerLayer');
     activeClientDrawerReturnFocus = trigger;
     activeClientDrawerOpen = true;
@@ -8706,6 +8709,12 @@
       $('#activeClientDrawerList [data-active-client-action]')?.focus();
     });
   }
+
+  $('#activeClientActionsButton')?.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    openActiveClientActionsDrawer(event.currentTarget);
+  });
 
   async function closeActiveClientActionsDrawer(force = false, onClosed = null) {
     if (!activeClientDrawerOpen) {
@@ -8795,7 +8804,7 @@
     event.stopPropagation();
     if (!avatarUploadButton) return;
     event.preventDefault();
-    avatarUploadButton.closest('[data-client-avatar-control]')?.querySelector('[data-client-avatar-input]')?.click();
+    openClientAvatarUpload(avatarUploadButton.dataset.clientAvatarUpload);
   }, true);
 
   document.addEventListener('click', async event => {
@@ -8929,6 +8938,64 @@
 
   let clientAvatarCropState = null;
   let clientAvatarCropObjectUrl = '';
+  let clientAvatarUploadState = null;
+  let clientAvatarUploadObjectUrl = '';
+
+  function clearClientAvatarUploadPreview() {
+    if (clientAvatarUploadObjectUrl) URL.revokeObjectURL(clientAvatarUploadObjectUrl);
+    clientAvatarUploadObjectUrl = '';
+    clientAvatarUploadState = null;
+    $('#clientAvatarUploadImage').removeAttribute('src');
+    $('#clientAvatarUploadImage').hidden = true;
+    $('.client-avatar-upload-placeholder')?.removeAttribute('hidden');
+    $('#clientAvatarUploadFile').textContent = 'No picture selected';
+    $('#continueClientAvatarUpload').disabled = true;
+    $('#removeClientAvatarButton').hidden = true;
+  }
+
+  function openClientAvatarUpload(clientId) {
+    const item = data.applications.find(application => application.id === clientId);
+    if (!item) return;
+    clearClientAvatarUploadPreview();
+    clientAvatarUploadState = { clientId, file: null };
+    $('#removeClientAvatarButton').hidden = !item.profileImage?.storagePath;
+    $('#clientAvatarUploadModal').showModal();
+    $('#clientAvatarUploadPreview').focus();
+  }
+
+  function closeClientAvatarUpload() {
+    if ($('#clientAvatarUploadModal').open) $('#clientAvatarUploadModal').close();
+    clearClientAvatarUploadPreview();
+  }
+
+  async function removeClientAvatar() {
+    const clientId = clientAvatarUploadState?.clientId;
+    const item = data.applications.find(application => application.id === clientId);
+    if (!item?.profileImage?.storagePath) return;
+    if (!(await appConfirm(`Remove ${item.clientName || 'this client'}'s profile photo?`, {
+      title: 'Remove profile photo',
+      confirmLabel: 'Remove photo',
+      danger: true,
+      showCloseButton: false
+    }))) return;
+    const button = $('#removeClientAvatarButton');
+    setButtonLoading(button, true);
+    const previousProfileImage = item.profileImage;
+    try {
+      await deleteDocumentBlob(previousProfileImage.storagePath);
+      item.profileImage = null;
+      clearHiredClientAvatar(item.id);
+      await persist();
+      renderHired();
+      closeClientAvatarUpload();
+      showActionResult({ title: 'Profile photo removed', message: 'The client profile picture was removed successfully.' });
+    } catch (error) {
+      console.error('Could not remove client profile photo:', error);
+      showActionResult({ title: 'Profile photo could not be removed', message: error.message || 'Check your connection and try again.', status: 'error' });
+    } finally {
+      setButtonLoading(button, false);
+    }
+  }
 
   function clampClientAvatarPosition() {
     if (!clientAvatarCropState) return;
@@ -8975,6 +9042,24 @@
     clientAvatarCropObjectUrl = '';
     clientAvatarCropState = null;
     $('#clientAvatarCropImage').removeAttribute('src');
+  }
+
+  function backClientAvatarCropToUpload() {
+    const crop = clientAvatarCropState;
+    if (!crop) {
+      closeClientAvatarCrop();
+      return;
+    }
+    const { clientId, file } = crop;
+    closeClientAvatarCrop();
+    openClientAvatarUpload(clientId);
+    clientAvatarUploadState = { clientId, file };
+    clientAvatarUploadObjectUrl = URL.createObjectURL(file);
+    $('#clientAvatarUploadImage').src = clientAvatarUploadObjectUrl;
+    $('#clientAvatarUploadImage').hidden = false;
+    $('.client-avatar-upload-placeholder')?.setAttribute('hidden', '');
+    $('#clientAvatarUploadFile').textContent = `${file.name || 'Selected picture'} · Ready to continue`;
+    $('#continueClientAvatarUpload').disabled = false;
   }
 
   function openClientAvatarCrop(clientId, file) {
@@ -9077,6 +9162,7 @@
         }
       }
       toast('Client profile photo saved.');
+      return true;
     } catch (error) {
       if (uploaded) {
         try {
@@ -9096,6 +9182,7 @@
           : error.message || 'Check your connection and try again.',
         status: 'error'
       });
+      return false;
     } finally {
       if (button?.isConnected) button.disabled = false;
     }
@@ -9126,8 +9213,28 @@
   cropViewport.addEventListener('pointerup', stopClientAvatarCropDrag);
   cropViewport.addEventListener('pointercancel', stopClientAvatarCropDrag);
   $('#clientAvatarZoom').addEventListener('input', () => updateClientAvatarCropScale(true));
+  const openClientAvatarFilePicker = () => {
+    const clientId = clientAvatarUploadState?.clientId;
+    if (!clientId) return;
+    document.querySelector(`[data-client-avatar-input="${CSS.escape(clientId)}"]`)?.click();
+  };
+  $('#clientAvatarUploadPreview').addEventListener('click', openClientAvatarFilePicker);
+  $('#clientAvatarUploadPreview').addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    openClientAvatarFilePicker();
+  });
+  $('#cancelClientAvatarUpload').addEventListener('click', closeClientAvatarUpload);
+  $('#removeClientAvatarButton').addEventListener('click', removeClientAvatar);
+  $('#clientAvatarUploadModal').addEventListener('close', clearClientAvatarUploadPreview);
+  $('#continueClientAvatarUpload').addEventListener('click', () => {
+    if (!clientAvatarUploadState?.file) return;
+    const { clientId, file } = clientAvatarUploadState;
+    closeClientAvatarUpload();
+    openClientAvatarCrop(clientId, file);
+  });
   $('#cancelClientAvatarCrop')?.addEventListener('click', closeClientAvatarCrop);
-  $('#cancelClientAvatarCropAction').addEventListener('click', closeClientAvatarCrop);
+  $('#cancelClientAvatarCropAction').addEventListener('click', backClientAvatarCropToUpload);
   $('#clientAvatarCropModal').addEventListener('close', () => {
     if (clientAvatarCropObjectUrl) URL.revokeObjectURL(clientAvatarCropObjectUrl);
     clientAvatarCropObjectUrl = '';
@@ -9138,21 +9245,21 @@
     if (!clientAvatarCropState) return;
     const button = event.currentTarget;
     setButtonLoading(button, true);
-    $('#clientAvatarCropStatus').textContent = 'Cropping and uploading photo…';
+    $('#clientAvatarCropStatus').textContent = 'Uploading your cropped photo…';
     const clientId = clientAvatarCropState.clientId;
     try {
       const croppedFile = await makeClientAvatarCropBlob();
       closeClientAvatarCrop();
-      await uploadClientAvatar(clientId, croppedFile);
+      const uploaded = await uploadClientAvatar(clientId, croppedFile);
+      if (uploaded) showActionResult({ title: 'Profile photo saved', message: 'The client profile picture was uploaded successfully.' });
     } catch (error) {
       console.error('Could not crop client profile photo:', error);
       $('#clientAvatarCropStatus').textContent = error.message || 'The photo could not be cropped.';
       setButtonLoading(button, false);
       return;
     }
-    button.disabled = false;
+    setButtonLoading(button, false);
   });
-
   document.addEventListener('change', async event => {
     const input = event.target.closest('[data-client-avatar-input]');
     const file = input?.files?.[0];
@@ -9187,7 +9294,16 @@
       showActionResult({ title: 'Profile photo is too large', message: 'Choose an image that is 25 MB or smaller before cropping.', status: 'error' });
       return;
     }
-    openClientAvatarCrop(clientId, file);
+    const imageUrl = URL.createObjectURL(file);
+    clientAvatarUploadState = { clientId, file };
+    if (clientAvatarUploadObjectUrl) URL.revokeObjectURL(clientAvatarUploadObjectUrl);
+    clientAvatarUploadObjectUrl = imageUrl;
+    $('#clientAvatarUploadImage').src = imageUrl;
+    $('#clientAvatarUploadImage').hidden = false;
+    $('.client-avatar-upload-placeholder')?.setAttribute('hidden', '');
+    $('#clientAvatarUploadFile').textContent = `${file.name || 'Selected picture'} · Ready to continue`;
+    $('#continueClientAvatarUpload').disabled = false;
+    if (!$('#clientAvatarUploadModal').open) $('#clientAvatarUploadModal').showModal();
   });
 
   async function sendClientOnboardingInvite(item, button, generateOnly = false) {
