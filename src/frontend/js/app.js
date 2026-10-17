@@ -11141,7 +11141,7 @@
   let newsLastLoaded = 0;
   let newsHasMore = false;
 
-  const newsCategoryNames = { all: 'All news', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing' };
+  const newsCategoryNames = { all: 'All news', 'philippine-business': 'Philippine business', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing' };
   const relativeNewsTime = date => {
     const time = Date.parse(date || '');
     if (!Number.isFinite(time)) return 'Date unavailable';

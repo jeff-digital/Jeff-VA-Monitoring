@@ -1,5 +1,8 @@
 const CATEGORY_QUERIES = {
   all: 'artificial intelligence OR automation OR virtual assistant OR productivity software',
+  'philippine-business': 'Philippines AND (business OR economy OR startup OR MSME OR entrepreneurship)',
+  'va-philippines': '("virtual assistant" OR freelancing OR BPO) AND (Philippines OR Filipino)',
+  'remote-work': '("remote work" OR "work from home" OR "digital jobs") AND (Philippines OR Filipino)',
   ai: 'artificial intelligence OR ChatGPT OR Claude OR Gemini',
   'ai-tools': 'AI tools productivity writing coding design',
   'virtual-assistants': 'virtual assistant remote work administrative productivity',
