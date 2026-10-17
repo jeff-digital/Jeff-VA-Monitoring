@@ -20,7 +20,12 @@ globalThis.fetch = async input => {
     providerQueries.push(url.searchParams.get('q'));
     assert.equal(url.searchParams.get('max'), '10');
     if (providerFails) throw new Error('timeout');
-    return Response.json({ totalArticles: 1, articles: [{ title: 'Provider fixture', url: 'https://publisher.example/article', image: 'https://publisher.example/image.jpg', publishedAt: '2026-10-17T01:00:00Z', source: { name: 'Publisher' } }] });
+    return Response.json({ totalArticles: 4, articles: [
+      { title: 'Provider fixture', url: 'https://www.publisher.example/article?utm_source=newsletter', image: 'https://publisher.example/image.jpg', publishedAt: '2026-10-17T01:00:00Z', source: { name: 'Publisher' } },
+      { title: 'Provider mirror headline', url: 'https://publisher.example/article?fbclid=tracking', publishedAt: '2026-10-17T00:59:00Z', source: { name: 'Publisher duplicate' } },
+      { title: 'PROVIDER FIXTURE!', url: 'https://syndication.example/copy', publishedAt: '2026-10-17T00:58:00Z', source: { name: 'Syndication duplicate' } },
+      { title: 'A different story', url: 'https://publisher.example/different', publishedAt: '2026-10-17T00:57:00Z', source: { name: 'Publisher' } }
+    ] });
   }
   if (url.hostname === 'api.github.com') throw new Error('unavailable');
   throw new Error('Unexpected upstream');
@@ -34,8 +39,9 @@ assert.equal(await (await get('/')).text(), 'assets');
 const response = await get('/api/news');
 assert.equal(response.headers.get('cache-control'), 'private, no-store');
 const payload = await response.json();
-assert.equal(payload.articles[0].url, 'https://publisher.example/article');
+assert.equal(payload.articles[0].url, 'https://www.publisher.example/article?utm_source=newsletter');
 assert.equal(payload.articles[0].image, 'https://publisher.example/image.jpg');
+assert.equal(payload.articles.length, 2, 'tracking-link and repeated-headline variants must be removed');
 assert.equal(payload.hasMore, false);
 assert.ok(payload.errors.length, 'one failed provider must not discard working results');
 assert.ok(!JSON.stringify(payload).includes('test-only'), 'secret must not appear in response');
@@ -51,7 +57,7 @@ providerFails = true;
 const unavailable = await (await get('/api/news?category=web')).json();
 assert.equal(unavailable.articles.length, 0);
 assert.ok(unavailable.errors.length);
-assert.ok(!cache.has('https://dashboard.example/api/news?v=2&category=web&q=&page=1&pageSize=10'), 'failure must not be cached');
+assert.ok(!cache.has('https://dashboard.example/api/news?v=3&category=web&q=&page=1&pageSize=10'), 'failure must not be cached');
 providerFails = false;
 await get('/api/news?category=business-markets');
 await get('/api/news?category=va-philippines');

@@ -12,7 +12,7 @@ const CATEGORY_QUERIES = {
   marketing: 'SEO social media content marketing technology'
 };
 
-const NEWS_CACHE_VERSION = '2';
+const NEWS_CACHE_VERSION = '3';
 const DEFAULT_GNEWS_DAILY_LIMIT = 100;
 
 function json(body, status = 200, extra = {}) {
@@ -20,6 +20,44 @@ function json(body, status = 200, extra = {}) {
 }
 
 function clean(value, limit) { return String(value || '').trim().slice(0, limit); }
+
+function canonicalArticleUrl(value) {
+  try {
+    const url = new URL(value);
+    url.hash = '';
+    [...url.searchParams.keys()].forEach(key => {
+      if (/^(utm_.+|fbclid|gclid|dclid|mc_cid|mc_eid|ref|referrer|source)$/i.test(key)) url.searchParams.delete(key);
+    });
+    url.hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+    url.searchParams.sort();
+    return url.toString();
+  } catch {
+    return clean(value, 1200).toLowerCase();
+  }
+}
+
+function articleTitleKey(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/&(?:amp|#0*38);/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function uniqueArticles(articles) {
+  const urls = new Set();
+  const titles = new Set();
+  return articles.filter(article => {
+    const urlKey = canonicalArticleUrl(article.url);
+    const titleKey = articleTitleKey(article.title);
+    if ((urlKey && urls.has(urlKey)) || (titleKey && titles.has(titleKey))) return false;
+    if (urlKey) urls.add(urlKey);
+    if (titleKey) titles.add(titleKey);
+    return true;
+  });
+}
 
 function gnewsUsageWindow(env, now = new Date()) {
   const date = now.toISOString().slice(0, 10);
@@ -129,7 +167,7 @@ export async function onRequestGet({ request, env, caches = globalThis.caches })
   ]);
   const usage = gnewsResult.requested ? await recordGnewsRequest(caches, url.origin, env, gnewsResult.status === 403) : await currentGnewsUsage(caches, url.origin, env);
   gnewsResult.articles.forEach(article => { article.category = category; });
-  const articles = [...gnewsResult.articles, ...githubResult.articles, ...youtubeResult.articles, ...productHuntResult.articles].filter((item, index, list) => list.findIndex(other => other.url === item.url) === index).sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
+  const articles = uniqueArticles([...gnewsResult.articles, ...githubResult.articles, ...youtubeResult.articles, ...productHuntResult.articles]).sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
   const response = json({ articles, page, pageSize, hasMore: page < 10 && gnewsResult.articles.length === pageSize && gnewsResult.total > page * pageSize, updatedAt: new Date().toISOString(), usage: { gnews: { ...usage, configured: Boolean(env.GNEWS_API_KEY) } }, errors: [gnewsResult.error, githubResult.error, youtubeResult.error, productHuntResult.error].filter(Boolean) });
   if (articles.length) await caches.default.put(cacheKey, response.clone());
   return response;

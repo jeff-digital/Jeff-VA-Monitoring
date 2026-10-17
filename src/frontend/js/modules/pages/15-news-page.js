@@ -6,6 +6,30 @@
   let newsHasMore = false;
 
   const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing' };
+  const newsUrlKey = value => {
+    try {
+      const url = new URL(value);
+      url.hash = '';
+      [...url.searchParams.keys()].forEach(key => { if (/^(utm_.+|fbclid|gclid|dclid|mc_cid|mc_eid|ref|referrer|source)$/i.test(key)) url.searchParams.delete(key); });
+      url.hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+      url.pathname = url.pathname.replace(/\/+$/, '') || '/';
+      url.searchParams.sort();
+      return url.toString();
+    } catch { return String(value || '').toLowerCase(); }
+  };
+  const newsTitleKey = value => String(value || '').normalize('NFKD').toLowerCase().replace(/&(?:amp|#0*38);/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+  const uniqueNewsArticles = articles => {
+    const urls = new Set();
+    const titles = new Set();
+    return articles.filter(article => {
+      const urlKey = newsUrlKey(article.url);
+      const titleKey = newsTitleKey(article.title);
+      if ((urlKey && urls.has(urlKey)) || (titleKey && titles.has(titleKey))) return false;
+      if (urlKey) urls.add(urlKey);
+      if (titleKey) titles.add(titleKey);
+      return true;
+    });
+  };
   const relativeNewsTime = date => {
     const time = Date.parse(date || '');
     if (!Number.isFinite(time)) return 'Date unavailable';
@@ -82,7 +106,7 @@
       const payload = await response.json();
       if (requestId !== newsRequest) return;
       if (!response.ok) throw new Error(payload.error || 'News could not be loaded.');
-      newsArticles = [...newsArticles, ...(payload.articles || [])].filter((article, index, list) => list.findIndex(other => other.url === article.url) === index);
+      newsArticles = uniqueNewsArticles([...newsArticles, ...(payload.articles || [])]);
       newsArticles.sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
       newsHasMore = Boolean(payload.hasMore);
       newsLastLoaded = Date.now();
