@@ -4845,7 +4845,8 @@
 
   const generatedNotificationTypes = new Set([
     'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
-    'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended'
+    'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended',
+    'wallet-payment-due-soon', 'wallet-payment-due-today', 'wallet-payment-overdue'
   ]);
   let notificationFilter = 'all';
   let notificationReturnFocus = null;
@@ -4926,6 +4927,26 @@
       const type = task.dueDate === todayDate ? 'client-task-due-today' : task.dueDate < todayDate ? 'client-task-overdue' : '';
       if (type) addTaskAlert(task, { type, entityType: 'client-task', date: task.dueDate, clientName: client?.clientName || 'Client task' });
     });
+    (data.walletEntries || []).forEach(entry => {
+      if (!entry.id || entry.type !== 'payable' || !entry.date) return;
+      const deadline = dateKey(entry.date);
+      if (!deadline) return;
+      const daysLeft = Math.round((new Date(`${deadline}T12:00:00`) - new Date(`${todayDate}T12:00:00`)) / 86400000);
+      if (daysLeft > 3) return;
+      const type = daysLeft < 0 ? 'wallet-payment-overdue' : daysLeft === 0 ? 'wallet-payment-due-today' : 'wallet-payment-due-soon';
+      const timing = daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due today' : `due in ${plural(daysLeft, 'day')}`;
+      add({
+        id: `${type}|wallet-entry:${entry.id}|${deadline}`,
+        type,
+        walletEntryId: entry.id,
+        clientName: entry.payee || 'Upcoming payment',
+        subject: `Payment ${timing}: ${entry.description || 'Untitled payment'}`,
+        from: 'Wallet reminder',
+        date: notificationDate(deadline),
+        paymentDeadline: deadline,
+        urgency: daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : 'ending-soon'
+      });
+    });
     (data.applications || []).forEach(item => {
       if (!item.id || item.status !== 'Active client') return;
       const endDate = dateKey(item.contractEndDate);
@@ -4966,7 +4987,7 @@
     const previousGeneratedIds = new Set(existingGenerated.map(alert => alert.id));
     const generatedIds = new Set(generated.keys());
     const urgentNewCount = [...generated.values()].filter(alert =>
-      !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended'].includes(alert.type)
+      !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended', 'wallet-payment-overdue', 'wallet-payment-due-today'].includes(alert.type)
     ).length;
     const changed = previousGeneratedIds.size !== generatedIds.size
       || [...previousGeneratedIds].some(id => !generatedIds.has(id))
@@ -4995,6 +5016,7 @@
 
   function notificationCategory(alert) {
     if (alert.type?.startsWith('task-')) return 'daily-tasks';
+    if (alert.type?.startsWith('wallet-payment-')) return 'finance';
     if (alert.type === 'to-apply' || alert.id?.startsWith('to-apply|due|')) return 'to-apply';
     if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission'].includes(alert.type)) return 'active-clients';
     const linkedApplication = (data.applications || []).find(item =>
@@ -5047,7 +5069,8 @@
       { key: 'applications', label: 'Applications' },
       { key: 'active-clients', label: 'Active Clients' },
       { key: 'daily-tasks', label: 'Daily Tasks' },
-      { key: 'to-apply', label: 'To Apply' }
+      { key: 'to-apply', label: 'To Apply' },
+      { key: 'finance', label: 'Wallet' }
     ].map(group => ({
       label: group.label,
       items: shownAlerts.filter(alert => notificationCategory(alert) === group.key)
@@ -5059,6 +5082,7 @@
         'active-clients': 'No active client notifications right now.',
         'daily-tasks': 'No daily task notifications right now.',
         'to-apply': 'No To Apply notifications right now.',
+        finance: 'No Wallet notifications right now.',
         unread: 'You’re all caught up. No unread notifications.'
       };
       list.innerHTML = `<div class="notification-empty">${emptyMessages[notificationFilter]}</div>`;
@@ -7486,6 +7510,10 @@
         }
       } else if (alert?.type === 'to-apply' || alert?.id?.startsWith('to-apply|due|')) {
         showView('to-apply');
+      } else if (alert?.type?.startsWith('wallet-payment-')) {
+        showView('wallet');
+        renderWallet();
+        requestAnimationFrame(() => $(`[data-wallet-actions="${CSS.escape(alert.walletEntryId || '')}"]`)?.focus());
       } else if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');
         openClientModal(alert.applicationId, true);
@@ -10983,18 +11011,32 @@
   });
 
   const walletAccountNames = { maribank: 'MariBank', gcash: 'GCash', wise: 'Wise', unassigned: 'Other / unassigned' };
-  const walletTypeNames = { income: 'Income', expense: 'Expense', salary: 'Salary', opening: 'Opening balance' };
+  const walletTypeNames = { income: 'Income', expense: 'Expense', payable: 'To be paid', salary: 'Salary', opening: 'Opening balance' };
   const walletMoney = cents => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(cents / 100);
+  const walletEntryTypeDetail = entry => entry.type === 'payable' && entry.payee ? `To be paid · Pay to ${entry.payee}` : (walletTypeNames[entry.type] || entry.type);
+
+  function syncWalletPayeeField() {
+    const isPayable = $('#walletEntryType').value === 'payable';
+    $('#walletPayeeField').hidden = !isPayable;
+    $('#walletEntryPayee').required = isPayable;
+    $('#walletEntryPayee').disabled = !isPayable;
+    $('#walletAccountField').hidden = isPayable;
+    $('#walletEntryAccount').disabled = isPayable;
+    $('#walletEntryDateLabel').textContent = isPayable ? 'Payment deadline' : 'Date';
+    if (!isPayable && !['maribank', 'gcash', 'wise'].includes($('#walletEntryAccount').value)) $('#walletEntryAccount').value = 'maribank';
+  }
 
   function walletTotals(entries) {
-    const totals = { income: 0, expense: 0, salary: 0, balance: 0, accounts: { maribank: 0, gcash: 0, wise: 0, unassigned: 0 } };
+    const totals = { income: 0, expense: 0, payable: 0, salary: 0, balance: 0, available: 0, accounts: { maribank: 0, gcash: 0, wise: 0, unassigned: 0 } };
     entries.forEach(entry => {
       if (!Object.hasOwn(walletAccountNames, entry.account) || !Object.hasOwn(walletTypeNames, entry.type) || !Number.isSafeInteger(entry.cents) || entry.cents <= 0) return;
+      if (entry.type === 'payable') { totals.payable += entry.cents; return; }
       const signed = entry.type === 'expense' ? -entry.cents : entry.cents;
       totals.accounts[entry.account] += signed;
       totals.balance += signed;
       if (entry.type !== 'opening') totals[entry.type] += entry.cents;
     });
+    totals.available = totals.balance - totals.payable;
     return totals;
   }
 
@@ -11027,15 +11069,16 @@
       ['balance', 'Total balance', 'All recorded PHP balances', 'fa-wallet'],
       ['income', 'Income', 'Other earnings · all time', 'fa-arrow-trend-up'],
       ['salary', 'Salary', 'Salary received · all time', 'fa-briefcase'],
+      ['payable', 'To be paid', `After payments: ${walletMoney(totals.available)}`, 'fa-calendar-check'],
       ['expense', 'Expenses', 'Spending · all time', 'fa-arrow-trend-down']
     ].map(([key, label, detail, icon]) => `<article class="wallet-stat wallet-stat-${key}"><span><i class="fa-solid ${icon}" aria-hidden="true"></i> ${label}</span><strong>${walletMoney(totals[key])}</strong><small>${detail}</small></article>`).join('');
-    $('#walletAccounts').innerHTML = Object.entries(walletAccountNames).filter(([key]) => key !== 'unassigned' || entries.some(entry => entry.account === key)).map(([key, name]) => `<article class="wallet-account wallet-account-${key}"><div><span class="wallet-account-mark" aria-hidden="true">${name[0]}</span><h4>${name}</h4></div><strong>${walletMoney(totals.accounts[key])}</strong><span>Recorded balance · PHP</span></article>`).join('');
+    $('#walletAccounts').innerHTML = Object.entries(walletAccountNames).filter(([key]) => key !== 'unassigned' || entries.some(entry => entry.account === key && entry.type !== 'payable')).map(([key, name]) => `<article class="wallet-account wallet-account-${key}"><div><span class="wallet-account-mark" aria-hidden="true">${name[0]}</span><h4>${name}</h4></div><strong>${walletMoney(totals.accounts[key])}</strong><span>Recorded balance · PHP</span></article>`).join('');
     const missingPhp = invoiceEntries.filter(entry => entry.cents === null).length;
     $('#walletInvoiceNotice').textContent = missingPhp ? `${missingPhp} paid invoice(s) need an amount received in PHP. They appear below but are excluded from PHP totals until you edit the payment.` : 'Paid invoices appear automatically as salary. Edit their payment details to update the amount or receiving account; do not add the same payment manually.';
     $('#walletClientRates').innerHTML = hiredClients().filter(isActiveContract).map(client => `<article class="wallet-account"><h4>${escapeHtml(client.clientName || 'Client')}</h4><strong>${escapeHtml(clientDashboardRate(client) || 'Rate not set')}</strong><span>Contract rate · counted as received only after payment</span></article>`).join('') || '<p class="wallet-hint">No active client contracts.</p>';
     const account = $('#walletAccountFilter').value;
     const visible = entries.filter(entry => account === 'all' || entry.account === account).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
-    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletTypeNames[entry.type] || entry.type)}</small></td><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-actions="${escapeHtml(entry.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(entry.description)}">Actions</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, or expense to start tracking.</p></div>';
+    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletEntryTypeDetail(entry))}</small></td><td>${entry.type === 'payable' ? `<strong>${escapeHtml(formatDate(entry.date))}</strong><small class="${entry.date < today() ? 'wallet-deadline-overdue' : ''}">${entry.date < today() ? 'Overdue' : entry.date === today() ? 'Due today' : 'Deadline'}</small>` : escapeHtml(entry.date)}</td><td>${entry.type === 'payable' ? '—' : escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : entry.type === 'payable' ? 'wallet-pending' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : entry.type === 'payable' ? 'Due ' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-actions="${escapeHtml(entry.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(entry.description)}">Actions</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, expense, or upcoming payment to start tracking.</p></div>';
   }
 
   function openWalletEntry(entry = null) {
@@ -11047,6 +11090,8 @@
     $('#walletEntryAmount').value = entry ? (entry.cents / 100).toFixed(2) : '';
     $('#walletEntryDate').value = entry?.date || today();
     $('#walletEntryDescription').value = entry?.description || '';
+    $('#walletEntryPayee').value = entry?.payee || '';
+    syncWalletPayeeField();
     $('#walletEntryPanel').showModal();
     $('#walletEntryType').focus();
   }
@@ -11068,6 +11113,7 @@
   }
 
   $('#walletAddEntry').addEventListener('click', () => openWalletEntry());
+  $('#walletEntryType').addEventListener('change', syncWalletPayeeField);
   $('#walletCancelEntry').addEventListener('click', () => { $('#walletEntryPanel').close(); $('#walletAddEntry').focus(); });
   $('#walletAccountFilter').addEventListener('change', renderWallet);
   $('#walletCancelActions')?.addEventListener('click', closeWalletActions);
@@ -11084,6 +11130,7 @@
     if (!entry || !await appConfirm('Delete this transaction? Its amount will be removed from your wallet totals.', { title: 'Delete transaction', confirmLabel: 'Delete', danger: true })) return;
     data.walletEntries = (data.walletEntries || []).filter(item => item.id !== id);
     renderWallet();
+    renderAlerts();
     if (await persist()) toast('Wallet transaction deleted.');
   });
   $('#walletAmountKeypad').addEventListener('click', event => {
@@ -11104,15 +11151,19 @@
     if (!dataReady || !supabaseDataLoaded || !currentUser) { toast('Wait for your workspace to finish loading.'); return; }
     const cents = Math.round(Number($('#walletEntryAmount').value) * 100);
     const description = $('#walletEntryDescription').value.trim();
+    const type = $('#walletEntryType').value;
+    const payee = type === 'payable' ? $('#walletEntryPayee').value.trim() : '';
     if (!Number.isSafeInteger(cents) || cents <= 0 || !description) { toast('Enter a valid amount and description.'); return; }
+    if (type === 'payable' && !payee) { toast('Enter who this payment is for.'); $('#walletEntryPayee').focus(); return; }
     const entries = data.walletEntries || [];
     const id = $('#walletEntryId').value;
     const existing = entries.find(entry => entry.id === id);
     if (id && !existing) { toast('This transaction no longer exists. Cancel and add a new entry.'); return; }
-    const entry = { id: existing?.id || crypto.randomUUID(), type: $('#walletEntryType').value, account: $('#walletEntryAccount').value, cents, description, date: $('#walletEntryDate').value, createdAt: existing?.createdAt || new Date().toISOString() };
+    const entry = { id: existing?.id || crypto.randomUUID(), type, account: type === 'payable' ? 'unassigned' : $('#walletEntryAccount').value, cents, description, payee, date: $('#walletEntryDate').value, createdAt: existing?.createdAt || new Date().toISOString() };
     data.walletEntries = existing ? entries.map(item => item.id === id ? entry : item) : [...entries, entry];
     $('#walletEntryPanel').close();
     renderWallet();
+    renderAlerts();
     if (await persist()) toast('Wallet transaction saved.');
   });
   $('#walletTransactionList').addEventListener('click', async event => {
@@ -11131,6 +11182,7 @@
     data.walletEntries = (data.walletEntries || []).filter(item => item.id !== id);
     if ($('#walletEntryId').value === id) $('#walletEntryPanel').close();
     renderWallet();
+    renderAlerts();
     if (await persist()) toast('Wallet transaction deleted.');
   });
 

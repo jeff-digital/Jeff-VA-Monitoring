@@ -50,45 +50,45 @@
         <nav class="main-nav">
           <div class="nav-group">
             <p class="nav-group-label">WORKSPACE</p>
-            <a class="nav-link" href="#dashboard" data-view="dashboard" title="Dashboards">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span><span class="nav-label">Dashboards</span>
+            <a class="nav-link" href="#dashboard" data-view="dashboard" title="Dashboard">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-house"></i></span><span class="nav-label">Dashboard</span>
             </a>
-            <a class="nav-link" href="#daily-task" data-view="daily-task" title="Daily Task">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-list-check"></i></span><span class="nav-label">Daily Task</span><span class="nav-count" id="navDailyTaskCount">0</span>
+            <a class="nav-link" href="#daily-task" data-view="daily-task" title="Daily tasks">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-list-check"></i></span><span class="nav-label">Daily tasks</span><span class="nav-count" id="navDailyTaskCount">0</span>
             </a>
-            <a class="nav-link" href="#inbox" data-view="inbox" title="Email">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span><span class="nav-label">Email</span>
+            <a class="nav-link" href="#inbox" data-view="inbox" title="Email inbox">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span><span class="nav-label">Email inbox</span>
               <span class="nav-count" id="navEmailCount">0</span>
             </a>
-            <a class="nav-link" href="#news" data-view="news" title="News">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-newspaper"></i></span><span class="nav-label">News</span>
+            <a class="nav-link" href="#news" data-view="news" title="Industry news">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-newspaper"></i></span><span class="nav-label">Industry news</span>
+            </a>
+            <a class="nav-link" href="#documents" data-view="documents" title="Career tools">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-toolbox"></i></span><span class="nav-label">Career tools</span>
             </a>
           </div>
           <div class="nav-group">
-            <p class="nav-group-label">CLIENTS</p>
-            <a class="nav-link" href="#hired" data-view="hired" title="Active Client">
+            <p class="nav-group-label">CLIENT MANAGEMENT</p>
+            <a class="nav-link" href="#hired" data-view="hired" title="Active clients">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-user-tie"></i></span><span class="nav-label">Active clients</span>
               <span class="nav-count" id="navHiredCount">0</span>
             </a>
-            <a class="nav-link" href="#documents" data-view="documents" title="Tools">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-toolbox"></i></span><span class="nav-label">Tools</span>
+          </div>
+          <div class="nav-group">
+            <p class="nav-group-label">FINANCE</p>
+            <a class="nav-link" href="#wallet" data-view="wallet" title="Wallet">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span><span class="nav-label">Wallet</span>
             </a>
           </div>
           <div class="nav-group">
-            <p class="nav-group-label">PIPELINE</p>
+            <p class="nav-group-label">JOB SEARCH</p>
             <a class="nav-link" href="#applications" data-view="applications" title="Applications">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-layer-group"></i></span><span class="nav-label">Applications</span>
               <span class="nav-count" id="navApplicationCount">0</span>
             </a>
-            <a class="nav-link" href="#to-apply" data-view="to-apply" title="To Apply">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-calendar-check"></i></span><span class="nav-label">To Apply</span>
+            <a class="nav-link" href="#to-apply" data-view="to-apply" title="To apply">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-calendar-check"></i></span><span class="nav-label">To apply</span>
               <span class="nav-count" id="navToApplyCount">0</span>
-            </a>
-          </div>
-          <div class="nav-group">
-            <p class="nav-group-label">WALLET</p>
-            <a class="nav-link" href="#wallet" data-view="wallet" title="Wallet">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span><span class="nav-label">Wallet</span>
             </a>
           </div>
         </nav>
@@ -145,6 +145,7 @@
                     <button type="button" role="tab" id="notificationActiveClientsTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="active-clients" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Active Clients</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                     <button type="button" role="tab" id="notificationDailyTasksTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="daily-tasks" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Daily Tasks</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                     <button type="button" role="tab" id="notificationToApplyTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="to-apply" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">To Apply</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
+                    <button type="button" role="tab" id="notificationWalletTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="finance" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Wallet</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                     <button type="button" role="tab" id="notificationUnreadTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="unread" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Unread</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                   </div>
                 </div>
@@ -700,12 +701,13 @@
               <input type="hidden" id="walletEntryId" />
               <div class="wallet-form-grid">
                 <label class="form-field wallet-description">Description<input id="walletEntryDescription" maxlength="160" placeholder="e.g. Monthly salary or groceries" required /></label>
-                <label class="form-field">Type<select id="walletEntryType"><option value="expense">Expense</option><option value="income">Income</option><option value="salary">Salary</option><option value="opening">Opening balance</option></select></label>
-                <label class="form-field">Account<select id="walletEntryAccount"><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option></select></label>
+                <label class="form-field">Type<select id="walletEntryType"><option value="expense">Expense</option><option value="payable">To be paid</option><option value="income">Income</option><option value="salary">Salary</option><option value="opening">Opening balance</option></select></label>
+                <label class="form-field" id="walletAccountField">Account<select id="walletEntryAccount"><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option></select></label>
+                <label class="form-field wallet-payee" id="walletPayeeField" hidden>Pay to<input id="walletEntryPayee" maxlength="120" placeholder="e.g. Landlord, electricity provider, or lender" /></label>
                 <div class="wallet-amount-field"><label class="form-field">Amount (PHP)<input id="walletEntryAmount" type="number" min="0.01" max="999999999.99" step="0.01" required /></label><div class="wallet-amount-keypad" id="walletAmountKeypad" role="group" aria-label="Amount keypad"><button type="button" data-wallet-key="7">7</button><button type="button" data-wallet-key="8">8</button><button type="button" data-wallet-key="9">9</button><button type="button" data-wallet-key="backspace" aria-label="Delete last digit">⌫</button><button type="button" data-wallet-key="4">4</button><button type="button" data-wallet-key="5">5</button><button type="button" data-wallet-key="6">6</button><button type="button" data-wallet-key="clear">Clear</button><button type="button" data-wallet-key="1">1</button><button type="button" data-wallet-key="2">2</button><button type="button" data-wallet-key="3">3</button><span aria-hidden="true"></span><button type="button" data-wallet-key="0" class="wallet-keypad-zero">0</button><button type="button" data-wallet-key=".">.</button></div></div>
-                <label class="form-field">Date<input id="walletEntryDate" type="date" required /></label>
+                <label class="form-field"><span id="walletEntryDateLabel">Date</span><input id="walletEntryDate" type="date" required /></label>
               </div>
-              <p class="wallet-hint">Income excludes salary. Opening balances affect your account totals only. Record Wise amounts in their PHP equivalent.</p>
+              <p class="wallet-hint">To be paid tracks upcoming payments without reducing your account balance. Change it to Expense after payment. Record Wise amounts in their PHP equivalent.</p>
               <div class="wallet-form-actions"><button class="button button-secondary" id="walletCancelEntry" type="button">Cancel</button><button class="button button-primary" type="submit">Save transaction</button></div>
             </form>
           </dialog>

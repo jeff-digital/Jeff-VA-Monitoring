@@ -287,6 +287,10 @@
         }
       } else if (alert?.type === 'to-apply' || alert?.id?.startsWith('to-apply|due|')) {
         showView('to-apply');
+      } else if (alert?.type?.startsWith('wallet-payment-')) {
+        showView('wallet');
+        renderWallet();
+        requestAnimationFrame(() => $(`[data-wallet-actions="${CSS.escape(alert.walletEntryId || '')}"]`)?.focus());
       } else if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');
         openClientModal(alert.applicationId, true);

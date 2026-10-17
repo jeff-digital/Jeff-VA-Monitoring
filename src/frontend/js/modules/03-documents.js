@@ -1118,7 +1118,8 @@
 
   const generatedNotificationTypes = new Set([
     'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
-    'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended'
+    'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended',
+    'wallet-payment-due-soon', 'wallet-payment-due-today', 'wallet-payment-overdue'
   ]);
   let notificationFilter = 'all';
   let notificationReturnFocus = null;
@@ -1199,6 +1200,26 @@
       const type = task.dueDate === todayDate ? 'client-task-due-today' : task.dueDate < todayDate ? 'client-task-overdue' : '';
       if (type) addTaskAlert(task, { type, entityType: 'client-task', date: task.dueDate, clientName: client?.clientName || 'Client task' });
     });
+    (data.walletEntries || []).forEach(entry => {
+      if (!entry.id || entry.type !== 'payable' || !entry.date) return;
+      const deadline = dateKey(entry.date);
+      if (!deadline) return;
+      const daysLeft = Math.round((new Date(`${deadline}T12:00:00`) - new Date(`${todayDate}T12:00:00`)) / 86400000);
+      if (daysLeft > 3) return;
+      const type = daysLeft < 0 ? 'wallet-payment-overdue' : daysLeft === 0 ? 'wallet-payment-due-today' : 'wallet-payment-due-soon';
+      const timing = daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due today' : `due in ${plural(daysLeft, 'day')}`;
+      add({
+        id: `${type}|wallet-entry:${entry.id}|${deadline}`,
+        type,
+        walletEntryId: entry.id,
+        clientName: entry.payee || 'Upcoming payment',
+        subject: `Payment ${timing}: ${entry.description || 'Untitled payment'}`,
+        from: 'Wallet reminder',
+        date: notificationDate(deadline),
+        paymentDeadline: deadline,
+        urgency: daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : 'ending-soon'
+      });
+    });
     (data.applications || []).forEach(item => {
       if (!item.id || item.status !== 'Active client') return;
       const endDate = dateKey(item.contractEndDate);
@@ -1239,7 +1260,7 @@
     const previousGeneratedIds = new Set(existingGenerated.map(alert => alert.id));
     const generatedIds = new Set(generated.keys());
     const urgentNewCount = [...generated.values()].filter(alert =>
-      !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended'].includes(alert.type)
+      !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended', 'wallet-payment-overdue', 'wallet-payment-due-today'].includes(alert.type)
     ).length;
     const changed = previousGeneratedIds.size !== generatedIds.size
       || [...previousGeneratedIds].some(id => !generatedIds.has(id))
@@ -1268,6 +1289,7 @@
 
   function notificationCategory(alert) {
     if (alert.type?.startsWith('task-')) return 'daily-tasks';
+    if (alert.type?.startsWith('wallet-payment-')) return 'finance';
     if (alert.type === 'to-apply' || alert.id?.startsWith('to-apply|due|')) return 'to-apply';
     if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission'].includes(alert.type)) return 'active-clients';
     const linkedApplication = (data.applications || []).find(item =>
@@ -1320,7 +1342,8 @@
       { key: 'applications', label: 'Applications' },
       { key: 'active-clients', label: 'Active Clients' },
       { key: 'daily-tasks', label: 'Daily Tasks' },
-      { key: 'to-apply', label: 'To Apply' }
+      { key: 'to-apply', label: 'To Apply' },
+      { key: 'finance', label: 'Wallet' }
     ].map(group => ({
       label: group.label,
       items: shownAlerts.filter(alert => notificationCategory(alert) === group.key)
@@ -1332,6 +1355,7 @@
         'active-clients': 'No active client notifications right now.',
         'daily-tasks': 'No daily task notifications right now.',
         'to-apply': 'No To Apply notifications right now.',
+        finance: 'No Wallet notifications right now.',
         unread: 'You’re all caught up. No unread notifications.'
       };
       list.innerHTML = `<div class="notification-empty">${emptyMessages[notificationFilter]}</div>`;
