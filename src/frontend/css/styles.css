@@ -6829,6 +6829,38 @@ body:has(#newsView.active) #pageEyebrow { display: none; }
   min-height: calc(100dvh - 190px);
   place-items: center;
 }
+#newsView .news-live-grid:has(> .news-category-loader:only-child) {
+  min-height: calc(100dvh - 190px);
+  place-items: center;
+}
+#newsView .news-category-loader {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  width: min(100%, 340px);
+  padding: 44px 24px;
+  color: #727b74;
+  text-align: center;
+}
+#newsView .news-category-loader-ring {
+  width: 38px;
+  height: 38px;
+  border: 3px solid #e5e8e5;
+  border-top-color: #66765f;
+  border-radius: 50%;
+  animation: news-category-spin .8s linear infinite;
+}
+#newsView .news-category-loader h2 { margin: 5px 0 0; color: #303632; font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-weight: 600; }
+#newsView .news-category-loader p { margin: 0; color: #858b86; font-size: 11px; }
+#newsView .news-category-loader-dots { display: inline-flex; gap: 5px; margin-top: 3px; }
+#newsView .news-category-loader-dots i { width: 5px; height: 5px; border-radius: 50%; background: #899486; animation: news-category-pulse 1s ease-in-out infinite; }
+#newsView .news-category-loader-dots i:nth-child(2) { animation-delay: .15s; }
+#newsView .news-category-loader-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes news-category-spin { to { transform: rotate(360deg); } }
+@keyframes news-category-pulse { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) {
+  #newsView .news-category-loader-ring, #newsView .news-category-loader-dots i { animation-duration: 1.8s; }
+}
 #newsView .news-empty {
   width: min(100%, 360px);
   min-height: 0;
@@ -6877,5 +6909,6 @@ body:has(#newsView.active) #pageEyebrow { display: none; }
   #newsView .news-search { grid-column: 1 / -1; width: 100%; }
   #newsView .news-category-select select { width: 100%; min-width: 0; }
   #newsView .news-live-grid:has(> .news-empty:only-child) { min-height: calc(100dvh - 226px); }
+  #newsView .news-live-grid:has(> .news-category-loader:only-child) { min-height: calc(100dvh - 226px); }
   #newsView .news-empty { width: min(100%, 320px); padding: 34px 20px; }
 }

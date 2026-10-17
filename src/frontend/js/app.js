@@ -11259,11 +11259,24 @@
   const newsFallback = category => `<span class="news-card-fallback"><i class="fa-solid ${category === 'automation' ? 'fa-gears' : category === 'web' ? 'fa-code' : 'fa-newspaper'}" aria-hidden="true"></i></span>`;
   const newsCard = (article, variant = '') => `<article class="news-card ${variant}"><a class="news-card-media" href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(article.title)} in a new tab">${article.image ? `<img src="${escapeHtml(article.image)}" alt="" loading="lazy" data-news-fallback="${escapeHtml(article.category)}" />` : newsFallback(article.category)}</a><div class="news-card-body"><div class="news-card-meta"><span class="news-card-source">${escapeHtml(article.source || 'News source')}</span><time datetime="${escapeHtml(article.publishedAt || '')}" title="${escapeHtml(newsDate(article.publishedAt))}">${escapeHtml(relativeNewsTime(article.publishedAt))}</time></div><h3><a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(article.title || 'Untitled article')}</a></h3><p>${escapeHtml(article.description || 'Open the original article for full details.')}</p><span class="news-card-category">${escapeHtml(newsCategoryNames[article.category] || 'News')}</span><a class="news-card-link" href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">Read article <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></div></article>`;
 
+  function renderNewsCategoryLoading(category) {
+    const grid = $('#newsLiveGrid');
+    const status = $('#newsLiveStatus');
+    const loadMore = $('#loadMoreNews');
+    if (!grid) return;
+    const label = newsCategoryNames[category] || 'news';
+    grid.setAttribute('aria-busy', 'true');
+    grid.innerHTML = `<div class="news-category-loader" role="status"><span class="news-category-loader-ring" aria-hidden="true"></span><h2>Loading ${escapeHtml(label)}</h2><p>Getting the latest published stories</p><span class="news-category-loader-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
+    if (status) status.textContent = '';
+    if (loadMore) loadMore.hidden = true;
+  }
+
   function renderNewsArticles() {
     const grid = $('#newsLiveGrid');
     const status = $('#newsLiveStatus');
     const loadMore = $('#loadMoreNews');
     if (!grid || !status) return;
+    grid.setAttribute('aria-busy', 'false');
     if (!newsArticles.length) { grid.innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Try another topic or check back later.</p></div>'; status.textContent = ''; loadMore.hidden = true; return; }
     const [featured, ...rest] = newsArticles;
     const sideStories = rest.slice(0, 3);
@@ -11279,7 +11292,13 @@
     if (!currentUser || !$('#newsLiveGrid')) return;
     if (newsLoading && !reset) return;
     const requestId = ++newsRequest;
-    if (reset) { newsPage = 1; newsArticles = []; renderNewsArticles(); }
+    if (reset) {
+      newsPage = 1;
+      newsArticles = [];
+      const category = $('#newsCategory').value;
+      if (category !== 'all') renderNewsCategoryLoading(category);
+      else renderNewsArticles();
+    }
     newsLoading = true;
     const status = $('#newsLiveStatus');
     if (status) status.textContent = 'Loading published stories…';
@@ -11305,7 +11324,10 @@
     } catch (error) {
       if (requestId !== newsRequest) return;
       if (newsArticles.length) renderNewsArticles();
-      else $('#newsLiveGrid').innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Please try again later.</p></div>';
+      else {
+        $('#newsLiveGrid').setAttribute('aria-busy', 'false');
+        $('#newsLiveGrid').innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Please try again later.</p></div>';
+      }
       $('#newsLiveStatus').textContent = error.message || 'News could not be loaded.';
       $('#loadMoreNews').hidden = true;
     } finally {
