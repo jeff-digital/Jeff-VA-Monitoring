@@ -11151,6 +11151,35 @@
     return `${Math.round(minutes / 1440)}d ago`;
   };
   const newsDate = date => { const time = Date.parse(date || ''); return Number.isFinite(time) ? new Date(time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Publication date unavailable'; };
+  const renderGnewsUsage = usage => {
+    const indicator = $('#gnewsUsage');
+    if (!indicator || !usage) return;
+    indicator.classList.remove('is-warning', 'is-exhausted', 'is-unavailable');
+    if (!usage.configured) {
+      indicator.textContent = 'GNews not connected';
+      indicator.title = 'Add GNEWS_API_KEY to the production Worker.';
+      indicator.classList.add('is-unavailable');
+      return;
+    }
+    const used = Math.max(0, Number(usage.used) || 0);
+    const limit = Math.max(1, Number(usage.limit) || 100);
+    const remaining = Math.max(0, limit - used);
+    const resetTime = Date.parse(usage.resetAt || '');
+    const resetLabel = Number.isFinite(resetTime) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' }).format(resetTime) : '00:00 UTC';
+    indicator.textContent = `GNews ${used} / ${limit}`;
+    indicator.title = `App-tracked usage today · ${remaining} remaining · resets ${resetLabel}`;
+    if (!remaining) indicator.classList.add('is-exhausted');
+    else if (remaining <= Math.max(10, Math.ceil(limit * .1))) indicator.classList.add('is-warning');
+  };
+  const refreshGnewsUsage = async token => {
+    if (!token) return;
+    try {
+      const response = await fetch('/api/news/usage', { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) });
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return;
+      const payload = await response.json();
+      renderGnewsUsage(payload.gnews);
+    } catch {}
+  };
   const newsFallback = category => `<span class="news-card-fallback"><i class="fa-solid ${category === 'automation' ? 'fa-gears' : category === 'web' ? 'fa-code' : 'fa-newspaper'}" aria-hidden="true"></i></span>`;
   const newsCard = (article, variant = '') => `<article class="news-card ${variant}"><a class="news-card-media" href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(article.title)} in a new tab">${article.image ? `<img src="${escapeHtml(article.image)}" alt="" loading="lazy" data-news-fallback="${escapeHtml(article.category)}" />` : newsFallback(article.category)}</a><div class="news-card-body"><div class="news-card-meta"><span class="news-card-source">${escapeHtml(article.source || 'News source')}</span><time datetime="${escapeHtml(article.publishedAt || '')}" title="${escapeHtml(newsDate(article.publishedAt))}">${escapeHtml(relativeNewsTime(article.publishedAt))}</time></div><h3><a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(article.title || 'Untitled article')}</a></h3><p>${escapeHtml(article.description || 'Open the original article for full details.')}</p><span class="news-card-category">${escapeHtml(newsCategoryNames[article.category] || 'News')}</span><a class="news-card-link" href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">Read article <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></div></article>`;
 
@@ -11178,9 +11207,10 @@
     newsLoading = true;
     const status = $('#newsLiveStatus');
     if (status) status.textContent = 'Loading published stories…';
+    let token = '';
     try {
       const session = await supabaseClient.auth.getSession();
-      const token = session.data?.session?.access_token;
+      token = session.data?.session?.access_token;
       if (!token) throw new Error('Sign in to view news.');
       const params = new URLSearchParams({ category: $('#newsCategory').value, q: $('#newsSearch').value.trim(), page: String(newsPage), pageSize: '10' });
       const response = await fetch(`/api/news?${params}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) });
@@ -11193,6 +11223,7 @@
       newsHasMore = Boolean(payload.hasMore);
       newsLastLoaded = Date.now();
       $('#newsUpdatedAt').textContent = payload.updatedAt ? `Updated ${relativeNewsTime(payload.updatedAt)}` : 'Updated just now';
+      renderGnewsUsage(payload.usage?.gnews);
       if (payload.errors?.length && !newsArticles.length) throw new Error(payload.errors.join(' '));
       renderNewsArticles();
     } catch (error) {
@@ -11201,7 +11232,10 @@
       else $('#newsLiveGrid').innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Please try again later.</p></div>';
       $('#newsLiveStatus').textContent = error.message || 'News could not be loaded.';
       $('#loadMoreNews').hidden = true;
-    } finally { if (requestId === newsRequest) newsLoading = false; }
+    } finally {
+      if (requestId === newsRequest) newsLoading = false;
+      if (token) refreshGnewsUsage(token);
+    }
   }
 
   $('#newsSearch')?.addEventListener('keydown', event => { if (event.key === 'Enter') loadNews({ reset: true }); });

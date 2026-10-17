@@ -1,4 +1,4 @@
-import { onRequestGet as news } from '../../functions/api/news.js';
+import { onRequestGet as news, onRequestGetUsage as newsUsage } from '../../functions/api/news.js';
 import { onRequestGet as tools } from '../../functions/api/tools.js';
 
 const reply = (error, status) => Response.json({ error }, { status, headers: { 'cache-control': 'no-store' } });
@@ -7,7 +7,7 @@ export default {
   async fetch(request, env, ctx) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
-    const handler = path === '/api/news' ? news : path === '/api/tools' ? tools : null;
+    const handler = path === '/api/news' ? news : path === '/api/news/usage' ? newsUsage : path === '/api/tools' ? tools : null;
     if (!handler) return reply('Endpoint not found.', 404);
     if (request.method !== 'GET') return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';

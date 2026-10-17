@@ -115,6 +115,8 @@ Build with `bash scripts/build-cloudflare.sh`, then deploy with `npx wrangler de
 
 The News page loads only after sign-in, on opening News, and refreshes hourly while visible. Server responses are cached for one hour; Refresh respects that cache. GNews requests are capped at ten articles per page for the free plan. The provider's request limits, publication delay, and license still apply. Failed sources display a message or allow the other source to continue. Optional unconfigured providers are skipped.
 
+The News toolbar shows an app-tracked GNews request count for the current UTC day. It increments only when the Worker contacts GNews, not when an article response is served from cache, and resets at 00:00 UTC. GNews does not expose its authoritative account counter through the news API, so use the GNews dashboard if the app count and provider account count differ.
+
 The News topic selector includes Business for the UK, Australia, US, and Canada, plus VA Philippines and Remote Work. These filters use the existing GNews connection, so they do not require additional API credentials.
 
 Run `node scripts/test-news.mjs` for mocked endpoint tests covering authentication, static routing, provider failure, caching, article images, and secret handling. Live production verification requires deployment and the runtime secret.
