@@ -2005,6 +2005,9 @@
       case 'wallet':
         renderWallet();
         break;
+      case 'news':
+        if (!newsLoading && (!newsLastLoaded || Date.now() - newsLastLoaded >= 3600000)) loadNews({ reset: true });
+        break;
       case 'account':
         renderAccountPage();
         break;
@@ -2031,7 +2034,7 @@
 
   function showView(view, { updateUrl = true } = {}) {
     if (view === 'password') view = 'account';
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'wallet', 'account'];
+    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'hired', 'inbox', 'documents', 'wallet', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (view !== 'dashboard') closeClientDashboardDrawer();
@@ -2066,7 +2069,7 @@
       renderAccountPage();
       refreshAccountStorageUsage();
     }
-    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['INTELLIGENCE', 'News'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];

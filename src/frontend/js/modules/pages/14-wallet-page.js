@@ -51,7 +51,7 @@
     $('#walletClientRates').innerHTML = hiredClients().filter(isActiveContract).map(client => `<article class="wallet-account"><h4>${escapeHtml(client.clientName || 'Client')}</h4><strong>${escapeHtml(clientDashboardRate(client) || 'Rate not set')}</strong><span>Contract rate · counted as received only after payment</span></article>`).join('') || '<p class="wallet-hint">No active client contracts.</p>';
     const account = $('#walletAccountFilter').value;
     const visible = entries.filter(entry => account === 'all' || entry.account === account).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
-    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletTypeNames[entry.type] || entry.type)}</small></td><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-edit="${escapeHtml(entry.id)}" aria-label="Edit ${escapeHtml(entry.description)}">Edit</button><button type="button" class="button button-secondary" data-wallet-delete="${escapeHtml(entry.id)}" aria-label="Delete ${escapeHtml(entry.description)}">Delete</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, or expense to start tracking.</p></div>';
+    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletTypeNames[entry.type] || entry.type)}</small></td><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-actions="${escapeHtml(entry.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(entry.description)}">Actions</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, or expense to start tracking.</p></div>';
   }
 
   function openWalletEntry(entry = null) {
@@ -67,9 +67,41 @@
     $('#walletEntryType').focus();
   }
 
+  let walletActionId = null;
+  function closeWalletActions() {
+    const panel = $('#walletActionsPanel');
+    if (panel?.open) panel.close();
+    walletActionId = null;
+  }
+  function openWalletActions(id) {
+    const entry = (data.walletEntries || []).find(item => item.id === id);
+    const panel = $('#walletActionsPanel');
+    if (!entry || !panel) return;
+    walletActionId = id;
+    $('#walletActionsSubtitle').textContent = entry.description || 'Wallet transaction';
+    panel.showModal();
+    $('#walletEditAction')?.focus();
+  }
+
   $('#walletAddEntry').addEventListener('click', () => openWalletEntry());
   $('#walletCancelEntry').addEventListener('click', () => { $('#walletEntryPanel').close(); $('#walletAddEntry').focus(); });
   $('#walletAccountFilter').addEventListener('change', renderWallet);
+  $('#walletCancelActions')?.addEventListener('click', closeWalletActions);
+  $('#walletEditAction')?.addEventListener('click', () => {
+    const entry = (data.walletEntries || []).find(item => item.id === walletActionId);
+    closeWalletActions();
+    if (entry) openWalletEntry(entry);
+  });
+  $('#walletDeleteAction')?.addEventListener('click', async () => {
+    const id = walletActionId;
+    closeWalletActions();
+    if (!id) return;
+    const entry = (data.walletEntries || []).find(item => item.id === id);
+    if (!entry || !await appConfirm('Delete this transaction? Its amount will be removed from your wallet totals.', { title: 'Delete transaction', confirmLabel: 'Delete', danger: true })) return;
+    data.walletEntries = (data.walletEntries || []).filter(item => item.id !== id);
+    renderWallet();
+    if (await persist()) toast('Wallet transaction deleted.');
+  });
   $('#walletAmountKeypad').addEventListener('click', event => {
     const key = event.target.closest('[data-wallet-key]')?.dataset.walletKey;
     const amount = $('#walletEntryAmount');
@@ -102,6 +134,8 @@
   $('#walletTransactionList').addEventListener('click', async event => {
     const invoiceButton = event.target.closest('[data-wallet-invoice]');
     if (invoiceButton) { openInvoicePayment(invoiceButton.dataset.walletInvoice); return; }
+    const actions = event.target.closest('[data-wallet-actions]');
+    if (actions) { openWalletActions(actions.dataset.walletActions); return; }
     const edit = event.target.closest('[data-wallet-edit]');
     const remove = event.target.closest('[data-wallet-delete]');
     const id = edit?.dataset.walletEdit || remove?.dataset.walletDelete;

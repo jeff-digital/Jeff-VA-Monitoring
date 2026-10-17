@@ -105,6 +105,18 @@ For the Cloudflare Workers Git integration, set the root directory to `/`, the b
 
 ## Security
 
+### News feed on Cloudflare Workers
+
+The Worker entry point `src/backend/worker.mjs` serves `/api/news` and `/api/tools`, verifies the dashboard's Supabase bearer session, and delegates other requests to the static assets binding. Cloudflare Access protections, if configured, should stay enabled. Provider keys are runtime secrets, never build variables or frontend values.
+
+Add `GNEWS_API_KEY` in the Worker's Settings > Variables and Secrets. Optional providers use `YOUTUBE_API_KEY` and `PRODUCT_HUNT_TOKEN`. No service-role key is needed for the news endpoints. The public Supabase URL and publishable key are configured in `wrangler.jsonc`.
+
+Build with `bash scripts/build-cloudflare.sh`, then deploy with `npx wrangler deploy` (or the existing Git integration). Adding a secret alone does not deploy the new Worker code. For local live news, use `npx wrangler dev` after building; the Python static server does not execute the Worker API. Put local credentials in an ignored `.dev.vars` file.
+
+The News page loads only after sign-in, on opening News, and refreshes hourly while visible. Server responses are cached for one hour; Refresh respects that cache. GNews requests are capped at ten articles per page for the free plan. The provider's request limits, publication delay, and license still apply. Failed sources display a message or allow the other source to continue. Optional unconfigured providers are skipped.
+
+Run `node scripts/test-news.mjs` for mocked endpoint tests covering authentication, static routing, provider failure, caching, article images, and secret handling. Live production verification requires deployment and the runtime secret.
+
 - Do not commit passwords, tokens, private keys, service-role keys, or other private credentials.
 - Never place administrative or server-only credentials in browser code.
 - Keep local credential files out of Git and rotate any credential that may have been exposed.

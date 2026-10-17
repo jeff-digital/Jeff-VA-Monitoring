@@ -3102,6 +3102,9 @@
       case 'wallet':
         renderWallet();
         break;
+      case 'news':
+        if (!newsLoading && (!newsLastLoaded || Date.now() - newsLastLoaded >= 3600000)) loadNews({ reset: true });
+        break;
       case 'account':
         renderAccountPage();
         break;
@@ -3128,7 +3131,7 @@
 
   function showView(view, { updateUrl = true } = {}) {
     if (view === 'password') view = 'account';
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'hired', 'inbox', 'documents', 'wallet', 'account'];
+    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'hired', 'inbox', 'documents', 'wallet', 'account'];
     if (!validViews.includes(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (view !== 'dashboard') closeClientDashboardDrawer();
@@ -3163,7 +3166,7 @@
       renderAccountPage();
       refreshAccountStorageUsage();
     }
-    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['INTELLIGENCE', 'News'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
@@ -11032,7 +11035,7 @@
     $('#walletClientRates').innerHTML = hiredClients().filter(isActiveContract).map(client => `<article class="wallet-account"><h4>${escapeHtml(client.clientName || 'Client')}</h4><strong>${escapeHtml(clientDashboardRate(client) || 'Rate not set')}</strong><span>Contract rate · counted as received only after payment</span></article>`).join('') || '<p class="wallet-hint">No active client contracts.</p>';
     const account = $('#walletAccountFilter').value;
     const visible = entries.filter(entry => account === 'all' || entry.account === account).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
-    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletTypeNames[entry.type] || entry.type)}</small></td><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-edit="${escapeHtml(entry.id)}" aria-label="Edit ${escapeHtml(entry.description)}">Edit</button><button type="button" class="button button-secondary" data-wallet-delete="${escapeHtml(entry.id)}" aria-label="Delete ${escapeHtml(entry.description)}">Delete</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, or expense to start tracking.</p></div>';
+    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletTypeNames[entry.type] || entry.type)}</small></td><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-actions="${escapeHtml(entry.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(entry.description)}">Actions</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, or expense to start tracking.</p></div>';
   }
 
   function openWalletEntry(entry = null) {
@@ -11048,9 +11051,41 @@
     $('#walletEntryType').focus();
   }
 
+  let walletActionId = null;
+  function closeWalletActions() {
+    const panel = $('#walletActionsPanel');
+    if (panel?.open) panel.close();
+    walletActionId = null;
+  }
+  function openWalletActions(id) {
+    const entry = (data.walletEntries || []).find(item => item.id === id);
+    const panel = $('#walletActionsPanel');
+    if (!entry || !panel) return;
+    walletActionId = id;
+    $('#walletActionsSubtitle').textContent = entry.description || 'Wallet transaction';
+    panel.showModal();
+    $('#walletEditAction')?.focus();
+  }
+
   $('#walletAddEntry').addEventListener('click', () => openWalletEntry());
   $('#walletCancelEntry').addEventListener('click', () => { $('#walletEntryPanel').close(); $('#walletAddEntry').focus(); });
   $('#walletAccountFilter').addEventListener('change', renderWallet);
+  $('#walletCancelActions')?.addEventListener('click', closeWalletActions);
+  $('#walletEditAction')?.addEventListener('click', () => {
+    const entry = (data.walletEntries || []).find(item => item.id === walletActionId);
+    closeWalletActions();
+    if (entry) openWalletEntry(entry);
+  });
+  $('#walletDeleteAction')?.addEventListener('click', async () => {
+    const id = walletActionId;
+    closeWalletActions();
+    if (!id) return;
+    const entry = (data.walletEntries || []).find(item => item.id === id);
+    if (!entry || !await appConfirm('Delete this transaction? Its amount will be removed from your wallet totals.', { title: 'Delete transaction', confirmLabel: 'Delete', danger: true })) return;
+    data.walletEntries = (data.walletEntries || []).filter(item => item.id !== id);
+    renderWallet();
+    if (await persist()) toast('Wallet transaction deleted.');
+  });
   $('#walletAmountKeypad').addEventListener('click', event => {
     const key = event.target.closest('[data-wallet-key]')?.dataset.walletKey;
     const amount = $('#walletEntryAmount');
@@ -11083,6 +11118,8 @@
   $('#walletTransactionList').addEventListener('click', async event => {
     const invoiceButton = event.target.closest('[data-wallet-invoice]');
     if (invoiceButton) { openInvoicePayment(invoiceButton.dataset.walletInvoice); return; }
+    const actions = event.target.closest('[data-wallet-actions]');
+    if (actions) { openWalletActions(actions.dataset.walletActions); return; }
     const edit = event.target.closest('[data-wallet-edit]');
     const remove = event.target.closest('[data-wallet-delete]');
     const id = edit?.dataset.walletEdit || remove?.dataset.walletDelete;
@@ -11096,6 +11133,82 @@
     renderWallet();
     if (await persist()) toast('Wallet transaction deleted.');
   });
+
+  let newsPage = 1;
+  let newsArticles = [];
+  let newsLoading = false;
+  let newsRequest = 0;
+  let newsLastLoaded = 0;
+  let newsHasMore = false;
+
+  const newsCategoryNames = { all: 'All news', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing' };
+  const relativeNewsTime = date => {
+    const time = Date.parse(date || '');
+    if (!Number.isFinite(time)) return 'Date unavailable';
+    const minutes = Math.max(1, Math.round((Date.now() - time) / 60000));
+    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 1440) return `${Math.round(minutes / 60)}h ago`;
+    return `${Math.round(minutes / 1440)}d ago`;
+  };
+  const newsDate = date => { const time = Date.parse(date || ''); return Number.isFinite(time) ? new Date(time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Publication date unavailable'; };
+  const newsFallback = category => `<span class="news-card-fallback"><i class="fa-solid ${category === 'automation' ? 'fa-gears' : category === 'web' ? 'fa-code' : 'fa-newspaper'}" aria-hidden="true"></i></span>`;
+  const newsCard = (article, variant = '') => `<article class="news-card ${variant}"><a class="news-card-media" href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(article.title)} in a new tab">${article.image ? `<img src="${escapeHtml(article.image)}" alt="" loading="lazy" data-news-fallback="${escapeHtml(article.category)}" />` : newsFallback(article.category)}</a><div class="news-card-body"><div class="news-card-meta"><span class="news-card-source">${escapeHtml(article.source || 'News source')}</span><time datetime="${escapeHtml(article.publishedAt || '')}" title="${escapeHtml(newsDate(article.publishedAt))}">${escapeHtml(relativeNewsTime(article.publishedAt))}</time></div><h3><a href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(article.title || 'Untitled article')}</a></h3><p>${escapeHtml(article.description || 'Open the original article for full details.')}</p><span class="news-card-category">${escapeHtml(newsCategoryNames[article.category] || 'News')}</span><a class="news-card-link" href="${escapeHtml(article.url)}" target="_blank" rel="noopener noreferrer">Read article <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></div></article>`;
+
+  function renderNewsArticles() {
+    const grid = $('#newsLiveGrid');
+    const status = $('#newsLiveStatus');
+    const loadMore = $('#loadMoreNews');
+    if (!grid || !status) return;
+    if (!newsArticles.length) { grid.innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Try another topic or check back later.</p></div>'; status.textContent = ''; loadMore.hidden = true; return; }
+    const [featured, ...rest] = newsArticles;
+    const sideStories = rest.slice(0, 3);
+    const highlights = rest.slice(3, 5);
+    const latest = rest.slice(5);
+    grid.innerHTML = `<div class="news-lead-layout"><div class="news-featured-story">${newsCard(featured, 'news-card-featured')}</div>${sideStories.length ? `<div class="news-side-stories" aria-label="More headlines">${sideStories.map(article => newsCard(article, 'news-card-compact')).join('')}</div>` : ''}</div>${highlights.length ? `<div class="news-highlights" aria-label="Featured articles">${highlights.map(article => newsCard(article, 'news-card-highlight')).join('')}</div>` : ''}${latest.length ? `<div class="news-trending-heading"><h4>Latest articles</h4><span>Newest first</span></div><div class="news-trending-grid">${latest.map(article => newsCard(article, 'news-card-trending')).join('')}</div>` : ''}`;
+    grid.querySelectorAll('[data-news-fallback]').forEach(image => { image.addEventListener('error', () => { image.replaceWith(document.createRange().createContextualFragment(newsFallback(image.dataset.newsFallback))); }, { once: true }); });
+    status.textContent = `${newsArticles.length} published ${newsArticles.length === 1 ? 'story' : 'stories'} · ${newsCategoryNames[$('#newsCategory').value] || 'News'}`;
+    loadMore.hidden = !newsHasMore;
+  }
+
+  async function loadNews({ reset = false } = {}) {
+    if (!currentUser || !$('#newsLiveGrid')) return;
+    if (newsLoading && !reset) return;
+    const requestId = ++newsRequest;
+    if (reset) { newsPage = 1; newsArticles = []; renderNewsArticles(); }
+    newsLoading = true;
+    const status = $('#newsLiveStatus');
+    if (status) status.textContent = 'Loading published stories…';
+    try {
+      const session = await supabaseClient.auth.getSession();
+      const token = session.data?.session?.access_token;
+      if (!token) throw new Error('Sign in to view news.');
+      const params = new URLSearchParams({ category: $('#newsCategory').value, q: $('#newsSearch').value.trim(), page: String(newsPage), pageSize: '10' });
+      const response = await fetch(`/api/news?${params}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) });
+      if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('The news API is not running on this server. Use the Cloudflare deployment or Wrangler for live news.');
+      const payload = await response.json();
+      if (requestId !== newsRequest) return;
+      if (!response.ok) throw new Error(payload.error || 'News could not be loaded.');
+      newsArticles = [...newsArticles, ...(payload.articles || [])].filter((article, index, list) => list.findIndex(other => other.url === article.url) === index);
+      newsArticles.sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
+      newsHasMore = Boolean(payload.hasMore);
+      newsLastLoaded = Date.now();
+      $('#newsUpdatedAt').textContent = payload.updatedAt ? `Updated ${relativeNewsTime(payload.updatedAt)}` : 'Updated just now';
+      if (payload.errors?.length && !newsArticles.length) throw new Error(payload.errors.join(' '));
+      renderNewsArticles();
+    } catch (error) {
+      if (requestId !== newsRequest) return;
+      if (newsArticles.length) renderNewsArticles();
+      else $('#newsLiveGrid').innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Please try again later.</p></div>';
+      $('#newsLiveStatus').textContent = error.message || 'News could not be loaded.';
+      $('#loadMoreNews').hidden = true;
+    } finally { if (requestId === newsRequest) newsLoading = false; }
+  }
+
+  $('#newsSearch')?.addEventListener('keydown', event => { if (event.key === 'Enter') loadNews({ reset: true }); });
+  $('#newsCategory')?.addEventListener('change', () => loadNews({ reset: true }));
+  $('#refreshNews')?.addEventListener('click', () => loadNews({ reset: true }));
+  $('#loadMoreNews')?.addEventListener('click', () => { newsPage += 1; loadNews(); });
+  setInterval(() => { if (activeView === "news" && currentUser && !document.hidden && !newsLoading && Date.now() - newsLastLoaded >= 3600000) loadNews({ reset: true }); }, 60000);
 
   // Authentication stays isolated from page interactions. Its login behavior is
   // unchanged; this file only owns the login screen and application startup.

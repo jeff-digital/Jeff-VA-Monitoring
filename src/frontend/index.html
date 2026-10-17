@@ -83,6 +83,12 @@
             </a>
           </div>
           <div class="nav-group">
+            <p class="nav-group-label">INTELLIGENCE</p>
+            <a class="nav-link" href="#news" data-view="news" title="News">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-newspaper"></i></span><span class="nav-label">News</span>
+            </a>
+          </div>
+          <div class="nav-group">
             <p class="nav-group-label">WALLET</p>
             <a class="nav-link" href="#wallet" data-view="wallet" title="Wallet">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span><span class="nav-label">Wallet</span>
@@ -433,6 +439,22 @@
           </section>
         </section>
 
+        <section class="view news-view" id="newsView" data-view-panel="news" data-page="news">
+          <section class="news-live-panel" aria-label="Published news">
+            <div class="news-live-toolbar">
+              <span id="newsUpdatedAt">Updates load when you open News</span>
+              <div class="news-live-controls">
+                <label class="search-field news-search"><span class="sr-only">Search articles</span><input id="newsSearch" type="search" maxlength="120" placeholder="Search articles" /></label>
+                <label class="news-category-select"><span class="sr-only">Topic</span><select id="newsCategory"><option value="all">All news</option><option value="ai">Artificial intelligence</option><option value="ai-tools">AI tools</option><option value="virtual-assistants">Virtual assistants</option><option value="automation">Automation</option><option value="crm-business">CRM &amp; business tools</option><option value="web">Web development</option><option value="marketing">Digital marketing</option></select></label>
+                <button class="button button-secondary" type="button" id="refreshNews">Refresh</button>
+              </div>
+            </div>
+            <p class="news-live-status" id="newsLiveStatus" role="status" aria-live="polite"></p>
+            <div class="news-card-grid news-live-grid" id="newsLiveGrid"><div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>New articles will appear here when available.</p></div></div>
+            <button class="button button-secondary news-load-more" type="button" id="loadMoreNews" hidden>Load more</button>
+          </section>
+        </section>
+
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
           <section class="toolbar">
             <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="hiredSearch" aria-label="Search clients" placeholder="Search clients" /></label>
@@ -680,15 +702,20 @@
             <form id="walletEntryForm">
               <input type="hidden" id="walletEntryId" />
               <div class="wallet-form-grid">
+                <label class="form-field wallet-description">Description<input id="walletEntryDescription" maxlength="160" placeholder="e.g. Monthly salary or groceries" required /></label>
                 <label class="form-field">Type<select id="walletEntryType"><option value="expense">Expense</option><option value="income">Income</option><option value="salary">Salary</option><option value="opening">Opening balance</option></select></label>
                 <label class="form-field">Account<select id="walletEntryAccount"><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option></select></label>
                 <div class="wallet-amount-field"><label class="form-field">Amount (PHP)<input id="walletEntryAmount" type="number" min="0.01" max="999999999.99" step="0.01" required /></label><div class="wallet-amount-keypad" id="walletAmountKeypad" role="group" aria-label="Amount keypad"><button type="button" data-wallet-key="7">7</button><button type="button" data-wallet-key="8">8</button><button type="button" data-wallet-key="9">9</button><button type="button" data-wallet-key="backspace" aria-label="Delete last digit">⌫</button><button type="button" data-wallet-key="4">4</button><button type="button" data-wallet-key="5">5</button><button type="button" data-wallet-key="6">6</button><button type="button" data-wallet-key="clear">Clear</button><button type="button" data-wallet-key="1">1</button><button type="button" data-wallet-key="2">2</button><button type="button" data-wallet-key="3">3</button><span aria-hidden="true"></span><button type="button" data-wallet-key="0" class="wallet-keypad-zero">0</button><button type="button" data-wallet-key=".">.</button></div></div>
                 <label class="form-field">Date<input id="walletEntryDate" type="date" required /></label>
-                <label class="form-field wallet-description">Description<input id="walletEntryDescription" maxlength="160" placeholder="e.g. Monthly salary or groceries" required /></label>
               </div>
               <p class="wallet-hint">Income excludes salary. Opening balances affect your account totals only. Record Wise amounts in their PHP equivalent.</p>
               <div class="wallet-form-actions"><button class="button button-secondary" id="walletCancelEntry" type="button">Cancel</button><button class="button button-primary" type="submit">Save transaction</button></div>
             </form>
+          </dialog>
+          <dialog class="wallet-actions-panel" id="walletActionsPanel" aria-labelledby="walletActionsTitle">
+            <header class="wallet-actions-header"><p class="eyebrow">TRANSACTION</p><h3 id="walletActionsTitle">Transaction actions</h3><p id="walletActionsSubtitle"></p></header>
+            <div class="wallet-actions-list"><button class="wallet-action-button" type="button" id="walletEditAction"><span class="wallet-action-icon"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></span><span><strong>Edit transaction</strong><small>Update the description, amount, date, or account.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button><button class="wallet-action-button is-danger" type="button" id="walletDeleteAction"><span class="wallet-action-icon"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></span><span><strong>Delete transaction</strong><small>Remove it from your wallet totals.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></div>
+            <footer class="wallet-actions-footer"><button class="button button-secondary" type="button" id="walletCancelActions">Cancel</button></footer>
           </dialog>
           <section class="panel wallet-transactions" aria-labelledby="walletTransactionsTitle">
             <div class="wallet-section-heading"><h3 id="walletTransactionsTitle">Transactions</h3><label class="wallet-filter">Account <select id="walletAccountFilter"><option value="all">All accounts</option><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option><option value="unassigned">Other / unassigned</option></select></label></div>
@@ -1579,6 +1606,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261017-to-apply-fix"></script>
+    <script src="js/app.js?v=20261017-news-worker"></script>
   </body>
 </html>
