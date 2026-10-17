@@ -6796,7 +6796,7 @@ body:has(#newsView.active) #pageEyebrow { display: none; }
 }
 #newsView .news-category-select select {
   height: 32px;
-  min-width: 154px;
+  min-width: 236px;
   border-color: #daddda;
   border-radius: 999px;
   background-color: #fff;

@@ -1,6 +1,6 @@
 const CATEGORY_QUERIES = {
-  all: 'artificial intelligence OR automation OR virtual assistant OR productivity software',
-  'philippine-business': 'Philippines AND (business OR economy OR startup OR MSME OR entrepreneurship)',
+  all: '(business AND ("United Kingdom" OR Australia OR "United States" OR Canada)) OR ("virtual assistant" AND (Philippines OR Filipino)) OR "remote work" OR "artificial intelligence" OR automation',
+  'business-markets': 'business AND ("United Kingdom" OR Australia OR "United States" OR Canada)',
   'va-philippines': '("virtual assistant" OR freelancing OR BPO) AND (Philippines OR Filipino)',
   'remote-work': '("remote work" OR "work from home" OR "digital jobs") AND (Philippines OR Filipino)',
   ai: 'artificial intelligence OR ChatGPT OR Claude OR Gemini',
@@ -11,6 +11,8 @@ const CATEGORY_QUERIES = {
   web: 'JavaScript frontend web development developer tools',
   marketing: 'SEO social media content marketing technology'
 };
+
+const NEWS_CACHE_VERSION = '2';
 
 function json(body, status = 200, extra = {}) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=3600, s-maxage=3600', ...extra } });
@@ -71,10 +73,15 @@ export async function onRequestGet({ request, env, caches = globalThis.caches })
   const page = Math.max(1, Math.min(Math.floor(Number(url.searchParams.get('page') || 1) || 1), 10));
   const pageSize = Math.max(1, Math.min(Math.floor(Number(url.searchParams.get('pageSize') || 10) || 10), 10));
   if (!Object.hasOwn(CATEGORY_QUERIES, category)) return json({ articles: [], error: 'Unsupported news category.' }, 400);
-  const cacheKey = new Request(`${url.origin}/api/news?category=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`);
+  const cacheKey = new Request(`${url.origin}/api/news?v=${NEWS_CACHE_VERSION}&category=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`);
   const cached = await caches.default.match(cacheKey);
   if (cached) return cached;
-  const selectedQuery = query ? `(${CATEGORY_QUERIES[category]}) AND (${query.replace(/["()]/g, ' ')})` : CATEGORY_QUERIES[category];
+  const topicQuery = CATEGORY_QUERIES[category];
+  const userQuery = query.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim();
+  const availableUserLength = Math.max(1, 190 - topicQuery.length - 9);
+  const selectedQuery = userQuery
+    ? (category === 'all' ? userQuery : `(${topicQuery}) AND (${userQuery.slice(0, availableUserLength)})`)
+    : topicQuery;
   const safeProvider = promise => promise.catch(() => ({ articles: [], error: 'A news provider is temporarily unavailable.' }));
   const skip = () => Promise.resolve({ articles: [], error: null });
   const [gnewsResult, githubResult, youtubeResult, productHuntResult] = await Promise.all([
