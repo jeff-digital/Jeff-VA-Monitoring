@@ -3226,10 +3226,13 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
   min-height: 52px;
   padding: 0 26px;
   overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: 1px solid var(--workspace-line);
   background: #fff;
-  scrollbar-width: thin;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
+#hiredView .client-detail-tabs::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 #hiredView .client-detail-tab {
   position: relative;
@@ -6556,7 +6559,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   .client-detail-tabs, .documents-tabs, .email-view-tabs, .application-view-toggle {
     max-width: 100%; -webkit-overflow-scrolling: touch;
   }
-  .client-detail-tabs { overflow-x: auto; scrollbar-width: thin; }
+  .client-detail-tabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
   .client-detail-tab { flex: 0 0 auto; }
   .hired-detail-grid, .hired-detail-grid-large, .client-overview-summary,
   .client-invoice-panel .client-invoice-payment-summary { grid-template-columns: minmax(0, 1fr); }
