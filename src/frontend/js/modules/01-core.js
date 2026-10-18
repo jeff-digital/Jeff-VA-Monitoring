@@ -722,7 +722,9 @@
   async function finishWelcomeTransition() {
     const transition = $('#welcomeTransition');
     if (!transition || transition.hidden) return;
-    const minimumDuration = 300;
+    // Keep the welcome state visible long enough for its entrance animation to
+    // complete, while still moving into the workspace quickly.
+    const minimumDuration = 900;
     const elapsed = performance.now() - welcomeTransitionStartedAt;
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minimumDuration - elapsed)));
     transition.classList.remove('is-visible');
