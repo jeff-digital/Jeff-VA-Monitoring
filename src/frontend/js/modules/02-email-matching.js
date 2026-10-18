@@ -47,7 +47,7 @@
     const source = Array.isArray(item.socialLinks) ? item.socialLinks : [];
     const links = source.map(link => {
       const url = String(link?.url || '').trim();
-      const platform = Object.hasOwn(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform)
+      const platform = Object.prototype.hasOwnProperty.call(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform)
         ? link.platform
         : inferClientSocialPlatform(url);
       return { platform, url };
@@ -112,10 +112,9 @@
   function renderClientSocialLinkEditor(links = [], viewOnly = false) {
     const target = $('#clientSocialLinksList');
     if (!target) return;
-    $('#clientSocialLinksField').hidden = viewOnly && !links.length;
     const entries = links.length ? links : [{ platform: 'website', url: '' }];
     target.innerHTML = entries.slice(0, 12).map((link, index) => {
-      const platform = Object.hasOwn(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform) ? link.platform : inferClientSocialPlatform(link?.url);
+      const platform = Object.prototype.hasOwnProperty.call(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform) ? link.platform : inferClientSocialPlatform(link?.url);
       return `<div class="client-social-link-row">
         <label><span class="sr-only">Platform ${index + 1}</span><select data-client-social-platform aria-label="Social platform ${index + 1}">${clientSocialPlatformOptions(platform)}</select></label>
         <label><span class="sr-only">Profile URL or handle ${index + 1}</span><input data-client-social-url type="text" inputmode="url" maxlength="500" value="${escapeHtml(String(link?.url || ''))}" placeholder="Profile URL or @handle" aria-label="Profile URL or handle ${index + 1}" /></label>
@@ -2370,6 +2369,8 @@
       }
     }
     if (!id && !viewOnly) restoreNewClientApplicationDraft();
+    const showSocialAccountEditor = Boolean(id && activeClientOnly && !viewOnly);
+    $('#clientSocialLinksField').hidden = !showSocialAccountEditor;
     [
       ['#hiredWebsite', '#hiredWebsiteLink']
     ].forEach(([inputSelector, linkSelector]) => {
@@ -2382,7 +2383,7 @@
       if (value) link.href = normalizeUrl(value);
     });
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = viewOnly; });
-    updateClientSocialEditorControls(viewOnly);
+    updateClientSocialEditorControls(viewOnly || !showSocialAccountEditor);
     if (activeClientOnly) {
       $('#clientStatus').value = 'Active client';
       $('#clientStatus').disabled = true;
@@ -2508,7 +2509,9 @@
       && !(await appConfirm(`This contract end date has already passed (${formatDate(contractEndDate)}). Saving it will mark ${$('#clientName').value.trim() || 'this client'} as expired. Do you want to continue?`, { title: 'Contract date has passed', confirmLabel: 'Save anyway' }))) return;
     if (isActiveClient && (!existing || existing.status !== 'Active client')) beginActivationRollback(editingId || uid(), existing);
     const activeClientEmailPending = isActiveClient && (!existing || existing.status !== 'Active client' || Boolean(existing.activePendingEmail));
-    const socialLinks = readClientSocialLinks();
+    const socialLinks = $('#clientSocialLinksField').hidden
+      ? normalizeClientSocialLinks(existing || {})
+      : readClientSocialLinks();
     const application = {
       id: editingId || (pendingActivation?.applicationId || uid()),
       clientName: $('#clientName').value.trim(),

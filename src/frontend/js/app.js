@@ -737,6 +737,20 @@
     document.body.classList.remove('auth-loading');
   }
 
+  async function waitForWorkspaceData(promise, timeoutMs = 15000) {
+    let timeoutId;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timeoutId = window.setTimeout(() => reject(new Error('The workspace data request took too long.')), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    }
+  }
+
   async function initializeSupabaseForUser(user, { showLoading = true, recordSignIn = false, showOverview = false } = {}) {
     if (!user) return;
     if (initializingUserId === user.id) {
@@ -779,7 +793,7 @@
     const loginStatus = $('#loginGoogleStatus');
     if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
     try {
-      data = await loadDataFromSupabase();
+      data = await waitForWorkspaceData(loadDataFromSupabase());
     } catch (error) {
       console.error('Could not load workspace data from Supabase:', error);
       data = emptyData();
@@ -799,13 +813,33 @@
 
     supabaseDataLoaded = true;
     dataReady = true;
-    startNotificationRefreshTimer();
-    if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
-    const autoRejectedApplications = processStaleApplications();
-    renderAll();
-    renderAccountPage();
-    await finishWelcomeTransition();
-    initializingUserId = null;
+    let autoRejectedApplications = [];
+    let workspaceRenderFailed = false;
+    try {
+      startNotificationRefreshTimer();
+      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+      autoRejectedApplications = processStaleApplications();
+      renderAll();
+      renderAccountPage();
+    } catch (error) {
+      workspaceRenderFailed = true;
+      console.error('Workspace rendering failed after sign-in:', error);
+      try {
+        showActionResult({
+          title: 'Dashboard could not finish loading',
+          message: `You are signed in, but the dashboard could not finish rendering${error?.message ? `: ${error.message}` : '.'} Refresh the page to try again.`,
+          status: 'error'
+        });
+      } catch (noticeError) {
+        console.error('Could not show the dashboard loading error:', noticeError);
+      }
+    } finally {
+      // Never leave the welcome screen or initialization lock active when an
+      // optional dashboard renderer fails after authentication succeeds.
+      await finishWelcomeTransition();
+      initializingUserId = null;
+    }
+    if (workspaceRenderFailed) return;
     if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
 
     // Everything below is useful refresh work, but none of it is required to
@@ -1158,7 +1192,7 @@
     const source = Array.isArray(item.socialLinks) ? item.socialLinks : [];
     const links = source.map(link => {
       const url = String(link?.url || '').trim();
-      const platform = Object.hasOwn(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform)
+      const platform = Object.prototype.hasOwnProperty.call(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform)
         ? link.platform
         : inferClientSocialPlatform(url);
       return { platform, url };
@@ -1223,10 +1257,9 @@
   function renderClientSocialLinkEditor(links = [], viewOnly = false) {
     const target = $('#clientSocialLinksList');
     if (!target) return;
-    $('#clientSocialLinksField').hidden = viewOnly && !links.length;
     const entries = links.length ? links : [{ platform: 'website', url: '' }];
     target.innerHTML = entries.slice(0, 12).map((link, index) => {
-      const platform = Object.hasOwn(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform) ? link.platform : inferClientSocialPlatform(link?.url);
+      const platform = Object.prototype.hasOwnProperty.call(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform) ? link.platform : inferClientSocialPlatform(link?.url);
       return `<div class="client-social-link-row">
         <label><span class="sr-only">Platform ${index + 1}</span><select data-client-social-platform aria-label="Social platform ${index + 1}">${clientSocialPlatformOptions(platform)}</select></label>
         <label><span class="sr-only">Profile URL or handle ${index + 1}</span><input data-client-social-url type="text" inputmode="url" maxlength="500" value="${escapeHtml(String(link?.url || ''))}" placeholder="Profile URL or @handle" aria-label="Profile URL or handle ${index + 1}" /></label>
@@ -3481,6 +3514,8 @@
       }
     }
     if (!id && !viewOnly) restoreNewClientApplicationDraft();
+    const showSocialAccountEditor = Boolean(id && activeClientOnly && !viewOnly);
+    $('#clientSocialLinksField').hidden = !showSocialAccountEditor;
     [
       ['#hiredWebsite', '#hiredWebsiteLink']
     ].forEach(([inputSelector, linkSelector]) => {
@@ -3493,7 +3528,7 @@
       if (value) link.href = normalizeUrl(value);
     });
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = viewOnly; });
-    updateClientSocialEditorControls(viewOnly);
+    updateClientSocialEditorControls(viewOnly || !showSocialAccountEditor);
     if (activeClientOnly) {
       $('#clientStatus').value = 'Active client';
       $('#clientStatus').disabled = true;
@@ -3619,7 +3654,9 @@
       && !(await appConfirm(`This contract end date has already passed (${formatDate(contractEndDate)}). Saving it will mark ${$('#clientName').value.trim() || 'this client'} as expired. Do you want to continue?`, { title: 'Contract date has passed', confirmLabel: 'Save anyway' }))) return;
     if (isActiveClient && (!existing || existing.status !== 'Active client')) beginActivationRollback(editingId || uid(), existing);
     const activeClientEmailPending = isActiveClient && (!existing || existing.status !== 'Active client' || Boolean(existing.activePendingEmail));
-    const socialLinks = readClientSocialLinks();
+    const socialLinks = $('#clientSocialLinksField').hidden
+      ? normalizeClientSocialLinks(existing || {})
+      : readClientSocialLinks();
     const application = {
       id: editingId || (pendingActivation?.applicationId || uid()),
       clientName: $('#clientName').value.trim(),

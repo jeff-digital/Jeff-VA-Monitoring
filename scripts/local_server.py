@@ -105,6 +105,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         super().do_HEAD()
 
     def end_headers(self) -> None:
+        # Development files change frequently. Prevent an older index page from
+        # loading a JavaScript bundle whose controls no longer match the HTML.
+        self.send_header("Cache-Control", "no-store, max-age=0")
         self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("X-Content-Type-Options", "nosniff")

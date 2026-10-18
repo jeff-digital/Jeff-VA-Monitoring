@@ -97,6 +97,12 @@ Build the Cloudflare Workers static assets from Git Bash or another Bash environ
 bash ./scripts/build-cloudflare.sh
 ```
 
+On Windows PowerShell, use:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-cloudflare.ps1
+```
+
 The generated site is written to `dist/`. This directory is build output, is ignored by Git, and should not be edited directly.
 
 ## Deployment

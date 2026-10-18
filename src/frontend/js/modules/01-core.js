@@ -734,6 +734,20 @@
     document.body.classList.remove('auth-loading');
   }
 
+  async function waitForWorkspaceData(promise, timeoutMs = 15000) {
+    let timeoutId;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timeoutId = window.setTimeout(() => reject(new Error('The workspace data request took too long.')), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    }
+  }
+
   async function initializeSupabaseForUser(user, { showLoading = true, recordSignIn = false, showOverview = false } = {}) {
     if (!user) return;
     if (initializingUserId === user.id) {
@@ -776,7 +790,7 @@
     const loginStatus = $('#loginGoogleStatus');
     if (loginStatus) loginStatus.textContent = 'Signed in successfully. Loading your dashboard…';
     try {
-      data = await loadDataFromSupabase();
+      data = await waitForWorkspaceData(loadDataFromSupabase());
     } catch (error) {
       console.error('Could not load workspace data from Supabase:', error);
       data = emptyData();
@@ -796,13 +810,33 @@
 
     supabaseDataLoaded = true;
     dataReady = true;
-    startNotificationRefreshTimer();
-    if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
-    const autoRejectedApplications = processStaleApplications();
-    renderAll();
-    renderAccountPage();
-    await finishWelcomeTransition();
-    initializingUserId = null;
+    let autoRejectedApplications = [];
+    let workspaceRenderFailed = false;
+    try {
+      startNotificationRefreshTimer();
+      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+      autoRejectedApplications = processStaleApplications();
+      renderAll();
+      renderAccountPage();
+    } catch (error) {
+      workspaceRenderFailed = true;
+      console.error('Workspace rendering failed after sign-in:', error);
+      try {
+        showActionResult({
+          title: 'Dashboard could not finish loading',
+          message: `You are signed in, but the dashboard could not finish rendering${error?.message ? `: ${error.message}` : '.'} Refresh the page to try again.`,
+          status: 'error'
+        });
+      } catch (noticeError) {
+        console.error('Could not show the dashboard loading error:', noticeError);
+      }
+    } finally {
+      // Never leave the welcome screen or initialization lock active when an
+      // optional dashboard renderer fails after authentication succeeds.
+      await finishWelcomeTransition();
+      initializingUserId = null;
+    }
+    if (workspaceRenderFailed) return;
     if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
 
     // Everything below is useful refresh work, but none of it is required to
