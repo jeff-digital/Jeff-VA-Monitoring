@@ -265,7 +265,7 @@
       if (actionRow.dataset.activeClientAction === 'new-task') {
         closeActiveClientActionsDrawer(false, () => {
           selectClientDetailTab('tasks');
-          openClientTaskDrawer(null, $('#newClientTaskButton'));
+          openClientTaskDrawer(null, $('#activeClientActionsButton'));
         });
       } else if (actionRow.dataset.activeClientAction === 'email') {
         const item = data.applications.find(application => application.id === hiredEditingId);

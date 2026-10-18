@@ -9110,7 +9110,7 @@
       if (actionRow.dataset.activeClientAction === 'new-task') {
         closeActiveClientActionsDrawer(false, () => {
           selectClientDetailTab('tasks');
-          openClientTaskDrawer(null, $('#newClientTaskButton'));
+          openClientTaskDrawer(null, $('#activeClientActionsButton'));
         });
       } else if (actionRow.dataset.activeClientAction === 'email') {
         const item = data.applications.find(application => application.id === hiredEditingId);
@@ -12031,15 +12031,13 @@ function renderClientTasks(clientId = hiredEditingId) {
   overdueSummary.classList.toggle('has-overdue', overdueCount > 0);
   $('#clientTaskTabCount').textContent = String(openTasks.length);
   $('#clientTasksContractNotice').hidden = !clientTaskIsEnded(clientId);
-  $('#newClientTaskButton').disabled = clientTaskIsEnded(clientId);
-  $('#newClientTaskButton').title = clientTaskIsEnded(clientId) ? 'New tasks are disabled for ended contracts' : '';
 
   const target = $('#clientTaskGroups');
   const priorCompletedOpen = target.querySelector('[data-client-task-group="Completed"]')?.open;
   const visible = clientTaskFiltered(tasks);
   if (!visible.length) {
     const hasAnyTasks = tasks.length > 0;
-    target.innerHTML = `<div class="client-task-empty"><i class="fa-regular ${hasAnyTasks ? 'fa-filter' : 'fa-clipboard'}" aria-hidden="true"></i><h3>${hasAnyTasks ? 'No tasks match these filters' : 'No tasks for this client yet'}</h3><p>${hasAnyTasks ? 'Try adjusting the search or filters.' : 'Keep this client’s work organized in one place.'}</p>${hasAnyTasks ? '' : `<button class="button button-primary" type="button" data-client-task-new ${clientTaskIsEnded(clientId) ? 'disabled' : ''}><i class="fa-solid fa-plus" aria-hidden="true"></i> New task</button>`}</div>`;
+    target.innerHTML = `<div class="client-task-empty"><i class="fa-regular ${hasAnyTasks ? 'fa-filter' : 'fa-clipboard'}" aria-hidden="true"></i><h3>${hasAnyTasks ? 'No tasks match these filters' : 'No tasks for this client yet'}</h3><p>${hasAnyTasks ? 'Try adjusting the search or filters.' : 'Use Actions → New task to schedule work for this client.'}</p></div>`;
     return;
   }
 
@@ -12107,7 +12105,7 @@ function fillClientTaskDrawer(task = null) {
   form.dataset.initialSnapshot = clientTaskFormSnapshot();
 }
 
-function openClientTaskDrawer(task = null, trigger = $('#newClientTaskButton')) {
+function openClientTaskDrawer(task = null, trigger = $('#activeClientActionsButton')) {
   if (clientTaskDrawerOpen || (clientTaskIsEnded() && !task)) return;
   clientTaskDrawerReturnFocus = trigger;
   fillClientTaskDrawer(task);
@@ -12173,7 +12171,7 @@ function openClientTaskEditor(taskId) {
   if (!task) return;
   clientTaskMenuOpenId = '';
   renderClientTasks(hiredEditingId);
-  openClientTaskDrawer(task, $('#newClientTaskButton'));
+  openClientTaskDrawer(task, $('#clientTasksTab'));
 }
 
 function renderClientTaskEntries() {
@@ -12317,7 +12315,6 @@ function initClientTaskDrawer() {
   const monthDay = $('#clientTaskMonthDay');
   monthDay.innerHTML = Array.from({ length: 31 }, (_, index) => `<option value="${index + 1}">${index + 1}${[1, 21, 31].includes(index + 1) ? 'st' : [2, 22].includes(index + 1) ? 'nd' : [3, 23].includes(index + 1) ? 'rd' : 'th'}</option>`).join('');
   $('#clientTaskForm').dataset.initialSnapshot = clientTaskFormSnapshot();
-  $('#newClientTaskButton').addEventListener('click', event => openClientTaskDrawer(null, event.currentTarget));
   $('#clientTaskDrawerBackdrop').addEventListener('click', closeClientTaskDrawer);
   $('#closeClientTaskDrawer')?.addEventListener('click', closeClientTaskDrawer);
   $('#cancelClientTaskDrawer').addEventListener('click', closeClientTaskDrawer);
@@ -12475,12 +12472,6 @@ function initClientTaskDrawer() {
   });
 
   document.addEventListener('click', async event => {
-    const newTaskButton = event.target.closest('[data-client-task-new]');
-    if (newTaskButton) {
-      if (clientTaskIsEnded()) return;
-      openClientTaskDrawer(null, newTaskButton);
-      return;
-    }
     const menuButton = event.target.closest('[data-client-task-menu]');
     if (menuButton) {
       clientTaskMenuOpenId = clientTaskMenuOpenId === menuButton.dataset.clientTaskMenu ? '' : menuButton.dataset.clientTaskMenu;
