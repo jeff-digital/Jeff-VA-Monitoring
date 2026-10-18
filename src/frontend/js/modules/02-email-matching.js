@@ -2272,6 +2272,9 @@
       else field.value = String(value ?? '');
     });
     renderClientSocialLinkEditor(Array.isArray(draft.socialLinks) ? draft.socialLinks : []);
+    if (!$('#hiredSocial').value && Array.isArray(draft.socialLinks)) {
+      $('#hiredSocial').value = String(draft.socialLinks.find(link => link?.url)?.url || '');
+    }
     $('#clientPlatform').dispatchEvent(new Event('change'));
     $('#clientCountry').dispatchEvent(new Event('change'));
     if ($('#clientRegion').value) $('#clientRegion').dispatchEvent(new Event('change'));
@@ -2317,6 +2320,7 @@
       $('#hiredEmail').value = item.email || '';
       $('#hiredPhone').value = item.phone || '';
       $('#hiredWebsite').value = item.website || '';
+      $('#hiredSocial').value = item.socialMedia || normalizeClientSocialLinks(item)[0]?.url || '';
       renderClientSocialLinkEditor(normalizeClientSocialLinks(item), viewOnly);
       $('#hiredLocation').value = item.location || '';
       const savedLocation = String(item.location || '');
@@ -2371,8 +2375,10 @@
     if (!id && !viewOnly) restoreNewClientApplicationDraft();
     const showSocialAccountEditor = Boolean(id && activeClientOnly && !viewOnly);
     $('#clientSocialLinksField').hidden = !showSocialAccountEditor;
+    $('#hiredSocialField').hidden = showSocialAccountEditor;
     [
-      ['#hiredWebsite', '#hiredWebsiteLink']
+      ['#hiredWebsite', '#hiredWebsiteLink'],
+      ['#hiredSocial', '#hiredSocialLink']
     ].forEach(([inputSelector, linkSelector]) => {
       const input = $(inputSelector);
       const link = $(linkSelector);
@@ -2509,9 +2515,11 @@
       && !(await appConfirm(`This contract end date has already passed (${formatDate(contractEndDate)}). Saving it will mark ${$('#clientName').value.trim() || 'this client'} as expired. Do you want to continue?`, { title: 'Contract date has passed', confirmLabel: 'Save anyway' }))) return;
     if (isActiveClient && (!existing || existing.status !== 'Active client')) beginActivationRollback(editingId || uid(), existing);
     const activeClientEmailPending = isActiveClient && (!existing || existing.status !== 'Active client' || Boolean(existing.activePendingEmail));
-    const socialLinks = $('#clientSocialLinksField').hidden
-      ? normalizeClientSocialLinks(existing || {})
-      : readClientSocialLinks();
+    const editingSocialAccounts = !$('#clientSocialLinksField').hidden;
+    const applicationSocial = $('#hiredSocial').value.trim();
+    const socialLinks = editingSocialAccounts
+      ? readClientSocialLinks()
+      : (applicationSocial ? [{ platform: inferClientSocialPlatform(applicationSocial), url: applicationSocial }] : []);
     const application = {
       id: editingId || (pendingActivation?.applicationId || uid()),
       clientName: $('#clientName').value.trim(),
@@ -2520,7 +2528,7 @@
       email: $('#hiredEmail').value.trim(),
       phone: $('#hiredPhone').value.trim(),
       website: $('#hiredWebsite').value.trim(),
-      socialMedia: socialLinks[0]?.url || '',
+      socialMedia: editingSocialAccounts ? (socialLinks[0]?.url || '') : applicationSocial,
       socialLinks,
       location: $('#hiredLocation').value.trim(),
       platform: platformChoice === 'Other' ? $('#customPlatform').value.trim() : platformChoice,
