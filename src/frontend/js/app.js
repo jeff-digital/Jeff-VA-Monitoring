@@ -11853,6 +11853,32 @@ function clientTaskFirstWorkday(startDate, endDate, weekdays = [1, 2, 3, 4, 5]) 
   return '';
 }
 
+function clientTaskWeekdaysInRange(startDate, endDate) {
+  const weekdays = new Set();
+  if (!startDate || !endDate || endDate < startDate) return weekdays;
+  const cursor = new Date(`${startDate}T12:00:00`);
+  const last = new Date(`${endDate}T12:00:00`);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(last.getTime())) return weekdays;
+  while (cursor <= last && weekdays.size < 5) {
+    const day = cursor.getDay();
+    if (day >= 1 && day <= 5) weekdays.add(day);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return weekdays;
+}
+
+function syncClientTaskWorkdaysToRange() {
+  const availableDays = clientTaskWeekdaysInRange(
+    $('#clientTaskScheduleStartDate').value,
+    $('#clientTaskScheduleEndDate').value
+  );
+  if (!availableDays.size) return;
+  $('#clientTaskWeekdays').querySelectorAll('input').forEach(input => {
+    input.checked = availableDays.has(Number(input.value));
+  });
+  updateClientTaskRepeatFields();
+}
+
 function clientTaskTimeLabel(value) {
   const minutes = clientTaskClockMinutes(value);
   if (!Number.isFinite(minutes)) return '';
@@ -12324,7 +12350,17 @@ function initClientTaskDrawer() {
     updateClientTaskSchedule();
   });
   $('#clientTaskMonthDay').addEventListener('change', updateClientTaskRepeatFields);
-  ['#clientTaskScheduleStartDate', '#clientTaskScheduleEndDate', '#clientTaskScheduleStartTime', '#clientTaskScheduleEndTime'].forEach(selector => {
+  ['#clientTaskScheduleStartDate', '#clientTaskScheduleEndDate'].forEach(selector => {
+    $(selector).addEventListener('input', () => {
+      syncClientTaskWorkdaysToRange();
+      updateClientTaskSchedule();
+    });
+    $(selector).addEventListener('change', () => {
+      syncClientTaskWorkdaysToRange();
+      updateClientTaskSchedule();
+    });
+  });
+  ['#clientTaskScheduleStartTime', '#clientTaskScheduleEndTime'].forEach(selector => {
     $(selector).addEventListener('input', updateClientTaskSchedule);
     $(selector).addEventListener('change', updateClientTaskSchedule);
   });
