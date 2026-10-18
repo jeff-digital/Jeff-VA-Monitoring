@@ -3365,6 +3365,9 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 .client-task-drawer-header p:last-child { margin: 5px 0 0; color: #6b7280; font-size: 13px; overflow-wrap: anywhere; }
 .client-task-drawer-header .icon-button { flex: 0 0 auto; }
 .client-task-drawer-form { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.client-task-action-view { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.client-task-action-view[hidden] { display: none; }
+.client-task-action-list { flex: 1; min-height: 0; }
 .client-task-drawer-fields { display: grid; align-content: start; gap: 15px; flex: 1; padding: 19px 22px; overflow-y: auto; }
 .client-task-drawer-fields .form-field { min-width: 0; margin: 0; }
 .client-task-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

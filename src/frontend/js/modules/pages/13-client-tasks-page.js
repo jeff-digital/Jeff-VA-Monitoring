@@ -8,7 +8,8 @@ let clientTaskDrawerClosing = false;
 let clientTaskDrawerCloseTimer = null;
 let clientTaskDraftEntries = [];
 let clientTaskTickTimer = null;
-let clientTaskMenuOpenId = '';
+let clientTaskDrawerMode = 'form';
+let clientTaskActionId = '';
 
 function getClientTasks(clientId = hiredEditingId) {
   data.clientTasks = Array.isArray(data.clientTasks) ? data.clientTasks : [];
@@ -227,7 +228,6 @@ function clientTaskRenderRow(task, ended) {
   const repeatIcon = task.repeat?.frequency && task.repeat.frequency !== 'none'
     ? '<span class="client-task-recurring" title="Recurring task" aria-label="Recurring task"><i class="fa-solid fa-repeat" aria-hidden="true"></i></span>'
     : '';
-  const menuOpen = clientTaskMenuOpenId === task.id;
   const scheduleLabel = task.scheduleStartTime && task.scheduleEndTime
     ? `<span class="client-task-schedule-label"><i class="fa-regular fa-clock" aria-hidden="true"></i>${escapeHtml(clientTaskTimeLabel(task.scheduleStartTime))}–${escapeHtml(clientTaskTimeLabel(task.scheduleEndTime))}</span>`
     : '';
@@ -241,12 +241,7 @@ function clientTaskRenderRow(task, ended) {
     <span class="client-task-live-clock${running ? ' is-visible' : ''}" data-client-task-clock="${escapeHtml(task.id)}">${running ? clientTaskClock(time) : ''}</span>
     <button class="client-task-timer-button${running ? ' is-running' : ''}" type="button" data-client-task-timer="${escapeHtml(task.id)}" ${ended || done ? 'disabled' : ''} aria-label="${running ? 'Pause timer' : 'Start timer'} for ${escapeHtml(task.title || 'task')}" title="${ended ? 'Timers are disabled for ended contracts' : running ? 'Pause timer' : 'Start timer'}"><i class="fa-solid ${running ? 'fa-pause' : 'fa-play'}" aria-hidden="true"></i></button>
     <div class="client-task-menu-wrap">
-      <button class="client-task-menu-button" type="button" data-client-task-menu="${escapeHtml(task.id)}" aria-label="Task actions for ${escapeHtml(task.title || 'task')}" aria-expanded="${menuOpen}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
-      <div class="client-task-menu${menuOpen ? '' : ' hidden'}" role="menu">
-        <button type="button" role="menuitem" data-client-task-edit="${escapeHtml(task.id)}">Edit</button>
-        <button type="button" role="menuitem" data-client-task-duplicate="${escapeHtml(task.id)}" ${ended ? 'disabled title="New tasks are disabled for ended contracts"' : ''}>Duplicate</button>
-        <button type="button" role="menuitem" class="is-danger" data-client-task-delete="${escapeHtml(task.id)}">Delete</button>
-      </div>
+      <button class="client-task-menu-button" type="button" data-client-task-menu="${escapeHtml(task.id)}" aria-label="Open actions for ${escapeHtml(task.title || 'task')}" aria-haspopup="dialog"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
     </div>
   </article>`;
 }
@@ -355,12 +350,10 @@ function fillClientTaskDrawer(task = null) {
   form.dataset.initialSnapshot = clientTaskFormSnapshot();
 }
 
-function openClientTaskDrawer(task = null, trigger = $('#activeClientActionsButton')) {
-  if (clientTaskDrawerOpen || (clientTaskIsEnded() && !task)) return;
-  clientTaskDrawerReturnFocus = trigger;
-  fillClientTaskDrawer(task);
+function showClientTaskDrawer(trigger, focusTarget) {
   const layer = $('#clientTaskDrawerLayer');
   clearTimeout(clientTaskDrawerCloseTimer);
+  if (!clientTaskDrawerOpen) clientTaskDrawerReturnFocus = trigger;
   clientTaskDrawerOpen = true;
   clientTaskDrawerClosing = false;
   layer.classList.remove('is-closing');
@@ -370,14 +363,44 @@ function openClientTaskDrawer(task = null, trigger = $('#activeClientActionsButt
   requestAnimationFrame(() => {
     if (!clientTaskDrawerOpen) return;
     layer.classList.add('is-open');
-    $('#clientTaskTitle').focus();
+    focusTarget?.focus();
   });
+}
+
+function showClientTaskForm(task = null) {
+  clientTaskDrawerMode = 'form';
+  clientTaskActionId = '';
+  $('#clientTaskActionsView').hidden = true;
+  $('#clientTaskForm').hidden = false;
+  fillClientTaskDrawer(task);
+}
+
+function openClientTaskDrawer(task = null, trigger = $('#activeClientActionsButton')) {
+  if (clientTaskIsEnded() && !task) return;
+  showClientTaskForm(task);
+  showClientTaskDrawer(trigger, $('#clientTaskTitle'));
+}
+
+function openClientTaskActionsDrawer(taskId, trigger) {
+  const task = data.clientTasks.find(item => item.id === taskId && item.clientId === hiredEditingId);
+  if (!task) return;
+  clientTaskDrawerMode = 'actions';
+  clientTaskActionId = task.id;
+  $('#clientTaskForm').hidden = true;
+  const actionView = $('#clientTaskActionsView');
+  actionView.hidden = false;
+  $('#clientTaskDrawerTitle').textContent = 'Task actions';
+  $('#clientTaskDrawerClientName').textContent = task.title || 'Untitled task';
+  const duplicateButton = actionView.querySelector('[data-client-task-drawer-action="duplicate"]');
+  duplicateButton.disabled = clientTaskIsEnded();
+  duplicateButton.title = clientTaskIsEnded() ? 'New tasks are disabled for ended contracts' : '';
+  showClientTaskDrawer(trigger, actionView.querySelector('button:not([disabled])'));
 }
 
 async function closeClientTaskDrawer() {
   if (!clientTaskDrawerOpen || clientTaskDrawerClosing) return;
   const form = $('#clientTaskForm');
-  const isDirty = clientTaskFormSnapshot() !== form.dataset.initialSnapshot;
+  const isDirty = clientTaskDrawerMode === 'form' && clientTaskFormSnapshot() !== form.dataset.initialSnapshot;
   if (isDirty && !(await appConfirm('Discard your unsaved task changes?', { title: 'Discard task changes', confirmLabel: 'Discard changes', danger: true }))) return;
   clientTaskDrawerOpen = false;
   clientTaskDrawerClosing = true;
@@ -386,10 +409,12 @@ async function closeClientTaskDrawer() {
   layer.classList.add('is-closing');
   const finishClose = () => {
     layer.hidden = true;
+    layer.setAttribute('aria-hidden', 'true');
     layer.classList.remove('is-closing');
     document.body.classList.remove('client-task-drawer-open');
     clientTaskDrawerClosing = false;
-    clientTaskMenuOpenId = '';
+    clientTaskDrawerMode = 'form';
+    clientTaskActionId = '';
     clientTaskDrawerReturnFocus?.focus();
     clientTaskDrawerReturnFocus = null;
   };
@@ -419,8 +444,6 @@ function clientTaskFormSnapshot() {
 function openClientTaskEditor(taskId) {
   const task = data.clientTasks.find(item => item.id === taskId && item.clientId === hiredEditingId);
   if (!task) return;
-  clientTaskMenuOpenId = '';
-  renderClientTasks(hiredEditingId);
   openClientTaskDrawer(task, $('#clientTasksTab'));
 }
 
@@ -664,9 +687,12 @@ function initClientTaskDrawer() {
     layer.classList.add('is-closing');
     const finish = () => {
       layer.hidden = true;
+      layer.setAttribute('aria-hidden', 'true');
       layer.classList.remove('is-closing');
       document.body.classList.remove('client-task-drawer-open');
       clientTaskDrawerClosing = false;
+      clientTaskDrawerMode = 'form';
+      clientTaskActionId = '';
       clientTaskDrawerReturnFocus?.focus();
       clientTaskDrawerReturnFocus = null;
       renderClientTasks(hiredEditingId);
@@ -734,38 +760,45 @@ function initClientTaskDrawer() {
   document.addEventListener('click', async event => {
     const menuButton = event.target.closest('[data-client-task-menu]');
     if (menuButton) {
-      clientTaskMenuOpenId = clientTaskMenuOpenId === menuButton.dataset.clientTaskMenu ? '' : menuButton.dataset.clientTaskMenu;
-      renderClientTasks(hiredEditingId);
-      $(`[data-client-task-menu="${CSS.escape(clientTaskMenuOpenId)}"]`)?.focus();
+      openClientTaskActionsDrawer(menuButton.dataset.clientTaskMenu, menuButton);
       return;
+    }
+    const drawerAction = event.target.closest('[data-client-task-drawer-action]');
+    if (drawerAction) {
+      if (drawerAction.dataset.clientTaskDrawerAction === 'cancel') {
+        await closeClientTaskDrawer();
+        return;
+      }
+      const task = data.clientTasks.find(item => item.id === clientTaskActionId && item.clientId === hiredEditingId);
+      if (!task) return;
+      if (drawerAction.dataset.clientTaskDrawerAction === 'edit') {
+        showClientTaskForm(task);
+        $('#clientTaskTitle').focus();
+        return;
+      }
+      if (drawerAction.dataset.clientTaskDrawerAction === 'duplicate') {
+        if (clientTaskIsEnded()) return;
+        const duplicate = { ...task, id: uid(), recurrenceSeriesId: '', recurrenceOccurrenceKey: '', generatedFromTaskId: '', status: 'todo', completedAt: '', timerStartedAt: '', timeEntries: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        data.clientTasks.push(duplicate);
+        saveClientTasks();
+        renderClientTasks(hiredEditingId);
+        showClientTaskForm(duplicate);
+        $('#clientTaskTitle').focus();
+        return;
+      }
+      if (drawerAction.dataset.clientTaskDrawerAction === 'delete') {
+        if (!(await appConfirm(`Delete “${task.title}”?`, { title: 'Delete client task', confirmLabel: 'Delete task', danger: true }))) return;
+        stopClientTaskTimer(task);
+        data.clientTasks = data.clientTasks.filter(item => item.id !== task.id);
+        saveClientTasks();
+        renderClientTasks(hiredEditingId);
+        await closeClientTaskDrawer();
+        return;
+      }
     }
     const editButton = event.target.closest('[data-client-task-edit]');
     if (editButton) {
       openClientTaskEditor(editButton.dataset.clientTaskEdit);
-      return;
-    }
-    const duplicateButton = event.target.closest('[data-client-task-duplicate]');
-    if (duplicateButton) {
-      if (clientTaskIsEnded()) return;
-      const original = data.clientTasks.find(task => task.id === duplicateButton.dataset.clientTaskDuplicate && task.clientId === hiredEditingId);
-      if (!original) return;
-      const duplicate = { ...original, id: uid(), recurrenceSeriesId: '', recurrenceOccurrenceKey: '', generatedFromTaskId: '', status: 'todo', completedAt: '', timerStartedAt: '', timeEntries: [], createdAt: new Date().toISOString() };
-      data.clientTasks.push(duplicate);
-      saveClientTasks();
-      clientTaskMenuOpenId = '';
-      renderClientTasks(hiredEditingId);
-      openClientTaskEditor(duplicate.id);
-      return;
-    }
-    const deleteButton = event.target.closest('[data-client-task-delete]');
-    if (deleteButton) {
-      const task = data.clientTasks.find(item => item.id === deleteButton.dataset.clientTaskDelete && item.clientId === hiredEditingId);
-      if (!task || !(await appConfirm(`Delete “${task.title}”?`, { title: 'Delete client task', confirmLabel: 'Delete task', danger: true }))) return;
-      stopClientTaskTimer(task);
-      data.clientTasks = data.clientTasks.filter(item => item.id !== task.id);
-      saveClientTasks();
-      clientTaskMenuOpenId = '';
-      renderClientTasks(hiredEditingId);
       return;
     }
     const timerButton = event.target.closest('[data-client-task-timer]');
@@ -779,10 +812,6 @@ function initClientTaskDrawer() {
       renderClientTaskEntries();
       $('#clientTaskForm').dataset.dirtySnapshot = clientTaskFormSnapshot();
       return;
-    }
-    if (clientTaskMenuOpenId && !event.target.closest('.client-task-menu-wrap')) {
-      clientTaskMenuOpenId = '';
-      renderClientTasks(hiredEditingId);
     }
   });
 }

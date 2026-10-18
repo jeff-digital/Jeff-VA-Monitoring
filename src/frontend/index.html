@@ -1383,6 +1383,26 @@
         <header class="client-task-drawer-header">
           <div><p class="eyebrow">ACTIVE CLIENT</p><h2 id="clientTaskDrawerTitle">New task</h2><p id="clientTaskDrawerClientName"></p></div>
         </header>
+        <div class="client-task-action-view" id="clientTaskActionsView" hidden>
+          <div class="active-client-drawer-list client-task-action-list">
+            <button class="active-client-action-row" type="button" data-client-task-drawer-action="edit">
+              <span class="active-client-action-row-icon"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i></span>
+              <span class="active-client-action-row-copy"><strong>Edit task</strong><small>Update the task details, schedule, and time entries.</small></span>
+              <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+            </button>
+            <button class="active-client-action-row" type="button" data-client-task-drawer-action="duplicate">
+              <span class="active-client-action-row-icon"><i class="fa-regular fa-copy" aria-hidden="true"></i></span>
+              <span class="active-client-action-row-copy"><strong>Duplicate task</strong><small>Create a copy, then open it for editing.</small></span>
+              <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+            </button>
+            <button class="active-client-action-row is-danger" type="button" data-client-task-drawer-action="delete">
+              <span class="active-client-action-row-icon"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></span>
+              <span class="active-client-action-row-copy"><strong>Delete task</strong><small>Permanently remove this task and its time entries.</small></span>
+              <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+            </button>
+          </div>
+          <footer class="client-task-drawer-footer"><button class="button button-secondary" type="button" data-client-task-drawer-action="cancel">Cancel</button></footer>
+        </div>
         <form id="clientTaskForm" class="client-task-drawer-form">
           <div class="client-task-drawer-fields">
             <label class="form-field">Title <span class="required">*</span><input id="clientTaskTitle" maxlength="160" required placeholder="What needs to get done?" /></label>
@@ -1619,6 +1639,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261019-auto-workdays"></script>
+    <script src="js/app.js?v=20261019-task-actions-panel"></script>
   </body>
 </html>
