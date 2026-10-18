@@ -4,7 +4,11 @@
   const loginError = $('#loginError');
   const loginUsername = $('#loginUsername');
   const loginPassword = $('#loginPassword');
+  const loginSubmitButton = $('.login-submit', loginForm);
   setAuthenticated(false);
+  loginSubmitButton.disabled = true;
+  $('#loginGoogleButton').disabled = true;
+  $('#loginGoogleStatus').textContent = 'Checking for your saved session…';
 
   loginForm?.addEventListener('submit', async event => {
     event.preventDefault();
@@ -186,5 +190,10 @@
   window.addEventListener('popstate', () => {
     showView(appViewFromLocation() || 'dashboard', { updateUrl: false });
   });
-  initGmail();
-  restoreSupabaseSession();
+  // Mobile browsers can take longer to restore persistent storage after a
+  // redirect or a cold start. Do not enable another login flow until that
+  // existing Supabase session has been checked and fully restored.
+  restoreSupabaseSession().finally(() => {
+    loginSubmitButton.disabled = Boolean(currentUser);
+    initGmail();
+  });
