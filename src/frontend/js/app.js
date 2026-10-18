@@ -8977,6 +8977,7 @@
     $('#activeClientOnboardingStatus').textContent = '';
     $('#activeClientDrawerList [data-active-client-action="contract-email"]').hidden = isContractEnded(client);
     $('#activeClientDrawerList [data-active-client-action="send-invoice"]').hidden = isContractEnded(client);
+    $('#activeClientDrawerList [data-active-client-action="new-task"]').hidden = isContractEnded(client);
     showActiveClientDrawerView('list');
     requestAnimationFrame(() => {
       if (!activeClientDrawerOpen) return;
@@ -9106,7 +9107,12 @@
     }
 
     if (actionRow) {
-      if (actionRow.dataset.activeClientAction === 'email') {
+      if (actionRow.dataset.activeClientAction === 'new-task') {
+        closeActiveClientActionsDrawer(false, () => {
+          selectClientDetailTab('tasks');
+          openClientTaskDrawer(null, $('#newClientTaskButton'));
+        });
+      } else if (actionRow.dataset.activeClientAction === 'email') {
         const item = data.applications.find(application => application.id === hiredEditingId);
         if (item) openPlainClientEmailComposer(item, true);
       } else if (actionRow.dataset.activeClientAction === 'send-invoice') {

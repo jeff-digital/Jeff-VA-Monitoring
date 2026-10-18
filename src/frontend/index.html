@@ -1446,6 +1446,11 @@
           </div>
         </header>
         <div class="active-client-drawer-list" id="activeClientDrawerList">
+          <button class="active-client-action-row" type="button" data-active-client-action="new-task">
+            <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-square-check"></i></span>
+            <span class="active-client-action-row-copy"><strong>New task</strong><small>Schedule work for this client.</small></span>
+            <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
+          </button>
           <button class="active-client-action-row" type="button" data-active-client-action="email">
             <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-envelope"></i></span>
             <span class="active-client-action-row-copy"><strong>Send email</strong><small>Write a message to this client.</small></span>
@@ -1615,6 +1620,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261019-selectable-workdays"></script>
+    <script src="js/app.js?v=20261019-task-side-panel"></script>
   </body>
 </html>
