@@ -1405,17 +1405,16 @@
                 <label class="form-field">Start time <span class="required">*</span><input id="clientTaskScheduleStartTime" type="time" value="20:00" required /></label>
                 <label class="form-field">End time <span class="required">*</span><input id="clientTaskScheduleEndTime" type="time" value="05:00" required /></label>
               </div>
-              <div class="client-task-workdays" aria-label="Scheduled workdays"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span></div>
+              <fieldset class="client-task-weekdays" id="clientTaskWeekdays">
+                <legend>Work days</legend>
+                <label><input type="checkbox" value="1" checked /><span>Mon</span></label><label><input type="checkbox" value="2" checked /><span>Tue</span></label><label><input type="checkbox" value="3" checked /><span>Wed</span></label><label><input type="checkbox" value="4" checked /><span>Thu</span></label><label><input type="checkbox" value="5" checked /><span>Fri</span></label>
+              </fieldset>
               <p class="client-task-schedule-summary" id="clientTaskScheduleSummary" aria-live="polite">Choose the start and end dates to calculate the schedule.</p>
             </section>
             <input id="clientTaskDueDate" type="hidden" />
             <input id="clientTaskEstimate" type="hidden" />
             <label class="form-field">Notes<textarea id="clientTaskNotes" rows="4" maxlength="3000" placeholder="Add task details or context"></textarea></label>
             <select id="clientTaskRepeat" hidden aria-hidden="true"><option value="weekly" selected>Weekly</option></select>
-            <fieldset class="client-task-weekdays" id="clientTaskWeekdays" hidden>
-              <legend>Repeat on</legend>
-              <label><input type="checkbox" value="1" checked /><span>Mon</span></label><label><input type="checkbox" value="2" checked /><span>Tue</span></label><label><input type="checkbox" value="3" checked /><span>Wed</span></label><label><input type="checkbox" value="4" checked /><span>Thu</span></label><label><input type="checkbox" value="5" checked /><span>Fri</span></label>
-            </fieldset>
             <label class="form-field" id="clientTaskMonthDayField" hidden><select id="clientTaskMonthDay"><option value="1">1</option></select></label>
             <p class="client-task-repeat-preview" id="clientTaskRepeatPreview" aria-live="polite"></p>
             <section class="client-task-time-editor" id="clientTaskTimeEditor" hidden aria-labelledby="clientTaskTimeTitle">
@@ -1616,6 +1615,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261019-client-task-schedule"></script>
+    <script src="js/app.js?v=20261019-selectable-workdays"></script>
   </body>
 </html>
