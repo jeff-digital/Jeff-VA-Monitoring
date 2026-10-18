@@ -32,6 +32,79 @@ function clientTaskLocalDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
+function clientTaskClockMinutes(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
+  if (!match) return null;
+  return (Number(match[1]) * 60) + Number(match[2]);
+}
+
+function clientTaskScheduledMinutes(startTime, endTime) {
+  const start = clientTaskClockMinutes(startTime);
+  const end = clientTaskClockMinutes(endTime);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  const adjustedEnd = end <= start ? end + (24 * 60) : end;
+  return adjustedEnd - start;
+}
+
+function clientTaskWorkdayCount(startDate, endDate) {
+  if (!startDate || !endDate || endDate < startDate) return 0;
+  const cursor = new Date(`${startDate}T12:00:00`);
+  const last = new Date(`${endDate}T12:00:00`);
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(last.getTime())) return 0;
+  let count = 0;
+  while (cursor <= last) {
+    const day = cursor.getDay();
+    if (day >= 1 && day <= 5) count += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+function clientTaskFirstWorkday(startDate, endDate) {
+  if (!startDate || !endDate || endDate < startDate) return '';
+  const cursor = new Date(`${startDate}T12:00:00`);
+  for (let offset = 0; offset < 7 && clientTaskLocalDateKey(cursor) <= endDate; offset += 1) {
+    const day = cursor.getDay();
+    if (day >= 1 && day <= 5) return clientTaskLocalDateKey(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return '';
+}
+
+function clientTaskTimeLabel(value) {
+  const minutes = clientTaskClockMinutes(value);
+  if (!Number.isFinite(minutes)) return '';
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
+
+function updateClientTaskSchedule() {
+  const startDate = $('#clientTaskScheduleStartDate').value;
+  const endDate = $('#clientTaskScheduleEndDate').value;
+  const startTime = $('#clientTaskScheduleStartTime').value;
+  const endTime = $('#clientTaskScheduleEndTime').value;
+  const minutesPerDay = clientTaskScheduledMinutes(startTime, endTime);
+  const workdays = clientTaskWorkdayCount(startDate, endDate);
+  const totalMinutes = minutesPerDay * workdays;
+  $('#clientTaskDueDate').value = clientTaskFirstWorkday(startDate, endDate);
+  $('#clientTaskEstimate').value = minutesPerDay ? String(minutesPerDay) : '';
+  $('#clientTaskScheduleDailyMinutes').textContent = minutesPerDay ? `${minutesPerDay.toLocaleString()} minutes / day` : 'Set working hours';
+  const summary = $('#clientTaskScheduleSummary');
+  if (startDate && endDate && endDate < startDate) {
+    summary.textContent = 'The end date must be on or after the start date.';
+    return;
+  }
+  if (!startDate || !endDate || !minutesPerDay) {
+    summary.textContent = 'Choose the start and end dates to calculate the schedule.';
+    return;
+  }
+  const overnight = clientTaskClockMinutes(endTime) <= clientTaskClockMinutes(startTime);
+  summary.innerHTML = `<strong>${workdays} workday${workdays === 1 ? '' : 's'} · ${totalMinutes.toLocaleString()} total minutes</strong><br>${escapeHtml(clientTaskTimeLabel(startTime))}–${escapeHtml(clientTaskTimeLabel(endTime))}${overnight ? ' overnight' : ''}, Monday to Friday.`;
+}
+
 function clientTaskTimeEntries(task) {
   return Array.isArray(task.timeEntries) ? task.timeEntries : [];
 }
@@ -117,11 +190,14 @@ function clientTaskRenderRow(task, ended) {
     ? '<span class="client-task-recurring" title="Recurring task" aria-label="Recurring task"><i class="fa-solid fa-repeat" aria-hidden="true"></i></span>'
     : '';
   const menuOpen = clientTaskMenuOpenId === task.id;
+  const scheduleLabel = task.scheduleStartTime && task.scheduleEndTime
+    ? `<span class="client-task-schedule-label"><i class="fa-regular fa-clock" aria-hidden="true"></i>${escapeHtml(clientTaskTimeLabel(task.scheduleStartTime))}–${escapeHtml(clientTaskTimeLabel(task.scheduleEndTime))}</span>`
+    : '';
   return `<article class="client-task-row${done ? ' is-complete' : ''}${running ? ' is-running' : ''}" data-client-task-row="${escapeHtml(task.id)}">
     <label class="client-task-complete-control"><input type="checkbox" data-client-task-complete="${escapeHtml(task.id)}" ${done ? 'checked' : ''} aria-label="${done ? 'Reopen' : 'Complete'} task: ${escapeHtml(task.title || 'Untitled task')}" /><span class="sr-only">${done ? 'Completed' : 'Mark complete'}</span></label>
     <div class="client-task-row-main">
       <div class="client-task-row-title-line"><button class="client-task-title-button" type="button" data-client-task-edit="${escapeHtml(task.id)}">${escapeHtml(task.title || 'Untitled task')}</button><span class="client-task-category">${escapeHtml(CLIENT_TASK_CATEGORIES.includes(task.category) ? task.category : 'Other')}</span></div>
-      <div class="client-task-row-meta"><span class="client-task-priority priority-${priority.toLowerCase()}"><i aria-hidden="true"></i>${priority}</span>${clientTaskDueLabel(task)}${repeatIcon}<span class="client-task-status-text">${done ? 'Done' : task.status === 'in-progress' ? 'In progress' : 'To do'}</span></div>
+      <div class="client-task-row-meta"><span class="client-task-priority priority-${priority.toLowerCase()}"><i aria-hidden="true"></i>${priority}</span>${clientTaskDueLabel(task)}${scheduleLabel}${repeatIcon}<span class="client-task-status-text">${done ? 'Done' : task.status === 'in-progress' ? 'In progress' : 'To do'}</span></div>
     </div>
     <span class="client-task-time-logged" data-client-task-time="${escapeHtml(task.id)}">${escapeHtml(clientTaskFormatDuration(time))}</span>
     <span class="client-task-live-clock${running ? ' is-visible' : ''}" data-client-task-clock="${escapeHtml(task.id)}">${running ? clientTaskClock(time) : ''}</span>
@@ -194,26 +270,13 @@ function renderClientTasks(clientId = hiredEditingId) {
 }
 
 function clientTaskRepeatValue() {
-  const frequency = $('#clientTaskRepeat').value;
-  if (frequency === 'weekly') {
-    const weekdays = $$('#clientTaskWeekdays input:checked').map(input => Number(input.value)).sort((a, b) => a - b);
-    return { frequency, weekdays };
-  }
-  if (frequency === 'monthly') return { frequency, dayOfMonth: Number($('#clientTaskMonthDay').value) };
-  return { frequency, weekdays: [], dayOfMonth: null };
+  return { frequency: 'weekly', weekdays: [1, 2, 3, 4, 5], dayOfMonth: null };
 }
 
 function updateClientTaskRepeatFields() {
-  const frequency = $('#clientTaskRepeat').value;
-  $('#clientTaskWeekdays').hidden = frequency !== 'weekly';
-  $('#clientTaskMonthDayField').hidden = frequency !== 'monthly';
-  const preview = $('#clientTaskRepeatPreview');
-  if (frequency === 'daily') preview.textContent = 'Repeats every day.';
-  else if (frequency === 'weekly') {
-    const selected = $$('#clientTaskWeekdays input:checked').map(input => CLIENT_TASK_WEEKDAYS[Number(input.value)]);
-    preview.textContent = selected.length ? `Repeats every ${selected.join(', ')}.` : 'Choose one or more weekdays.';
-  } else if (frequency === 'monthly') preview.textContent = `Repeats on day ${$('#clientTaskMonthDay').value} of each month.`;
-  else preview.textContent = 'This task will not repeat.';
+  $('#clientTaskWeekdays').hidden = true;
+  $('#clientTaskMonthDayField').hidden = true;
+  $('#clientTaskRepeatPreview').textContent = 'A new task occurrence is created for each Monday–Friday workday until the end date.';
 }
 
 function fillClientTaskDrawer(task = null) {
@@ -228,17 +291,23 @@ function fillClientTaskDrawer(task = null) {
   $('#clientTaskTitle').value = task?.title || '';
   $('#clientTaskCategory').value = CLIENT_TASK_CATEGORIES.includes(task?.category) ? task.category : 'Graphic Design';
   $('#clientTaskPriority').value = ['Low', 'Medium', 'High'].includes(task?.priority) ? task.priority : 'Medium';
-  $('#clientTaskDueDate').value = task?.dueDate || '';
-  $('#clientTaskEstimate').value = task?.estimateMinutes ?? '';
+  const client = data.applications.find(item => item.id === hiredEditingId);
+  const scheduleStartDate = task?.dueDate || task?.scheduleStartDate || today();
+  const contractEndDate = client?.contractEndDate && client.contractEndDate >= scheduleStartDate ? client.contractEndDate : scheduleStartDate;
+  $('#clientTaskScheduleStartDate').value = scheduleStartDate;
+  $('#clientTaskScheduleEndDate').value = task?.scheduleEndDate || contractEndDate;
+  $('#clientTaskScheduleStartTime').value = task?.scheduleStartTime || '20:00';
+  $('#clientTaskScheduleEndTime').value = task?.scheduleEndTime || '05:00';
   $('#clientTaskNotes').value = task?.notes || '';
-  $('#clientTaskRepeat').value = task?.repeat?.frequency || 'none';
+  $('#clientTaskRepeat').value = 'weekly';
   $('#clientTaskWeekdays').querySelectorAll('input').forEach(input => {
-    input.checked = Array.isArray(task?.repeat?.weekdays) && task.repeat.weekdays.includes(Number(input.value));
+    input.checked = [1, 2, 3, 4, 5].includes(Number(input.value));
   });
   $('#clientTaskMonthDay').value = String(task?.repeat?.dayOfMonth || Number(task?.dueDate?.slice(-2)) || 1);
   $('#clientTaskTimeEditor').hidden = !task;
   $('#saveClientTaskButton').textContent = task ? 'Save changes' : 'Save task';
   updateClientTaskRepeatFields();
+  updateClientTaskSchedule();
   renderClientTaskEntries();
   form.dataset.initialSnapshot = clientTaskFormSnapshot();
 }
@@ -292,6 +361,10 @@ function clientTaskFormSnapshot() {
     priority: $('#clientTaskPriority').value,
     dueDate: $('#clientTaskDueDate').value,
     estimate: $('#clientTaskEstimate').value,
+    scheduleStartDate: $('#clientTaskScheduleStartDate').value,
+    scheduleEndDate: $('#clientTaskScheduleEndDate').value,
+    scheduleStartTime: $('#clientTaskScheduleStartTime').value,
+    scheduleEndTime: $('#clientTaskScheduleEndTime').value,
     notes: $('#clientTaskNotes').value,
     manualStart: $('#clientTaskManualStart').value,
     manualEnd: $('#clientTaskManualEnd').value,
@@ -337,7 +410,10 @@ function clientTaskNextDueDate(task) {
     for (let offset = 1; offset <= 7; offset += 1) {
       const candidate = new Date(due);
       candidate.setDate(candidate.getDate() + offset);
-      if (weekdays.includes(candidate.getDay())) return clientTaskLocalDateKey(candidate);
+      if (weekdays.includes(candidate.getDay())) {
+        const candidateDate = clientTaskLocalDateKey(candidate);
+        return task.scheduleEndDate && candidateDate > task.scheduleEndDate ? '' : candidateDate;
+      }
     }
   }
   if (recurrence.frequency === 'monthly') {
@@ -453,6 +529,10 @@ function initClientTaskDrawer() {
   $('#clientTaskRepeat').addEventListener('change', updateClientTaskRepeatFields);
   $('#clientTaskWeekdays').addEventListener('change', updateClientTaskRepeatFields);
   $('#clientTaskMonthDay').addEventListener('change', updateClientTaskRepeatFields);
+  ['#clientTaskScheduleStartDate', '#clientTaskScheduleEndDate', '#clientTaskScheduleStartTime', '#clientTaskScheduleEndTime'].forEach(selector => {
+    $(selector).addEventListener('input', updateClientTaskSchedule);
+    $(selector).addEventListener('change', updateClientTaskSchedule);
+  });
   ['input', 'change'].forEach(type => {
     $('#clientTaskForm').addEventListener(type, () => {
       $('#clientTaskForm').dataset.dirtySnapshot = clientTaskFormSnapshot();
@@ -461,9 +541,20 @@ function initClientTaskDrawer() {
   $('#clientTaskForm').addEventListener('submit', event => {
     event.preventDefault();
     if (clientTaskIsEnded() && !clientTaskEditingId) return;
+    updateClientTaskSchedule();
     const title = $('#clientTaskTitle').value.trim();
     const repeat = clientTaskRepeatValue();
     const dueField = $('#clientTaskDueDate');
+    const scheduleStartDate = $('#clientTaskScheduleStartDate').value;
+    const scheduleEndDate = $('#clientTaskScheduleEndDate').value;
+    const scheduleEndField = $('#clientTaskScheduleEndDate');
+    const scheduleHasWorkday = clientTaskWorkdayCount(scheduleStartDate, scheduleEndDate) > 0;
+    scheduleEndField.setCustomValidity(scheduleStartDate && scheduleEndDate && scheduleEndDate < scheduleStartDate
+      ? 'Choose an end date on or after the start date.'
+      : scheduleStartDate && scheduleEndDate && !scheduleHasWorkday
+        ? 'Choose a date range containing at least one Monday–Friday workday.'
+        : '');
+    if (!$('#clientTaskForm').reportValidity()) return;
     if (repeat.frequency !== 'none' && !dueField.value) {
       dueField.setCustomValidity('A due date is required for recurring tasks.');
       dueField.reportValidity();
@@ -484,6 +575,12 @@ function initClientTaskDrawer() {
       priority: $('#clientTaskPriority').value,
       dueDate: dueField.value,
       estimateMinutes: $('#clientTaskEstimate').value ? Number($('#clientTaskEstimate').value) : '',
+      scheduleStartDate,
+      scheduleEndDate,
+      scheduleStartTime: $('#clientTaskScheduleStartTime').value,
+      scheduleEndTime: $('#clientTaskScheduleEndTime').value,
+      scheduledMinutesPerDay: Number($('#clientTaskEstimate').value) || 0,
+      scheduleTotalMinutes: (Number($('#clientTaskEstimate').value) || 0) * clientTaskWorkdayCount(scheduleStartDate, scheduleEndDate),
       notes: $('#clientTaskNotes').value.trim(),
       repeat,
       status: existing?.status || 'todo',

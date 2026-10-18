@@ -1395,21 +1395,28 @@
                 <select id="clientTaskPriority"><option>Medium</option><option>Low</option><option>High</option></select>
               </label>
             </div>
-            <div class="client-task-form-grid">
-              <label class="form-field">Due date<input id="clientTaskDueDate" type="date" /></label>
-              <label class="form-field">Estimated time<input id="clientTaskEstimate" type="number" min="0" max="10000" step="5" placeholder="Minutes" /></label>
-            </div>
+            <section class="client-task-schedule" aria-labelledby="clientTaskScheduleTitle">
+              <div class="client-task-schedule-heading"><div><span id="clientTaskScheduleTitle">Work schedule</span><small>Monday to Friday</small></div><strong id="clientTaskScheduleDailyMinutes">540 minutes / day</strong></div>
+              <div class="client-task-form-grid">
+                <label class="form-field">Start date <span class="required">*</span><input id="clientTaskScheduleStartDate" type="date" required /></label>
+                <label class="form-field">End date <span class="required">*</span><input id="clientTaskScheduleEndDate" type="date" required /></label>
+              </div>
+              <div class="client-task-form-grid">
+                <label class="form-field">Start time <span class="required">*</span><input id="clientTaskScheduleStartTime" type="time" value="20:00" required /></label>
+                <label class="form-field">End time <span class="required">*</span><input id="clientTaskScheduleEndTime" type="time" value="05:00" required /></label>
+              </div>
+              <div class="client-task-workdays" aria-label="Scheduled workdays"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span></div>
+              <p class="client-task-schedule-summary" id="clientTaskScheduleSummary" aria-live="polite">Choose the start and end dates to calculate the schedule.</p>
+            </section>
+            <input id="clientTaskDueDate" type="hidden" />
+            <input id="clientTaskEstimate" type="hidden" />
             <label class="form-field">Notes<textarea id="clientTaskNotes" rows="4" maxlength="3000" placeholder="Add task details or context"></textarea></label>
-            <label class="form-field">Repeat
-              <select id="clientTaskRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
-            </label>
+            <select id="clientTaskRepeat" hidden aria-hidden="true"><option value="weekly" selected>Weekly</option></select>
             <fieldset class="client-task-weekdays" id="clientTaskWeekdays" hidden>
               <legend>Repeat on</legend>
-              <label><input type="checkbox" value="1" /><span>Mon</span></label><label><input type="checkbox" value="2" /><span>Tue</span></label><label><input type="checkbox" value="3" /><span>Wed</span></label><label><input type="checkbox" value="4" /><span>Thu</span></label><label><input type="checkbox" value="5" /><span>Fri</span></label><label><input type="checkbox" value="6" /><span>Sat</span></label><label><input type="checkbox" value="0" /><span>Sun</span></label>
+              <label><input type="checkbox" value="1" checked /><span>Mon</span></label><label><input type="checkbox" value="2" checked /><span>Tue</span></label><label><input type="checkbox" value="3" checked /><span>Wed</span></label><label><input type="checkbox" value="4" checked /><span>Thu</span></label><label><input type="checkbox" value="5" checked /><span>Fri</span></label>
             </fieldset>
-            <label class="form-field" id="clientTaskMonthDayField" hidden>Repeat on day
-              <select id="clientTaskMonthDay"></select>
-            </label>
+            <label class="form-field" id="clientTaskMonthDayField" hidden><select id="clientTaskMonthDay"><option value="1">1</option></select></label>
             <p class="client-task-repeat-preview" id="clientTaskRepeatPreview" aria-live="polite"></p>
             <section class="client-task-time-editor" id="clientTaskTimeEditor" hidden aria-labelledby="clientTaskTimeTitle">
               <div class="client-task-time-heading"><h3 id="clientTaskTimeTitle">Time entries</h3><strong id="clientTaskTotalTime">0m total</strong></div>
@@ -1609,6 +1616,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261019-application-social"></script>
+    <script src="js/app.js?v=20261019-client-task-schedule"></script>
   </body>
 </html>

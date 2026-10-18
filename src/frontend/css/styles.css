@@ -3321,6 +3321,7 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 #hiredView .client-task-due { display: inline-flex; align-items: center; gap: 4px; overflow: hidden; color: var(--workspace-muted); text-overflow: ellipsis; white-space: nowrap; }
 #hiredView .client-task-due.is-overdue { color: #b33d43; font-weight: 650; }
 #hiredView .client-task-due.no-date { color: #969ba6; }
+#hiredView .client-task-schedule-label { display: inline-flex; align-items: center; gap: 4px; color: #68738a; white-space: nowrap; }
 #hiredView .client-task-recurring { color: #6974b2; font-size: 10px; }
 #hiredView .client-task-status-text { overflow: hidden; color: #777f8b; text-overflow: ellipsis; white-space: nowrap; }
 #hiredView .client-task-time-logged,
@@ -3367,6 +3368,16 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 .client-task-drawer-fields { display: grid; align-content: start; gap: 15px; flex: 1; padding: 19px 22px; overflow-y: auto; }
 .client-task-drawer-fields .form-field { min-width: 0; margin: 0; }
 .client-task-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.client-task-schedule { display: grid; gap: 12px; padding: 14px; border: 1px solid #dde3e8; border-radius: 10px; background: #f8fafc; }
+.client-task-schedule-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.client-task-schedule-heading > div { display: grid; gap: 2px; }
+.client-task-schedule-heading span { color: var(--workspace-ink); font-size: 12px; font-weight: 700; }
+.client-task-schedule-heading small { color: var(--workspace-muted); font-size: 10px; }
+.client-task-schedule-heading strong { color: #3f4c8a; font-size: 10px; white-space: nowrap; }
+.client-task-workdays { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.client-task-workdays span { display: grid; min-height: 30px; place-items: center; border: 1px solid #cbd3e5; border-radius: 7px; background: #eef1fb; color: #3f4c8a; font-size: 10px; font-weight: 700; }
+.client-task-schedule-summary { margin: 0; padding-top: 10px; border-top: 1px solid #e1e6eb; color: var(--workspace-muted); font-size: 11px; line-height: 1.45; }
+.client-task-schedule-summary strong { color: var(--workspace-ink); }
 .client-task-weekdays { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 0; padding: 0; border: 0; }
 .client-task-weekdays legend { width: 100%; margin-bottom: 7px; color: var(--workspace-ink); font-size: 11px; font-weight: 650; }
 .client-task-weekdays label { position: relative; cursor: pointer; }
@@ -4765,6 +4776,7 @@ html:has(#applicationActionsPanel[open]) { scrollbar-gutter: auto; }
 }
 
 @media (max-width: 560px) {
+  .client-task-schedule-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
   #dailyTaskView .daily-task-toolbar { align-items: stretch; }
   #dailyTaskView .daily-task-date-navigation { flex: 1 1 100%; }
   #dailyTaskView .daily-task-filter-field { flex: 1 1 130px; margin-left: 0; }
