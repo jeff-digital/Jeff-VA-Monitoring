@@ -3,7 +3,7 @@
   // browser. Application records and tool data are exported as separate sheets. Document binaries stay in private
   // Supabase Storage and are never included in the sheet — only their names/sizes/metadata travel
   // with the sheet. A restore therefore restores records, not document binaries or email history.
-  const APPLICATION_COLUMNS = ['id', 'clientName', 'status', 'contractStatus', 'contractEndDate', 'contractEndedEmailSentAt', 'platform', 'employmentType', 'salaryType', 'salaryAmount', 'hoursPerWeek', 'contact', 'role', 'appliedDate', 'createdAt', 'activeAt', 'activePendingDocument', 'activePendingEmail', 'documentEmailPending', 'documentEmailReminderDate', 'documentEmailReminderAlertedDate', 'interviewPriority', 'interviewDate', 'interviewLink', 'interviewAlertDate', 'followUpDate', 'automaticFollowUp', 'followUpProcessedAt', 'followUpSentAt', 'notes', 'email', 'phone', 'website', 'socialMedia', 'location', 'documents', 'updatedAt'];
+  const APPLICATION_COLUMNS = ['id', 'clientName', 'status', 'contractStatus', 'contractEndDate', 'contractEndedEmailSentAt', 'platform', 'employmentType', 'salaryType', 'salaryAmount', 'hoursPerWeek', 'contact', 'role', 'appliedDate', 'createdAt', 'activeAt', 'activePendingDocument', 'activePendingEmail', 'documentEmailPending', 'documentEmailReminderDate', 'documentEmailReminderAlertedDate', 'interviewPriority', 'interviewDate', 'interviewLink', 'interviewAlertDate', 'followUpDate', 'automaticFollowUp', 'followUpProcessedAt', 'followUpSentAt', 'notes', 'email', 'phone', 'website', 'socialMedia', 'socialLinks', 'location', 'documents', 'updatedAt'];
   const TO_APPLY_COLUMNS = ['id', 'title', 'link', 'dueDate', 'notes'];
   const DAILY_TASK_COLUMNS = ['id', 'title', 'type', 'taskDate', 'relatedType', 'relatedId', 'relatedName', 'destination', 'notes', 'checklist', 'createdAt', 'completedAt'];
   const LINK_COLUMNS = ['id', 'name', 'url', 'createdAt', 'updatedAt'];
@@ -22,7 +22,7 @@
   function applicationToRow(item) {
     const row = {};
     APPLICATION_COLUMNS.forEach(key => {
-      row[key] = key === 'documents' ? JSON.stringify(item.documents || []) : (item[key] ?? '');
+      row[key] = key === 'documents' || key === 'socialLinks' ? JSON.stringify(item[key] || []) : (item[key] ?? '');
     });
     return row;
   }
@@ -65,7 +65,12 @@
 
   function rowToApplication(row) {
     let documents = [];
+    let socialLinks = [];
     try { documents = row.documents ? JSON.parse(row.documents) : []; } catch { documents = []; }
+    try { socialLinks = row.socialLinks ? JSON.parse(row.socialLinks) : []; } catch { socialLinks = []; }
+    if (!Array.isArray(socialLinks)) socialLinks = [];
+    socialLinks = socialLinks.map(link => ({ platform: String(link?.platform || 'website'), url: String(link?.url || '').trim() })).filter(link => link.url);
+    if (!socialLinks.length && String(row.socialMedia || '').trim()) socialLinks = [{ platform: 'website', url: String(row.socialMedia).trim() }];
     return {
       id: String(row.id || uid()),
       clientName: String(row.clientName || ''),
@@ -96,7 +101,8 @@
       email: String(row.email || ''),
       phone: String(row.phone || ''),
       website: String(row.website || ''),
-      socialMedia: String(row.socialMedia || ''),
+      socialMedia: String(row.socialMedia || socialLinks[0]?.url || ''),
+      socialLinks,
       location: String(row.location || ''),
       createdAt: String(row.createdAt || row.updatedAt || new Date().toISOString()),
       activeAt: String(row.activeAt || (row.status === 'Active client' ? row.appliedDate || '' : '')),
@@ -107,7 +113,7 @@
 
   function buildBackupWorkbook() {
     const workbook = XLSX.utils.book_new();
-    const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, location: 24, documents: 48, updatedAt: 24 };
+    const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, socialLinks: 52, location: 24, documents: 48, updatedAt: 24 };
     const applicationsSheet = createDataSheet(pipelineApplications().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const activeClientsSheet = createDataSheet(hiredClients().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];

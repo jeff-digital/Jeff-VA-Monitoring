@@ -725,13 +725,13 @@
   async function finishWelcomeTransition() {
     const transition = $('#welcomeTransition');
     if (!transition || transition.hidden) return;
-    const minimumDuration = 1800;
+    const minimumDuration = 300;
     const elapsed = performance.now() - welcomeTransitionStartedAt;
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minimumDuration - elapsed)));
     transition.classList.remove('is-visible');
     transition.classList.add('is-leaving');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    await new Promise(resolve => setTimeout(resolve, reducedMotion ? 0 : 320));
+    await new Promise(resolve => setTimeout(resolve, reducedMotion ? 0 : 100));
     transition.hidden = true;
     transition.classList.remove('is-leaving');
     document.body.classList.remove('auth-loading');
@@ -800,45 +800,42 @@
     supabaseDataLoaded = true;
     dataReady = true;
     startNotificationRefreshTimer();
-    let startupStage = 'preparing workspace data';
-    try {
-      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
-      const autoRejectedApplications = processStaleApplications();
-      startupStage = 'rendering the workspace';
-      renderAll();
-      renderAccountPage();
-      startupStage = 'processing workspace reminders';
-      await processDueFollowUps();
-      processDueApplyReminders();
-      processDueInterviews();
-      processDueDocumentEmailReminders();
-      processContractEndedAlerts();
-      startupStage = 'rendering updated workspace data';
-      renderAll();
-      renderAccountPage();
-      startupStage = 'refreshing client onboarding alerts';
-      await refreshClientOnboardingAlerts();
-      if (gmailAccessToken) {
-        startupStage = 'syncing Gmail';
-        startGmailSyncTimer();
-        await syncGmail(true);
+    if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+    const autoRejectedApplications = processStaleApplications();
+    renderAll();
+    renderAccountPage();
+    await finishWelcomeTransition();
+    initializingUserId = null;
+    if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
+
+    // Everything below is useful refresh work, but none of it is required to
+    // enter the dashboard. Keep it outside the login critical path.
+    window.setTimeout(async () => {
+      let startupStage = 'processing workspace reminders';
+      try {
+        if (!currentUser || currentUser.id !== user.id) return;
+        await processDueFollowUps();
+        processDueApplyReminders();
+        processDueInterviews();
+        processDueDocumentEmailReminders();
+        processContractEndedAlerts();
+        renderAll();
+        renderAccountPage();
+        startupStage = 'refreshing client onboarding alerts';
+        await refreshClientOnboardingAlerts();
+        if (gmailAccessToken) {
+          startupStage = 'syncing Gmail';
+          startGmailSyncTimer();
+          await syncGmail(true);
+        }
+        startupStage = 'saving workspace changes';
+        await persist();
+        scheduleAutomaticBackup();
+        if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
+      } catch (error) {
+        console.error(`Workspace refresh failed while ${startupStage}:`, error);
       }
-      startupStage = 'saving workspace changes';
-      await persist();
-      scheduleAutomaticBackup();
-      if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
-      if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
-    } catch (error) {
-      console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
-      showActionResult({
-        title: 'Workspace startup incomplete',
-        message: `Your saved data was loaded, but ${startupStage} failed${error?.message ? `: ${error.message}` : '.'}`,
-        status: 'error'
-      });
-    } finally {
-      await finishWelcomeTransition();
-      initializingUserId = null;
-    }
+    }, 0);
   }
 
   function subscribeToAppState(userId) {
@@ -1140,6 +1137,140 @@
   let applicationMatchIndex = [];
   let applicationMatchIndexSignature = '';
   let activeClientDetailsModalEdit = false;
+  const CLIENT_SOCIAL_PLATFORM_LABELS = Object.freeze({
+    facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter',
+    linkedin: 'LinkedIn', youtube: 'YouTube', pinterest: 'Pinterest', website: 'Website', other: 'Other'
+  });
+
+  function inferClientSocialPlatform(url = '') {
+    const value = String(url).toLowerCase();
+    if (value.includes('facebook.com') || value.includes('fb.com')) return 'facebook';
+    if (value.includes('instagram.com')) return 'instagram';
+    if (value.includes('tiktok.com')) return 'tiktok';
+    if (value.includes('twitter.com') || value.includes('x.com')) return 'twitter';
+    if (value.includes('linkedin.com')) return 'linkedin';
+    if (value.includes('youtube.com') || value.includes('youtu.be')) return 'youtube';
+    if (value.includes('pinterest.com') || value.includes('pin.it')) return 'pinterest';
+    return 'website';
+  }
+
+  function normalizeClientSocialLinks(item = {}) {
+    const source = Array.isArray(item.socialLinks) ? item.socialLinks : [];
+    const links = source.map(link => {
+      const url = String(link?.url || '').trim();
+      const platform = Object.hasOwn(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform)
+        ? link.platform
+        : inferClientSocialPlatform(url);
+      return { platform, url };
+    }).filter(link => link.url);
+    if (!links.length && String(item.socialMedia || '').trim()) {
+      const url = String(item.socialMedia).trim();
+      links.push({ platform: inferClientSocialPlatform(url), url });
+    }
+    const seen = new Set();
+    return links.filter(link => {
+      const key = link.url.toLowerCase().replace(/\/$/, '');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function clientSocialPlatformOptions(selected = 'website') {
+    return Object.entries(CLIENT_SOCIAL_PLATFORM_LABELS).map(([value, label]) =>
+      `<option value="${value}"${value === selected ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  }
+
+  function clientSocialHref(link) {
+    const value = String(link?.url || '').trim();
+    if (!value.startsWith('@')) return normalizeUrl(value);
+    const handle = value.slice(1);
+    const platformRoots = {
+      facebook: 'https://facebook.com/', instagram: 'https://instagram.com/', tiktok: 'https://tiktok.com/@',
+      twitter: 'https://x.com/', linkedin: 'https://linkedin.com/in/', youtube: 'https://youtube.com/@',
+      pinterest: 'https://pinterest.com/'
+    };
+    return `${platformRoots[link.platform] || 'https://'}${handle}`;
+  }
+
+  function clientSocialDisplay(link) {
+    const label = CLIENT_SOCIAL_PLATFORM_LABELS[link.platform] || 'Link';
+    const value = String(link.url || '').trim();
+    if (value.startsWith('@')) return `${label} · ${value}`;
+    try {
+      const parsed = new URL(normalizeUrl(value));
+      const account = parsed.pathname.split('/').filter(Boolean).pop()
+        || parsed.hostname.replace(/^www\./, '');
+      return `${label} · ${decodeURIComponent(account)}`;
+    } catch {
+      return label;
+    }
+  }
+
+  function updateClientSocialEditorControls(viewOnly = viewingClientDetails) {
+    const rows = $$('#clientSocialLinksList .client-social-link-row');
+    const addButton = $('#addClientSocialLink');
+    if (addButton) {
+      addButton.hidden = viewOnly;
+      addButton.disabled = viewOnly || rows.length >= 12;
+    }
+    rows.forEach(row => {
+      const removeButton = row.querySelector('[data-remove-client-social-link]');
+      if (removeButton) removeButton.hidden = viewOnly;
+    });
+  }
+
+  function renderClientSocialLinkEditor(links = [], viewOnly = false) {
+    const target = $('#clientSocialLinksList');
+    if (!target) return;
+    $('#clientSocialLinksField').hidden = viewOnly && !links.length;
+    const entries = links.length ? links : [{ platform: 'website', url: '' }];
+    target.innerHTML = entries.slice(0, 12).map((link, index) => {
+      const platform = Object.hasOwn(CLIENT_SOCIAL_PLATFORM_LABELS, link?.platform) ? link.platform : inferClientSocialPlatform(link?.url);
+      return `<div class="client-social-link-row">
+        <label><span class="sr-only">Platform ${index + 1}</span><select data-client-social-platform aria-label="Social platform ${index + 1}">${clientSocialPlatformOptions(platform)}</select></label>
+        <label><span class="sr-only">Profile URL or handle ${index + 1}</span><input data-client-social-url type="text" inputmode="url" maxlength="500" value="${escapeHtml(String(link?.url || ''))}" placeholder="Profile URL or @handle" aria-label="Profile URL or handle ${index + 1}" /></label>
+        <button class="client-social-remove" type="button" data-remove-client-social-link aria-label="Remove ${escapeHtml(CLIENT_SOCIAL_PLATFORM_LABELS[platform])} account" title="Remove account"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
+      </div>`;
+    }).join('');
+    updateClientSocialEditorControls(viewOnly);
+  }
+
+  function readClientSocialLinks({ includeEmpty = false } = {}) {
+    const seen = new Set();
+    return $$('#clientSocialLinksList .client-social-link-row').map(row => ({
+      platform: row.querySelector('[data-client-social-platform]')?.value || 'website',
+      url: row.querySelector('[data-client-social-url]')?.value.trim() || ''
+    })).filter(link => {
+      if (includeEmpty && !link.url) return true;
+      if (!link.url) return false;
+      const key = link.url.toLowerCase().replace(/\/$/, '');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function clientSocialLinksMarkup(item) {
+    const links = normalizeClientSocialLinks(item);
+    if (!links.length) return '';
+    return `<span class="client-social-detail-links">${links.map(link => `<a href="${escapeHtml(clientSocialHref(link))}" target="_blank" rel="noopener" title="${escapeHtml(link.url)}"><span>${escapeHtml(clientSocialDisplay(link))}</span><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>`).join('')}</span>`;
+  }
+
+  $('#addClientSocialLink')?.addEventListener('click', () => {
+    const links = readClientSocialLinks({ includeEmpty: true });
+    if (links.length >= 12) return;
+    links.push({ platform: 'website', url: '' });
+    renderClientSocialLinkEditor(links);
+    $('#clientSocialLinksList .client-social-link-row:last-child [data-client-social-platform]')?.focus();
+  });
+  $('#clientSocialLinksList')?.addEventListener('click', event => {
+    const removeButton = event.target.closest('[data-remove-client-social-link]');
+    if (!removeButton) return;
+    removeButton.closest('.client-social-link-row')?.remove();
+    if (!$('#clientSocialLinksList .client-social-link-row')) renderClientSocialLinkEditor();
+    updateClientSocialEditorControls(false);
+  });
 
   function applicationMatchSignature(applications = data.applications || []) {
     return (applications || []).map(application => [
@@ -2610,7 +2741,8 @@
     const clients = allHired.filter(item => {
       const contractStatus = isContractEnded(item) ? 'Contract Ended' : (item.contractStatus || 'Active');
       const searchableText = [
-        item.clientName, item.email, item.phone, item.website, item.socialMedia, item.location,
+        item.clientName, item.email, item.phone, item.website, item.socialMedia,
+        ...normalizeClientSocialLinks(item).flatMap(link => [link.platform, CLIENT_SOCIAL_PLATFORM_LABELS[link.platform], link.url]), item.location,
         item.companyName, item.company, item.role, contractStatus
       ].join(' ').toLowerCase();
       return (filter === 'all' || contractStatus === filter)
@@ -2797,7 +2929,7 @@
       ['Email', item.email && `<a href="mailto:${escapeHtml(item.email)}">${escapeHtml(item.email)}</a>`],
       ['Phone', item.phone && `<a href="tel:${escapeHtml(item.phone)}">${escapeHtml(item.phone)}</a>`],
       ['Application Link', item.website && `<a href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener">${escapeHtml(item.website)}</a>`],
-      ['Social Media | Website', item.socialMedia && `<a href="${escapeHtml(normalizeUrl(item.socialMedia))}" target="_blank" rel="noopener">${escapeHtml(item.socialMedia)}</a>`],
+      ['Social media & websites', clientSocialLinksMarkup(item)],
       ['Location', item.location && escapeHtml(item.location)]
     ]);
     const workFields = detailsMarkup([
@@ -3223,6 +3355,7 @@
       if (field.id === 'clientId' || field.type === 'file') return;
       draft[field.id] = field.type === 'checkbox' ? field.checked : field.value;
     });
+    draft.socialLinks = readClientSocialLinks({ includeEmpty: true });
     localStorage.setItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`, JSON.stringify(draft));
   }
 
@@ -3250,6 +3383,7 @@
       if (field.type === 'checkbox') field.checked = value === true;
       else field.value = String(value ?? '');
     });
+    renderClientSocialLinkEditor(Array.isArray(draft.socialLinks) ? draft.socialLinks : []);
     $('#clientPlatform').dispatchEvent(new Event('change'));
     $('#clientCountry').dispatchEvent(new Event('change'));
     if ($('#clientRegion').value) $('#clientRegion').dispatchEvent(new Event('change'));
@@ -3261,6 +3395,7 @@
   function openClientModal(id = null, viewOnly = false, activeClientOnly = false, drawerEdit = false, activeClientDetailsEdit = false) {
     const form = $('#clientForm');
     form.reset();
+    renderClientSocialLinkEditor();
     activeClientDetailsModalEdit = activeClientDetailsEdit;
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
@@ -3294,7 +3429,7 @@
       $('#hiredEmail').value = item.email || '';
       $('#hiredPhone').value = item.phone || '';
       $('#hiredWebsite').value = item.website || '';
-      $('#hiredSocial').value = item.socialMedia || '';
+      renderClientSocialLinkEditor(normalizeClientSocialLinks(item), viewOnly);
       $('#hiredLocation').value = item.location || '';
       const savedLocation = String(item.location || '');
       const savedCountry = [...$('#clientCountry').options].find(option => savedLocation === option.text || savedLocation.startsWith(`${option.text},`));
@@ -3347,8 +3482,7 @@
     }
     if (!id && !viewOnly) restoreNewClientApplicationDraft();
     [
-      ['#hiredWebsite', '#hiredWebsiteLink'],
-      ['#hiredSocial', '#hiredSocialLink']
+      ['#hiredWebsite', '#hiredWebsiteLink']
     ].forEach(([inputSelector, linkSelector]) => {
       const input = $(inputSelector);
       const link = $(linkSelector);
@@ -3359,6 +3493,7 @@
       if (value) link.href = normalizeUrl(value);
     });
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = viewOnly; });
+    updateClientSocialEditorControls(viewOnly);
     if (activeClientOnly) {
       $('#clientStatus').value = 'Active client';
       $('#clientStatus').disabled = true;
@@ -3484,6 +3619,7 @@
       && !(await appConfirm(`This contract end date has already passed (${formatDate(contractEndDate)}). Saving it will mark ${$('#clientName').value.trim() || 'this client'} as expired. Do you want to continue?`, { title: 'Contract date has passed', confirmLabel: 'Save anyway' }))) return;
     if (isActiveClient && (!existing || existing.status !== 'Active client')) beginActivationRollback(editingId || uid(), existing);
     const activeClientEmailPending = isActiveClient && (!existing || existing.status !== 'Active client' || Boolean(existing.activePendingEmail));
+    const socialLinks = readClientSocialLinks();
     const application = {
       id: editingId || (pendingActivation?.applicationId || uid()),
       clientName: $('#clientName').value.trim(),
@@ -3492,7 +3628,8 @@
       email: $('#hiredEmail').value.trim(),
       phone: $('#hiredPhone').value.trim(),
       website: $('#hiredWebsite').value.trim(),
-      socialMedia: $('#hiredSocial').value.trim(),
+      socialMedia: socialLinks[0]?.url || '',
+      socialLinks,
       location: $('#hiredLocation').value.trim(),
       platform: platformChoice === 'Other' ? $('#customPlatform').value.trim() : platformChoice,
       employmentType: $('#employmentType').value,
@@ -6715,7 +6852,8 @@
       $('#loginError').textContent = 'Sign-in is unavailable. Check the app configuration.';
       return;
     }
-    $('#loginGoogleButton').disabled = true;
+    const loginGoogleButton = $('#loginGoogleButton');
+    setButtonLoading(loginGoogleButton, true);
     $('#loginGoogleStatus').textContent = 'Opening Google sign-in…';
     activeAuthProvider = 'google';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);
@@ -6737,7 +6875,7 @@
         ? 'Google sign-in is not enabled. Check the authentication provider settings, then try again.'
         : 'Google sign-in could not start. Check the authentication provider settings.';
       $('#loginGoogleStatus').textContent = 'Use your Google account to open the dashboard.';
-      $('#loginGoogleButton').disabled = false;
+      setButtonLoading(loginGoogleButton, false);
     }
   }
 
@@ -6966,7 +7104,7 @@
   // browser. Application records and tool data are exported as separate sheets. Document binaries stay in private
   // Supabase Storage and are never included in the sheet — only their names/sizes/metadata travel
   // with the sheet. A restore therefore restores records, not document binaries or email history.
-  const APPLICATION_COLUMNS = ['id', 'clientName', 'status', 'contractStatus', 'contractEndDate', 'contractEndedEmailSentAt', 'platform', 'employmentType', 'salaryType', 'salaryAmount', 'hoursPerWeek', 'contact', 'role', 'appliedDate', 'createdAt', 'activeAt', 'activePendingDocument', 'activePendingEmail', 'documentEmailPending', 'documentEmailReminderDate', 'documentEmailReminderAlertedDate', 'interviewPriority', 'interviewDate', 'interviewLink', 'interviewAlertDate', 'followUpDate', 'automaticFollowUp', 'followUpProcessedAt', 'followUpSentAt', 'notes', 'email', 'phone', 'website', 'socialMedia', 'location', 'documents', 'updatedAt'];
+  const APPLICATION_COLUMNS = ['id', 'clientName', 'status', 'contractStatus', 'contractEndDate', 'contractEndedEmailSentAt', 'platform', 'employmentType', 'salaryType', 'salaryAmount', 'hoursPerWeek', 'contact', 'role', 'appliedDate', 'createdAt', 'activeAt', 'activePendingDocument', 'activePendingEmail', 'documentEmailPending', 'documentEmailReminderDate', 'documentEmailReminderAlertedDate', 'interviewPriority', 'interviewDate', 'interviewLink', 'interviewAlertDate', 'followUpDate', 'automaticFollowUp', 'followUpProcessedAt', 'followUpSentAt', 'notes', 'email', 'phone', 'website', 'socialMedia', 'socialLinks', 'location', 'documents', 'updatedAt'];
   const TO_APPLY_COLUMNS = ['id', 'title', 'link', 'dueDate', 'notes'];
   const DAILY_TASK_COLUMNS = ['id', 'title', 'type', 'taskDate', 'relatedType', 'relatedId', 'relatedName', 'destination', 'notes', 'checklist', 'createdAt', 'completedAt'];
   const LINK_COLUMNS = ['id', 'name', 'url', 'createdAt', 'updatedAt'];
@@ -6985,7 +7123,7 @@
   function applicationToRow(item) {
     const row = {};
     APPLICATION_COLUMNS.forEach(key => {
-      row[key] = key === 'documents' ? JSON.stringify(item.documents || []) : (item[key] ?? '');
+      row[key] = key === 'documents' || key === 'socialLinks' ? JSON.stringify(item[key] || []) : (item[key] ?? '');
     });
     return row;
   }
@@ -7028,7 +7166,12 @@
 
   function rowToApplication(row) {
     let documents = [];
+    let socialLinks = [];
     try { documents = row.documents ? JSON.parse(row.documents) : []; } catch { documents = []; }
+    try { socialLinks = row.socialLinks ? JSON.parse(row.socialLinks) : []; } catch { socialLinks = []; }
+    if (!Array.isArray(socialLinks)) socialLinks = [];
+    socialLinks = socialLinks.map(link => ({ platform: String(link?.platform || 'website'), url: String(link?.url || '').trim() })).filter(link => link.url);
+    if (!socialLinks.length && String(row.socialMedia || '').trim()) socialLinks = [{ platform: 'website', url: String(row.socialMedia).trim() }];
     return {
       id: String(row.id || uid()),
       clientName: String(row.clientName || ''),
@@ -7059,7 +7202,8 @@
       email: String(row.email || ''),
       phone: String(row.phone || ''),
       website: String(row.website || ''),
-      socialMedia: String(row.socialMedia || ''),
+      socialMedia: String(row.socialMedia || socialLinks[0]?.url || ''),
+      socialLinks,
       location: String(row.location || ''),
       createdAt: String(row.createdAt || row.updatedAt || new Date().toISOString()),
       activeAt: String(row.activeAt || (row.status === 'Active client' ? row.appliedDate || '' : '')),
@@ -7070,7 +7214,7 @@
 
   function buildBackupWorkbook() {
     const workbook = XLSX.utils.book_new();
-    const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, location: 24, documents: 48, updatedAt: 24 };
+    const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, socialLinks: 52, location: 24, documents: 48, updatedAt: 24 };
     const applicationsSheet = createDataSheet(pipelineApplications().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const activeClientsSheet = createDataSheet(hiredClients().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];
@@ -11403,6 +11547,7 @@
     loginError.textContent = '';
     activeAuthProvider = 'email';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);
+    setButtonLoading(loginSubmitButton, true);
     try {
       const client = requireSupabase();
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
@@ -11421,6 +11566,8 @@
           : 'Sign-in failed. Check your connection and try again.';
       loginPassword.value = '';
       loginPassword.focus();
+    } finally {
+      if (!currentUser) setButtonLoading(loginSubmitButton, false);
     }
   });
   $('#loginGoogleButton').addEventListener('click', loginWithGoogle);
@@ -11546,6 +11693,7 @@
     $('#applicationDateSort').value = 'all';
     renderAll();
     await finishWelcomeTransition();
+    setButtonLoading(loginSubmitButton, false);
     $('#loginUsername').focus();
   });
 

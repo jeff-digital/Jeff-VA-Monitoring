@@ -722,13 +722,13 @@
   async function finishWelcomeTransition() {
     const transition = $('#welcomeTransition');
     if (!transition || transition.hidden) return;
-    const minimumDuration = 1800;
+    const minimumDuration = 300;
     const elapsed = performance.now() - welcomeTransitionStartedAt;
     await new Promise(resolve => setTimeout(resolve, Math.max(0, minimumDuration - elapsed)));
     transition.classList.remove('is-visible');
     transition.classList.add('is-leaving');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    await new Promise(resolve => setTimeout(resolve, reducedMotion ? 0 : 320));
+    await new Promise(resolve => setTimeout(resolve, reducedMotion ? 0 : 100));
     transition.hidden = true;
     transition.classList.remove('is-leaving');
     document.body.classList.remove('auth-loading');
@@ -797,45 +797,42 @@
     supabaseDataLoaded = true;
     dataReady = true;
     startNotificationRefreshTimer();
-    let startupStage = 'preparing workspace data';
-    try {
-      if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
-      const autoRejectedApplications = processStaleApplications();
-      startupStage = 'rendering the workspace';
-      renderAll();
-      renderAccountPage();
-      startupStage = 'processing workspace reminders';
-      await processDueFollowUps();
-      processDueApplyReminders();
-      processDueInterviews();
-      processDueDocumentEmailReminders();
-      processContractEndedAlerts();
-      startupStage = 'rendering updated workspace data';
-      renderAll();
-      renderAccountPage();
-      startupStage = 'refreshing client onboarding alerts';
-      await refreshClientOnboardingAlerts();
-      if (gmailAccessToken) {
-        startupStage = 'syncing Gmail';
-        startGmailSyncTimer();
-        await syncGmail(true);
+    if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+    const autoRejectedApplications = processStaleApplications();
+    renderAll();
+    renderAccountPage();
+    await finishWelcomeTransition();
+    initializingUserId = null;
+    if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
+
+    // Everything below is useful refresh work, but none of it is required to
+    // enter the dashboard. Keep it outside the login critical path.
+    window.setTimeout(async () => {
+      let startupStage = 'processing workspace reminders';
+      try {
+        if (!currentUser || currentUser.id !== user.id) return;
+        await processDueFollowUps();
+        processDueApplyReminders();
+        processDueInterviews();
+        processDueDocumentEmailReminders();
+        processContractEndedAlerts();
+        renderAll();
+        renderAccountPage();
+        startupStage = 'refreshing client onboarding alerts';
+        await refreshClientOnboardingAlerts();
+        if (gmailAccessToken) {
+          startupStage = 'syncing Gmail';
+          startGmailSyncTimer();
+          await syncGmail(true);
+        }
+        startupStage = 'saving workspace changes';
+        await persist();
+        scheduleAutomaticBackup();
+        if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
+      } catch (error) {
+        console.error(`Workspace refresh failed while ${startupStage}:`, error);
       }
-      startupStage = 'saving workspace changes';
-      await persist();
-      scheduleAutomaticBackup();
-      if (autoRejectedApplications.length) showApplicationRejectionNotice(autoRejectedApplications);
-      if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
-    } catch (error) {
-      console.error(`Workspace startup failed while ${startupStage}; saved data was loaded:`, error);
-      showActionResult({
-        title: 'Workspace startup incomplete',
-        message: `Your saved data was loaded, but ${startupStage} failed${error?.message ? `: ${error.message}` : '.'}`,
-        status: 'error'
-      });
-    } finally {
-      await finishWelcomeTransition();
-      initializingUserId = null;
-    }
+    }, 0);
   }
 
   function subscribeToAppState(userId) {

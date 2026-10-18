@@ -944,7 +944,8 @@
       $('#loginError').textContent = 'Sign-in is unavailable. Check the app configuration.';
       return;
     }
-    $('#loginGoogleButton').disabled = true;
+    const loginGoogleButton = $('#loginGoogleButton');
+    setButtonLoading(loginGoogleButton, true);
     $('#loginGoogleStatus').textContent = 'Opening Google sign-in…';
     activeAuthProvider = 'google';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);
@@ -966,7 +967,7 @@
         ? 'Google sign-in is not enabled. Check the authentication provider settings, then try again.'
         : 'Google sign-in could not start. Check the authentication provider settings.';
       $('#loginGoogleStatus').textContent = 'Use your Google account to open the dashboard.';
-      $('#loginGoogleButton').disabled = false;
+      setButtonLoading(loginGoogleButton, false);
     }
   }
 

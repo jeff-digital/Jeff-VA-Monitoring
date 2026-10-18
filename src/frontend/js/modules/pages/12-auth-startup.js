@@ -28,6 +28,7 @@
     loginError.textContent = '';
     activeAuthProvider = 'email';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);
+    setButtonLoading(loginSubmitButton, true);
     try {
       const client = requireSupabase();
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
@@ -46,6 +47,8 @@
           : 'Sign-in failed. Check your connection and try again.';
       loginPassword.value = '';
       loginPassword.focus();
+    } finally {
+      if (!currentUser) setButtonLoading(loginSubmitButton, false);
     }
   });
   $('#loginGoogleButton').addEventListener('click', loginWithGoogle);
@@ -171,6 +174,7 @@
     $('#applicationDateSort').value = 'all';
     renderAll();
     await finishWelcomeTransition();
+    setButtonLoading(loginSubmitButton, false);
     $('#loginUsername').focus();
   });
 
