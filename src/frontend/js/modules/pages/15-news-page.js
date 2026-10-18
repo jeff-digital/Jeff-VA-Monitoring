@@ -4,6 +4,7 @@
   let newsRequest = 0;
   let newsLastLoaded = 0;
   let newsHasMore = false;
+  const gatheredNewsStorageKey = 'jeff-va-gathered-news-v1';
 
   const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing' };
   const newsUrlKey = value => {
@@ -29,6 +30,19 @@
       if (titleKey) titles.add(titleKey);
       return true;
     });
+  };
+  const readGatheredNews = () => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(gatheredNewsStorageKey) || '[]');
+      return Array.isArray(stored) ? uniqueNewsArticles(stored.filter(article => article?.url && article?.title)).slice(0, 100) : [];
+    } catch { return []; }
+  };
+  let gatheredNewsArticles = readGatheredNews();
+  const rememberGatheredNews = articles => {
+    gatheredNewsArticles = uniqueNewsArticles([...articles, ...gatheredNewsArticles])
+      .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0))
+      .slice(0, 100);
+    try { sessionStorage.setItem(gatheredNewsStorageKey, JSON.stringify(gatheredNewsArticles)); } catch {}
   };
   const relativeNewsTime = date => {
     const time = Date.parse(date || '');
@@ -106,8 +120,9 @@
     const requestId = ++newsRequest;
     if (reset) {
       newsPage = 1;
-      newsArticles = [];
       const category = $('#newsCategory').value;
+      const hasSearch = Boolean($('#newsSearch').value.trim());
+      newsArticles = category === 'all' && !hasSearch ? [...gatheredNewsArticles] : [];
       if (category !== 'all') renderNewsCategoryLoading(category);
       else renderNewsArticles();
     }
@@ -125,7 +140,10 @@
       const payload = await response.json();
       if (requestId !== newsRequest) return;
       if (!response.ok) throw new Error(payload.error || 'News could not be loaded.');
-      newsArticles = uniqueNewsArticles([...newsArticles, ...(payload.articles || [])]);
+      const fetchedArticles = payload.articles || [];
+      rememberGatheredNews(fetchedArticles);
+      const showGathered = $('#newsCategory').value === 'all' && !$('#newsSearch').value.trim();
+      newsArticles = uniqueNewsArticles([...newsArticles, ...(showGathered ? gatheredNewsArticles : fetchedArticles)]);
       newsArticles.sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
       newsHasMore = Boolean(payload.hasMore);
       newsLastLoaded = Date.now();

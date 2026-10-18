@@ -1576,8 +1576,12 @@
       ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span></span>`
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
+    const clientDisplayName = [item.contact, item.companyName || item.company || item.clientName]
+      .map(value => String(value || '').trim())
+      .filter(Boolean)
+      .join(' | ') || 'Active client';
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name">${escapeHtml([item.contact, item.companyName || item.company || item.clientName].map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client')}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
       ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
       ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
       ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
@@ -2034,20 +2038,19 @@
 
   function showView(view, { updateUrl = true } = {}) {
     if (view === 'password') view = 'account';
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'hired', 'inbox', 'documents', 'wallet', 'account'];
-    if (!validViews.includes(view)) view = 'dashboard';
+    if (!APP_VIEW_SET.has(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (view !== 'dashboard') closeClientDashboardDrawer();
-    else if (view === 'account') {
+    if (view === 'account') {
       localStorage.setItem(ACTIVE_VIEW_KEY, view);
-      if (updateUrl && window.location.hash !== '#account') {
-        window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#account`);
+      if (updateUrl && window.location.pathname !== appViewPath(view)) {
+        window.history.pushState({ view }, '', appViewPath(view));
       }
       openWorkspaceSettings();
       return;
     }
-    if (updateUrl && window.location.hash !== `#${view}`) {
-      window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
+    if (updateUrl && (window.location.pathname !== appViewPath(view) || window.location.search || window.location.hash)) {
+      window.history.pushState({ view }, '', appViewPath(view));
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;

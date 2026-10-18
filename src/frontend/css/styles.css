@@ -6613,7 +6613,15 @@ button.is-loading::before, .button.is-loading::before {
   animation: button-loading-spin .7s linear infinite;
 }
 @keyframes button-loading-spin { to { transform: rotate(360deg); } }
-body:has(#hiredView.active) .hired-card .hired-client-contact-name { white-space: normal; overflow-wrap: anywhere; }
+body:has(#hiredView.active) .hired-list { align-items: stretch; }
+body:has(#hiredView.active) .hired-card { height: 100%; }
+body:has(#hiredView.active) .hired-card .hired-client-contact-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Navigation must shrink within its column instead of creating horizontal scroll. */
 .sidebar .main-nav { grid-template-columns: minmax(0, 1fr); min-width: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #65718b transparent; overscroll-behavior: contain; }
 .sidebar .nav-group { grid-template-columns: minmax(0, 1fr); min-width: 0; }

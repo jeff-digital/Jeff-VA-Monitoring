@@ -7,6 +7,15 @@
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const AUTH_TAB_READY_KEY = 'jeff-va-auth-tab-ready-v1';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
+  const APP_VIEWS = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'hired', 'inbox', 'documents', 'wallet', 'account'];
+  const APP_VIEW_SET = new Set(APP_VIEWS);
+  const appViewPath = view => `/${APP_VIEW_SET.has(view) ? view : 'dashboard'}`;
+  function appViewFromLocation() {
+    const hashView = window.location.hash.slice(1);
+    if (APP_VIEW_SET.has(hashView)) return hashView;
+    const pathView = window.location.pathname.split('/').filter(Boolean).pop() || '';
+    return APP_VIEW_SET.has(pathView) ? pathView : '';
+  }
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
@@ -858,14 +867,15 @@
     const isAuthenticationCallback = callbackParams.has('code')
       || (callbackParams.has('access_token') && callbackParams.has('refresh_token'));
     const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
-    if (callbackKeys.some(key => callbackParams.has(key))) {
-      const callbackView = isAuthenticationCallback
+    const hasCallbackParams = callbackKeys.some(key => callbackParams.has(key));
+    const callbackView = isAuthenticationCallback
         && !isPasswordRecovery
         && (callbackParams.get('auth_view') === 'applications'
           || sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY) === 'google')
         ? 'applications'
         : 'dashboard';
-      window.history.replaceState({}, document.title, `${window.location.pathname}#${callbackView}`);
+    if (hasCallbackParams) {
+      window.history.replaceState({ view: callbackView }, document.title, appViewPath(callbackView));
     }
     if (callbackParams.get('error')) {
       const description = callbackParams.get('error_description') || callbackParams.get('error');
@@ -877,23 +887,6 @@
     }
     try {
       const client = requireSupabase();
-      client.auth.onAuthStateChange((event, session) => {
-        if (event !== 'SIGNED_IN' || !session?.user || currentUser) return;
-        activeAuthProvider = resolveAuthProvider(session);
-        if (session.provider_token) {
-          gmailAccessToken = session.provider_token;
-          sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
-          sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
-          sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
-          gmailReconnectRequired = false;
-        }
-        const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
-        initializeSupabaseForUser(session.user, {
-          showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
-          recordSignIn: isFreshSignIn,
-          showOverview: false
-        });
-      });
       const accessToken = callbackParams.get('access_token');
       const refreshToken = callbackParams.get('refresh_token');
       const callbackCode = callbackParams.get('code');
@@ -921,13 +914,37 @@
       }
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
+        if (isAuthenticationCallback && !isPasswordRecovery) {
+          showView(callbackView, { updateUrl: false });
+        }
         await initializeSupabaseForUser(sessionData.session.user, {
           showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
-          showOverview: isAuthenticationCallback && !isPasswordRecovery
+          showOverview: false
         });
         if (isPasswordRecovery) openPasswordPage({ recovery: true });
       }
+      client.auth.onAuthStateChange((event, session) => {
+        if (event !== 'SIGNED_IN' || !session?.user) return;
+        // Password sign-in and OAuth callback restoration initialize the session
+        // directly. Defer this fallback so those paths cannot start a second load.
+        window.setTimeout(() => {
+          if (currentUser || initializingUserId) return;
+          activeAuthProvider = resolveAuthProvider(session);
+          if (session.provider_token) {
+            gmailAccessToken = session.provider_token;
+            sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
+            sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+            sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+            gmailReconnectRequired = false;
+          }
+          initializeSupabaseForUser(session.user, {
+            showLoading: !isPasswordRecovery && isFirstLoadInTab,
+            recordSignIn: !isPasswordRecovery,
+            showOverview: false
+          });
+        }, 0);
+      });
     } catch (error) {
       console.error('Could not restore Supabase session:', error);
       $('#loginError').textContent = 'Google sign-in returned, but the session could not be restored. Check the authentication redirect URL.';

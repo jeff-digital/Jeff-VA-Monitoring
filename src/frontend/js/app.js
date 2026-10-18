@@ -10,6 +10,15 @@
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const AUTH_TAB_READY_KEY = 'jeff-va-auth-tab-ready-v1';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
+  const APP_VIEWS = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'hired', 'inbox', 'documents', 'wallet', 'account'];
+  const APP_VIEW_SET = new Set(APP_VIEWS);
+  const appViewPath = view => `/${APP_VIEW_SET.has(view) ? view : 'dashboard'}`;
+  function appViewFromLocation() {
+    const hashView = window.location.hash.slice(1);
+    if (APP_VIEW_SET.has(hashView)) return hashView;
+    const pathView = window.location.pathname.split('/').filter(Boolean).pop() || '';
+    return APP_VIEW_SET.has(pathView) ? pathView : '';
+  }
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
@@ -861,14 +870,15 @@
     const isAuthenticationCallback = callbackParams.has('code')
       || (callbackParams.has('access_token') && callbackParams.has('refresh_token'));
     const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
-    if (callbackKeys.some(key => callbackParams.has(key))) {
-      const callbackView = isAuthenticationCallback
+    const hasCallbackParams = callbackKeys.some(key => callbackParams.has(key));
+    const callbackView = isAuthenticationCallback
         && !isPasswordRecovery
         && (callbackParams.get('auth_view') === 'applications'
           || sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY) === 'google')
         ? 'applications'
         : 'dashboard';
-      window.history.replaceState({}, document.title, `${window.location.pathname}#${callbackView}`);
+    if (hasCallbackParams) {
+      window.history.replaceState({ view: callbackView }, document.title, appViewPath(callbackView));
     }
     if (callbackParams.get('error')) {
       const description = callbackParams.get('error_description') || callbackParams.get('error');
@@ -880,23 +890,6 @@
     }
     try {
       const client = requireSupabase();
-      client.auth.onAuthStateChange((event, session) => {
-        if (event !== 'SIGNED_IN' || !session?.user || currentUser) return;
-        activeAuthProvider = resolveAuthProvider(session);
-        if (session.provider_token) {
-          gmailAccessToken = session.provider_token;
-          sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
-          sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
-          sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
-          gmailReconnectRequired = false;
-        }
-        const isFreshSignIn = event === 'SIGNED_IN' && !isPasswordRecovery;
-        initializeSupabaseForUser(session.user, {
-          showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
-          recordSignIn: isFreshSignIn,
-          showOverview: false
-        });
-      });
       const accessToken = callbackParams.get('access_token');
       const refreshToken = callbackParams.get('refresh_token');
       const callbackCode = callbackParams.get('code');
@@ -924,13 +917,37 @@
       }
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
+        if (isAuthenticationCallback && !isPasswordRecovery) {
+          showView(callbackView, { updateUrl: false });
+        }
         await initializeSupabaseForUser(sessionData.session.user, {
           showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
-          showOverview: isAuthenticationCallback && !isPasswordRecovery
+          showOverview: false
         });
         if (isPasswordRecovery) openPasswordPage({ recovery: true });
       }
+      client.auth.onAuthStateChange((event, session) => {
+        if (event !== 'SIGNED_IN' || !session?.user) return;
+        // Password sign-in and OAuth callback restoration initialize the session
+        // directly. Defer this fallback so those paths cannot start a second load.
+        window.setTimeout(() => {
+          if (currentUser || initializingUserId) return;
+          activeAuthProvider = resolveAuthProvider(session);
+          if (session.provider_token) {
+            gmailAccessToken = session.provider_token;
+            sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
+            sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+            sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+            gmailReconnectRequired = false;
+          }
+          initializeSupabaseForUser(session.user, {
+            showLoading: !isPasswordRecovery && isFirstLoadInTab,
+            recordSignIn: !isPasswordRecovery,
+            showOverview: false
+          });
+        }, 0);
+      });
     } catch (error) {
       console.error('Could not restore Supabase session:', error);
       $('#loginError').textContent = 'Google sign-in returned, but the session could not be restored. Check the authentication redirect URL.';
@@ -2673,8 +2690,12 @@
       ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span></span>`
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
+    const clientDisplayName = [item.contact, item.companyName || item.company || item.clientName]
+      .map(value => String(value || '').trim())
+      .filter(Boolean)
+      .join(' | ') || 'Active client';
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name">${escapeHtml([item.contact, item.companyName || item.company || item.clientName].map(value => String(value || '').trim()).filter(Boolean).join(' | ') || 'Active client')}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
       ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
       ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
       ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
@@ -3131,20 +3152,19 @@
 
   function showView(view, { updateUrl = true } = {}) {
     if (view === 'password') view = 'account';
-    const validViews = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'hired', 'inbox', 'documents', 'wallet', 'account'];
-    if (!validViews.includes(view)) view = 'dashboard';
+    if (!APP_VIEW_SET.has(view)) view = 'dashboard';
     if (view === 'account' && !hasAccountSettingsAccess()) view = 'dashboard';
     if (view !== 'dashboard') closeClientDashboardDrawer();
-    else if (view === 'account') {
+    if (view === 'account') {
       localStorage.setItem(ACTIVE_VIEW_KEY, view);
-      if (updateUrl && window.location.hash !== '#account') {
-        window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#account`);
+      if (updateUrl && window.location.pathname !== appViewPath(view)) {
+        window.history.pushState({ view }, '', appViewPath(view));
       }
       openWorkspaceSettings();
       return;
     }
-    if (updateUrl && window.location.hash !== `#${view}`) {
-      window.history.pushState({ view }, '', `${window.location.pathname}${window.location.search}#${view}`);
+    if (updateUrl && (window.location.pathname !== appViewPath(view) || window.location.search || window.location.hash)) {
+      window.history.pushState({ view }, '', appViewPath(view));
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
@@ -6700,17 +6720,10 @@
     activeAuthProvider = 'google';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);
     try {
-      if (!gmailAccessToken && gmailConfigured()) {
-        try {
-          await requestGmailAccessToken('');
-        } catch (gmailError) {
-          console.info('Gmail token was not restored before Google sign-in; continuing with the requested Gmail scopes.', gmailError);
-        }
-      }
       const { error } = await requireSupabase().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${window.location.pathname}?auth_view=applications`,
+          redirectTo: `${window.location.origin}/?auth_view=applications`,
           scopes: GMAIL_SCOPE
         }
       });
@@ -11192,6 +11205,7 @@
   let newsRequest = 0;
   let newsLastLoaded = 0;
   let newsHasMore = false;
+  const gatheredNewsStorageKey = 'jeff-va-gathered-news-v1';
 
   const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing' };
   const newsUrlKey = value => {
@@ -11217,6 +11231,19 @@
       if (titleKey) titles.add(titleKey);
       return true;
     });
+  };
+  const readGatheredNews = () => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(gatheredNewsStorageKey) || '[]');
+      return Array.isArray(stored) ? uniqueNewsArticles(stored.filter(article => article?.url && article?.title)).slice(0, 100) : [];
+    } catch { return []; }
+  };
+  let gatheredNewsArticles = readGatheredNews();
+  const rememberGatheredNews = articles => {
+    gatheredNewsArticles = uniqueNewsArticles([...articles, ...gatheredNewsArticles])
+      .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0))
+      .slice(0, 100);
+    try { sessionStorage.setItem(gatheredNewsStorageKey, JSON.stringify(gatheredNewsArticles)); } catch {}
   };
   const relativeNewsTime = date => {
     const time = Date.parse(date || '');
@@ -11294,8 +11321,9 @@
     const requestId = ++newsRequest;
     if (reset) {
       newsPage = 1;
-      newsArticles = [];
       const category = $('#newsCategory').value;
+      const hasSearch = Boolean($('#newsSearch').value.trim());
+      newsArticles = category === 'all' && !hasSearch ? [...gatheredNewsArticles] : [];
       if (category !== 'all') renderNewsCategoryLoading(category);
       else renderNewsArticles();
     }
@@ -11313,7 +11341,10 @@
       const payload = await response.json();
       if (requestId !== newsRequest) return;
       if (!response.ok) throw new Error(payload.error || 'News could not be loaded.');
-      newsArticles = uniqueNewsArticles([...newsArticles, ...(payload.articles || [])]);
+      const fetchedArticles = payload.articles || [];
+      rememberGatheredNews(fetchedArticles);
+      const showGathered = $('#newsCategory').value === 'all' && !$('#newsSearch').value.trim();
+      newsArticles = uniqueNewsArticles([...newsArticles, ...(showGathered ? gatheredNewsArticles : fetchedArticles)]);
       newsArticles.sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
       newsHasMore = Boolean(payload.hasMore);
       newsLastLoaded = Date.now();
@@ -11521,10 +11552,14 @@
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);
-  const initialView = window.location.hash.slice(1) || localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard';
+  const initialView = appViewFromLocation() || localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard';
   showView(initialView, { updateUrl: false });
+  const legacyHashView = window.location.hash.slice(1);
+  if (APP_VIEW_SET.has(legacyHashView)) {
+    window.history.replaceState({ view: initialView }, document.title, appViewPath(initialView));
+  }
   window.addEventListener('popstate', () => {
-    showView(window.location.hash.slice(1) || 'dashboard', { updateUrl: false });
+    showView(appViewFromLocation() || 'dashboard', { updateUrl: false });
   });
   initGmail();
   restoreSupabaseSession();

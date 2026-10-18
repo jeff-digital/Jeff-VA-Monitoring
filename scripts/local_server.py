@@ -24,6 +24,18 @@ FRONTEND_ROOT = Path(__file__).resolve().parents[1] / "src" / "frontend"
 BACKUP_PATH = "/api/automatic-backup"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
+APP_ROUTES = {
+    "/dashboard",
+    "/daily-task",
+    "/applications",
+    "/to-apply",
+    "/news",
+    "/hired",
+    "/inbox",
+    "/documents",
+    "/wallet",
+    "/account",
+}
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; "
     "script-src 'self' https://accounts.google.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.sheetjs.com; "
@@ -80,6 +92,18 @@ def write_backup(payload: bytes) -> Path:
 
 
 class JeffVARequestHandler(SimpleHTTPRequestHandler):
+    def _serve_app_route(self) -> None:
+        if urlparse(self.path).path.rstrip("/") in APP_ROUTES:
+            self.path = "/index.html"
+
+    def do_GET(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        self._serve_app_route()
+        super().do_GET()
+
+    def do_HEAD(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        self._serve_app_route()
+        super().do_HEAD()
+
     def end_headers(self) -> None:
         self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")

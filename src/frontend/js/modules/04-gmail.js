@@ -949,17 +949,10 @@
     activeAuthProvider = 'google';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);
     try {
-      if (!gmailAccessToken && gmailConfigured()) {
-        try {
-          await requestGmailAccessToken('');
-        } catch (gmailError) {
-          console.info('Gmail token was not restored before Google sign-in; continuing with the requested Gmail scopes.', gmailError);
-        }
-      }
       const { error } = await requireSupabase().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}${window.location.pathname}?auth_view=applications`,
+          redirectTo: `${window.location.origin}/?auth_view=applications`,
           scopes: GMAIL_SCOPE
         }
       });
