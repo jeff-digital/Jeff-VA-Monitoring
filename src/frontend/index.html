@@ -392,6 +392,7 @@
             <div class="application-filter-controls">
               <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Application Date</span><input type="date" id="applicationDateFilter" aria-label="Filter applications by application date" /></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Select week</span><select id="applicationDateSort"><option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option></select></label>
+              <label class="application-filter-field"><span><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Sort</span><select id="applicationOrderSort" aria-label="Sort applications by date"><option value="newest">Newest</option><option value="oldest">Oldest</option></select></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i> Stage</span><select id="statusFilter"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
               <label class="application-filter-field"><span><i class="fa-solid fa-globe" aria-hidden="true"></i> Source</span><select id="platformFilter"><option value="">All sources</option></select></label>
             </div>
@@ -999,6 +1000,7 @@
         <div class="client-form-layout">
           <section class="client-form-column">
             <p class="form-column-label">CLIENT DETAILS</p>
+            <p class="application-duplicate-notice form-field-wide" id="applicationDuplicateNotice" role="status" aria-live="polite" hidden></p>
           <label class="form-field form-field-wide">Client or company name <span class="required">*</span><input id="clientName" maxlength="100" required placeholder="e.g. Acme Studio" /></label>
             <label class="form-field">Contact person <span class="required">*</span><input id="contactName" maxlength="100" required placeholder="e.g. Jordan Lee" /></label>
             <label class="form-field">Role or service <span class="required">*</span><input id="clientRole" maxlength="120" required placeholder="e.g. Website redesign" /></label>

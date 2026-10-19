@@ -935,10 +935,8 @@
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
     const loginGoogleButton = $('#loginGoogleButton');
     loginGoogleButton.disabled = !supabaseConfigured();
-    if (!window.google?.accounts?.oauth2) {
-      setTimeout(initGmail, 300);
-      return;
-    }
+    // Supabase sign-in and Worker token renewal do not need the popup SDK.
+    // A blocked or slow Google script must not prevent restoring this inbox.
     if (!gmailConfigured()) {
       setGmailStatus('Gmail not set up yet — you can still log in with Google to open the dashboard.');
       loginGoogleButton.disabled = !supabaseConfigured();
@@ -1023,7 +1021,7 @@
     if (gmailAuthorizationRecovery) return gmailAuthorizationRecovery;
     gmailAuthorizationRecovery = renewGmailAccess()
       .catch(error => {
-        handleGmailAuthorizationFailure(error);
+        if (error.reconnect) handleGmailAuthorizationFailure(error);
         throw error;
       })
       .finally(() => { gmailAuthorizationRecovery = null; });

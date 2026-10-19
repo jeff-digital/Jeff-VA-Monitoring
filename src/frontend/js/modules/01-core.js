@@ -263,17 +263,17 @@
             ? 'Unavailable'
             : 'Connecting';
     const gmailSyncMessage = $('#accountGmailSyncStatus').textContent;
-    const gmailNeedsAttention = /failed|expired|not set up/i.test(gmailSyncMessage);
+    const gmailNeedsAttention = /failed|expired|not set up|unavailable|paused|needs.*cloudflare/i.test(gmailSyncMessage);
     const gmailStatus = !navigator.onLine
       ? 'Offline'
       : !gmailConfigured()
         ? 'Not configured'
-        : !window.google?.accounts?.oauth2
-          ? 'Unavailable'
+        : gmailReconnectRequired
+          ? 'Permission required'
           : gmailNeedsAttention
             ? 'Needs attention'
             : gmailAccessToken
-              ? 'Authorized this session'
+              ? 'Connected'
               : 'Not connected';
     $('#accountEmail').textContent = currentUser.email || 'Not available';
     $('#accountUserId').textContent = currentUser.id || 'Not available';
@@ -924,21 +924,32 @@
       const accessToken = callbackParams.get('access_token');
       const refreshToken = callbackParams.get('refresh_token');
       const callbackCode = callbackParams.get('code');
+      let callbackProviderSession = null;
       let { data: sessionData, error } = await client.auth.getSession();
       if (error) throw error;
-      if (!sessionData.session && accessToken && refreshToken) {
+      if (accessToken && refreshToken) {
         const callbackResult = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (callbackResult.error) throw callbackResult.error;
+        callbackProviderSession = callbackResult.data?.session;
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
-      if (!sessionData.session && callbackCode) {
+      if (callbackCode && !accessToken) {
         const exchangeResult = await client.auth.exchangeCodeForSession(callbackCode);
         if (exchangeResult.error) throw exchangeResult.error;
+        callbackProviderSession = exchangeResult.data?.session;
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
-      captureGoogleSession(sessionData.session, isAuthenticationCallback);
+      // Supabase's setSession restores dashboard credentials, but may omit
+      // Google's provider tokens from the returned session. Keep the provider
+      // grant from this callback before removing it from the URL.
+      const googleSession = sessionData.session ? {
+        ...sessionData.session,
+        provider_token: callbackParams.get('provider_token') || callbackProviderSession?.provider_token || sessionData.session.provider_token,
+        provider_refresh_token: callbackParams.get('provider_refresh_token') || callbackProviderSession?.provider_refresh_token || sessionData.session.provider_refresh_token
+      } : null;
+      captureGoogleSession(googleSession, isAuthenticationCallback);
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
         if (isAuthenticationCallback && !isPasswordRecovery) {

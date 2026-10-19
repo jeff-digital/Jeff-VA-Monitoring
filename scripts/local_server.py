@@ -16,12 +16,17 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 
 HOST = "127.0.0.1"
 PORT = 8080
 FRONTEND_ROOT = Path(__file__).resolve().parents[1] / "src" / "frontend"
 BACKUP_PATH = "/api/automatic-backup"
+GMAIL_REFRESH_PATH = "/api/gmail/refresh"
+# Forward to the app's authenticated Worker so OAuth secrets stay server-side.
+GMAIL_REFRESH_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/gmail/refresh"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
 APP_ROUTES = {
@@ -92,6 +97,42 @@ def write_backup(payload: bytes) -> Path:
 
 
 class JeffVARequestHandler(SimpleHTTPRequestHandler):
+    def _refresh_gmail(self) -> None:
+        if not is_allowed_backup_request(self.headers.get("Origin", ""), self.headers.get("Host", ""), self.client_address[0]):
+            self.send_error(HTTPStatus.FORBIDDEN)
+            return
+        authorization = self.headers.get("Authorization", "")
+        if not authorization.startswith("Bearer "):
+            self.send_error(HTTPStatus.UNAUTHORIZED)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if not 0 < length <= 16384:
+            self.send_error(HTTPStatus.BAD_REQUEST)
+            return
+        payload = self.rfile.read(length)
+        try:
+            request = Request(GMAIL_REFRESH_UPSTREAM, data=payload, method="POST", headers={
+                "Authorization": authorization, "Content-Type": "application/json",
+            })
+            try:
+                with urlopen(request, timeout=12) as upstream:
+                    status, body = upstream.status, upstream.read(16384)
+            except HTTPError as error:
+                status, body = error.code, error.read(16384)
+            # Never pass an HTML error page off as a successful token response.
+            json.loads(body)
+        except (URLError, TimeoutError, OSError, ValueError):
+            status = HTTPStatus.SERVICE_UNAVAILABLE
+            body = json.dumps({"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _serve_app_route(self) -> None:
         if urlparse(self.path).path.rstrip("/") in APP_ROUTES:
             self.path = "/index.html"
@@ -116,6 +157,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        if urlparse(self.path).path == GMAIL_REFRESH_PATH:
+            self._refresh_gmail()
+            return
         if urlparse(self.path).path != BACKUP_PATH:
             self.send_error(HTTPStatus.NOT_FOUND)
             return

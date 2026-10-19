@@ -266,17 +266,17 @@
             ? 'Unavailable'
             : 'Connecting';
     const gmailSyncMessage = $('#accountGmailSyncStatus').textContent;
-    const gmailNeedsAttention = /failed|expired|not set up/i.test(gmailSyncMessage);
+    const gmailNeedsAttention = /failed|expired|not set up|unavailable|paused|needs.*cloudflare/i.test(gmailSyncMessage);
     const gmailStatus = !navigator.onLine
       ? 'Offline'
       : !gmailConfigured()
         ? 'Not configured'
-        : !window.google?.accounts?.oauth2
-          ? 'Unavailable'
+        : gmailReconnectRequired
+          ? 'Permission required'
           : gmailNeedsAttention
             ? 'Needs attention'
             : gmailAccessToken
-              ? 'Authorized this session'
+              ? 'Connected'
               : 'Not connected';
     $('#accountEmail').textContent = currentUser.email || 'Not available';
     $('#accountUserId').textContent = currentUser.id || 'Not available';
@@ -927,21 +927,32 @@
       const accessToken = callbackParams.get('access_token');
       const refreshToken = callbackParams.get('refresh_token');
       const callbackCode = callbackParams.get('code');
+      let callbackProviderSession = null;
       let { data: sessionData, error } = await client.auth.getSession();
       if (error) throw error;
-      if (!sessionData.session && accessToken && refreshToken) {
+      if (accessToken && refreshToken) {
         const callbackResult = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (callbackResult.error) throw callbackResult.error;
+        callbackProviderSession = callbackResult.data?.session;
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
-      if (!sessionData.session && callbackCode) {
+      if (callbackCode && !accessToken) {
         const exchangeResult = await client.auth.exchangeCodeForSession(callbackCode);
         if (exchangeResult.error) throw exchangeResult.error;
+        callbackProviderSession = exchangeResult.data?.session;
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
-      captureGoogleSession(sessionData.session, isAuthenticationCallback);
+      // Supabase's setSession restores dashboard credentials, but may omit
+      // Google's provider tokens from the returned session. Keep the provider
+      // grant from this callback before removing it from the URL.
+      const googleSession = sessionData.session ? {
+        ...sessionData.session,
+        provider_token: callbackParams.get('provider_token') || callbackProviderSession?.provider_token || sessionData.session.provider_token,
+        provider_refresh_token: callbackParams.get('provider_refresh_token') || callbackProviderSession?.provider_refresh_token || sessionData.session.provider_refresh_token
+      } : null;
+      captureGoogleSession(googleSession, isAuthenticationCallback);
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
         if (isAuthenticationCallback && !isPasswordRecovery) {
@@ -2261,6 +2272,18 @@
     return `<option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option>${options}`;
   }
 
+  function sortApplicationList(items, order = 'newest') {
+    const timestamp = value => {
+      const result = new Date(value || 0).getTime();
+      return Number.isFinite(result) ? result : 0;
+    };
+    const direction = order === 'oldest' ? 1 : -1;
+    return [...items].sort((first, second) => direction * (
+      timestamp(applicationAppliedDate(first)) - timestamp(applicationAppliedDate(second))
+      || timestamp(first.createdAt) - timestamp(second.createdAt)
+    ));
+  }
+
   function renderApplications() {
     const query = $('#applicationSearch').value.trim().toLowerCase();
     const status = $('#statusFilter').value;
@@ -2333,16 +2356,16 @@
       target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>Add your first client</button>'}</div>`;
       return;
     }
-    const newestFirst = sortByDate(filtered, applicationAppliedDate);
+    const sortedApplications = sortApplicationList(filtered, $('#applicationOrderSort').value);
     if (applicationViewMode === 'board') {
       const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', 'Active client', 'Not selected'];
       target.innerHTML = `<div class="application-board">${stages.map(stage => {
-        const cards = newestFirst.filter(item => stage === 'To Proceed' ? isToProceedStatus(item) : item.status === stage);
+        const cards = sortedApplications.filter(item => stage === 'To Proceed' ? isToProceedStatus(item) : item.status === stage);
         return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}">${applicationSelectionMode ? `<input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} />` : ''}<button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
       }).join('')}</div>`;
       return;
     }
-    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${newestFirst.map(item => {
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.map(item => {
       const salaryAmount = Number(item.salaryAmount);
       const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
@@ -3559,6 +3582,7 @@
       $('#clientModal').showModal();
     }
     updateClientActionLabel();
+    updateApplicationDuplicateNotice();
     if (drawerEdit) $('#clientName').focus();
     else setTimeout(() => $('#clientName').focus(), 30);
   }
@@ -3640,6 +3664,61 @@
     $('#sendProceedEmailButton').hidden = viewingClientDetails || $('#clientStatus').value !== 'To Proceed';
   }
 
+  function normalizeApplicationIdentity(value) {
+    return String(value || '').normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  function applicationPostingKey(value) {
+    const input = String(value || '').trim();
+    if (!input) return '';
+    try {
+      const url = new URL(/^https?:\/\//i.test(input) ? input : `https://${input}`);
+      if (!['http:', 'https:'].includes(url.protocol)) return '';
+      url.hash = '';
+      for (const key of [...url.searchParams.keys()]) {
+        if (/^(utm_|fbclid$|gclid$|ref$|source$)/i.test(key)) url.searchParams.delete(key);
+      }
+      url.searchParams.sort();
+      const pathname = url.pathname.replace(/\/+$/, '');
+      // A shared company homepage alone does not identify a job posting.
+      if (!pathname && !url.searchParams.size) return '';
+      return `${url.hostname.toLowerCase().replace(/^www\./, '')}${pathname}${url.search}`;
+    } catch { return ''; }
+  }
+
+  function findDuplicateApplication(candidate, applications = data.applications) {
+    const company = normalizeApplicationIdentity(candidate.clientName);
+    const role = normalizeApplicationIdentity(candidate.role);
+    const posting = applicationPostingKey(candidate.website);
+    return applications.find(item => item.id !== candidate.id && (
+      (company && role && normalizeApplicationIdentity(item.clientName) === company
+        && normalizeApplicationIdentity(item.role) === role)
+      || (posting && applicationPostingKey(item.website) === posting)
+    ));
+  }
+
+  function updateApplicationDuplicateNotice() {
+    const notice = $('#applicationDuplicateNotice');
+    if (!notice) return;
+    notice.hidden = true;
+    notice.textContent = '';
+    if (viewingClientDetails) return;
+    const candidate = { id: editingId || '', clientName: $('#clientName').value,
+      role: $('#clientRole').value, website: $('#hiredWebsite').value };
+    const duplicate = findDuplicateApplication(candidate);
+    const company = normalizeApplicationIdentity(candidate.clientName);
+    const sameCompany = company ? data.applications.find(item => item.id !== candidate.id
+      && normalizeApplicationIdentity(item.clientName) === company) : null;
+    const existing = duplicate || sameCompany;
+    if (!existing) return;
+    const status = STATUS_LABELS[existing.status] || existing.status || 'Not specified';
+    notice.dataset.kind = duplicate ? 'duplicate' : 'company';
+    notice.textContent = duplicate
+      ? `Already saved: ${existing.clientName} — ${existing.role || 'Role not specified'} (${status}${existing.appliedDate ? `; applied ${formatDate(existing.appliedDate)}` : ''}). Update the existing application instead of adding it again.`
+      : `${existing.clientName} already has a saved application: ${existing.role || 'Role not specified'} (${status}). A different role can be added.`;
+    notice.hidden = false;
+  }
+
   async function saveClient(event) {
     const submitter = event.submitter;
     if (submitter?.value === 'cancel') {
@@ -3657,6 +3736,18 @@
     const existing = editingId ? data.applications.find(item => item.id === editingId) : null;
     const existingIndex = editingId ? data.applications.findIndex(item => item.id === editingId) : -1;
     const previousApplication = existing ? JSON.parse(JSON.stringify(existing)) : null;
+    const duplicate = findDuplicateApplication({
+      id: editingId || '', clientName: $('#clientName').value,
+      role: $('#clientRole').value, website: $('#hiredWebsite').value
+    });
+    if (duplicate) {
+      showActionResult({
+        title: 'Application already exists',
+        message: `${duplicate.clientName} — ${duplicate.role || 'Role not specified'} is already saved (status: ${STATUS_LABELS[duplicate.status] || duplicate.status || 'Not specified'}${duplicate.appliedDate ? `; applied ${formatDate(duplicate.appliedDate)}` : ''}). Open the existing application to update it.`,
+        status: 'error'
+      });
+      return;
+    }
     const isActiveClient = $('#clientStatus').value === 'Active client';
     const contractEndDate = $('#contractEndDate').value;
     if (isActiveClient && contractEndDate && dateKey(contractEndDate) < today()
@@ -6891,10 +6982,8 @@
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
     const loginGoogleButton = $('#loginGoogleButton');
     loginGoogleButton.disabled = !supabaseConfigured();
-    if (!window.google?.accounts?.oauth2) {
-      setTimeout(initGmail, 300);
-      return;
-    }
+    // Supabase sign-in and Worker token renewal do not need the popup SDK.
+    // A blocked or slow Google script must not prevent restoring this inbox.
     if (!gmailConfigured()) {
       setGmailStatus('Gmail not set up yet — you can still log in with Google to open the dashboard.');
       loginGoogleButton.disabled = !supabaseConfigured();
@@ -6979,7 +7068,7 @@
     if (gmailAuthorizationRecovery) return gmailAuthorizationRecovery;
     gmailAuthorizationRecovery = renewGmailAccess()
       .catch(error => {
-        handleGmailAuthorizationFailure(error);
+        if (error.reconnect) handleGmailAuthorizationFailure(error);
         throw error;
       })
       .finally(() => { gmailAuthorizationRecovery = null; });
@@ -8101,7 +8190,8 @@
   $('#clientRegion').addEventListener('change', updateClientLocation);
   $('#clientForm').addEventListener('submit', saveClient);
   ['input', 'change'].forEach(eventName => {
-    $('#clientForm').addEventListener(eventName, () => {
+    $('#clientForm').addEventListener(eventName, event => {
+      if (['clientName', 'clientRole', 'hiredWebsite'].includes(event.target.id)) updateApplicationDuplicateNotice();
       if ($('#clientModal').open && !editingId && !viewingClientDetails) saveNewClientApplicationDraft();
     });
   });
@@ -8110,6 +8200,7 @@
     if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);
   });
   $('#applicationSearch').addEventListener('input', renderApplications);
+  $('#applicationOrderSort').addEventListener('change', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {
     applicationDateFilter = event.target.value;
     applicationDateSort = '';

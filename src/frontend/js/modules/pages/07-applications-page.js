@@ -195,7 +195,8 @@
   $('#clientRegion').addEventListener('change', updateClientLocation);
   $('#clientForm').addEventListener('submit', saveClient);
   ['input', 'change'].forEach(eventName => {
-    $('#clientForm').addEventListener(eventName, () => {
+    $('#clientForm').addEventListener(eventName, event => {
+      if (['clientName', 'clientRole', 'hiredWebsite'].includes(event.target.id)) updateApplicationDuplicateNotice();
       if ($('#clientModal').open && !editingId && !viewingClientDetails) saveNewClientApplicationDraft();
     });
   });
@@ -204,6 +205,7 @@
     if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);
   });
   $('#applicationSearch').addEventListener('input', renderApplications);
+  $('#applicationOrderSort').addEventListener('change', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {
     applicationDateFilter = event.target.value;
     applicationDateSort = '';

@@ -54,4 +54,42 @@ reopened.saveGmailCredentials('user-a', 'new-access', '', 3600);
 assert.equal(reopened.readGmailCredentials().refreshToken, 'offline-refresh', 'renewal preserves offline permission');
 persistent.delete('jeff-va-gmail-credentials-v2:user-a');
 assert.equal(browser().readGmailCredentials(), null);
+
+// The implicit callback must preserve provider tokens even when setSession
+// returns only Supabase credentials and an older dashboard session exists.
+const callbackBrowser = browser();
+const core = fs.readFileSync(new URL('../src/frontend/js/modules/01-core.js', import.meta.url), 'utf8');
+let callbackSet = false;
+const callbackSession = { user: { id: 'user-a' }, access_token: 'dashboard-access' };
+Object.assign(callbackBrowser, {
+  supabaseConfigured: () => true,
+  window: { location: { search: '', hash: '#access_token=dashboard-access&refresh_token=dashboard-refresh&provider_token=google-access&provider_refresh_token=google-offline' },
+    history: { replaceState() {} } },
+  AUTH_TAB_READY_KEY: 'tab', AUTH_PROVIDER_SESSION_KEY: 'provider', document: { title: 'App' },
+  appViewPath: view => `/${view}`, resolveAuthProvider: () => 'google', showView() {},
+  initializeSupabaseForUser: async () => {},
+  requireSupabase: () => ({ auth: {
+    getSession: async () => ({ data: { session: callbackSession } }),
+    setSession: async tokens => { callbackSet = true; assert.equal(tokens.refresh_token, 'dashboard-refresh'); return {}; },
+    onAuthStateChange() {}
+  } }), URLSearchParams
+});
+vm.runInContext(core.slice(core.indexOf('  async function restoreSupabaseSession('), core.indexOf('  async function clearSupabaseData(')), callbackBrowser);
+await callbackBrowser.restoreSupabaseSession();
+assert.ok(callbackSet, 'new callback must replace an existing dashboard session');
+assert.equal(callbackBrowser.readGmailCredentials().token, 'google-access');
+assert.equal(callbackBrowser.readGmailCredentials().refreshToken, 'google-offline');
+
+// Transient errors must not turn a usable Google grant into a disconnected state.
+const recovery = source.slice(source.indexOf('  async function refreshGmailAuthorization('), source.indexOf('  async function fetchGmailJson('));
+let disconnected = 0;
+const recoveryContext = vm.createContext({ gmailAuthorizationRecovery: null,
+  renewGmailAccess: async () => { throw new Error('Network unavailable'); },
+  handleGmailAuthorizationFailure: () => disconnected++ });
+vm.runInContext(recovery, recoveryContext);
+await assert.rejects(recoveryContext.refreshGmailAuthorization(), /Network unavailable/);
+assert.equal(disconnected, 0);
+recoveryContext.renewGmailAccess = async () => { const error = new Error('revoked'); error.reconnect = true; throw error; };
+await assert.rejects(recoveryContext.refreshGmailAuthorization(), /revoked/);
+assert.equal(disconnected, 1);
 console.log('Gmail renewal authentication, expiry storage, account isolation, revoked permission, and secret handling passed.');

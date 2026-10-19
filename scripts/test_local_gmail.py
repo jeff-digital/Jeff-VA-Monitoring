@@ -1,0 +1,66 @@
+"""Offline checks for localhost Gmail renewal forwarding."""
+import importlib.util
+import io
+import json
+from pathlib import Path
+from unittest.mock import patch
+from urllib.error import HTTPError, URLError
+
+spec = importlib.util.spec_from_file_location('local_server', Path(__file__).with_name('local_server.py'))
+server = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(server)
+
+def handler(origin='http://localhost:8080', authorization='Bearer test-session'):
+    request = object.__new__(server.JeffVARequestHandler)
+    payload = b'{"refreshToken":"test-refresh"}'
+    request.headers = {'Origin': origin, 'Host': 'localhost:8080', 'Authorization': authorization,
+                       'Content-Length': str(len(payload))}
+    request.client_address = ('127.0.0.1', 12345)
+    request.rfile = io.BytesIO(payload)
+    request.wfile = io.BytesIO()
+    request.send_response = lambda status: setattr(request, 'result_status', status)
+    request.send_error = lambda status: setattr(request, 'result_status', status)
+    request.send_header = lambda *args: None
+    request.end_headers = lambda: None
+    return request
+
+with patch.object(server, 'urlopen') as fetch:
+    denied = handler(origin='https://outside.example')
+    denied._refresh_gmail()
+    assert denied.result_status == 403
+    unsigned = handler(authorization='')
+    unsigned._refresh_gmail()
+    assert unsigned.result_status == 401
+    fetch.assert_not_called()
+
+class Response:
+    status = 200
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+    def read(self, limit): return b'{"access_token":"renewed","expires_in":3600}'
+
+def fetch(request, timeout):
+    assert request.full_url == server.GMAIL_REFRESH_UPSTREAM
+    assert request.get_header('Authorization') == 'Bearer test-session'
+    assert json.loads(request.data)['refreshToken'] == 'test-refresh'
+    return Response()
+
+with patch.object(server, 'urlopen', side_effect=fetch):
+    connected = handler()
+    connected._refresh_gmail()
+    assert connected.result_status == 200
+    assert json.loads(connected.wfile.getvalue())['access_token'] == 'renewed'
+
+with patch.object(server, 'urlopen', side_effect=URLError('offline')):
+    unavailable = handler()
+    unavailable._refresh_gmail()
+    assert unavailable.result_status == 503
+    assert 'reconnect' not in json.loads(unavailable.wfile.getvalue())
+
+with patch.object(server, 'urlopen', side_effect=HTTPError(server.GMAIL_REFRESH_UPSTREAM, 403, 'revoked', {}, io.BytesIO(b'{"reconnect":true}'))):
+    revoked = handler()
+    revoked._refresh_gmail()
+    assert revoked.result_status == 403
+    assert json.loads(revoked.wfile.getvalue())['reconnect'] is True
+
+print('Local Gmail forwarding checks passed: origin, authentication, fixed upstream, renewal, and temporary failures.')
