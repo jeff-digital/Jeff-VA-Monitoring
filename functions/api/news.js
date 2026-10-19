@@ -1,5 +1,6 @@
 const CATEGORY_QUERIES = {
-  all: '(business AND ("United Kingdom" OR Australia OR "United States" OR Canada)) OR ("virtual assistant" AND (Philippines OR Filipino)) OR "remote work" OR "artificial intelligence" OR automation',
+  all: '(business AND ("United Kingdom" OR Australia OR "United States" OR Canada)) OR ("virtual assistant" AND (Philippines OR Filipino)) OR "remote work" OR "artificial intelligence" OR automation OR viral',
+  'social-trends': '(viral OR trending) AND ("social media" OR TikTok OR Instagram OR Facebook OR YouTube OR Twitter OR Reddit OR LinkedIn OR Snapchat OR Pinterest OR Threads OR Bluesky)',
   'business-markets': 'business AND ("United Kingdom" OR Australia OR "United States" OR Canada)',
   'va-philippines': '("virtual assistant" OR freelancing OR BPO) AND (Philippines OR Filipino)',
   'remote-work': '("remote work" OR "work from home" OR "digital jobs") AND (Philippines OR Filipino)',
@@ -12,7 +13,7 @@ const CATEGORY_QUERIES = {
   marketing: 'SEO social media content marketing technology'
 };
 
-const NEWS_CACHE_VERSION = '3';
+const NEWS_CACHE_VERSION = '4';
 const DEFAULT_GNEWS_DAILY_LIMIT = 100;
 
 function json(body, status = 200, extra = {}) {

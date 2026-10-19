@@ -18,6 +18,7 @@ globalThis.fetch = async input => {
   if (url.hostname === 'gnews.io') {
     newsRequests++;
     providerQueries.push(url.searchParams.get('q'));
+    assert.ok(url.searchParams.get('q').length <= 200, 'GNews queries must stay within the provider limit');
     assert.equal(url.searchParams.get('max'), '10');
     if (providerFails) throw new Error('timeout');
     return Response.json({ totalArticles: 4, articles: [
@@ -57,7 +58,7 @@ providerFails = true;
 const unavailable = await (await get('/api/news?category=web')).json();
 assert.equal(unavailable.articles.length, 0);
 assert.ok(unavailable.errors.length);
-assert.ok(!cache.has('https://dashboard.example/api/news?v=3&category=web&q=&page=1&pageSize=10'), 'failure must not be cached');
+assert.ok(!cache.has('https://dashboard.example/api/news?v=4&category=web&q=&page=1&pageSize=10'), 'failure must not be cached');
 providerFails = false;
 await get('/api/news?category=business-markets');
 await get('/api/news?category=va-philippines');
@@ -69,4 +70,17 @@ await get('/api/news?category=all&q=Philippine%20small%20business');
 assert.equal(providerQueries.at(-1), 'Philippine small business', 'All news text search must search the requested phrase without an oversized topic prefix');
 await get(`/api/news?category=business-markets&q=${'a'.repeat(120)}`);
 assert.ok(providerQueries.at(-1).length <= 190, 'topic searches must stay within the GNews query limit');
+const beforeTrends = newsRequests;
+const trends = await (await get('/api/news?category=social-trends')).json();
+assert.equal(newsRequests, beforeTrends + 1, 'social trends uses one request with the existing GNews key');
+assert.ok(['viral', 'trending', 'social media', 'TikTok', 'Instagram', 'Facebook', 'YouTube', 'Twitter', 'Reddit', 'LinkedIn', 'Snapchat', 'Pinterest', 'Threads', 'Bluesky'].every(term => providerQueries.at(-1).includes(term)), 'social trends must cover platforms beyond TikTok');
+assert.ok(trends.articles.length);
+assert.ok(trends.articles.every(article => article.category === 'social-trends'));
+assert.equal(trends.articles[0].image, 'https://publisher.example/image.jpg');
+assert.equal(trends.errors.length, 0, 'social trends does not depend on GitHub, YouTube or Product Hunt credentials');
+await get('/api/news?category=social-trends');
+assert.equal(newsRequests, beforeTrends + 1, 'repeat social trends requests must use the cache');
+await get('/api/news?category=social-trends&q=brand%20campaign');
+assert.ok(providerQueries.at(-1).includes('brand campaign'), 'topic searches must include business content terms');
+assert.ok(providerQueries[0].includes('viral'), 'All news must include viral coverage');
 console.log('News routing, authentication, images, partial failures, caching, and secret handling passed.');

@@ -6,7 +6,7 @@
   let newsHasMore = false;
   const gatheredNewsStorageKey = 'jeff-va-gathered-news-v1';
 
-  const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing' };
+  const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing', 'social-trends': 'Social media trends' };
   const newsUrlKey = value => {
     try {
       const url = new URL(value);

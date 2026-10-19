@@ -127,6 +127,8 @@ The News toolbar shows an app-tracked GNews request count for the current UTC da
 
 The News topic selector includes Business for the UK, Australia, US, and Canada, plus VA Philippines and Remote Work. These filters use the existing GNews connection, so they do not require additional API credentials.
 
+Social media trends searches GNews for published reports about viral and trending content across social platforms, including TikTok, Instagram, Facebook, YouTube, Twitter/X, Reddit, LinkedIn, Snapchat, Pinterest, Threads, and Bluesky. The general social-media term also covers other platforms. All news includes viral stories. This uses the existing GNews key, cache, deduplication and request counter; article links open the publisher, and are not guaranteed to link directly to a video. It does not provide live video view counts or sound-use statistics.
+
 Run `node scripts/test-news.mjs` for mocked endpoint tests covering authentication, static routing, provider failure, caching, article images, and secret handling. Live production verification requires deployment and the runtime secret.
 
 - Do not commit passwords, tokens, private keys, service-role keys, or other private credentials.
