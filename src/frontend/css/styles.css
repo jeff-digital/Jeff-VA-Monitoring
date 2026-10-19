@@ -6800,13 +6800,36 @@ body:has(#hiredView.active) .hired-card .hired-client-contact-name {
   button.is-loading::before, .button.is-loading::before { animation: none; }
 }
 
-/* Compact Email title, with room for the selected week and touch controls. */
-body:has(#inboxView.active) .topbar { min-height: 64px; height: auto; margin: 0 0 12px; }
-body:has(#inboxView.active) #pageTitle { margin: 0; font-size: 22px; line-height: 1.2; }
-body:has(#inboxView.active) #pageEyebrow { display: none; }
-body:has(#inboxView.active) #emailWeekDate { margin: 3px 0 0; font-size: 11px; line-height: 1.4; }
-@media (max-width: 720px) {
-  body:has(#inboxView.active) #pageTitle { font-size: 20px; }
+/* Match the Active Clients header on the other record pages. */
+body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .content {
+  padding-top: 12px;
+  padding-inline: 24px;
+}
+body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .topbar {
+  min-height: 56px;
+  height: auto;
+  margin: 0 0 12px;
+  border: 0;
+  align-items: center;
+}
+body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .topbar-title-area { gap: 9px; }
+body:has(:is(#inboxView, #applicationsView, #toApplyView).active) #pageTitle {
+  margin: 0;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+body:has(:is(#inboxView, #applicationsView, #toApplyView).active) #pageEyebrow { display: none; }
+body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .page-context { margin: 3px 0 0; font-size: 11px; line-height: 1.4; }
+@media (min-width: 1100px) {
+  body:has(#applicationsView.active) .topbar { height: 56px; margin: 0; }
+}
+@media (max-width: 640px) {
+  body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .content { padding-top: 8px; padding-inline: 16px; }
+  body:has(:is(#inboxView, #applicationsView, #toApplyView).active) #pageTitle { font-size: 21px; }
+  body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .topbar-actions { gap: 8px; }
 }
 @media (pointer: coarse) {
   #inboxView .email-summary-item { min-height: 44px; }
