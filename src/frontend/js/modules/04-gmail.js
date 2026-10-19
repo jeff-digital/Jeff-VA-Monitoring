@@ -1220,18 +1220,23 @@
         persist();
         renderAll();
       }
+      const closedApplications = await applyApplicationEmailOutcomes(data.emails);
+      if (currentUser?.id !== syncUserId) return;
+      const closedEmailIds = new Set(closedApplications.map(({ email }) => email.gmailId || email.id));
+      const ordinaryNewEmails = newOnes.filter(email => !closedEmailIds.has(email.gmailId || email.id));
       updateGmailConnectionUI(true);
       sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
       setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}${failedMessageFetches.length ? ` · ${plural(failedMessageFetches.length, 'message')} failed to load` : ''}`);
       if (!silent) {
-        const hasNewMatches = alertNewMatches(newOnes);
+        const hasNewMatches = alertNewMatches(ordinaryNewEmails, { showNotice: !closedApplications.length });
         if (failedMessageFetches.length) {
           showActionResult({ title: 'Gmail sync incomplete', message: `${plural(failedMessageFetches.length, 'message')} could not be loaded. Gmail will retry on the next sync.`, status: 'error' });
-        } else if (!hasNewMatches) {
+        } else if (!hasNewMatches && !closedApplications.length) {
           showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
         }
       }
-      if (silent) alertNewMatches(newOnes);
+      if (silent) alertNewMatches(ordinaryNewEmails, { showNotice: !closedApplications.length });
+      showApplicationEmailOutcomeNotice(closedApplications);
     } catch (error) {
       const message = error?.message || 'Unknown Gmail API error';
       if (!gmailReconnectRequired) setGmailStatus(`Gmail sync failed: ${message}`);

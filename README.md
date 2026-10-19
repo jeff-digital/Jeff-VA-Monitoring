@@ -10,6 +10,7 @@ Jeff VA Monitoring is a web app for organizing job applications and virtual-assi
 - Send token-based, one-time client onboarding forms for working preferences and first-week priorities.
 - Organize tasks, reusable scripts, and helpful links.
 - Connect Gmail to view and manage work-related email.
+- Automatically mark a pending application Rejected when its latest uniquely matched incoming email clearly says the role is filled/closed or the applicant will not proceed. Each saved change creates an unread Applications notification with the reason and a link to the email. Ambiguous wording, quoted messages, sent mail, older emails, offers, and active clients do not trigger this rule. Changes require a successful Gmail sync while the app is open; this is conservative phrase matching, not an AI service. Manually reopening an application preserves its processed-email marker so the same message cannot reject it again.
 - Send and review client onboarding forms.
 - Sync application and client data with Supabase.
 - Export and restore selected records using Excel workbooks.

@@ -291,6 +291,13 @@
         showView('wallet');
         renderWallet();
         requestAnimationFrame(() => $(`[data-wallet-actions="${CSS.escape(alert.walletEntryId || '')}"]`)?.focus());
+      } else if (alert?.type === 'application-email-closed') {
+        showView('inbox');
+        if (data.emails.some(email => email.id === alert.emailId)) openEmailDetail(alert.emailId);
+        else if (alert.applicationId) {
+          showView('applications');
+          openClientModal(alert.applicationId, true);
+        }
       } else if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');
         openClientModal(alert.applicationId, true);

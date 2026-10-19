@@ -424,6 +424,7 @@
   }
 
   function isInterviewEmail(emailItem) {
+    if (detectApplicationEmailOutcome(emailItem)) return false;
     const source = `${emailItem.subject || ''} ${emailItem.body || ''}`;
     return /\b(interview|meeting|video call|phone call|screening)\b/i.test(source);
   }
@@ -2641,6 +2642,7 @@
       followUpProcessedAt: editingId && data.applications.find(item => item.id === editingId)?.followUpDate === $('#followUpDate').value ? (data.applications.find(item => item.id === editingId)?.followUpProcessedAt || '') : '',
       followUpSentAt: editingId && data.applications.find(item => item.id === editingId)?.followUpDate === $('#followUpDate').value ? (data.applications.find(item => item.id === editingId)?.followUpSentAt || '') : '',
       notes: $('#clientNotes').value.trim(),
+      emailClosure: existing?.emailClosure,
       contractStatus: editingId ? (data.applications.find(item => item.id === editingId)?.contractStatus || 'Active') : 'Active',
       contractEndDate: isActiveClient ? contractEndDate : '',
       updatedAt: new Date().toISOString()

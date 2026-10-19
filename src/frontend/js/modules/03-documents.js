@@ -1053,7 +1053,7 @@
     return added;
   }
 
-  function alertNewMatches(newEmails) {
+  function alertNewMatches(newEmails, { showNotice = true } = {}) {
     const matches = [];
     newEmails.forEach(emailItem => {
       const applications = matchApplicationsForEmail(emailItem);
@@ -1099,7 +1099,7 @@
     persist();
     renderAlerts();
 
-    showActionResult({
+    if (showNotice) showActionResult({
       title: 'New client email',
       message: `${plural(unique.length, 'new email')} matched to your applications.`,
       status: 'info',
@@ -1372,6 +1372,7 @@
               <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName || 'Notification')}</strong><time datetime="${escapeHtml(alert.date || '')}">${escapeHtml(notificationRelativeTime(alert.date))}</time></span>
               <button type="button" class="notification-item-subject" data-alert-open="${escapeHtml(alert.id)}">${escapeHtml(alert.subject || '(No subject)')}</button>
               ${alert.from ? `<small>${escapeHtml(alert.from)}</small>` : ''}
+              ${alert.type === 'application-email-closed' && alert.evidence ? `<small>From the email: ${escapeHtml(alert.evidence)}</small>` : ''}
               <div class="notification-item-actions">
                 <button type="button" data-alert-action="snooze" data-alert-id="${escapeHtml(alert.id)}" aria-label="Snooze ${escapeHtml(alert.subject || 'notification')} for one day">Snooze</button>
                 <button type="button" data-alert-action="dismiss" data-alert-id="${escapeHtml(alert.id)}" aria-label="Dismiss ${escapeHtml(alert.subject || 'notification')}">Dismiss</button>
