@@ -49,7 +49,7 @@
       body: 'Dear {{contactPerson}},\n\nPlease find attached the updated Contract of Agreement for your review and records.\n\nShould you have any questions or require further clarification, please feel free to contact me.\n\nThank you.\n\nBest regards,\n**Jeffrey S. Almocera**\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     }
   };
-  let gmailTokenClient = null;
+
   let gmailAccessToken = null;
   let composeAttachment = null;
   let composeAttachmentFile = null;
@@ -74,6 +74,62 @@
   const GMAIL_CONNECTED_KEY = 'jeff-va-gmail-connected-v1';
   const GMAIL_TOKEN_SESSION_KEY = 'jeff-va-gmail-token-session-v1';
   const GMAIL_RECONNECT_REQUIRED_KEY = 'jeff-va-gmail-reconnect-required-v1';
+  const GMAIL_CREDENTIALS_KEY = 'jeff-va-gmail-credentials-v2:';
+
+  function saveGmailCredentials(userId, token, refreshToken, expiresIn = 3600) {
+    if (!userId || !token) return;
+    const previous = readGmailCredentials(userId);
+    const credentials = { token, refreshToken: refreshToken || previous?.refreshToken || '',
+      expiresAt: Date.now() + Math.max(0, Number(expiresIn) || 3600) * 1000 };
+    localStorage.setItem(`${GMAIL_CREDENTIALS_KEY}${userId}`, JSON.stringify(credentials));
+    gmailAccessToken = token;
+    gmailReconnectRequired = false;
+    sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, token);
+    sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+    sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+  }
+
+  function readGmailCredentials(userId = currentUser?.id) {
+    if (!userId) return null;
+    try { return JSON.parse(localStorage.getItem(`${GMAIL_CREDENTIALS_KEY}${userId}`) || 'null'); }
+    catch { return null; }
+  }
+
+  function captureGoogleSession(session, freshLogin = false) {
+    const saved = readGmailCredentials(session?.user?.id);
+    if (session?.provider_token && (freshLogin || !saved)) {
+      saveGmailCredentials(session.user.id, session.provider_token, session.provider_refresh_token,
+        freshLogin ? 3600 : 1);
+    } else if (saved) {
+      gmailAccessToken = saved.token;
+      gmailReconnectRequired = false;
+    }
+  }
+
+  async function renewGmailAccess() {
+    const userId = currentUser?.id;
+    const saved = readGmailCredentials();
+    if (!saved?.refreshToken) {
+      const error = new Error('Connect Gmail once to enable automatic renewal. Saved emails remain available.');
+      error.reconnect = true;
+      throw error;
+    }
+    const { data: auth, error: authError } = await requireSupabase().auth.getSession();
+    if (authError || !auth?.session?.access_token) throw new Error('Your dashboard session could not be renewed. Try again when online.');
+    const response = await fetch('/api/gmail/refresh', {
+      method: 'POST', headers: { authorization: `Bearer ${auth.session.access_token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken: saved.refreshToken }), signal: AbortSignal.timeout(15000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.access_token) {
+      const error = new Error(result.error || 'Automatic Gmail renewal is unavailable on this server.');
+      error.reconnect = result.reconnect === true;
+      throw error;
+    }
+    if (!userId || currentUser?.id !== userId) throw new Error('The account changed while Gmail was reconnecting.');
+    saveGmailCredentials(userId, result.access_token, saved.refreshToken, result.expires_in);
+    return gmailAccessToken;
+  }
 
   $('#emailComposeModal').addEventListener('close', () => {
     if (composeContractEmailMode) {
@@ -633,6 +689,7 @@
             return;
           }
           gmailAccessToken = response.access_token;
+          saveGmailCredentials(currentUser?.id, response.access_token, '', response.expires_in);
           sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, response.access_token);
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
           sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
@@ -640,7 +697,8 @@
           updateGmailConnectionUI(true);
           updateLoginGoogleUI(true, 'Google account connected for this browser session.');
           resolve(response.access_token);
-        }
+        },
+        error_callback: error => reject(new Error(error.message || 'Google authorization was closed or blocked.'))
       });
       tokenClient.requestAccessToken({ prompt });
     }).finally(() => { gmailTokenRequest = null; });
@@ -648,8 +706,9 @@
   }
 
   async function ensureGmailAccessToken() {
-    if (gmailAccessToken && !gmailReconnectRequired) return gmailAccessToken;
-    gmailAccessToken = null;
+    const saved = readGmailCredentials();
+    if (gmailAccessToken && !gmailReconnectRequired && (!saved || saved.expiresAt > Date.now() + 60000)) return gmailAccessToken;
+    if (saved?.refreshToken) return refreshGmailAuthorization();
     try {
       return await requestGmailAccessToken('');
     } catch {
@@ -666,12 +725,11 @@
         body: JSON.stringify({ raw: encodeBase64Url(rawMessage) })
       });
       if (response.ok) return response.json();
-      if ((response.status === 401 || response.status === 403) && attempt === 0) {
-        gmailAccessToken = null;
-        await requestGmailAccessToken('');
+      if (response.status === 401 && attempt === 0) {
+        await refreshGmailAuthorization();
         continue;
       }
-      if (response.status === 401 || response.status === 403) handleGmailAuthorizationFailure();
+      if (response.status === 401) handleGmailAuthorizationFailure();
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error?.message || `Gmail returned ${response.status}`);
     }
@@ -886,73 +944,19 @@
       loginGoogleButton.disabled = !supabaseConfigured();
       return;
     }
-    $('#gmailReconnectButton').onclick = async () => {
-      const reconnectButton = $('#gmailReconnectButton');
-      reconnectButton.disabled = true;
-      setGmailStatus('Reconnecting Gmail…');
-      try {
-        await ensureGmailAccessToken();
-        startGmailSyncTimer();
-        await syncGmail(false);
-      } catch (error) {
-        handleGmailAuthorizationFailure(error);
-      } finally {
-        reconnectButton.disabled = false;
-      }
-    };
-    gmailTokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: window.GMAIL_CLIENT_ID,
-      scope: GMAIL_SCOPE,
-      callback: response => {
-        if (response.error) {
-          const message = response.error_description || response.error;
-          setGmailStatus(`Gmail connection failed: ${message}`);
-          showActionResult({ title: 'Gmail connection failed', message, status: 'error' });
-          return;
-        }
-        gmailAccessToken = response.access_token;
-        sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, response.access_token);
-        sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
-        sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
-        gmailReconnectRequired = false;
-        updateLoginGoogleUI(true, 'Google account selected. Log in to load your Gmail inbox.');
-        setGmailStatus('Connected — syncing…');
-        processContractEndedAlerts();
-        processDueFollowUps();
-        syncGmail();
-        startGmailSyncTimer();
-      }
-    });
+    $('#gmailReconnectButton').onclick = loginWithGoogle;
     loginGoogleButton.disabled = false;
-    const savedSessionToken = sessionStorage.getItem(GMAIL_TOKEN_SESSION_KEY);
-    if (savedSessionToken) {
-      gmailAccessToken = savedSessionToken;
+    const saved = readGmailCredentials();
+    if (saved) {
+      gmailAccessToken = saved.token;
+      gmailReconnectRequired = false;
       updateGmailConnectionUI(true);
-      updateLoginGoogleUI(true, 'Google account connected for this browser session.');
-      setGmailStatus('Gmail connected — session restored');
-      processContractEndedAlerts();
-      syncGmail();
+      setGmailStatus('Gmail connected — checking for new messages…');
       startGmailSyncTimer();
-      return;
-    }
-    if (sessionStorage.getItem(GMAIL_CONNECTED_KEY) || activeAuthProvider === 'google') {
-      setGmailStatus('Restoring Gmail connection automatically…');
-      // The dashboard session can outlive Google's short-lived Gmail token.
-      // Reuse the signed-in Google browser session once during startup so the
-      // inbox can keep syncing without repeating the dashboard login.
-      window.setTimeout(async () => {
-        if (!currentUser || gmailAccessToken) return;
-        try {
-          await requestGmailAccessToken('');
-          startGmailSyncTimer();
-          await syncGmail(true);
-        } catch (error) {
-          console.warn('Gmail could not restore automatically:', error);
-          handleGmailAuthorizationFailure(error);
-        }
-      }, 0);
+      syncGmail(true);
     } else {
-      setGmailStatus('Gmail ready — log in with Google to sync your inbox');
+      setGmailStatus('Saved emails remain available. Connect Gmail to enable automatic updates.');
+      updateGmailConnectionUI(false);
     }
   }
 
@@ -971,7 +975,8 @@
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/?auth_view=applications`,
-          scopes: GMAIL_SCOPE
+          scopes: GMAIL_SCOPE,
+          queryParams: { access_type: 'offline', prompt: 'consent' }
         }
       });
       if (error) throw error;
@@ -995,7 +1000,7 @@
     sessionStorage.setItem(GMAIL_RECONNECT_REQUIRED_KEY, '1');
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Gmail needs to reconnect. Your dashboard session is still active.');
-    setGmailStatus('Gmail access paused. Open Email to reconnect with your existing Google session.');
+    setGmailStatus('Saved emails remain available. Renew Google permission in Account settings to resume updates.');
   }
 
   function startGmailSyncTimer() {
@@ -1016,7 +1021,7 @@
 
   async function refreshGmailAuthorization() {
     if (gmailAuthorizationRecovery) return gmailAuthorizationRecovery;
-    gmailAuthorizationRecovery = requestGmailAccessToken('')
+    gmailAuthorizationRecovery = renewGmailAccess()
       .catch(error => {
         handleGmailAuthorizationFailure(error);
         throw error;
@@ -1029,6 +1034,8 @@
     const makeRequest = () => fetch(url, {
       headers: { Authorization: `Bearer ${gmailAccessToken}` }
     });
+    const saved = readGmailCredentials();
+    if (saved && saved.expiresAt <= Date.now() + 60000) await refreshGmailAuthorization();
     let response = await makeRequest();
     if (response.status === 401) {
       await refreshGmailAuthorization();
@@ -1049,21 +1056,13 @@
     // Do not let a restored Gmail session sync against the empty startup state.
     // The authenticated startup flow triggers the first sync after saved deletions load.
     if (gmailSyncInFlight || !currentUser || !dataReady || !supabaseDataLoaded) return;
+    const syncUserId = currentUser.id;
     if (!gmailAccessToken || gmailReconnectRequired) {
-      // A dashboard session and a Gmail access token have different lifetimes.
-      // Opening Email should renew the Gmail token instead of asking
-      // the user to repeat the full application login flow.
-      if (silent) return;
-      setGmailStatus('Reconnecting Gmail…');
+      if (!readGmailCredentials()?.refreshToken || gmailReconnectRequired) return;
       try {
-        await ensureGmailAccessToken();
+        await refreshGmailAuthorization();
       } catch (error) {
-        handleGmailAuthorizationFailure(error);
-        showActionResult({
-          title: 'Gmail needs permission',
-          message: 'Choose your Google account once to renew Gmail access. Your dashboard login is still active.',
-          status: 'error'
-        });
+        if (!gmailReconnectRequired) setGmailStatus(error.message);
         return;
       }
     }
@@ -1145,12 +1144,13 @@
       let matchedExistingSentMessages = false;
       const fetchedResults = await Promise.allSettled(messageIdsToFetch.map(async id => {
         const msg = await fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`);
+        if (currentUser?.id !== syncUserId) return null;
         const headers = msg.payload?.headers || [];
         const header = name => headers.find(item => item.name === name)?.value || '';
         const rawDate = header('Date');
         const date = rawDate && !Number.isNaN(Date.parse(rawDate)) ? new Date(rawDate).toISOString() : new Date().toISOString();
         const to = header('To');
-        const isSent = (msg.labelIds || []).includes('SENT');
+        const isSent = isSentEmail({ from: header('From'), labelIds: msg.labelIds || [] });
         const recipient = extractEmailAddress(to);
         if (isSent && !directClientEmails.has(recipient)) return null;
         const subject = header('Subject') || '(No subject)';
@@ -1181,9 +1181,11 @@
           importedAt: new Date().toISOString(),
           source: 'gmail',
           bodyLoaded: true,
+          labelIds: msg.labelIds || [],
           direction: isSent ? 'sent' : 'received'
         };
       }));
+      if (currentUser?.id !== syncUserId) return;
       if (fetchedResults.some(result => result.status === 'rejected' && result.reason?.status === 401)) {
         handleGmailAuthorizationFailure();
         throw new Error('Gmail authorization needs to be refreshed.');
@@ -1216,7 +1218,7 @@
       const savedGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       inboxHistoryQueue = inboxHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
       sentHistoryQueue = sentHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
-      if (newOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded) {
+      if (fetchedOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded) {
         persist();
         renderAll();
       }

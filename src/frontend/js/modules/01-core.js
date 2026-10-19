@@ -938,14 +938,7 @@
         ({ data: sessionData, error } = await client.auth.getSession());
         if (error) throw error;
       }
-      if (sessionData.session?.provider_token) {
-        gmailAccessToken = sessionData.session.provider_token;
-        sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
-        sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
-        sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
-        gmailReconnectRequired = false;
-        startGmailSyncTimer();
-      }
+      captureGoogleSession(sessionData.session, isAuthenticationCallback);
       if (sessionData.session?.user) {
         activeAuthProvider = isPasswordRecovery ? 'email' : resolveAuthProvider(sessionData.session);
         if (isAuthenticationCallback && !isPasswordRecovery) {
@@ -965,13 +958,7 @@
         window.setTimeout(() => {
           if (currentUser || initializingUserId) return;
           activeAuthProvider = resolveAuthProvider(session);
-          if (session.provider_token) {
-            gmailAccessToken = session.provider_token;
-            sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, gmailAccessToken);
-            sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
-            sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
-            gmailReconnectRequired = false;
-          }
+          captureGoogleSession(session, true);
           initializeSupabaseForUser(session.user, {
             showLoading: !isPasswordRecovery && isFirstLoadInTab,
             recordSignIn: !isPasswordRecovery,
@@ -1072,9 +1059,16 @@
 
   function receivedEmails() {
     const deletedGmailIds = new Set(data.deletedGmailIds || []);
-    return data.emails.filter(item => item.direction !== 'sent'
-      && item.source !== 'sent'
+    return data.emails.filter(item => !isSentEmail(item)
       && !(item.source === 'gmail' && deletedGmailIds.has(item.gmailId)));
+  }
+
+  function isSentEmail(item) {
+    if (item.direction === 'sent' || item.source === 'sent' || item.labelIds?.includes('SENT')) return true;
+    const sender = extractEmailAddress(item.from);
+    const ownAddresses = [currentUser?.email, ...(currentUser?.identities || []).map(identity => identity.identity_data?.email)]
+      .filter(Boolean).map(email => String(email).trim().toLowerCase());
+    return Boolean(sender && ownAddresses.includes(sender));
   }
 
   function statusPill(status) {

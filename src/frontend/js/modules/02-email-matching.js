@@ -274,6 +274,9 @@
   }
 
   function matchApplicationsForEmail(emailItem) {
+    // Outgoing emails may repeat a company's name and role, but they are not
+    // evidence of a client response. Check before consulting cached matches.
+    if (isSentEmail(emailItem)) return [];
     const cachedMatches = applicationEmailMatchesCache.get(emailItem);
     if (cachedMatches) return cachedMatches;
     const fromAddress = extractEmailAddress(emailItem.from);
@@ -350,7 +353,7 @@
   }
 
   function applicationsRelatedToEmail(emailItem) {
-    if (emailItem.direction !== 'sent' && emailItem.source !== 'sent') return matchApplicationsForEmail(emailItem);
+    if (!isSentEmail(emailItem)) return matchApplicationsForEmail(emailItem);
     const linkedApplication = data.applications.find(application => application.id === emailItem.applicationId);
     if (linkedApplication) return [linkedApplication];
     const recipient = extractEmailAddress(emailItem.to);
@@ -388,7 +391,7 @@
     const application = data.applications.find(item => item.id === applicationId);
     if (!application) return;
     const emails = matchingEmailsForApplication(application)
-      .filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent')
+      .filter(emailItem => !isSentEmail(emailItem))
       .sort((first, second) => new Date(second.date) - new Date(first.date));
     if (!emails.length) return;
     $('#applicationEmailsTitle').textContent = `${application.clientName} · Emails`;
@@ -427,7 +430,7 @@
 
   function matchBadge(app) {
     const matches = matchingEmailsForApplication(app)
-      .filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent');
+      .filter(emailItem => !isSentEmail(emailItem));
     if (!matches.length) return '';
     return ` <button class="match-badge" type="button" data-application-emails="${escapeHtml(app.id)}" aria-label="View ${plural(matches.length, 'matching email')} for ${escapeHtml(app.clientName)}" title="View matching application emails">${matches.length}</button>`;
   }
@@ -1350,7 +1353,7 @@
     $('#emailDateSort').innerHTML = emailWeekOptions();
     $('#emailDateSort').value = emailDateSort;
     const received = receivedEmails();
-    const sent = data.emails.filter(item => (item.direction === 'sent' || item.source === 'sent')
+    const sent = data.emails.filter(item => (isSentEmail(item))
       && applicationsRelatedToEmail(item).length > 0);
     $('#emailReceivedCount').textContent = received.length;
     $('#emailSentCount').textContent = sent.length;
@@ -1359,10 +1362,10 @@
       .filter(item => !emailDateFilter || dateKey(item.date) === emailDateFilter)
       .filter(item => emailDateSort === 'all' || isInWeeklyRange(item.date, weekRangeFilter))
       .filter(item => emailViewFilter === 'sent'
-        ? (item.direction === 'sent' || item.source === 'sent') && applicationsRelatedToEmail(item).length > 0
-        : item.direction !== 'sent' && item.source !== 'sent');
-    const clientEmails = emails.filter(item => item.direction !== 'sent' && item.source !== 'sent');
-    const sentEmails = emails.filter(item => item.direction === 'sent');
+        ? (isSentEmail(item)) && applicationsRelatedToEmail(item).length > 0
+        : !isSentEmail(item));
+    const clientEmails = emails.filter(item => !isSentEmail(item));
+    const sentEmails = emails.filter(item => isSentEmail(item));
     const visibleEmails = sortByDate(emailViewFilter === 'sent' ? sentEmails : clientEmails, item => item.date);
     $('#emailCountLabel').textContent = `${plural(visibleEmails.length, 'email')}${query ? ' shown' : ''}`;
     $$('.email-summary-item').forEach(button => {
@@ -1394,8 +1397,8 @@
     const renderEmailRows = items => items.map(item => {
       const matches = applicationsRelatedToEmail(item);
       const matchTag = matches.length ? `<span class="client-match-tag" aria-label="${matches.length} application matches" title="Matched to ${matches.length} applications">${matches.length}</span>` : '';
-      const rawSender = (item.from || 'Unknown sender').trim();
-      const platformName = item.direction !== 'sent' && item.source !== 'sent' ? platformNameForSender(item.from) : '';
+      const rawSender = ((isSentEmail(item) ? item.to : item.from) || 'Unknown sender').trim();
+      const platformName = !isSentEmail(item) ? platformNameForSender(item.from) : '';
       const sender = platformName || (rawSender.includes('<')
         ? rawSender.slice(0, rawSender.indexOf('<')).replace(/["']/g, '').trim() || rawSender
         : rawSender);
@@ -1403,11 +1406,11 @@
       const bodyPreview = emailContentText(item.body).replace(/\s+/g, ' ').trim();
       const preview = bodyPreview.length > 110 ? `${bodyPreview.slice(0, 110).trimEnd()}...` : bodyPreview;
       const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
-      const recipient = extractEmailAddress(item.from);
+      const recipient = extractEmailAddress(isSentEmail(item) ? item.to : item.from);
       const canCompose = matches.length > 0 && isEmailAddress(recipient);
-      const sentClass = item.direction === 'sent' ? ' sent' : '';
-      const sentBadge = item.direction === 'sent' ? '<span class="sent-email-badge">SENT</span>' : '';
-      const dateLabel = item.direction === 'sent' ? 'Sent' : 'Received';
+      const sentClass = isSentEmail(item) ? ' sent' : '';
+      const sentBadge = isSentEmail(item) ? '<span class="sent-email-badge">SENT</span>' : '';
+      const dateLabel = isSentEmail(item) ? 'Sent' : 'Received';
       const sentTime = emailTime(item.date);
       const selectionLabel = platformName ? `${platformName} email` : (item.subject || 'email');
       const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}" />` : '';
@@ -1701,7 +1704,7 @@
       ? `<span class="hired-card-company">${escapeHtml(item.companyName || item.company)}</span>`
       : websiteMarkup;
     const matchCount = matchingEmailsForApplication(item)
-      .filter(emailItem => emailItem.direction !== 'sent' && emailItem.source !== 'sent').length;
+      .filter(emailItem => !isSentEmail(emailItem)).length;
     const matchMarkup = matchCount
       ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>`
       : '';
@@ -2237,7 +2240,7 @@
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (view === 'inbox' && currentUser) syncGmail(false);
+    if (view === 'inbox' && currentUser) syncGmail(true);
   }
 
   function saveNewClientApplicationDraft() {
@@ -2422,7 +2425,7 @@
     const target = $('#clientFollowUpHistory');
     if (!target || !viewOnly) return;
     const clientEmail = String(item.email || '').trim().toLowerCase();
-    const followUps = data.emails.filter(email => email.direction === 'sent'
+    const followUps = data.emails.filter(email => isSentEmail(email)
       && (email.applicationId === item.id || (clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail && /^follow-up:/i.test(email.subject || ''))))
       .sort((first, second) => new Date(second.date) - new Date(first.date));
     const historicalFollowUp = !followUps.length && item.followUpSentAt
@@ -2448,7 +2451,7 @@
   function sentEmailsForApplication(item) {
     const clientEmail = String(item.email || '').trim().toLowerCase();
     return data.emails
-      .filter(email => email.direction === 'sent'
+      .filter(email => isSentEmail(email)
         && (email.applicationId === item.id || (!email.applicationId && clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail)))
       .sort((first, second) => new Date(second.date) - new Date(first.date));
   }

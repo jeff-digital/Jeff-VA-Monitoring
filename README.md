@@ -66,6 +66,8 @@ Excel exports remain a separate, recommended offline backup. The automatic Docum
 
 Gmail integration is optional. To use it, configure a Google OAuth client for your app and set its client ID in `src/frontend/js/gmail-config.js`.
 
+For Gmail updates to continue after returning to the app, add runtime secrets `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to the Cloudflare Worker. These must match the Google OAuth client configured in Supabase Auth. Google sign-in requests offline access; users who connected before this change must connect once again to grant it. The authenticated `POST /api/gmail/refresh` route exchanges the Google refresh token without opening a popup. Google credentials are retained per dashboard user in the browser's persistent storage and removed by Log out. Dashboard sessions already use persistent Supabase storage and automatic renewal. Revoked or expired Google permission pauses email updates while keeping saved emails and the dashboard session available. A static local server cannot perform token renewal; use Wrangler for this endpoint.
+
 The frontend configuration is delivered to browsers. Use only values intended to be public there; never put private keys, service-role keys, or OAuth client secrets in frontend files or commit them to Git.
 
 ### 3. Build and run locally

@@ -126,6 +126,7 @@
       clearInterval(gmailSyncTimer);
       gmailSyncTimer = null;
     }
+    if (currentUser?.id) localStorage.removeItem(`${GMAIL_CREDENTIALS_KEY}${currentUser.id}`);
     gmailAccessToken = null;
     gmailReconnectRequired = false;
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);

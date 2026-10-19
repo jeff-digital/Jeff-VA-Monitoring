@@ -1,5 +1,6 @@
 import { onRequestGet as news, onRequestGetUsage as newsUsage } from '../../functions/api/news.js';
 import { onRequestGet as tools } from '../../functions/api/tools.js';
+import { refreshGmail } from '../../functions/api/gmail-refresh.js';
 
 const reply = (error, status) => Response.json({ error }, { status, headers: { 'cache-control': 'no-store' } });
 
@@ -8,8 +9,9 @@ export default {
     const path = new URL(request.url).pathname;
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
     const handler = path === '/api/news' ? news : path === '/api/news/usage' ? newsUsage : path === '/api/tools' ? tools : null;
-    if (!handler) return reply('Endpoint not found.', 404);
-    if (request.method !== 'GET') return reply('Method not allowed.', 405);
+    const isGmailRefresh = path === '/api/gmail/refresh';
+    if (!handler && !isGmailRefresh) return reply('Endpoint not found.', 404);
+    if (request.method !== (isGmailRefresh ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to view news.', 401);
     try {
@@ -20,6 +22,7 @@ export default {
       if (!auth.ok) return reply('Your session could not be verified. Sign in again.', auth.status === 401 || auth.status === 403 ? 401 : 503);
       const user = await auth.json();
       if (!user.id) return reply('Sign in to view news.', 401);
+      if (isGmailRefresh) return refreshGmail(request, env);
       const response = await handler({ request, env, caches: globalThis.caches, waitUntil: promise => ctx.waitUntil(promise) });
       // Internal provider caching is shared only after authentication; browsers must revalidate.
       const headers = new Headers(response.headers);
