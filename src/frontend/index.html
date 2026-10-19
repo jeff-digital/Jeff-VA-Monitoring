@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261019-client-tabs-scrollbar" />
+    <link rel="stylesheet" href="css/styles.css?v=20261019-social-trends" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -62,6 +62,9 @@
             </a>
             <a class="nav-link" href="/news" data-view="news" title="Industry news">
               <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-newspaper"></i></span><span class="nav-label">Industry news</span>
+            </a>
+            <a class="nav-link" href="/social-trends" data-view="social-trends" title="Social trends">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-arrow-trend-up"></i></span><span class="nav-label">Social trends</span>
             </a>
             <a class="nav-link" href="/documents" data-view="documents" title="Career tools">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-toolbox"></i></span><span class="nav-label">Career tools</span>
@@ -451,6 +454,25 @@
             <div class="news-card-grid news-live-grid" id="newsLiveGrid"><div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>New articles will appear here when available.</p></div></div>
             <button class="button button-secondary news-load-more" type="button" id="loadMoreNews" hidden>Load more</button>
           </section>
+        </section>
+
+        <section class="view social-trends-view" id="socialTrendsView" data-view-panel="social-trends" data-page="social-trends">
+          <section class="social-trends-intro">
+            <div><p class="eyebrow">CONTENT RESEARCH</p><h2>Track trends across platforms</h2><p>Record reliable view and usage counts for TikTok, Instagram, YouTube, Facebook, and other sources.</p></div>
+            <button class="button button-primary" type="button" id="addSocialTrend"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add trend</button>
+          </section>
+          <section class="social-trend-summary" aria-label="Trend summary">
+            <article><span>Tracked trends</span><strong id="socialTrendCount">0</strong></article>
+            <article><span>Video views</span><strong id="socialTrendViews">0</strong></article>
+            <article><span>Videos or posts using trends</span><strong id="socialTrendUses">0</strong></article>
+            <article><span>Top platform</span><strong id="socialTrendTopPlatform">—</strong></article>
+          </section>
+          <section class="social-trend-toolbar" aria-label="Trend filters">
+            <label class="search-field social-trend-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search trends</span><input id="socialTrendSearch" type="search" placeholder="Search trends" autocomplete="off" /></label>
+            <label class="select-field"><span class="sr-only">Platform</span><select id="socialTrendPlatformFilter"><option value="all">All platforms</option><option>TikTok</option><option>Instagram</option><option>YouTube</option><option>Facebook</option><option>Other</option></select></label>
+          </section>
+          <p class="social-trend-data-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span><strong>Uses</strong> means videos or posts found using the trend. Mark sampled data clearly when a platform does not provide a global total.</span></p>
+          <section class="social-trend-grid" id="socialTrendGrid" aria-live="polite"></section>
         </section>
 
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
@@ -1453,6 +1475,37 @@
         </form>
       </aside>
     </div>
+
+    <div class="client-task-drawer-layer" id="socialTrendDrawerLayer" hidden aria-hidden="true">
+      <button class="client-task-drawer-backdrop" id="socialTrendDrawerBackdrop" type="button" aria-label="Close trend editor"></button>
+      <aside class="client-task-drawer social-trend-drawer" id="socialTrendDrawer" role="dialog" aria-modal="true" aria-labelledby="socialTrendDrawerTitle" tabindex="-1">
+        <header class="client-task-drawer-header">
+          <div><p class="eyebrow">SOCIAL TREND</p><h2 id="socialTrendDrawerTitle">Add trend</h2><p>Keep the source and measurement date with every metric.</p></div>
+        </header>
+        <form id="socialTrendForm" class="client-task-drawer-form">
+          <input id="socialTrendId" type="hidden" />
+          <div class="client-task-drawer-fields">
+            <label class="form-field">Trend name <span class="required">*</span><input id="socialTrendName" maxlength="160" required placeholder="e.g. #DeskSetup or a trending sound" /></label>
+            <label class="form-field">Platform <span class="required">*</span><select id="socialTrendPlatform" required><option>TikTok</option><option>Instagram</option><option>YouTube</option><option>Facebook</option><option>Other</option></select></label>
+            <label class="form-field">Source URL <span class="required">*</span><input id="socialTrendUrl" type="url" required placeholder="https://..." /></label>
+            <div class="client-task-form-grid">
+              <label class="form-field">Video views <span class="required">*</span><input id="socialTrendViewCount" type="number" min="0" step="1" required inputmode="numeric" placeholder="0" /></label>
+              <label class="form-field">Videos or posts using it <span class="required">*</span><input id="socialTrendUseCount" type="number" min="0" step="1" required inputmode="numeric" placeholder="0" /></label>
+            </div>
+            <div class="client-task-form-grid">
+              <label class="form-field">Measurement <select id="socialTrendScope"><option value="exact">Exact platform total</option><option value="sample">Observed sample</option></select></label>
+              <label class="form-field">Checked on <span class="required">*</span><input id="socialTrendObservedAt" type="date" required /></label>
+            </div>
+            <label class="form-field">Notes<textarea id="socialTrendNotes" rows="4" maxlength="1000" placeholder="Why the trend matters or how you may use it"></textarea></label>
+          </div>
+          <footer class="client-task-drawer-footer">
+            <button class="button button-danger social-trend-delete" id="deleteSocialTrend" type="button" hidden>Delete</button>
+            <button class="button button-secondary" id="cancelSocialTrend" type="button">Cancel</button>
+            <button class="button button-primary" type="submit">Save trend</button>
+          </footer>
+        </form>
+      </aside>
+    </div>
     <div class="active-client-drawer-layer" id="activeClientDrawerLayer" hidden aria-hidden="true">
       <button class="active-client-drawer-backdrop" id="activeClientDrawerBackdrop" type="button" aria-label="Close client actions"></button>
       <aside class="active-client-drawer" id="activeClientDrawer" role="dialog" aria-modal="true" aria-labelledby="activeClientActionsTitle" tabindex="-1">
@@ -1639,6 +1692,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261019-task-actions-panel"></script>
+    <script src="js/app.js?v=20261019-social-trends"></script>
   </body>
 </html>
