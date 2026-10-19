@@ -1150,7 +1150,6 @@ td:first-child { color: #242522; font-weight: 650; }
 .gmail-menu-item:hover { background: #fceff0; }
 .email-workspace-head { margin-bottom: 2px; }
 .email-workspace-count-icon { background: #eef2fa; color: #52637e; }
-.email-refresh-button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 10px; font-size: 11px; }
 .email-filters { margin-top: 16px; }
 .email-view-tabs { display: flex; width: max-content; max-width: 100%; gap: 2px; margin: 0 0 10px; padding: 3px; overflow-x: auto; border: 1px solid #e1e5e1; border-radius: 7px; background: #f1f3f0; }
 .email-view-tab { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 0; border-radius: 5px; background: transparent; color: #5e665f; font-size: 11px; font-weight: 650; white-space: nowrap; }

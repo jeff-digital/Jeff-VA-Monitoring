@@ -25,15 +25,6 @@
   }
 
   document.addEventListener('click', async event => {
-    if (event.target.closest('[data-email-refresh]')) {
-      if (!gmailAccessToken) {
-        showActionResult({ title: 'Gmail not connected', message: 'Connect Gmail from Account settings before refreshing your inbox.', status: 'error' });
-        return;
-      }
-      await syncGmail(false);
-      return;
-    }
-
     if (event.target.closest('[data-email-selection-toggle]')) {
       emailSelectionMode = !emailSelectionMode;
       renderEmails();

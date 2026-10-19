@@ -2237,7 +2237,7 @@
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (view === 'inbox' && currentUser && gmailAccessToken) syncGmail(true);
+    if (view === 'inbox' && currentUser) syncGmail(false);
   }
 
   function saveNewClientApplicationDraft() {

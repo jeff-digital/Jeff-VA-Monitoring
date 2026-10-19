@@ -3385,7 +3385,7 @@
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (view === 'inbox' && currentUser && gmailAccessToken) syncGmail(true);
+    if (view === 'inbox' && currentUser) syncGmail(false);
   }
 
   function saveNewClientApplicationDraft() {
@@ -6559,18 +6559,24 @@
       .trim();
   }
 
-  function gmailMessageBody(payload) {
-    if (!payload) return '';
-    if (payload.body?.data) return emailContentText(decodeGmailBody(payload.body.data));
-    let plainBody = '';
-    let htmlBody = '';
-    for (const part of payload.parts || []) {
-      const body = gmailMessageBody(part);
-      if (body && part.mimeType === 'text/plain') plainBody = body;
-      if (body && part.mimeType === 'text/html') htmlBody = body;
+  function collectGmailMessageBodies(payload, bodies) {
+    if (!payload) return;
+    if (payload.body?.data) {
+      const content = emailContentText(decodeGmailBody(payload.body.data));
+      if (content) {
+        if (payload.mimeType === 'text/html') bodies.html.push(content);
+        else if (!payload.mimeType || payload.mimeType.startsWith('text/')) bodies.plain.push(content);
+      }
     }
-    if (plainBody && /[\r\n]/.test(plainBody)) return plainBody;
-    return htmlBody || plainBody;
+    for (const part of payload.parts || []) collectGmailMessageBodies(part, bodies);
+  }
+
+  function gmailMessageBody(payload) {
+    const bodies = { plain: [], html: [] };
+    collectGmailMessageBodies(payload, bodies);
+    const plainBody = bodies.plain.join('\n\n').trim();
+    const htmlBody = bodies.html.join('\n\n').trim();
+    return plainBody || htmlBody;
   }
 
   function requestGmailAccessToken(prompt = '') {
@@ -6601,7 +6607,8 @@
   }
 
   async function ensureGmailAccessToken() {
-    if (gmailAccessToken) return gmailAccessToken;
+    if (gmailAccessToken && !gmailReconnectRequired) return gmailAccessToken;
+    gmailAccessToken = null;
     try {
       return await requestGmailAccessToken('');
     } catch {
@@ -6843,11 +6850,9 @@
       reconnectButton.disabled = true;
       setGmailStatus('Reconnecting Gmail…');
       try {
-        await requestGmailAccessToken('');
-        gmailReconnectRequired = false;
-        sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
+        await ensureGmailAccessToken();
         startGmailSyncTimer();
-        await syncGmail(true);
+        await syncGmail(false);
       } catch (error) {
         handleGmailAuthorizationFailure(error);
       } finally {
@@ -6889,10 +6894,22 @@
       startGmailSyncTimer();
       return;
     }
-    if (sessionStorage.getItem(GMAIL_CONNECTED_KEY)) {
-      setGmailStatus(gmailReconnectRequired
-        ? 'Gmail needs to reconnect. Use the Reconnect Gmail button; your dashboard session is still active.'
-        : 'Gmail authorized previously — log in with Google to sync');
+    if (sessionStorage.getItem(GMAIL_CONNECTED_KEY) || activeAuthProvider === 'google') {
+      setGmailStatus('Restoring Gmail connection automatically…');
+      // The dashboard session can outlive Google's short-lived Gmail token.
+      // Reuse the signed-in Google browser session once during startup so the
+      // inbox can keep syncing without repeating the dashboard login.
+      window.setTimeout(async () => {
+        if (!currentUser || gmailAccessToken) return;
+        try {
+          await requestGmailAccessToken('');
+          startGmailSyncTimer();
+          await syncGmail(true);
+        } catch (error) {
+          console.warn('Gmail could not restore automatically:', error);
+          handleGmailAuthorizationFailure(error);
+        }
+      }, 0);
     } else {
       setGmailStatus('Gmail ready — log in with Google to sync your inbox');
     }
@@ -6937,7 +6954,7 @@
     sessionStorage.setItem(GMAIL_RECONNECT_REQUIRED_KEY, '1');
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Gmail needs to reconnect. Your dashboard session is still active.');
-    setGmailStatus('Gmail needs to reconnect. Use the Reconnect Gmail button; your dashboard session is still active.');
+    setGmailStatus('Gmail access paused. Open Email to reconnect with your existing Google session.');
   }
 
   function startGmailSyncTimer() {
@@ -6990,8 +7007,27 @@
   async function syncGmail(silent = false) {
     // Do not let a restored Gmail session sync against the empty startup state.
     // The authenticated startup flow triggers the first sync after saved deletions load.
-    if (gmailSyncInFlight || !gmailAccessToken || gmailReconnectRequired || !currentUser || !dataReady || !supabaseDataLoaded) return;
+    if (gmailSyncInFlight || !currentUser || !dataReady || !supabaseDataLoaded) return;
+    if (!gmailAccessToken || gmailReconnectRequired) {
+      // A dashboard session and a Gmail access token have different lifetimes.
+      // Opening Email should renew the Gmail token instead of asking
+      // the user to repeat the full application login flow.
+      if (silent) return;
+      setGmailStatus('Reconnecting Gmail…');
+      try {
+        await ensureGmailAccessToken();
+      } catch (error) {
+        handleGmailAuthorizationFailure(error);
+        showActionResult({
+          title: 'Gmail needs permission',
+          message: 'Choose your Google account once to renew Gmail access. Your dashboard login is still active.',
+          status: 'error'
+        });
+        return;
+      }
+    }
     gmailSyncInFlight = true;
+    if (!silent) setGmailStatus('Checking Gmail for new messages…');
     try {
       const fetchMessageList = async params => {
         return fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`);
@@ -7053,8 +7089,20 @@
       const ids = [...new Set(listedMessages.map(message => message.id))].filter(id => !deletedGmailIds.has(id));
       const previousGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       const newIds = ids.filter(id => !previousGmailIds.has(id));
+      const newIdSet = new Set(newIds);
+      const incompleteGmailIds = new Set(data.emails
+        .filter(item => item.source === 'gmail'
+          && item.gmailId
+          && item.bodyLoaded !== true
+          && !String(item.body || '').trim()
+          && !deletedGmailIds.has(item.gmailId))
+        .map(item => item.gmailId));
+      const messageIdsToFetch = [...new Set([
+        ...ids.filter(id => newIdSet.has(id) || incompleteGmailIds.has(id)),
+        ...[...incompleteGmailIds].slice(0, 30)
+      ])];
       let matchedExistingSentMessages = false;
-      const fetchedResults = await Promise.allSettled(newIds.map(async id => {
+      const fetchedResults = await Promise.allSettled(messageIdsToFetch.map(async id => {
         const msg = await fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`);
         const headers = msg.payload?.headers || [];
         const header = name => headers.find(item => item.name === name)?.value || '';
@@ -7076,6 +7124,7 @@
             existingSentMessage.id = `gmail-${id}`;
             existingSentMessage.gmailId = id;
             existingSentMessage.source = 'gmail';
+            existingSentMessage.bodyLoaded = true;
             matchedExistingSentMessages = true;
             return null;
           }
@@ -7090,6 +7139,7 @@
           date,
           importedAt: new Date().toISOString(),
           source: 'gmail',
+          bodyLoaded: true,
           direction: isSent ? 'sent' : 'received'
         };
       }));
@@ -7098,7 +7148,7 @@
         throw new Error('Gmail authorization needs to be refreshed.');
       }
       const failedMessageFetches = fetchedResults.filter(result => result.status === 'rejected');
-      const fetchedNewMessages = fetchedResults
+      const fetchedMessages = fetchedResults
         .filter(result => result.status === 'fulfilled')
         .map(result => result.value)
         .filter(Boolean);
@@ -7106,13 +7156,20 @@
       // Re-read the deletion list before merging so an older response cannot revive it.
       const currentDeletedGmailIds = new Set(data.deletedGmailIds || []);
       const activeIds = ids.filter(id => !currentDeletedGmailIds.has(id));
-      const existingGmailMessages = data.emails.filter(item => item.source === 'gmail' && activeIds.includes(item.gmailId));
-      const newOnes = fetchedNewMessages.filter(item => !currentDeletedGmailIds.has(item.gmailId));
+      const fetchedOnes = fetchedMessages.filter(item => !currentDeletedGmailIds.has(item.gmailId));
+      const fetchedGmailIds = new Set(fetchedOnes.map(item => item.gmailId));
+      const existingGmailMessages = data.emails.filter(item => item.source === 'gmail'
+        && activeIds.includes(item.gmailId)
+        && !fetchedGmailIds.has(item.gmailId));
+      const newOnes = fetchedOnes.filter(item => newIdSet.has(item.gmailId));
       const emailCountBeforeMerge = data.emails.length;
       data.emails = dedupeEmails([
-        ...data.emails.filter(item => item.source !== 'gmail' || (!activeIds.includes(item.gmailId) && !currentDeletedGmailIds.has(item.gmailId))),
+        ...data.emails.filter(item => item.source !== 'gmail'
+          || (!activeIds.includes(item.gmailId)
+            && !currentDeletedGmailIds.has(item.gmailId)
+            && !fetchedGmailIds.has(item.gmailId))),
+        ...fetchedOnes,
         ...existingGmailMessages,
-        ...newOnes
       ]).filter(item => !(item.source === 'gmail' && currentDeletedGmailIds.has(item.gmailId)));
       const portfolioAlertsAdded = alertPortfolioSubmissionEmails(data.emails);
       const savedGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
@@ -9789,15 +9846,6 @@
   }
 
   document.addEventListener('click', async event => {
-    if (event.target.closest('[data-email-refresh]')) {
-      if (!gmailAccessToken) {
-        showActionResult({ title: 'Gmail not connected', message: 'Connect Gmail from Account settings before refreshing your inbox.', status: 'error' });
-        return;
-      }
-      await syncGmail(false);
-      return;
-    }
-
     if (event.target.closest('[data-email-selection-toggle]')) {
       emailSelectionMode = !emailSelectionMode;
       renderEmails();
