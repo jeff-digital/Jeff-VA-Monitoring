@@ -1,7 +1,7 @@
 const CATEGORY_QUERIES = {
   all: '(business AND ("United Kingdom" OR Australia OR "United States" OR Canada)) OR ("virtual assistant" AND (Philippines OR Filipino)) OR "remote work" OR "artificial intelligence" OR automation OR viral',
-  'social-trends': '(viral OR trending) AND ("social media" OR TikTok OR Instagram OR Facebook OR YouTube OR Twitter OR Reddit OR LinkedIn OR Snapchat OR Pinterest OR Threads OR Bluesky)',
-  'business-markets': 'business AND ("United Kingdom" OR Australia OR "United States" OR Canada)',
+  'social-trends': '(marketing OR campaign OR product) AND ("social media" OR TikTok OR Instagram OR Facebook OR YouTube OR Twitter OR Reddit OR LinkedIn OR Snapchat OR Pinterest OR Threads OR Bluesky)',
+  'business-markets': 'business AND ("United Kingdom" OR UK OR "United States" OR Canada OR Australia) AND (staffing OR hiring OR workload OR productivity OR "customer service" OR growth OR challenges OR costs)',
   'va-philippines': '("virtual assistant" OR freelancing OR BPO) AND (Philippines OR Filipino)',
   'remote-work': '("remote work" OR "work from home" OR "digital jobs") AND (Philippines OR Filipino)',
   ai: 'artificial intelligence OR ChatGPT OR Claude OR Gemini',
@@ -13,7 +13,13 @@ const CATEGORY_QUERIES = {
   marketing: 'SEO social media content marketing technology'
 };
 
-const NEWS_CACHE_VERSION = '4';
+// Keep room for the user's complete search phrase within GNews's 200-character limit.
+const CATEGORY_SEARCH_QUERIES = {
+  'social-trends': '(marketing OR campaign OR product) AND "social media"',
+  'business-markets': 'business AND (UK OR "United States" OR Canada OR Australia)'
+};
+
+const NEWS_CACHE_VERSION = '5';
 const DEFAULT_GNEWS_DAILY_LIMIT = 100;
 
 function json(body, status = 200, extra = {}) {
@@ -152,7 +158,7 @@ export async function onRequestGet({ request, env, caches = globalThis.caches })
   const cacheKey = new Request(`${url.origin}/api/news?v=${NEWS_CACHE_VERSION}&category=${encodeURIComponent(category)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`);
   const cached = await caches.default.match(cacheKey);
   if (cached) return cached;
-  const topicQuery = CATEGORY_QUERIES[category];
+  const topicQuery = (query && CATEGORY_SEARCH_QUERIES[category]) || CATEGORY_QUERIES[category];
   const userQuery = query.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim();
   const availableUserLength = Math.max(1, 190 - topicQuery.length - 9);
   const selectedQuery = userQuery

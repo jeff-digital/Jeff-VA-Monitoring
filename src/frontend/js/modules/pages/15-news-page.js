@@ -117,6 +117,12 @@
   async function loadNews({ reset = false } = {}) {
     if (!currentUser || !$('#newsLiveGrid')) return;
     if (newsLoading && !reset) return;
+    const focus = $('#newsTopicFocus');
+    const topicFocus = {
+      'social-trends': 'Business content inspiration: social media marketing, brand campaigns, product launches, and consumer trends across platforms.',
+      'business-markets': 'Business challenges in the UK, US, Canada, and Australia: staffing, workload, customer service, costs, productivity, and growth. Look for opportunities to help owners with VA support.'
+    }[$('#newsCategory').value] || '';
+    if (focus) { focus.textContent = topicFocus; focus.hidden = !topicFocus; }
     const requestId = ++newsRequest;
     if (reset) {
       newsPage = 1;

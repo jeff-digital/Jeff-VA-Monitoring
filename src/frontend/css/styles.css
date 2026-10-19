@@ -792,6 +792,7 @@ td:first-child { color: #242522; font-weight: 650; }
 .news-search input { font-size: 11px; }
 .news-category-select select { height: 34px; min-width: 150px; padding: 0 8px; border: 1px solid #dfe2dd; border-radius: 6px; background: #fff; color: #373c37; font: inherit; font-size: 11px; }
 .news-live-status { color: #687269; font-size: 11px; }
+.news-topic-focus { margin: 12px 20px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .news-card-grid { display: grid; gap: 16px; }
 .news-live-grid { grid-template-columns: minmax(0, 1fr); margin: 0; }
 .news-featured-story { grid-column: span 2; min-width: 0; }
@@ -2979,18 +2980,18 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 }
 
 #inboxView .email-filters { margin: 14px 0 8px; padding: 0; border: 0; }
-#inboxView .email-panel-header { padding: 22px 24px 0; border-bottom: 1px solid var(--workspace-line); background: #fff; }
-#inboxView .email-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--workspace-line); }
+#inboxView .email-panel-header { padding: 12px 16px 0; border-bottom: 1px solid var(--workspace-line); background: #fff; }
+#inboxView .email-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--workspace-line); }
 #inboxView .email-panel-heading-actions { display: flex; align-items: center; gap: 9px; }
 #inboxView #emailCountLabel { color: var(--workspace-muted); font-size: 11px; font-weight: 600; white-space: nowrap; }
 #inboxView #emailSelectionActions { display: flex; justify-content: flex-end; }
 #inboxView .email-summary { display: flex; flex-shrink: 0; gap: 8px; }
-#inboxView .email-summary-item { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 7px 11px; border: 1px solid #e1e5e1; border-radius: 5px; background: #fff; color: #59635b; font-size: 11px; font-weight: 600; cursor: pointer; }
+#inboxView .email-summary-item { display: flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 9px; border: 1px solid #e1e5e1; border-radius: 5px; background: #fff; color: #59635b; font-size: 11px; font-weight: 600; cursor: pointer; }
 #inboxView .email-summary-item strong { color: #404a42; font-size: 12px; font-weight: 700; }
 #inboxView .email-summary-item:hover { border-color: #bac9bc; background: #f8faf8; }
 #inboxView .email-summary-item.active { border-color: #9bb29e; background: #f0f5f0; color: #365a40; }
 #inboxView .email-summary-item.active strong { color: #365a40; }
-#inboxView .email-filters { margin: 14px 0 8px; padding: 0; border: 0; }
+#inboxView .email-filters { margin: 8px 0; padding: 0; border: 0; }
 #inboxView .email-view-tabs { border-bottom: 0; }
 #inboxView .email-view-tabs {
   gap: 16px;
@@ -6797,6 +6798,18 @@ body:has(#hiredView.active) .hired-card .hired-client-contact-name {
   button, .button { transition-duration: 0ms; }
   button.is-submitting, .button.is-submitting,
   button.is-loading::before, .button.is-loading::before { animation: none; }
+}
+
+/* Compact Email title, with room for the selected week and touch controls. */
+body:has(#inboxView.active) .topbar { min-height: 64px; height: auto; margin: 0 0 12px; }
+body:has(#inboxView.active) #pageTitle { margin: 0; font-size: 22px; line-height: 1.2; }
+body:has(#inboxView.active) #pageEyebrow { display: none; }
+body:has(#inboxView.active) #emailWeekDate { margin: 3px 0 0; font-size: 11px; line-height: 1.4; }
+@media (max-width: 720px) {
+  body:has(#inboxView.active) #pageTitle { font-size: 20px; }
+}
+@media (pointer: coarse) {
+  #inboxView .email-summary-item { min-height: 44px; }
 }
 
 /* Compact editorial workspace for News. */
