@@ -774,7 +774,7 @@ td:first-child { color: #242522; font-weight: 650; }
 .application-workspace-count { display: flex; align-items: center; gap: 11px; min-width: 160px; padding: 11px 13px; border: 1px solid #e1e5e1; border-radius: 7px; background: #fff; }
 .application-workspace-count-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 6px; background: #edf4ef; color: #476c53; font-size: 14px; }
 .application-workspace-count small { display: block; margin-bottom: 3px; color: #777d77; font-size: 10px; }
-#applicationListLabel, #emailCountLabel, #toApplyCountLabel { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; color: #2e3931; font-size: 13px; font-weight: 700; letter-spacing: 0; text-transform: capitalize; }
+#applicationListLabel, #toApplyCountLabel { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; color: #2e3931; font-size: 13px; font-weight: 700; letter-spacing: 0; text-transform: capitalize; }
 .application-workspace-count-summary { display: grid; gap: 6px; min-width: 0; }
 #applicationPlatformCounts { display: flex; flex-wrap: wrap; gap: 5px; }
 .application-platform-count { padding: 3px 7px; border: 1px solid #dce5de; border-radius: 999px; background: #f5f8f5; color: #53675a; font-size: 10px; font-weight: 600; white-space: nowrap; }
@@ -2736,8 +2736,7 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 #inboxView .application-workspace-count small { color: var(--workspace-muted); }
 
 #applicationsView #applicationListLabel,
-#toApplyView #toApplyCountLabel,
-#inboxView #emailCountLabel {
+#toApplyView #toApplyCountLabel {
   color: var(--workspace-ink);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -2983,7 +2982,6 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .r
 #inboxView .email-panel-header { padding: 12px 16px 0; border-bottom: 1px solid var(--workspace-line); background: #fff; }
 #inboxView .email-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--workspace-line); }
 #inboxView .email-panel-heading-actions { display: flex; align-items: center; gap: 9px; }
-#inboxView #emailCountLabel { color: var(--workspace-muted); font-size: 11px; font-weight: 600; white-space: nowrap; }
 #inboxView #emailSelectionActions { display: flex; justify-content: flex-end; }
 #inboxView .email-summary { display: flex; flex-shrink: 0; gap: 8px; }
 #inboxView .email-summary-item { display: flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 9px; border: 1px solid #e1e5e1; border-radius: 5px; background: #fff; color: #59635b; font-size: 11px; font-weight: 600; cursor: pointer; }
@@ -3956,7 +3954,7 @@ body:has(#hiredView.active):has(#hiredView.client-focused) .hired-header-summary
 body:has(#hiredView.active) .local-indicator { gap: 0; color: #6b7280; font-size: 12px; }
 body:has(#hiredView.active) .local-indicator > span:first-child { display: none; }
 body:has(#hiredView.active) #hiredView { min-width: 0; }
-body:has(#hiredView.active) #hiredView > .toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) 140px 140px 140px; gap: 12px; align-items: center; margin: 0 0 16px; }
+body:has(#hiredView.active) #hiredView > .toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) 140px 140px; gap: 12px; align-items: center; margin: 0 0 16px; }
 body:has(#hiredView.active) #hiredView > .toolbar > .search-field,
 body:has(#hiredView.active) #hiredView > .toolbar > .date-filter,
 body:has(#hiredView.active) #hiredView > .toolbar > .select-field { min-width: 0; height: 40px; }
@@ -3965,9 +3963,6 @@ body:has(#hiredView.active) #hiredView > .toolbar .search-field input { width: 1
 body:has(#hiredView.active) #hiredView > .toolbar .search-field:focus-within { border-color: #718c78; box-shadow: 0 0 0 3px rgba(93,128,105,.12); }
 body:has(#hiredView.active) #hiredView > .toolbar .select-field select,
 body:has(#hiredView.active) #hiredView > .toolbar .date-filter input { width: 100%; height: 40px; min-height: 40px; border-color: #e6e8f0; border-radius: 8px; background: #fff; color: #374151; font-size: 13px; }
-body:has(#hiredView.active) #hiredView > .toolbar .hired-date-filter { position: relative; }
-body:has(#hiredView.active) #hiredView > .toolbar .hired-filter-label { position: absolute; z-index: 1; top: 2px; left: 11px; color: #6b7280; font-size: 12px; line-height: 14px; pointer-events: none; }
-body:has(#hiredView.active) #hiredView > .toolbar .hired-date-filter input { padding: 14px 8px 2px; font-size: 12px; }
 body:has(#hiredView.active) .hired-summary { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
 body:has(#hiredView.active) .hired-summary > div { display: flex; align-items: center; gap: 10px; min-width: 150px; padding: 10px 14px; border: 1px solid #e6e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
 body:has(#hiredView.active) .hired-summary span { color: #6b7280; font-size: 12px; }
@@ -4117,7 +4112,7 @@ body:has(#hiredView.active) .hired-card.contract-ended-card .client-contract-sta
 body:has(#hiredView.active) .hired-list { grid-template-columns: repeat(3, minmax(0, 360px)); justify-content: start; }
 
 @media (max-width: 1240px) {
-  body:has(#hiredView.active) #hiredView > .toolbar { grid-template-columns: minmax(180px, 1fr) 140px 140px 150px; }
+  body:has(#hiredView.active) #hiredView > .toolbar { grid-template-columns: minmax(180px, 1fr) 140px 150px; }
   body:has(#hiredView.active) .hired-list { grid-template-columns: repeat(2, minmax(0, 360px)); }
 }
 
@@ -7072,14 +7067,55 @@ body:has(#newsView.active) #pageEyebrow { display: none; }
   #newsView .news-live-grid:has(> .news-category-loader:only-child) { min-height: calc(100dvh - 226px); }
   #newsView .news-empty { width: min(100%, 320px); padding: 34px 20px; }
 }
-.gmail-sync-summary { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; margin:10px 0 14px; padding:10px 12px; border:1px solid #e3e8ec; border-radius:8px; background:#f7f9fb; }
-.gmail-sync-summary[hidden] { display:none; }
-.gmail-sync-summary p { margin:0; font-size:12px; line-height:1.6; color:#536471; }
-.gmail-sync-summary[data-state="synced"] p { color:#287554; }
-.gmail-sync-summary[data-state="permission"] p, .gmail-sync-summary[data-state="partial"] p, .gmail-sync-summary[data-state="paused"] p { color:#976021; }
-.gmail-sync-summary[data-state="syncing"] p::before, .gmail-sync-summary[data-state="renewing"] p::before { content:""; display:inline-block; width:9px; height:9px; margin-right:8px; border:2px solid #c9d2df; border-top-color:#26345b; border-radius:50%; animation:gmail-sync-spin 1s linear infinite; }
-@keyframes gmail-sync-spin { to { transform:rotate(360deg); } }
-@media (prefers-reduced-motion:reduce) { .gmail-sync-summary p::before { animation:none !important; } }
+/* Compact list filters; retain larger mobile inputs for comfortable entry. */
+@media (min-width: 769px) {
+  #inboxView .email-filter-controls { grid-template-columns: repeat(2, minmax(0, 150px)); gap: 7px; }
+  #inboxView .application-filter-field { gap: 4px; font-size: 9px; }
+  #inboxView .application-filter-field input,
+  #inboxView .application-filter-field select { height: 30px; min-height: 30px; padding: 0 7px; font-size: 11px; font-weight: 500; }
+  #applicationsView .application-filter-controls { gap: 7px; }
+  #applicationsView .application-filter-field { gap: 4px; font-size: 9px; }
+  #applicationsView .application-filter-field input,
+  #applicationsView .application-filter-field select { height: 30px; min-height: 30px; padding: 0 7px; font-size: 11px; font-weight: 500; }
+  body:has(#hiredView.active) #hiredView > .toolbar { gap: 8px; }
+  body:has(#hiredView.active) #hiredView > .toolbar > .search-field,
+  body:has(#hiredView.active) #hiredView > .toolbar > .date-filter,
+  body:has(#hiredView.active) #hiredView > .toolbar > .select-field { height: 32px; min-height: 32px; }
+  body:has(#hiredView.active) #hiredView > .toolbar .select-field select,
+  body:has(#hiredView.active) #hiredView > .toolbar .date-filter input { height: 32px; min-height: 32px; padding: 0 8px; border-radius: 6px; font-size: 11px; }
+  body:has(#hiredView.active) #hiredView > .toolbar .search-field input { font-size: 11px; }
+}
+@media (min-width: 1024px) {
+  body:has(#hiredView.active) #hiredView > .toolbar { grid-template-columns: minmax(180px, 1fr) 124px 124px; }
+}
+
+/* Compact inbox service status, beside the email tabs. */
+#inboxView .email-panel-heading { flex-wrap: wrap; }
+#inboxView .email-selection-trigger { min-height: 28px; padding: 5px 8px; gap: 5px; border-radius: 6px; font-size: 11px; font-weight: 600; line-height: 1.3; white-space: nowrap; }
+#inboxView .email-selection-trigger i { font-size: 10px; }
+.email-header-status-group { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; max-width: 100%; margin-left: auto; }
+.email-status-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; max-width: 100%; padding: 4px 8px; border: 1px solid #e5e9ed; border-radius: 6px; background: #fafbfc; color: #536471; font-size: 11px; line-height: 1.5; }
+.email-status-chip[hidden] { display: none; }
+.email-status-chip p { margin: 0; min-width: 0; font-size: inherit; line-height: inherit; overflow-wrap: anywhere; }
+.email-status-chip time { padding-left: 6px; border-left: 1px solid #e1e6eb; color: #7a8794; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.email-status-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #97a3af; }
+.gmail-sync-summary[data-state="synced"] .email-status-dot { background: #3a956d; }
+.gmail-sync-summary[data-state="permission"], .gmail-sync-summary[data-state="partial"], .gmail-sync-summary[data-state="paused"], .email-ai-summary[data-state="attention"] { background: #fffaf1; border-color: #edddbc; color: #895f24; }
+.gmail-sync-summary[data-state="syncing"] .email-status-dot, .gmail-sync-summary[data-state="renewing"] .email-status-dot { width: 10px; height: 10px; border: 2px solid #d4dce5; border-top-color: #526795; background: transparent; animation: gmail-sync-spin 1s linear infinite; }
+.email-status-chip .text-button { padding: 0 0 0 4px; font-size: 11px; white-space: nowrap; }
+.email-ai-summary > i { flex: 0 0 auto; color: #6974a5; font-size: 10px; }
+.email-ai-usage { flex: 0 0 auto; padding: 1px 5px; border-radius: 4px; background: #edf0f8; color: #596793; font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.email-ai-summary[data-state="attention"] .email-ai-usage { background: #f4e9d6; color: #895f24; }
+@keyframes gmail-sync-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .gmail-sync-summary .email-status-dot { animation: none !important; } }
+@media (max-width: 1050px) {
+  .email-header-status-group { order: 3; flex-basis: 100%; margin-left: 0; }
+  #inboxView .email-panel-heading-actions { margin-left: auto; }
+}
+@media (max-width: 480px) {
+  .email-header-status-group { align-items: flex-start; gap: 6px; }
+  .email-status-chip { font-size: 10px; padding: 4px 6px; }
+}
 .email-task-source { overflow-wrap:anywhere; color:#536471; font-size:12px; line-height:1.6; margin:8px 0; }
 .task-source-email { font-size:11px; padding:0; }
 #clientTaskScheduleSection[hidden], #clientTaskOneOffFields[hidden] { display:none; }

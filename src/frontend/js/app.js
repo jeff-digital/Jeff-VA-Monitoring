@@ -500,7 +500,6 @@
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
   let applicationDateFilter = '';
-  let hiredDateFilter = '';
   let emailDateFilter = '';
   let interviewCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const contractEndedEmailSending = new Set();
@@ -2572,7 +2571,6 @@
     const clientEmails = emails.filter(item => !isSentEmail(item));
     const sentEmails = emails.filter(item => isSentEmail(item));
     const visibleEmails = sortByDate(emailViewFilter === 'sent' ? sentEmails : clientEmails, item => item.date);
-    $('#emailCountLabel').textContent = `${plural(visibleEmails.length, 'email')}${query ? ' shown' : ''}`;
     $$('.email-summary-item').forEach(button => {
       const selected = button.dataset.emailView === emailViewFilter;
       button.classList.toggle('active', selected);
@@ -2833,7 +2831,6 @@
     const allHired = sortByDate(hiredClients(), activeSinceDate, hiredDateSort);
     const query = $('#hiredSearch').value.trim().toLowerCase();
     const filter = $('#hiredStatusFilter').value;
-    const dateFilter = $('#hiredDateFilter').value;
     const clients = allHired.filter(item => {
       const contractStatus = isContractEnded(item) ? 'Contract Ended' : (item.contractStatus || 'Active');
       const searchableText = [
@@ -2842,8 +2839,7 @@
         item.companyName, item.company, item.role, contractStatus
       ].join(' ').toLowerCase();
       return (filter === 'all' || contractStatus === filter)
-        && (!query || searchableText.includes(query))
-        && (!dateFilter || dateKey(activeSinceDate(item)) === dateFilter);
+        && (!query || searchableText.includes(query));
     });
     const nonEndedClients = clients.filter(item => !isContractEnded(item));
     const endedClients = clients.filter(isContractEnded);
@@ -2936,10 +2932,6 @@
     renderHired();
   });
   $('#hiredSearch').addEventListener('input', renderHired);
-  $('#hiredDateFilter').addEventListener('change', event => {
-    hiredDateFilter = event.target.value;
-    renderHired();
-  });
   $('#hiredDateSort').addEventListener('change', event => {
     hiredDateSort = event.target.value;
     renderHired();
@@ -7074,7 +7066,15 @@
     try { lastSync = localStorage.getItem(gmailLastSyncKey()) || ''; } catch (_) { /* Keep the status usable. */ }
     const date = new Date(lastSync);
     const lastSyncLabel = lastSync && !Number.isNaN(date.getTime()) ? `Last synced ${date.toLocaleString()}` : 'No successful sync yet';
-    $('#gmailSyncStatusText').textContent = `${labels[state] || labels.checking} · ${lastSyncLabel}`;
+    const compactLabels = { checking: 'Gmail connecting', syncing: 'Gmail syncing…', renewing: 'Gmail reconnecting…',
+      synced: 'Gmail synced', partial: 'Gmail sync incomplete', paused: 'Gmail retrying', offline: 'Gmail offline', permission: 'Gmail permission needed' };
+    $('#gmailSyncStatusText').textContent = compactLabels[state] || compactLabels.checking;
+    summary.title = `${labels[state] || labels.checking} · ${lastSyncLabel}`;
+    const time = $('#gmailSyncTime');
+    time.hidden = !lastSync || Number.isNaN(date.getTime());
+    time.textContent = time.hidden ? '' : date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+    time.dateTime = time.hidden ? '' : date.toISOString();
+    time.title = lastSyncLabel;
     summary.dataset.state = state;
     const connectButton = $('#gmailSyncConnectButton');
     connectButton.hidden = state !== 'permission' || !gmailConfigured();
@@ -10441,13 +10441,30 @@
     const element = $('#clientEmailAiStatus');
     if (!element) return;
     element.hidden = !currentUser;
+    const summary = $('#emailAiStatusSummary');
+    if (summary) summary.hidden = !currentUser;
     if (!currentUser) return;
     if (message) clientEmailAiStatus = { userId: currentUser.id, message };
     const retry = emailAiRetryState();
-    element.textContent = retry?.until > Date.now() ? retry.message
+    const fullStatus = retry?.until > Date.now() ? retry.message
       : clientEmailAiStatus.userId === currentUser.id && clientEmailAiStatus.message
         ? clientEmailAiStatus.message : 'Email tasks: AI checks active-client messages during sync.';
-    element.textContent += ` · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM)`;
+    const attention = retry?.until > Date.now();
+    const processing = !attention && /checking the purpose|renewing your dashboard/i.test(fullStatus);
+    const queued = !attention && /queued/i.test(fullStatus);
+    element.textContent = attention ? fullStatus : processing ? 'AI checking…' : queued ? 'AI queued'
+      : /messages checked/i.test(fullStatus) ? 'AI checked' : 'AI ready';
+    element.title = fullStatus;
+    if (summary) {
+      summary.dataset.state = attention ? 'attention' : processing ? 'processing' : queued ? 'queued' : 'ready';
+      summary.title = fullStatus;
+    }
+    const usage = $('#emailAiUsage');
+    if (usage) {
+      usage.textContent = `${emailAiDailyUsage().requests}/40`;
+      usage.title = `${emailAiDailyUsage().requests} of 40 email checks today · Resets at 8 AM (Philippines)`;
+      usage.ariaLabel = usage.title;
+    }
   }
 
   async function analyzeClientEmail(email, client, scanKey) {

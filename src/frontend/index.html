@@ -477,7 +477,6 @@
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
           <section class="toolbar">
             <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="hiredSearch" aria-label="Search clients" placeholder="Search clients" /></label>
-            <label class="date-filter hired-date-filter"><span class="hired-filter-label">Start date</span><input type="date" id="hiredDateFilter" aria-label="Filter active clients by start date" /></label>
             <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
             <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
           </section>
@@ -581,16 +580,23 @@
                     <span>Sent</span><strong id="emailSentCount">0</strong>
                   </button>
                 </div>
+                <div class="email-header-status-group" role="group" aria-label="Inbox services">
+                  <div class="gmail-sync-summary email-status-chip" id="gmailSyncSummary" hidden>
+                    <span class="email-status-dot" aria-hidden="true"></span>
+                    <p id="gmailSyncStatusText" role="status" aria-live="polite"></p>
+                    <time id="gmailSyncTime" hidden></time>
+                    <button class="text-button" type="button" id="gmailSyncConnectButton" hidden>Connect Gmail</button>
+                  </div>
+                  <div class="email-ai-summary email-status-chip" id="emailAiStatusSummary" hidden>
+                    <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+                    <p id="clientEmailAiStatus" role="status" aria-live="polite"></p>
+                    <span class="email-ai-usage" id="emailAiUsage"></span>
+                  </div>
+                </div>
                 <div class="email-panel-heading-actions">
-                  <strong id="emailCountLabel">0 emails</strong>
                   <div id="emailSelectionActions"></div>
                 </div>
               </div>
-              <div class="gmail-sync-summary" id="gmailSyncSummary" hidden>
-                <p id="gmailSyncStatusText" role="status" aria-live="polite"></p>
-                <button class="text-button" type="button" id="gmailSyncConnectButton" hidden>Connect Gmail</button>
-              </div>
-              <p class="email-task-source" id="clientEmailAiStatus" role="status" aria-live="polite" hidden></p>
               <section class="application-filters email-filters" aria-label="Email filters">
                 <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>
                 <div class="application-filter-controls email-filter-controls">

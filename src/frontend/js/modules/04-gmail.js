@@ -957,7 +957,15 @@
     try { lastSync = localStorage.getItem(gmailLastSyncKey()) || ''; } catch (_) { /* Keep the status usable. */ }
     const date = new Date(lastSync);
     const lastSyncLabel = lastSync && !Number.isNaN(date.getTime()) ? `Last synced ${date.toLocaleString()}` : 'No successful sync yet';
-    $('#gmailSyncStatusText').textContent = `${labels[state] || labels.checking} · ${lastSyncLabel}`;
+    const compactLabels = { checking: 'Gmail connecting', syncing: 'Gmail syncing…', renewing: 'Gmail reconnecting…',
+      synced: 'Gmail synced', partial: 'Gmail sync incomplete', paused: 'Gmail retrying', offline: 'Gmail offline', permission: 'Gmail permission needed' };
+    $('#gmailSyncStatusText').textContent = compactLabels[state] || compactLabels.checking;
+    summary.title = `${labels[state] || labels.checking} · ${lastSyncLabel}`;
+    const time = $('#gmailSyncTime');
+    time.hidden = !lastSync || Number.isNaN(date.getTime());
+    time.textContent = time.hidden ? '' : date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+    time.dateTime = time.hidden ? '' : date.toISOString();
+    time.title = lastSyncLabel;
     summary.dataset.state = state;
     const connectButton = $('#gmailSyncConnectButton');
     connectButton.hidden = state !== 'permission' || !gmailConfigured();

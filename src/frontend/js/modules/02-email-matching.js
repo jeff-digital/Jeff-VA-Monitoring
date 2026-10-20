@@ -1413,7 +1413,6 @@
     const clientEmails = emails.filter(item => !isSentEmail(item));
     const sentEmails = emails.filter(item => isSentEmail(item));
     const visibleEmails = sortByDate(emailViewFilter === 'sent' ? sentEmails : clientEmails, item => item.date);
-    $('#emailCountLabel').textContent = `${plural(visibleEmails.length, 'email')}${query ? ' shown' : ''}`;
     $$('.email-summary-item').forEach(button => {
       const selected = button.dataset.emailView === emailViewFilter;
       button.classList.toggle('active', selected);
@@ -1674,7 +1673,6 @@
     const allHired = sortByDate(hiredClients(), activeSinceDate, hiredDateSort);
     const query = $('#hiredSearch').value.trim().toLowerCase();
     const filter = $('#hiredStatusFilter').value;
-    const dateFilter = $('#hiredDateFilter').value;
     const clients = allHired.filter(item => {
       const contractStatus = isContractEnded(item) ? 'Contract Ended' : (item.contractStatus || 'Active');
       const searchableText = [
@@ -1683,8 +1681,7 @@
         item.companyName, item.company, item.role, contractStatus
       ].join(' ').toLowerCase();
       return (filter === 'all' || contractStatus === filter)
-        && (!query || searchableText.includes(query))
-        && (!dateFilter || dateKey(activeSinceDate(item)) === dateFilter);
+        && (!query || searchableText.includes(query));
     });
     const nonEndedClients = clients.filter(item => !isContractEnded(item));
     const endedClients = clients.filter(isContractEnded);
@@ -1777,10 +1774,6 @@
     renderHired();
   });
   $('#hiredSearch').addEventListener('input', renderHired);
-  $('#hiredDateFilter').addEventListener('change', event => {
-    hiredDateFilter = event.target.value;
-    renderHired();
-  });
   $('#hiredDateSort').addEventListener('change', event => {
     hiredDateSort = event.target.value;
     renderHired();

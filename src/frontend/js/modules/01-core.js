@@ -497,7 +497,6 @@
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
   let applicationDateFilter = '';
-  let hiredDateFilter = '';
   let emailDateFilter = '';
   let interviewCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const contractEndedEmailSending = new Set();

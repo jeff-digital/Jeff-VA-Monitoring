@@ -82,13 +82,30 @@
     const element = $('#clientEmailAiStatus');
     if (!element) return;
     element.hidden = !currentUser;
+    const summary = $('#emailAiStatusSummary');
+    if (summary) summary.hidden = !currentUser;
     if (!currentUser) return;
     if (message) clientEmailAiStatus = { userId: currentUser.id, message };
     const retry = emailAiRetryState();
-    element.textContent = retry?.until > Date.now() ? retry.message
+    const fullStatus = retry?.until > Date.now() ? retry.message
       : clientEmailAiStatus.userId === currentUser.id && clientEmailAiStatus.message
         ? clientEmailAiStatus.message : 'Email tasks: AI checks active-client messages during sync.';
-    element.textContent += ` · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM)`;
+    const attention = retry?.until > Date.now();
+    const processing = !attention && /checking the purpose|renewing your dashboard/i.test(fullStatus);
+    const queued = !attention && /queued/i.test(fullStatus);
+    element.textContent = attention ? fullStatus : processing ? 'AI checking…' : queued ? 'AI queued'
+      : /messages checked/i.test(fullStatus) ? 'AI checked' : 'AI ready';
+    element.title = fullStatus;
+    if (summary) {
+      summary.dataset.state = attention ? 'attention' : processing ? 'processing' : queued ? 'queued' : 'ready';
+      summary.title = fullStatus;
+    }
+    const usage = $('#emailAiUsage');
+    if (usage) {
+      usage.textContent = `${emailAiDailyUsage().requests}/40`;
+      usage.title = `${emailAiDailyUsage().requests} of 40 email checks today · Resets at 8 AM (Philippines)`;
+      usage.ariaLabel = usage.title;
+    }
   }
 
   async function analyzeClientEmail(email, client, scanKey) {
