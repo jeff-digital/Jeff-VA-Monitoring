@@ -567,9 +567,6 @@
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;
-    const taskButton = $('#emailDetailTaskButton');
-    taskButton.hidden = activeClientsForTaskEmail(emailItem).length === 0;
-    taskButton.dataset.emailId = emailItem.id;
     $('#emailDetailModal').showModal();
   }
 

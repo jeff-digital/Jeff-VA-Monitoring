@@ -1642,28 +1642,8 @@
         <p class="email-task-source" id="emailDetailAiStatus" hidden></p>
         <div class="modal-actions">
           <button class="button button-secondary" value="cancel" type="submit">Close</button>
-          <button class="button button-secondary" type="button" id="emailDetailTaskButton" hidden>Create task</button>
           <button class="button button-primary" type="button" id="emailDetailComposeButton">Send email</button>
         </div>
-      </form>
-    </dialog>
-
-    <dialog class="modal email-task-modal" id="emailTaskModal" aria-labelledby="emailTaskTitle">
-      <form id="emailTaskForm">
-        <div class="modal-heading"><div><p class="eyebrow">ACTIVE CLIENT</p><h2 id="emailTaskTitle">Create task from email</h2></div></div>
-        <p class="email-task-source" id="emailTaskSource"></p>
-        <p class="field-help">Review the task and choose a deadline. The original email remains linked to it.</p>
-        <label class="form-field">Client <select id="emailTaskClient" required></select></label>
-        <label class="form-field">Title <input id="emailTaskName" maxlength="160" required /></label>
-        <div class="client-task-form-grid">
-          <label class="form-field">Due date <input id="emailTaskDueDate" type="date" /></label>
-          <label class="form-field">Priority <select id="emailTaskPriority"><option>Medium</option><option>Low</option><option>High</option></select></label>
-          <label class="form-field">Category <select id="emailTaskCategory"><option>Other</option><option>Graphic Design</option><option>Social Media</option><option>Email Marketing</option><option>Digital Marketing</option><option>Web Development</option></select></label>
-          <label class="form-field">Estimated minutes <input id="emailTaskEstimate" type="number" min="0" max="100000" step="1" /></label>
-        </div>
-        <label class="form-field">Notes <textarea id="emailTaskNotes" rows="5" maxlength="3000"></textarea></label>
-        <p class="login-error" id="emailTaskError" role="alert"></p>
-        <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelEmailTask">Cancel</button><button class="button button-primary" type="submit" id="saveEmailTask">Create task</button></div>
       </form>
     </dialog>
 

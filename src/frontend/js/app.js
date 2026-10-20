@@ -2613,7 +2613,6 @@
       const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
       const recipient = extractEmailAddress(isSentEmail(item) ? item.to : item.from);
       const canCompose = matches.length > 0 && isEmailAddress(recipient);
-      const canCreateTask = activeClientsForTaskEmail(item).length > 0;
       const sentClass = isSentEmail(item) ? ' sent' : '';
       const sentBadge = isSentEmail(item) ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = isSentEmail(item) ? 'Sent' : 'Received';
@@ -2621,7 +2620,7 @@
       const selectionLabel = platformName ? `${platformName} email` : (item.subject || 'email');
       const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}" />` : '';
       const previewMarkup = platformName ? '' : `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
-      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCreateTask ? `<button type="button" role="menuitem" data-email-action="create-task" data-email-id="${escapeHtml(item.id)}">Create task</button>` : ''}${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
   }
@@ -6685,9 +6684,6 @@
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;
-    const taskButton = $('#emailDetailTaskButton');
-    taskButton.hidden = activeClientsForTaskEmail(emailItem).length === 0;
-    taskButton.dataset.emailId = emailItem.id;
     $('#emailDetailModal').showModal();
   }
 
@@ -10277,10 +10273,6 @@
     if (actionButton) {
       event.stopPropagation();
       const emailId = actionButton.dataset.emailId;
-      if (actionButton.dataset.emailAction === 'create-task') {
-        openEmailTaskComposer(emailId);
-        return;
-      }
       if (actionButton.dataset.emailAction === 'compose') {
         openEmailComposer(emailId);
         return;
@@ -10590,91 +10582,6 @@
     selectClientDetailTab('tasks');
   }
 
-  function openEmailTaskComposer(emailId) {
-    const email = data.emails.find(item => item.id === emailId);
-    const clients = activeClientsForTaskEmail(email);
-    if (!clients.length) return;
-    const form = $('#emailTaskForm');
-    form.reset();
-    form.dataset.emailId = email.id;
-    form.dataset.userId = currentUser.id;
-    $('#emailTaskClient').innerHTML = (clients.length > 1 ? '<option value="">Choose the client</option>' : '')
-      + clients.map(client => `<option value="${escapeHtml(client.id)}">${escapeHtml([client.contact, client.clientName].filter(Boolean).join(' | '))}</option>`).join('');
-    $('#emailTaskName').value = String(email.subject || '').replace(/^(?:(?:re|fw|fwd):\s*)+/i, '').slice(0, 160);
-    $('#emailTaskNotes').value = emailContentText(email.body || email.snippet || '').slice(0, 3000);
-    $('#emailTaskSource').textContent = `${email.from} · ${email.subject || '(No subject)'}`;
-    $('#emailTaskError').textContent = '';
-    $('#saveEmailTask').disabled = false;
-    $('#emailDetailModal').close();
-    $('#emailTaskModal').showModal();
-    $('#emailTaskName').focus();
-  }
-
-  async function submitEmailTask(event) {
-    event.preventDefault();
-    const form = $('#emailTaskForm');
-    const button = $('#saveEmailTask');
-    if (button.disabled || !form.reportValidity()) return;
-    const email = data.emails.find(item => item.id === form.dataset.emailId);
-    const clientId = $('#emailTaskClient').value;
-    const error = $('#emailTaskError');
-    error.textContent = '';
-    if (!currentUser || currentUser.id !== form.dataset.userId
-      || !activeClientsForTaskEmail(email).some(client => client.id === clientId)) {
-      error.textContent = 'This email must match a currently active client. Reopen the email and try again.';
-      return;
-    }
-    const existing = emailTaskExisting(email, clientId);
-    if (existing) {
-      $('#emailTaskModal').close();
-      showActionResult({ title: 'Task already exists', message: 'This email already has a task for this client.', status: 'info',
-        actionLabel: 'View task', onAction: () => viewEmailClientTask(existing) });
-      return;
-    }
-    const title = $('#emailTaskName').value.trim();
-    if (!title) { error.textContent = 'Enter a task title.'; return; }
-    const now = new Date().toISOString();
-    const task = {
-      id: uid(), clientId, title, category: $('#emailTaskCategory').value,
-      priority: $('#emailTaskPriority').value, dueDate: $('#emailTaskDueDate').value,
-      estimateMinutes: $('#emailTaskEstimate').value === '' ? '' : Number($('#emailTaskEstimate').value),
-      notes: $('#emailTaskNotes').value.trim(), repeat: { frequency: 'none', weekdays: [], dayOfMonth: null },
-      status: 'todo', completedAt: '', timeEntries: [], timerStartedAt: '', createdAt: now, updatedAt: now,
-      sourceEmailId: email.id, sourceGmailId: email.gmailId || '', sourceEmailSubject: email.subject || '',
-      sourceEmailFrom: email.from || '', sourceEmailDate: email.date || ''
-    };
-    const userId = currentUser.id;
-    button.disabled = true;
-    button.textContent = 'Saving…';
-    // Prevent dismissal while persistence is pending, so the same email cannot be submitted twice.
-    $('#cancelEmailTask').disabled = true;
-    data.clientTasks ||= [];
-    data.clientTasks.push(task);
-    try {
-      if (!await persist()) throw new Error('The task could not be saved. Please try again.');
-      if (currentUser?.id !== userId) return;
-      $('#emailTaskModal').close();
-      if (hiredEditingId === clientId) renderClientTasks(clientId);
-      renderAlerts();
-      showActionResult({ title: 'Task created', message: 'Saved to the active client’s tasks with a link to the email.',
-        actionLabel: 'View task', onAction: () => viewEmailClientTask(task) });
-    } catch (failure) {
-      if (currentUser?.id !== userId) return;
-      data.clientTasks = data.clientTasks.filter(item => item !== task);
-      error.textContent = failure.message || 'The task could not be saved. Please try again.';
-    } finally {
-      button.disabled = false;
-      button.textContent = 'Create task';
-      $('#cancelEmailTask').disabled = false;
-    }
-  }
-
-  $('#emailTaskForm').addEventListener('submit', submitEmailTask);
-  $('#cancelEmailTask').addEventListener('click', () => $('#emailTaskModal').close());
-  $('#emailTaskModal').addEventListener('cancel', event => {
-    if ($('#saveEmailTask').disabled) event.preventDefault();
-  });
-  $('#emailDetailTaskButton').addEventListener('click', event => openEmailTaskComposer(event.currentTarget.dataset.emailId));
   document.addEventListener('click', event => {
     const sourceButton = event.target.closest('[data-task-source-email]');
     if (!sourceButton) return;
@@ -13597,7 +13504,6 @@ document.addEventListener('keydown', event => {
     || [...document.querySelectorAll('dialog[open]')].pop();
   if (!dialog) return;
   event.preventDefault();
-  if (dialog.id === 'emailTaskModal' && $('#saveEmailTask').disabled) return;
   dialog.close();
 });
 

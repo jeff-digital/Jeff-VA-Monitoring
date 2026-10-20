@@ -845,6 +845,5 @@ document.addEventListener('keydown', event => {
     || [...document.querySelectorAll('dialog[open]')].pop();
   if (!dialog) return;
   event.preventDefault();
-  if (dialog.id === 'emailTaskModal' && $('#saveEmailTask').disabled) return;
   dialog.close();
 });
