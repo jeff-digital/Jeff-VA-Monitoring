@@ -529,41 +529,46 @@
     return Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase?.createClient);
   }
 
+  function createTabAuthStorage() {
+    const memory = new Map();
+    const storage = {
+      getItem(key) {
+        try { return window.sessionStorage.getItem(key) ?? memory.get(key) ?? null; }
+        catch { return memory.get(key) ?? null; }
+      },
+      setItem(key, value) {
+        memory.set(key, value);
+        try { window.sessionStorage.setItem(key, value); } catch {}
+      },
+      removeItem(key) {
+        memory.delete(key);
+        try { window.sessionStorage.removeItem(key); } catch {}
+      }
+    };
+    const tabIdKey = 'jeff-va-auth-tab-id-v1';
+    let tabId = storage.getItem(tabIdKey);
+    if (!tabId) {
+      tabId = crypto.randomUUID();
+      storage.setItem(tabIdKey, tabId);
+    }
+    // Retire the old permanent login without touching Gmail grants, app data,
+    // or signing out other devices. Each tab gets its own SDK broadcast key.
+    try {
+      const projectRef = new URL(window.SUPABASE_URL).hostname.split('.')[0];
+      window.localStorage.removeItem(`sb-${projectRef}-auth-token`);
+    } catch {}
+    return { storage, storageKey: `jeff-va-auth-${tabId}` };
+  }
+
   function requireSupabase() {
     if (!supabaseConfigured()) throw new Error('Account sign-in is unavailable. Check the app configuration.');
     if (!supabaseClient) {
-      const authStorage = {
-        getItem(key) {
-          try {
-            const storedValue = window.localStorage.getItem(key);
-            if (storedValue !== null) return storedValue;
-          } catch {}
-          const sessionValue = window.sessionStorage.getItem(key);
-          if (sessionValue !== null) {
-            try {
-              window.localStorage.setItem(key, sessionValue);
-              window.sessionStorage.removeItem(key);
-            } catch {}
-          }
-          return sessionValue;
-        },
-        setItem(key, value) {
-          try {
-            window.localStorage.setItem(key, value);
-            window.sessionStorage.removeItem(key);
-          } catch {
-            window.sessionStorage.setItem(key, value);
-          }
-        },
-        removeItem(key) {
-          try { window.localStorage.removeItem(key); } catch {}
-          window.sessionStorage.removeItem(key);
-        }
-      };
+      const tabAuth = createTabAuthStorage();
       supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
         auth: {
           persistSession: true,
-          storage: authStorage,
+          storage: tabAuth.storage,
+          storageKey: tabAuth.storageKey,
           autoRefreshToken: true,
           detectSessionInUrl: true
         }
@@ -12262,9 +12267,8 @@
   window.addEventListener('popstate', () => {
     showView(appViewFromLocation() || 'dashboard', { updateUrl: false });
   });
-  // Mobile browsers can take longer to restore persistent storage after a
-  // redirect or a cold start. Do not enable another login flow until that
-  // existing Supabase session has been checked and fully restored.
+  // Restore only this tab's session (including a Google callback or refresh).
+  // A new tab must not automatically reuse a permanent dashboard login.
   restoreSupabaseSession().finally(() => {
     loginSubmitButton.disabled = Boolean(currentUser);
     initGmail();

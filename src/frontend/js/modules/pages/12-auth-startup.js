@@ -195,9 +195,8 @@
   window.addEventListener('popstate', () => {
     showView(appViewFromLocation() || 'dashboard', { updateUrl: false });
   });
-  // Mobile browsers can take longer to restore persistent storage after a
-  // redirect or a cold start. Do not enable another login flow until that
-  // existing Supabase session has been checked and fully restored.
+  // Restore only this tab's session (including a Google callback or refresh).
+  // A new tab must not automatically reuse a permanent dashboard login.
   restoreSupabaseSession().finally(() => {
     loginSubmitButton.disabled = Boolean(currentUser);
     initGmail();
