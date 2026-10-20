@@ -10374,6 +10374,58 @@
   }
 
   let clientEmailAiStatus = { userId: '', message: '' };
+  let emailAiSessionRenewal = null;
+  async function renewEmailAiSession(authClient, userId) {
+    if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
+    if (emailAiSessionRenewal?.userId === userId) return emailAiSessionRenewal.promise;
+    const renewal = { userId };
+    renewal.promise = (async () => {
+      const { data: auth, error } = await authClient.refreshSession();
+      if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
+      if (error || !auth?.session?.access_token) {
+        const expired = ['refresh_token_not_found', 'refresh_token_already_used', 'session_not_found', 'invalid_grant'].includes(error?.code);
+        const failure = new Error(expired
+          ? 'Your dashboard session has expired. Sign in again to resume AI checks. Saved emails remain available.'
+          : 'Email tasks: session renewal is temporarily unavailable. Analysis is queued and will retry.');
+        failure.retryAfter = 30;
+        throw failure;
+      }
+      if (auth.session.user?.id && auth.session.user.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
+      return auth.session;
+    })();
+    emailAiSessionRenewal = renewal;
+    try { return await renewal.promise; }
+    finally { if (emailAiSessionRenewal === renewal) emailAiSessionRenewal = null; }
+  }
+
+  async function postClientEmailAi(emailId, clientId, userId) {
+    const authClient = requireSupabase().auth;
+    const current = await authClient.getSession();
+    if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
+    let session = current.data?.session;
+    if (current.error || !session?.access_token || (session.expires_at && session.expires_at <= Date.now() / 1000 + 60)) {
+      session = await renewEmailAiSession(authClient, userId);
+    }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (currentUser?.id !== userId || (session.user?.id && session.user.id !== userId)) throw new Error('Your signed-in account changed during email analysis.');
+      const response = await fetch('/api/email/classify', {
+        method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ emailId, clientId }), signal: AbortSignal.timeout(25000)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status !== 401) return { response, result };
+      if (attempt === 1) {
+        const failure = new Error('Email tasks: the renewed session could not be verified. Analysis remains queued and will retry.');
+        failure.retryAfter = 30;
+        throw failure;
+      }
+      renderEmailTaskAiStatus('Email tasks: renewing your dashboard session…');
+      // The SDK may already have refreshed while this request was in flight.
+      const latest = await authClient.getSession();
+      session = !latest.error && latest.data?.session?.access_token && latest.data.session.access_token !== session.access_token
+        ? latest.data.session : await renewEmailAiSession(authClient, userId);
+    }
+  }
   function emailAiDailyUsage() {
     const day = new Date().toISOString().slice(0, 10);
     const cloud = data.emailTaskAiUsage;
@@ -10383,7 +10435,7 @@
       local?.day === day ? Number(local.requests) || 0 : 0) };
   }
   function emailAiRetryState() {
-    try { return JSON.parse(localStorage.getItem(`email-task-ai-retry-v2:${currentUser?.id}`) || 'null'); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem(`email-task-ai-retry-v3:${currentUser?.id}`) || 'null'); } catch { return null; }
   }
   function renderEmailTaskAiStatus(message) {
     const element = $('#clientEmailAiStatus');
@@ -10405,19 +10457,13 @@
     if (retry?.until > Date.now()) throw new Error(retry.message);
     renderEmailTaskAiStatus('Email tasks: AI is checking the purpose of client messages…');
     try {
-      const { data: auth, error } = await requireSupabase().auth.getSession();
-      if (error || !auth?.session?.access_token || currentUser?.id !== userId) throw new Error('Email tasks: waiting for your signed-in session.');
       const usage = emailAiDailyUsage();
       if (usage.requests >= 40) {
         const failure = new Error('Email tasks: daily check limit reached. Remaining messages are queued until 8 AM.');
         failure.retryAfter = Math.ceil((Date.parse(`${usage.day}T00:00:00Z`) + 86400000 - Date.now()) / 1000);
         throw failure;
       }
-      const response = await fetch('/api/email/classify', {
-        method: 'POST', headers: { authorization: `Bearer ${auth.session.access_token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ emailId: email.id, clientId: client.id }), signal: AbortSignal.timeout(25000)
-      });
-      const result = await response.json().catch(() => ({}));
+      const { response, result } = await postClientEmailAi(email.id, client.id, userId);
       if (!response.ok) {
         const code = typeof result.code === 'string' && /^[A-Z_]{1,64}$/.test(result.code) ? result.code : '';
         const detail = code ? ` (${code}${Number.isInteger(result.providerCode) ? `/${result.providerCode}` : ''})` : '';
@@ -10440,7 +10486,7 @@
       if (currentUser?.id === userId) {
         const state = { until: Date.now() + Math.max(30, Math.min(86400, Number(error.retryAfter) || 120)) * 1000,
           message: error.message || 'Email tasks: AI is unavailable. Messages remain queued.' };
-        try { localStorage.setItem(`email-task-ai-retry-v2:${userId}`, JSON.stringify(state)); } catch { /* Status still displays without storage. */ }
+        try { localStorage.setItem(`email-task-ai-retry-v3:${userId}`, JSON.stringify(state)); } catch { /* Status still displays without storage. */ }
         renderEmailTaskAiStatus(state.message);
       }
       throw error;

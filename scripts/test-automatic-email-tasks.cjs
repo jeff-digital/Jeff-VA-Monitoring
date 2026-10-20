@@ -213,7 +213,7 @@ const addEmail = (id, body, extra = {}) => {
   const stoppedCalls = classificationCalls;
   await context.syncGmail(true);
   assert.equal(classificationCalls, stoppedCalls, 'backoff must prevent repeated provider requests');
-  localValues.delete('email-task-ai-retry-v2:u1');
+  localValues.delete('email-task-ai-retry-v3:u1');
   providerStatus = 200;
   await context.syncGmail(true);
   assert.equal(context.data.clientTasks.length, beforePurposes + 2, 'queued work must resume when AI becomes available');

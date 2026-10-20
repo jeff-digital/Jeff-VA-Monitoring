@@ -4,6 +4,11 @@ import { refreshGmail } from '../../functions/api/gmail-refresh.js';
 import { classifyClientEmail } from '../../functions/api/email-classify.js';
 
 const reply = (error, status) => Response.json({ error }, { status, headers: { 'cache-control': 'no-store' } });
+const sessionFailure = (expired = false) => Response.json({
+  error: expired ? 'The dashboard session needs renewal. AI will retry after refreshing it.'
+    : 'Session verification is temporarily unavailable. AI will retry; saved emails remain available.',
+  code: expired ? 'SESSION_REFRESH_REQUIRED' : 'AUTH_VERIFICATION_UNAVAILABLE', retryAfter: 30
+}, { status: expired ? 401 : 503, headers: { 'cache-control': 'no-store' } });
 
 export default {
   async fetch(request, env, ctx) {
@@ -16,14 +21,16 @@ export default {
     if (request.method !== (isGmailRefresh || isEmailClassification ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to continue.', 401);
+    let verified = false;
     try {
       const auth = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
         headers: { authorization, apikey: env.SUPABASE_PUBLISHABLE_KEY },
         signal: AbortSignal.timeout(8000)
       });
-      if (!auth.ok) return reply('Your session could not be verified. Sign in again.', auth.status === 401 || auth.status === 403 ? 401 : 503);
+      if (!auth.ok) return sessionFailure(auth.status === 401 || auth.status === 403);
       const user = await auth.json();
-      if (!user.id) return reply('Sign in to continue.', 401);
+      if (!user.id) return sessionFailure(true);
+      verified = true;
       if (isGmailRefresh) return refreshGmail(request, env);
       if (isEmailClassification) return classifyClientEmail(request, env, user);
       const response = await handler({ request, env, caches: globalThis.caches, waitUntil: promise => ctx.waitUntil(promise) });
@@ -33,6 +40,7 @@ export default {
       headers.set('x-content-type-options', 'nosniff');
       return new Response(response.body, { status: response.status, headers });
     } catch {
+      if (!verified) return sessionFailure(false);
       return reply('The service is temporarily unavailable. Please try again later.', 503);
     }
   }
