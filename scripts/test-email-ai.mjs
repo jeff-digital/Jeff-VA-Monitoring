@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 import worker from '../src/backend/worker.mjs';
-import { authoredEmailText, validateEmailClassification } from '../functions/api/email-classify.js';
+import { authoredEmailText, validateEmailClassification, emailAiFailure } from '../functions/api/email-classify.js';
 globalThis.crypto ||= webcrypto;
 const user = { id: 'u1', email: 'me@example.com' };
 const client = { id: 'c1', email: 'owner@example.com', role: 'Social Media Manager', status: 'Active client', contractStatus: 'Active' };
@@ -14,7 +14,7 @@ let failure;
 const env = { SUPABASE_URL: 'https://auth.example', SUPABASE_PUBLISHABLE_KEY: 'public',
   AI: { run: async (model, input) => {
     aiCalls++;
-    assert.equal(model, '@cf/meta/llama-3.1-8b-instruct');
+    assert.equal(model, '@cf/meta/llama-3.3-70b-instruct-fp8-fast');
     assert.equal(input.response_format.type, 'json_schema');
     assert.match(input.messages[0].content, /untrusted data/);
     const data = JSON.parse(input.messages[1].content);
@@ -76,4 +76,28 @@ assert.ok((await result.json()).retryAfter >= 60);
 failure = null;
 response = 'unreadable';
 assert.equal((await request()).status, 502);
+const diagnosticLogs = [];
+const originalError = console.error;
+console.error = (...items) => diagnosticLogs.push(items);
+try {
+  for (const [error, expectedCode, expectedStatus] of [
+    [{ code: 5007, message: 'No such model; PRIVATE EMAIL TEXT secret-token' }, 'AI_MODEL_UNAVAILABLE', 503],
+    [{ message: '3042: invalid model name' }, 'AI_MODEL_UNAVAILABLE', 503],
+    [{ code: 5016 }, 'AI_MODEL_TERMS', 503],
+    [{ code: 5035 }, 'AI_PLAN_REQUIRED', 503],
+    [{ code: 3023 }, 'AI_ACCOUNT_ACCESS', 503],
+    [{ code: 3036 }, 'AI_DAILY_QUOTA', 429],
+    [{ code: 3040, status: 429 }, 'AI_BUSY', 429],
+    [{ code: 3007 }, 'AI_TIMEOUT', 503],
+    [{ message: "JSON Mode couldn't be met" }, 'AI_RESPONSE_FORMAT', 503]
+  ]) {
+    const failure = emailAiFailure(error, 'inference');
+    assert.equal(failure.body.code, expectedCode);
+    assert.equal(failure.status, expectedStatus);
+    if (expectedCode === 'AI_BUSY') assert.equal(failure.body.retryAfter, 60, 'capacity failures must not pause analysis until tomorrow');
+    assert.ok(!JSON.stringify(failure).includes('PRIVATE EMAIL TEXT'));
+  }
+  assert.equal(emailAiFailure(new Error('secret-token'), 'saved_email_lookup').body.code, 'AI_CONTEXT_ERROR');
+} finally { console.error = originalError; }
+assert.ok(!JSON.stringify(diagnosticLogs).includes('secret-token'), 'provider errors must not leak email text or credentials into logs');
 console.log('Cloudflare email AI checks passed: authentication, binding setup, canonical records, privacy, grounding, confidence, role relevance, billing decisions, uncertain output, caching, quota handling and malformed responses.');

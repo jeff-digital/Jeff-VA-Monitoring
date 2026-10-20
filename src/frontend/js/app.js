@@ -10378,7 +10378,7 @@
     for (let index = 0; index < input.length; index++) {
       fingerprint = Math.imul(fingerprint ^ input.charCodeAt(index), 16777619);
     }
-    return `ai-v1:${input.length}:${fingerprint >>> 0}`;
+    return `ai-v2:${input.length}:${fingerprint >>> 0}`;
   }
 
   let clientEmailAiStatus = { userId: '', message: '' };
@@ -10391,7 +10391,7 @@
       local?.day === day ? Number(local.requests) || 0 : 0) };
   }
   function emailAiRetryState() {
-    try { return JSON.parse(localStorage.getItem(`email-task-ai-retry:${currentUser?.id}`) || 'null'); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem(`email-task-ai-retry-v2:${currentUser?.id}`) || 'null'); } catch { return null; }
   }
   function renderEmailTaskAiStatus(message) {
     const element = $('#clientEmailAiStatus');
@@ -10427,7 +10427,9 @@
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const failure = new Error(result.error || 'Email tasks: Cloudflare AI is not available yet. Messages remain queued.');
+        const code = typeof result.code === 'string' && /^[A-Z_]{1,64}$/.test(result.code) ? result.code : '';
+        const detail = code ? ` (${code}${Number.isInteger(result.providerCode) ? `/${result.providerCode}` : ''})` : '';
+        const failure = new Error((result.error || 'Email tasks: Cloudflare AI is not available yet. Messages remain queued.') + detail);
         failure.retryAfter = result.retryAfter || (response.status === 404 ? 60 : 120);
         throw failure;
       }
@@ -10446,7 +10448,7 @@
       if (currentUser?.id === userId) {
         const state = { until: Date.now() + Math.max(30, Math.min(86400, Number(error.retryAfter) || 120)) * 1000,
           message: error.message || 'Email tasks: AI is unavailable. Messages remain queued.' };
-        try { localStorage.setItem(`email-task-ai-retry:${userId}`, JSON.stringify(state)); } catch { /* Status still displays without storage. */ }
+        try { localStorage.setItem(`email-task-ai-retry-v2:${userId}`, JSON.stringify(state)); } catch { /* Status still displays without storage. */ }
         renderEmailTaskAiStatus(state.message);
       }
       throw error;

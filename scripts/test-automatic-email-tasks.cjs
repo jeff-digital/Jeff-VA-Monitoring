@@ -121,7 +121,7 @@ const addEmail = (id, body, extra = {}) => {
   assert.equal(context.data.clientTasks.length, 2, 'previously imported and processed mail must be rescanned under the new rules');
   assert.ok(context.data.clientTasks.some(task => task.sourceEmailId === 'earlier'));
   assert.ok(notices.some(notice => notice.label === 'EMAIL TO TASK'), 'historical task creation needs its own notification');
-  assert.ok(earlierEmail.autoTaskScanKey.startsWith('ai-v1:'));
+  assert.ok(earlierEmail.autoTaskScanKey.startsWith('ai-v2:'));
   notices = [];
   await context.syncGmail(true);
   assert.equal(context.data.clientTasks.length, 2, 'rescans must not duplicate tasks');
@@ -213,7 +213,7 @@ const addEmail = (id, body, extra = {}) => {
   const stoppedCalls = classificationCalls;
   await context.syncGmail(true);
   assert.equal(classificationCalls, stoppedCalls, 'backoff must prevent repeated provider requests');
-  localValues.delete('email-task-ai-retry:u1');
+  localValues.delete('email-task-ai-retry-v2:u1');
   providerStatus = 200;
   await context.syncGmail(true);
   assert.equal(context.data.clientTasks.length, beforePurposes + 2, 'queued work must resume when AI becomes available');
