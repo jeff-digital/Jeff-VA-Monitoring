@@ -64,3 +64,23 @@ with patch.object(server, 'urlopen', side_effect=HTTPError(server.GMAIL_REFRESH_
     assert json.loads(revoked.wfile.getvalue())['reconnect'] is True
 
 print('Local Gmail forwarding checks passed: origin, authentication, fixed upstream, renewal, and temporary failures.')
+
+def ai_fetch(request, timeout):
+    assert request.full_url == server.EMAIL_AI_UPSTREAM
+    assert timeout == 24
+    assert request.get_header('Authorization') == 'Bearer test-session'
+    return Response()
+
+with patch.object(server, 'urlopen', side_effect=ai_fetch):
+    ai = handler()
+    ai.path = server.EMAIL_AI_PATH
+    ai.do_POST()
+    assert ai.result_status == 200
+
+with patch.object(server, 'urlopen', side_effect=URLError('offline')):
+    ai = handler()
+    ai.path = server.EMAIL_AI_PATH
+    ai.do_POST()
+    assert ai.result_status == 503
+    assert 'AI' in json.loads(ai.wfile.getvalue())['error']
+print('Local AI forwarding checks passed: fixed route, authorization forwarding, timeout and unavailable deployment response.')

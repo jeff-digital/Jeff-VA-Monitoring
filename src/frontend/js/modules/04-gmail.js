@@ -550,7 +550,7 @@
     if (!emailItem) return;
     if ($('#applicationEmailsModal').open) $('#applicationEmailsModal').close();
     if ($('#clientModal').open) $('#clientModal').close();
-    const isSent = emailItem.direction === 'sent';
+    const isSent = isSentEmail(emailItem);
     const recipient = isSent ? emailItem.to : extractEmailAddress(emailItem.from);
     $('#emailDetailEyebrow').textContent = isSent ? 'SENT EMAIL' : 'EMAIL DETAILS';
     $('#emailDetailTitle').textContent = emailItem.subject || '(No subject)';
@@ -560,9 +560,16 @@
     $('#emailDetailDate').textContent = emailDate(emailItem.date);
     $('#emailDetailBody').textContent = `${emailContentText(emailItem.body) || 'This inbox sync stores message headers only. Open the message in Gmail to read its full content.'}${emailItem.attachmentName ? `\n\nAttachment: ${emailItem.attachmentName}` : ''}`;
     $('#emailDetailStatus').textContent = isSent ? 'This message was sent from Jeff VA.' : 'Reply from this client directly through Gmail.';
+    const analysis = emailItem.taskAiAnalysis;
+    const analysisStatus = $('#emailDetailAiStatus');
+    analysisStatus.hidden = !analysis;
+    analysisStatus.textContent = analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : '';
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;
+    const taskButton = $('#emailDetailTaskButton');
+    taskButton.hidden = activeClientsForTaskEmail(emailItem).length === 0;
+    taskButton.dataset.emailId = emailItem.id;
     $('#emailDetailModal').showModal();
   }
 
@@ -921,15 +928,57 @@
     if (status && message) status.textContent = message;
   }
 
+  let gmailSyncDisplay = { userId: '', state: 'checking' };
+
+  function setGmailSyncDisplay(state) {
+    gmailSyncDisplay = { userId: currentUser?.id || '', state };
+    renderGmailSyncStatus();
+  }
+
+  function gmailLastSyncKey() {
+    return `jeff-va-gmail-last-sync-v1:${currentUser?.id || ''}`;
+  }
+
+  function recordGmailSyncSuccess() {
+    try { localStorage.setItem(gmailLastSyncKey(), new Date().toISOString()); } catch (_) { /* Status storage may be unavailable. */ }
+    setGmailSyncDisplay('synced');
+  }
+
+  function renderGmailSyncStatus() {
+    const summary = $('#gmailSyncSummary');
+    if (!summary) return;
+    summary.hidden = !currentUser;
+    if (!currentUser) return;
+    const connected = Boolean(gmailAccessToken || readGmailCredentials()?.refreshToken) && !gmailReconnectRequired;
+    const state = navigator.onLine === false ? 'offline' : !connected ? 'permission'
+      : gmailSyncDisplay.userId === currentUser.id ? gmailSyncDisplay.state : 'checking';
+    const labels = { checking: 'Checking Gmail connection', syncing: 'Syncing Gmail…', renewing: 'Renewing Gmail connection…',
+      synced: 'Gmail synced', partial: 'Some messages could not load · retrying automatically',
+      paused: 'Gmail sync interrupted · retrying automatically', offline: 'Offline · showing saved emails',
+      permission: 'Gmail permission needed · showing saved emails' };
+    let lastSync = '';
+    try { lastSync = localStorage.getItem(gmailLastSyncKey()) || ''; } catch (_) { /* Keep the status usable. */ }
+    const date = new Date(lastSync);
+    const lastSyncLabel = lastSync && !Number.isNaN(date.getTime()) ? `Last synced ${date.toLocaleString()}` : 'No successful sync yet';
+    $('#gmailSyncStatusText').textContent = `${labels[state] || labels.checking} · ${lastSyncLabel}`;
+    summary.dataset.state = state;
+    const connectButton = $('#gmailSyncConnectButton');
+    connectButton.hidden = state !== 'permission' || !gmailConfigured();
+    connectButton.textContent = gmailReconnectRequired ? 'Reconnect Gmail' : 'Connect Gmail';
+    connectButton.onclick = loginWithGoogle;
+  }
+
   function setGmailStatus(message) {
     const status = $('#gmailStatus');
     if (status) status.textContent = message;
     const accountStatus = $('#accountGmailSyncStatus');
     if (accountStatus) accountStatus.textContent = message;
     renderAccountPage();
+    renderGmailSyncStatus();
   }
 
   function initGmail() {
+    setGmailSyncDisplay('checking');
     gmailReconnectRequired = sessionStorage.getItem(GMAIL_RECONNECT_REQUIRED_KEY) === '1';
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
@@ -995,6 +1044,7 @@
     gmailAccessToken = null;
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     gmailReconnectRequired = true;
+    setGmailSyncDisplay('permission');
     sessionStorage.setItem(GMAIL_RECONNECT_REQUIRED_KEY, '1');
     updateGmailConnectionUI(false);
     updateLoginGoogleUI(false, 'Gmail needs to reconnect. Your dashboard session is still active.');
@@ -1004,12 +1054,13 @@
   function startGmailSyncTimer() {
     if (gmailSyncTimer) clearInterval(gmailSyncTimer);
     gmailSyncTimer = setInterval(() => {
-      if (currentUser && gmailAccessToken && !gmailReconnectRequired) syncGmail(true);
+      if (currentUser && (gmailAccessToken || readGmailCredentials()?.refreshToken) && !gmailReconnectRequired) syncGmail(true);
     }, 30000);
   }
 
   function scheduleGmailSync({ silent = true } = {}) {
-    if (!currentUser || !gmailAccessToken || gmailReconnectRequired || gmailSyncInFlight) return;
+    renderGmailSyncStatus();
+    if (!currentUser || !(gmailAccessToken || readGmailCredentials()?.refreshToken) || gmailReconnectRequired || gmailSyncInFlight) return;
     if (gmailSyncTriggerTimer) clearTimeout(gmailSyncTriggerTimer);
     gmailSyncTriggerTimer = setTimeout(() => {
       gmailSyncTriggerTimer = null;
@@ -1030,6 +1081,7 @@
 
   async function fetchGmailJson(url) {
     const makeRequest = () => fetch(url, {
+      signal: AbortSignal.timeout(20000),
       headers: { Authorization: `Bearer ${gmailAccessToken}` }
     });
     const saved = readGmailCredentials();
@@ -1054,24 +1106,28 @@
     // Do not let a restored Gmail session sync against the empty startup state.
     // The authenticated startup flow triggers the first sync after saved deletions load.
     if (gmailSyncInFlight || !currentUser || !dataReady || !supabaseDataLoaded) return;
+    if (navigator.onLine === false) { setGmailSyncDisplay('offline'); return; }
     const syncUserId = currentUser.id;
     if (!gmailAccessToken || gmailReconnectRequired) {
       if (!readGmailCredentials()?.refreshToken || gmailReconnectRequired) return;
       try {
+        setGmailSyncDisplay('renewing');
         await refreshGmailAuthorization();
       } catch (error) {
+        if (!gmailReconnectRequired) setGmailSyncDisplay('paused');
         if (!gmailReconnectRequired) setGmailStatus(error.message);
         return;
       }
     }
     gmailSyncInFlight = true;
+    setGmailSyncDisplay('syncing');
     if (!silent) setGmailStatus('Checking Gmail for new messages…');
     try {
       const fetchMessageList = async params => {
         return fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`);
       };
       const directClientEmailList = [...new Set(data.applications
-        .filter(isDirectClientApplication)
+        .filter(application => isDirectClientApplication(application) || isEmailTaskActiveClient(application))
         .map(application => String(application.email || '').trim().toLowerCase())
         .filter(isEmailAddress))].sort();
       const directClientEmails = new Set(directClientEmailList);
@@ -1128,6 +1184,7 @@
       const previousGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       const newIds = ids.filter(id => !previousGmailIds.has(id));
       const newIdSet = new Set(newIds);
+      const latestInboxMessageIds = new Set((inboxList.messages || []).map(message => message.id));
       const incompleteGmailIds = new Set(data.emails
         .filter(item => item.source === 'gmail'
           && item.gmailId
@@ -1168,7 +1225,10 @@
             return null;
           }
         }
+        const previousEmail = data.emails.find(email => email.gmailId === id);
+        const newInboxEmail = !isSent && newIdSet.has(id) && latestInboxMessageIds.has(id);
         return {
+          ...previousEmail,
           id: `gmail-${id}`,
           gmailId: id,
           from: header('From') || 'Unknown sender',
@@ -1180,7 +1240,12 @@
           source: 'gmail',
           bodyLoaded: true,
           labelIds: msg.labelIds || [],
-          direction: isSent ? 'sent' : 'received'
+          direction: isSent ? 'sent' : 'received',
+          automatedMessage: Boolean(header('List-Id') || header('List-Unsubscribe')
+            || /^(?:bulk|list|junk)$/i.test(header('Precedence').trim())
+            || (header('Auto-Submitted') && !/^no$/i.test(header('Auto-Submitted').trim()))),
+          autoTaskPending: Boolean(previousEmail?.autoTaskPending || newInboxEmail),
+          clientEmailNotificationPending: Boolean(previousEmail?.clientEmailNotificationPending || newInboxEmail)
         };
       }));
       if (currentUser?.id !== syncUserId) return;
@@ -1217,27 +1282,44 @@
       inboxHistoryQueue = inboxHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
       sentHistoryQueue = sentHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
       if (fetchedOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded) {
-        persist();
+        await persist();
         renderAll();
       }
       const closedApplications = await applyApplicationEmailOutcomes(data.emails);
       if (currentUser?.id !== syncUserId) return;
       const closedEmailIds = new Set(closedApplications.map(({ email }) => email.gmailId || email.id));
       const ordinaryNewEmails = newOnes.filter(email => !closedEmailIds.has(email.gmailId || email.id));
+      const automaticTasks = await createAutomaticEmailTasks();
+      if (currentUser?.id !== syncUserId) return;
+      const notificationEmails = [...new Map([...ordinaryNewEmails,
+        ...data.emails.filter(email => email.clientEmailNotificationPending && !closedEmailIds.has(email.gmailId || email.id))]
+        .map(email => [email.gmailId || email.id, email])).values()];
       updateGmailConnectionUI(true);
+      if (failedMessageFetches.length) setGmailSyncDisplay('partial');
+      else recordGmailSyncSuccess();
       sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
       setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}${failedMessageFetches.length ? ` · ${plural(failedMessageFetches.length, 'message')} failed to load` : ''}`);
+      // A closure notice must not suppress an unrelated active-client email.
+      // The shared result modal queues these notices instead of dropping them.
+      const hasNewMatches = alertNewMatches(notificationEmails, { createdTasks: automaticTasks.created });
+      const tasksOutsideNewEmails = hasNewMatches
+        ? automaticTasks.created.filter(task => !notificationEmails.some(email => email.id === task.sourceEmailId))
+        : automaticTasks.created;
+      if (tasksOutsideNewEmails.length) showAutomaticEmailTasksNotice(tasksOutsideNewEmails);
+      showEmailAiReviewNotice(automaticTasks.review);
+      if (automaticTasks.failed) showActionResult({ title: 'Automatic task save pending', status: 'error',
+        message: 'The client email is available, but its task could not be saved. Automatic creation will retry on the next Gmail sync.' });
       if (!silent) {
-        const hasNewMatches = alertNewMatches(ordinaryNewEmails, { showNotice: !closedApplications.length });
         if (failedMessageFetches.length) {
           showActionResult({ title: 'Gmail sync incomplete', message: `${plural(failedMessageFetches.length, 'message')} could not be loaded. Gmail will retry on the next sync.`, status: 'error' });
         } else if (!hasNewMatches && !closedApplications.length) {
           showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
         }
       }
-      if (silent) alertNewMatches(ordinaryNewEmails, { showNotice: !closedApplications.length });
       showApplicationEmailOutcomeNotice(closedApplications);
     } catch (error) {
+      if (currentUser?.id !== syncUserId) return;
+      if (!gmailReconnectRequired) setGmailSyncDisplay('paused');
       const message = error?.message || 'Unknown Gmail API error';
       if (!gmailReconnectRequired) setGmailStatus(`Gmail sync failed: ${message}`);
       if (!silent) showActionResult({ title: 'Gmail sync failed', message, status: 'error' });
@@ -1248,6 +1330,7 @@
 
   // perf: debounce visibility, focus, and online events so one queued Gmail sync replaces a burst of duplicate triggers.
   window.addEventListener('online', () => scheduleGmailSync({ silent: true }));
+  window.addEventListener('offline', () => renderGmailSyncStatus());
   window.addEventListener('focus', () => scheduleGmailSync({ silent: true }));
   document.addEventListener('visibilitychange', () => {
     if (currentUser && document.visibilityState === 'visible') scheduleGmailSync({ silent: true });

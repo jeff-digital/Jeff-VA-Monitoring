@@ -586,6 +586,11 @@
                   <div id="emailSelectionActions"></div>
                 </div>
               </div>
+              <div class="gmail-sync-summary" id="gmailSyncSummary" hidden>
+                <p id="gmailSyncStatusText" role="status" aria-live="polite"></p>
+                <button class="text-button" type="button" id="gmailSyncConnectButton" hidden>Connect Gmail</button>
+              </div>
+              <p class="email-task-source" id="clientEmailAiStatus" role="status" aria-live="polite" hidden></p>
               <section class="application-filters email-filters" aria-label="Email filters">
                 <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>
                 <div class="application-filter-controls email-filter-controls">
@@ -1435,7 +1440,7 @@
                 <select id="clientTaskPriority"><option>Medium</option><option>Low</option><option>High</option></select>
               </label>
             </div>
-            <section class="client-task-schedule" aria-labelledby="clientTaskScheduleTitle">
+            <section class="client-task-schedule" id="clientTaskScheduleSection" aria-labelledby="clientTaskScheduleTitle">
               <div class="client-task-schedule-heading"><div><span id="clientTaskScheduleTitle">Work schedule</span><small>Monday to Friday</small></div><strong id="clientTaskScheduleDailyMinutes">540 minutes / day</strong></div>
               <div class="client-task-form-grid">
                 <label class="form-field">Start date <span class="required">*</span><input id="clientTaskScheduleStartDate" type="date" required /></label>
@@ -1451,8 +1456,7 @@
               </fieldset>
               <p class="client-task-schedule-summary" id="clientTaskScheduleSummary" aria-live="polite">Choose the start and end dates to calculate the schedule.</p>
             </section>
-            <input id="clientTaskDueDate" type="hidden" />
-            <input id="clientTaskEstimate" type="hidden" />
+            <div class="client-task-form-grid" id="clientTaskOneOffFields" hidden><label class="form-field">Due date<input id="clientTaskDueDate" type="date" /></label><label class="form-field">Estimated minutes<input id="clientTaskEstimate" type="number" min="0" max="100000" step="1" /></label></div>
             <label class="form-field">Notes<textarea id="clientTaskNotes" rows="4" maxlength="3000" placeholder="Add task details or context"></textarea></label>
             <select id="clientTaskRepeat" hidden aria-hidden="true"><option value="weekly" selected>Weekly</option></select>
             <label class="form-field" id="clientTaskMonthDayField" hidden><select id="clientTaskMonthDay"><option value="1">1</option></select></label>
@@ -1635,10 +1639,31 @@
         </div>
         <div class="email-detail-body" id="emailDetailBody"></div>
         <p class="compose-status" id="emailDetailStatus" role="status"></p>
+        <p class="email-task-source" id="emailDetailAiStatus" hidden></p>
         <div class="modal-actions">
           <button class="button button-secondary" value="cancel" type="submit">Close</button>
+          <button class="button button-secondary" type="button" id="emailDetailTaskButton" hidden>Create task</button>
           <button class="button button-primary" type="button" id="emailDetailComposeButton">Send email</button>
         </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal email-task-modal" id="emailTaskModal" aria-labelledby="emailTaskTitle">
+      <form id="emailTaskForm">
+        <div class="modal-heading"><div><p class="eyebrow">ACTIVE CLIENT</p><h2 id="emailTaskTitle">Create task from email</h2></div></div>
+        <p class="email-task-source" id="emailTaskSource"></p>
+        <p class="field-help">Review the task and choose a deadline. The original email remains linked to it.</p>
+        <label class="form-field">Client <select id="emailTaskClient" required></select></label>
+        <label class="form-field">Title <input id="emailTaskName" maxlength="160" required /></label>
+        <div class="client-task-form-grid">
+          <label class="form-field">Due date <input id="emailTaskDueDate" type="date" /></label>
+          <label class="form-field">Priority <select id="emailTaskPriority"><option>Medium</option><option>Low</option><option>High</option></select></label>
+          <label class="form-field">Category <select id="emailTaskCategory"><option>Other</option><option>Graphic Design</option><option>Social Media</option><option>Email Marketing</option><option>Digital Marketing</option><option>Web Development</option></select></label>
+          <label class="form-field">Estimated minutes <input id="emailTaskEstimate" type="number" min="0" max="100000" step="1" /></label>
+        </div>
+        <label class="form-field">Notes <textarea id="emailTaskNotes" rows="5" maxlength="3000"></textarea></label>
+        <p class="login-error" id="emailTaskError" role="alert"></p>
+        <div class="modal-actions"><button class="button button-secondary" type="button" id="cancelEmailTask">Cancel</button><button class="button button-primary" type="submit" id="saveEmailTask">Create task</button></div>
       </form>
     </dialog>
 

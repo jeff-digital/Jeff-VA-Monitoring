@@ -3,6 +3,7 @@
   "name": "jeff-va-monitoring",
   "main": "src/backend/worker.mjs",
   "compatibility_date": "2026-10-08",
+  "ai": { "binding": "AI" },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

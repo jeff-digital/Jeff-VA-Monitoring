@@ -115,6 +115,7 @@ function clientTaskTimeLabel(value) {
 }
 
 function updateClientTaskSchedule() {
+  if (clientTaskOneOffMode) return;
   const startDate = $('#clientTaskScheduleStartDate').value;
   const endDate = $('#clientTaskScheduleEndDate').value;
   const startTime = $('#clientTaskScheduleStartTime').value;
@@ -225,6 +226,10 @@ function clientTaskRenderRow(task, ended) {
   const running = Boolean(task.timerStartedAt);
   const priority = ['Low', 'Medium', 'High'].includes(task.priority) ? task.priority : 'Medium';
   const time = clientTaskTotalMs(task);
+  const createdAt = task.createdAt ? new Date(task.createdAt) : null;
+  const createdLabel = createdAt && !Number.isNaN(createdAt.getTime())
+    ? `<time datetime="${escapeHtml(createdAt.toISOString())}" title="${escapeHtml(createdAt.toString())}">Created ${escapeHtml(createdAt.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }))}</time>`
+    : 'Created time unavailable';
   const repeatIcon = task.repeat?.frequency && task.repeat.frequency !== 'none'
     ? '<span class="client-task-recurring" title="Recurring task" aria-label="Recurring task"><i class="fa-solid fa-repeat" aria-hidden="true"></i></span>'
     : '';
@@ -235,7 +240,8 @@ function clientTaskRenderRow(task, ended) {
     <label class="client-task-complete-control"><input type="checkbox" data-client-task-complete="${escapeHtml(task.id)}" ${done ? 'checked' : ''} aria-label="${done ? 'Reopen' : 'Complete'} task: ${escapeHtml(task.title || 'Untitled task')}" /><span class="sr-only">${done ? 'Completed' : 'Mark complete'}</span></label>
     <div class="client-task-row-main">
       <div class="client-task-row-title-line"><button class="client-task-title-button" type="button" data-client-task-edit="${escapeHtml(task.id)}">${escapeHtml(task.title || 'Untitled task')}</button><span class="client-task-category">${escapeHtml(CLIENT_TASK_CATEGORIES.includes(task.category) ? task.category : 'Other')}</span></div>
-      <div class="client-task-row-meta"><span class="client-task-priority priority-${priority.toLowerCase()}"><i aria-hidden="true"></i>${priority}</span>${clientTaskDueLabel(task)}${scheduleLabel}${repeatIcon}<span class="client-task-status-text">${done ? 'Done' : task.status === 'in-progress' ? 'In progress' : 'To do'}</span></div>
+      <div class="client-task-row-meta"><span class="client-task-priority priority-${priority.toLowerCase()}"><i aria-hidden="true"></i>${priority}</span>${clientTaskDueLabel(task)}${scheduleLabel}${repeatIcon}${task.sourceEmailId ? `<button class="text-button task-source-email" type="button" data-task-source-email="${escapeHtml(task.id)}" title="${escapeHtml(`${task.sourceEmailFrom || ""}: ${task.sourceEmailSubject || ""}`)}">View email</button>` : ""}<span class="client-task-status-text">${done ? 'Done' : task.status === 'in-progress' ? 'In progress' : 'To do'}</span></div>
+      <div class="client-task-created">${createdLabel}${task.automaticallyCreated ? ' · Automatically created from email' : ''}</div>
     </div>
     <span class="client-task-time-logged" data-client-task-time="${escapeHtml(task.id)}">${escapeHtml(clientTaskFormatDuration(time))}</span>
     <span class="client-task-live-clock${running ? ' is-visible' : ''}" data-client-task-clock="${escapeHtml(task.id)}">${running ? clientTaskClock(time) : ''}</span>
@@ -300,11 +306,18 @@ function renderClientTasks(clientId = hiredEditingId) {
     .join('');
 }
 
+let clientTaskOneOffMode = false;
+
 function clientTaskRepeatValue() {
+  if (clientTaskOneOffMode) return { frequency: 'none', weekdays: [], dayOfMonth: null };
   return { frequency: 'weekly', weekdays: clientTaskSelectedWeekdays(), dayOfMonth: null };
 }
 
 function updateClientTaskRepeatFields() {
+  if (clientTaskOneOffMode) {
+    $('#clientTaskRepeatPreview').textContent = 'One-time task from email';
+    return;
+  }
   $('#clientTaskWeekdays').hidden = false;
   $('#clientTaskMonthDayField').hidden = true;
   const selected = clientTaskSelectedWeekdays().map(day => CLIENT_TASK_WEEKDAYS[day]);
@@ -316,6 +329,12 @@ function updateClientTaskRepeatFields() {
 function fillClientTaskDrawer(task = null) {
   const form = $('#clientTaskForm');
   form.reset();
+  clientTaskOneOffMode = task?.repeat?.frequency === 'none';
+  $('#clientTaskScheduleSection').hidden = clientTaskOneOffMode;
+  $('#clientTaskOneOffFields').hidden = !clientTaskOneOffMode;
+  $('#clientTaskScheduleSection').querySelectorAll('input').forEach(input => { input.disabled = clientTaskOneOffMode; });
+  $('#clientTaskDueDate').value = task?.dueDate || '';
+  $('#clientTaskEstimate').value = task?.estimateMinutes ?? '';
   $('#clientTaskDueDate').setCustomValidity('');
   $('#clientTaskManualEnd').setCustomValidity('');
   clientTaskEditingId = task?.id || '';
@@ -628,9 +647,9 @@ function initClientTaskDrawer() {
     const scheduleEndField = $('#clientTaskScheduleEndDate');
     const selectedWeekdays = clientTaskSelectedWeekdays();
     const scheduleHasWorkday = clientTaskWorkdayCount(scheduleStartDate, scheduleEndDate, selectedWeekdays) > 0;
-    scheduleEndField.setCustomValidity(scheduleStartDate && scheduleEndDate && scheduleEndDate < scheduleStartDate
+    scheduleEndField.setCustomValidity(!clientTaskOneOffMode && scheduleStartDate && scheduleEndDate && scheduleEndDate < scheduleStartDate
       ? 'Choose an end date on or after the start date.'
-      : scheduleStartDate && scheduleEndDate && selectedWeekdays.length && !scheduleHasWorkday
+      : !clientTaskOneOffMode && scheduleStartDate && scheduleEndDate && selectedWeekdays.length && !scheduleHasWorkday
         ? 'Choose a date range containing at least one Monday–Friday workday.'
         : '');
     if (!$('#clientTaskForm').reportValidity()) return;
@@ -647,6 +666,7 @@ function initClientTaskDrawer() {
     const existing = data.clientTasks.find(task => task.id === clientTaskEditingId && task.clientId === hiredEditingId);
     const now = new Date().toISOString();
     const task = {
+      ...existing,
       id: existing?.id || uid(),
       clientId: hiredEditingId,
       title,
@@ -654,10 +674,10 @@ function initClientTaskDrawer() {
       priority: $('#clientTaskPriority').value,
       dueDate: dueField.value,
       estimateMinutes: $('#clientTaskEstimate').value ? Number($('#clientTaskEstimate').value) : '',
-      scheduleStartDate,
-      scheduleEndDate,
-      scheduleStartTime: $('#clientTaskScheduleStartTime').value,
-      scheduleEndTime: $('#clientTaskScheduleEndTime').value,
+      scheduleStartDate: clientTaskOneOffMode ? '' : scheduleStartDate,
+      scheduleEndDate: clientTaskOneOffMode ? '' : scheduleEndDate,
+      scheduleStartTime: clientTaskOneOffMode ? '' : $('#clientTaskScheduleStartTime').value,
+      scheduleEndTime: clientTaskOneOffMode ? '' : $('#clientTaskScheduleEndTime').value,
       scheduledMinutesPerDay: Number($('#clientTaskEstimate').value) || 0,
       scheduleTotalMinutes: (Number($('#clientTaskEstimate').value) || 0) * clientTaskWorkdayCount(scheduleStartDate, scheduleEndDate, repeat.weekdays),
       notes: $('#clientTaskNotes').value.trim(),
@@ -825,5 +845,6 @@ document.addEventListener('keydown', event => {
     || [...document.querySelectorAll('dialog[open]')].pop();
   if (!dialog) return;
   event.preventDefault();
+  if (dialog.id === 'emailTaskModal' && $('#saveEmailTask').disabled) return;
   dialog.close();
 });

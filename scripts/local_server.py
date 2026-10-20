@@ -27,6 +27,8 @@ BACKUP_PATH = "/api/automatic-backup"
 GMAIL_REFRESH_PATH = "/api/gmail/refresh"
 # Forward to the app's authenticated Worker so OAuth secrets stay server-side.
 GMAIL_REFRESH_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/gmail/refresh"
+EMAIL_AI_PATH = "/api/email/classify"
+EMAIL_AI_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/email/classify"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
 APP_ROUTES = {
@@ -97,7 +99,7 @@ def write_backup(payload: bytes) -> Path:
 
 
 class JeffVARequestHandler(SimpleHTTPRequestHandler):
-    def _refresh_gmail(self) -> None:
+    def _refresh_gmail(self, upstream_url=GMAIL_REFRESH_UPSTREAM, timeout=12) -> None:
         if not is_allowed_backup_request(self.headers.get("Origin", ""), self.headers.get("Host", ""), self.client_address[0]):
             self.send_error(HTTPStatus.FORBIDDEN)
             return
@@ -114,11 +116,11 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             return
         payload = self.rfile.read(length)
         try:
-            request = Request(GMAIL_REFRESH_UPSTREAM, data=payload, method="POST", headers={
+            request = Request(upstream_url, data=payload, method="POST", headers={
                 "Authorization": authorization, "Content-Type": "application/json",
             })
             try:
-                with urlopen(request, timeout=12) as upstream:
+                with urlopen(request, timeout=timeout) as upstream:
                     status, body = upstream.status, upstream.read(16384)
             except HTTPError as error:
                 status, body = error.code, error.read(16384)
@@ -126,7 +128,8 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             json.loads(body)
         except (URLError, TimeoutError, OSError, ValueError):
             status = HTTPStatus.SERVICE_UNAVAILABLE
-            body = json.dumps({"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
+            body = json.dumps({"error": "Cloudflare AI is unavailable or not deployed yet. Client emails remain queued.", "retryAfter": 120}
+                              if upstream_url == EMAIL_AI_UPSTREAM else {"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -157,6 +160,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        if urlparse(self.path).path == EMAIL_AI_PATH:
+            self._refresh_gmail(EMAIL_AI_UPSTREAM, timeout=24)
+            return
         if urlparse(self.path).path == GMAIL_REFRESH_PATH:
             self._refresh_gmail()
             return

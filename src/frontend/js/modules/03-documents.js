@@ -1053,22 +1053,35 @@
     return added;
   }
 
-  function alertNewMatches(newEmails, { showNotice = true } = {}) {
+  function alertNewMatches(newEmails, { showNotice = true, createdTasks = [] } = {}) {
     const matches = [];
     newEmails.forEach(emailItem => {
       const applications = matchApplicationsForEmail(emailItem);
       applications.forEach(app => matches.push({ emailItem, app }));
     });
-    if (!matches.length) return false;
+    // Retain a durable pending flag until the notification snapshot saves.
+    // This recovers mail fetched just before a reload interrupted notification creation.
+    const pendingEmails = newEmails.filter(email => email.clientEmailNotificationPending);
+    pendingEmails.forEach(email => { email.clientEmailNotificationPending = false; });
+    if (!matches.length) {
+      if (pendingEmails.length) saveClientEmailNotifications(pendingEmails);
+      return false;
+    }
 
     const unique = [];
     const seen = new Set();
     matches.forEach(match => {
       const key = `${match.emailItem.gmailId || match.emailItem.id}|${match.app.id}`;
-      if (!seen.has(key)) { seen.add(key); unique.push(match); }
+      if (!seen.has(key) && !data.alerts.some(alert => alert.id === key)) { seen.add(key); unique.push(match); }
     });
 
+    if (!unique.length) {
+      if (pendingEmails.length) saveClientEmailNotifications(pendingEmails);
+      return false;
+    }
+
     unique.forEach(({ emailItem, app }) => {
+      if (isEmailTaskActiveClient(app)) return;
       if (!isInterviewEmail(emailItem)) return;
       const interviewDate = interviewDateFromEmail(emailItem);
       const sameDay = Boolean(interviewDate && app.interviewDate && interviewDate === app.interviewDate);
@@ -1081,11 +1094,16 @@
     unique.forEach(({ emailItem, app }) => {
       const alertId = `${emailItem.gmailId || emailItem.id}|${app.id}`;
       if (!data.alerts.some(alert => alert.id === alertId)) {
-        const interview = isInterviewEmail(emailItem);
+        const activeClient = isEmailTaskActiveClient(app);
+        const interview = !activeClient && isInterviewEmail(emailItem);
         const interviewDate = interviewDateFromEmail(emailItem);
         const sameDay = Boolean(app.interviewSameDay);
         data.alerts.unshift({
           id: alertId,
+          type: activeClient ? 'active-client-email' : 'application-email',
+          applicationId: app.id,
+          emailId: emailItem.id,
+          taskId: createdTasks.find(task => task.clientId === app.id && task.sourceEmailId === emailItem.id)?.id || '',
           clientName: app.clientName,
           subject: interview ? `${sameDay ? 'Interview date confirmed' : 'Interview with client'}: ${emailItem.subject || '(No subject)'}` : (emailItem.subject || '(No subject)'),
           from: emailItem.from || 'Unknown sender',
@@ -1096,12 +1114,13 @@
       }
     });
     limitAlertHistory();
-    persist();
+    saveClientEmailNotifications(pendingEmails);
     renderAlerts();
 
     if (showNotice) showActionResult({
-      title: 'New client email',
-      message: `${plural(unique.length, 'new email')} matched to your applications.`,
+      title: unique.length === 1 && isEmailTaskActiveClient(unique[0].app)
+        ? `${unique[0].app.contact || unique[0].app.clientName || 'Your client'} sent you an email` : 'New client email',
+      message: `${plural(unique.length, 'new email')} matched to your applications or active clients.${createdTasks.length ? ` ${plural(createdTasks.length, 'task')} created automatically from work requests.` : ''}`,
       status: 'info',
       label: 'CLIENT EMAIL ALERT',
       actionLabel: 'Open inbox',
@@ -1109,11 +1128,20 @@
         clientName: app.clientName,
         subject: emailItem.subject || '(No subject)',
         from: emailItem.from || 'Unknown sender',
-        date: emailItem.date || ''
+        date: emailItem.date || '',
+        taskCreated: createdTasks.some(task => task.clientId === app.id && task.sourceEmailId === emailItem.id)
       })),
-      onAction: () => showView('inbox')
+      onAction: () => { showView('inbox'); openEmailDetail(unique[0].emailItem.id); }
     });
     return true;
+  }
+
+  function saveClientEmailNotifications(pendingEmails) {
+    const workspace = data;
+    const restorePending = () => {
+      if (data === workspace) pendingEmails.forEach(email => { email.clientEmailNotificationPending = true; });
+    };
+    Promise.resolve(persist()).then(saved => { if (saved === false) restorePending(); }).catch(restorePending);
   }
 
   const generatedNotificationTypes = new Set([
@@ -1291,7 +1319,7 @@
     if (alert.type?.startsWith('task-')) return 'daily-tasks';
     if (alert.type?.startsWith('wallet-payment-')) return 'finance';
     if (alert.type === 'to-apply' || alert.id?.startsWith('to-apply|due|')) return 'to-apply';
-    if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission'].includes(alert.type)) return 'active-clients';
+    if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission', 'active-client-email', 'active-client-email-review'].includes(alert.type)) return 'active-clients';
     const linkedApplication = (data.applications || []).find(item =>
       item.id === alert.applicationId || alert.id?.endsWith(`|${item.id}`)
     );

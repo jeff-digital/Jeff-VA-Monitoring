@@ -65,6 +65,10 @@
     if (actionButton) {
       event.stopPropagation();
       const emailId = actionButton.dataset.emailId;
+      if (actionButton.dataset.emailAction === 'create-task') {
+        openEmailTaskComposer(emailId);
+        return;
+      }
       if (actionButton.dataset.emailAction === 'compose') {
         openEmailComposer(emailId);
         return;

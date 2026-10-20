@@ -17,12 +17,13 @@ const context = vm.createContext({ currentUser: { email: 'me@example.com', ident
   buildApplicationMatchIndex: () => [{ application: app, email: app.email, role: '', clientName: '', contact: '' }],
   platformKeyForName: () => '', platformNameForSender: () => '',
   normalizeApplicationMatchEvidence: value => value || '', emailExplicitlyNamesDifferentRole: () => false,
-  applicationLinkTokens: () => [] });
+  applicationLinkTokens: () => [], PLATFORM_SENDER_EMAIL_SET: new Set(['support@onlinejobs.ph']),
+  isActiveContract: item => item.status === 'Active client' && item.contractStatus !== 'Contract Ended' });
 const core = read('01-core.js');
 const matcher = read('02-email-matching.js');
 for (const name of ['extractEmailAddress', 'isEmailAddress', 'extractSenderName', 'containsWholeWord']) vm.runInContext(fn(matcher, name), context);
 for (const name of ['isSentEmail', 'receivedEmails']) vm.runInContext(fn(core, name), context);
-for (const name of ['matchApplicationsForEmail', 'applicationsRelatedToEmail']) vm.runInContext(fn(matcher, name), context);
+for (const name of ['isEmailTaskActiveClient', 'activeClientsMatchingSender', 'activeClientsForTaskEmail', 'matchApplicationsForEmail', 'applicationsRelatedToEmail']) vm.runInContext(fn(matcher, name), context);
 const outgoing = [
   { from: app.email, to: app.email, direction: 'sent' },
   { from: app.email, to: app.email, source: 'sent' },
@@ -40,4 +41,20 @@ assert.equal(context.matchApplicationsForEmail(incoming)[0].id, app.id, 'real re
 context.data.emails = [...outgoing, incoming];
 assert.equal(context.receivedEmails().length, 1, 'received count must exclude sent, self-sent, and legacy outgoing mail');
 assert.equal(context.receivedEmails()[0], incoming);
+app.status = 'Active client';
+context.emailExplicitlyNamesDifferentRole = () => true;
+const workEmail = { from: app.email, subject: 'Website updates for the graphic designer', body: 'Let’s have a meeting.' };
+assert.equal(context.matchApplicationsForEmail(workEmail)[0].id, app.id, 'active client work emails must not require the original application role');
+assert.equal(context.activeClientsForTaskEmail(workEmail).length, 1);
+const second = { ...app, id: 'client-2' };
+context.data.applications.push(second);
+assert.equal(context.activeClientsForTaskEmail(workEmail).length, 2, 'shared sender must preserve both choices rather than guess a task client');
+second.contractStatus = 'Contract Ended';
+assert.equal(context.activeClientsForTaskEmail(workEmail).length, 1, 'ended clients cannot receive tasks');
+app.activePendingEmail = true;
+assert.equal(context.isEmailTaskActiveClient(app), false);
+app.activePendingEmail = false;
+assert.equal(context.activeClientsForTaskEmail({ ...workEmail, direction: 'sent' }).length, 0);
+assert.equal(context.activeClientsMatchingSender({ from: 'support@onlinejobs.ph' }).length, 0, 'shared platform sender must not bypass role disambiguation');
+assert.equal(context.activeClientsForTaskEmail(undefined).length, 0);
 console.log('Email direction checks passed: outgoing exclusion, cached matches, Gmail labels, own addresses, recipient linking, and real received replies.');

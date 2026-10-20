@@ -139,6 +139,18 @@ Run `node scripts/test-news.mjs` for mocked endpoint tests covering authenticati
 
 ## Development
 
+### Cloudflare AI for client email tasks
+
+The authenticated `POST /api/email/classify` endpoint uses the Workers AI binding named `AI`, declared in `wrangler.jsonc`. Deploy the updated Worker to activate it; no separate AI API key is needed for this binding. If configuring the binding through the dashboard, use **Workers & Pages → jeff-va-monitoring → Bindings → Add → Workers AI**, and name it `AI`. See [Cloudflare's binding instructions](https://developers.cloudflare.com/workers-ai/configuration/bindings/).
+
+The browser sends only the saved email ID and client ID. The Worker checks the signed-in user's records and unique active-client sender, then sends the authored subject, message text and saved job role to Cloudflare AI. Quoted history and addresses are excluded from the AI prompt. The model is `@cf/meta/llama-3.1-8b-instruct`; changing it requires checking JSON mode support and pricing. No model or provider upgrade is automatic.
+
+Only a role-related `work_task` decision with confidence at least 0.9 and evidence quoted from the email creates a one-time task. Invoice, compensation, personal and informational messages do not automatically create tasks. Uncertain decisions appear as review notifications. AI can still make mistakes; review notifications and task source links are retained. Existing tasks are not deleted by reclassification.
+
+Saved messages, including older imports, are analyzed once per message/role change, with at most three checks per sync and a 40-check app limit per UTC day (8 AM in the Philippines). The app displays its check count and queue status. This check limit is separate from Cloudflare's account-wide neuron quota and is not a billing guarantee. Cloudflare Free plan limits still apply; no paid plan is enabled by this change. Quota exhaustion, missing binding or provider failures leave messages queued without falling back to keyword-created tasks.
+
+For localhost, restart `scripts/local_server.py` after this update; the AI route forwards to the deployed Worker with the dashboard session. The deployed Worker must have this code before localhost can use AI. `wrangler dev` can also run the Worker after building. Run `node scripts/test-email-ai.mjs`, `node scripts/test-automatic-email-tasks.cjs` and `python scripts/test_local_gmail.py` for mocked server, browser and local proxy checks. These checks do not call a live AI model or demonstrate its real-world classification accuracy.
+
 Edit frontend source in `src/frontend/`; do not edit the generated `dist/` output. The Windows startup shortcut is `start-jeff-va.bat`. To rebuild the Cloudflare Workers output, run `bash ./scripts/build-cloudflare.sh`.
 
 ## License

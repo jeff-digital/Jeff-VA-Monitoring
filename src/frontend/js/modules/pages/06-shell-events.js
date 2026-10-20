@@ -264,6 +264,7 @@
         if (client) {
           showView('hired');
           renderHiredDetail(client);
+          selectClientDetailTab('tasks');
         }
       } else if (alert?.type?.startsWith('contract-ending-') && alert.applicationId) {
         const client = data.applications.find(candidate => candidate.id === alert.applicationId);
@@ -291,12 +292,18 @@
         showView('wallet');
         renderWallet();
         requestAnimationFrame(() => $(`[data-wallet-actions="${CSS.escape(alert.walletEntryId || '')}"]`)?.focus());
-      } else if (alert?.type === 'application-email-closed') {
+      } else if (['active-client-email', 'active-client-email-review', 'application-email', 'application-email-closed'].includes(alert?.type)) {
         showView('inbox');
         if (data.emails.some(email => email.id === alert.emailId)) openEmailDetail(alert.emailId);
         else if (alert.applicationId) {
-          showView('applications');
-          openClientModal(alert.applicationId, true);
+          const client = data.applications.find(item => item.id === alert.applicationId);
+          if (alert.type === 'active-client-email' && client) {
+            showView('hired');
+            renderHiredDetail(client);
+          } else {
+            showView('applications');
+            openClientModal(alert.applicationId, true);
+          }
         }
       } else if (alert?.type === 'interview' && alert.applicationId) {
         showView('applications');

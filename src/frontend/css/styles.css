@@ -7072,3 +7072,18 @@ body:has(#newsView.active) #pageEyebrow { display: none; }
   #newsView .news-live-grid:has(> .news-category-loader:only-child) { min-height: calc(100dvh - 226px); }
   #newsView .news-empty { width: min(100%, 320px); padding: 34px 20px; }
 }
+.gmail-sync-summary { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; margin:10px 0 14px; padding:10px 12px; border:1px solid #e3e8ec; border-radius:8px; background:#f7f9fb; }
+.gmail-sync-summary[hidden] { display:none; }
+.gmail-sync-summary p { margin:0; font-size:12px; line-height:1.6; color:#536471; }
+.gmail-sync-summary[data-state="synced"] p { color:#287554; }
+.gmail-sync-summary[data-state="permission"] p, .gmail-sync-summary[data-state="partial"] p, .gmail-sync-summary[data-state="paused"] p { color:#976021; }
+.gmail-sync-summary[data-state="syncing"] p::before, .gmail-sync-summary[data-state="renewing"] p::before { content:""; display:inline-block; width:9px; height:9px; margin-right:8px; border:2px solid #c9d2df; border-top-color:#26345b; border-radius:50%; animation:gmail-sync-spin 1s linear infinite; }
+@keyframes gmail-sync-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .gmail-sync-summary p::before { animation:none !important; } }
+.email-task-modal { width:min(540px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow-y:auto; }
+.email-task-modal .form-field { margin-top:12px; }
+.email-task-source { overflow-wrap:anywhere; color:#536471; font-size:12px; line-height:1.6; margin:8px 0; }
+.email-task-modal .modal-actions { margin-top:18px; }
+.task-source-email { font-size:11px; padding:0; }
+#clientTaskScheduleSection[hidden], #clientTaskOneOffFields[hidden] { display:none; }
+#hiredView .client-task-created { margin-top: 5px; color: var(--workspace-muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }

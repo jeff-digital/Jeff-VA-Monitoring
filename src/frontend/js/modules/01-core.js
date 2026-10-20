@@ -152,7 +152,7 @@
         date.textContent = detail.date ? `Applied ${emailDate(detail.date)}` : '';
         sender.textContent = 'Status changed to Rejected after one calendar month';
       } else {
-        sender.textContent = `From ${detail.from || 'Unknown sender'}`;
+        sender.textContent = `From ${detail.from || 'Unknown sender'}${detail.taskCreated ? ' · Task created automatically' : ''}`;
       }
       item.append(heading, subject, sender);
       return item;
@@ -605,6 +605,7 @@
       toApply: Array.isArray(saved.toApply) ? saved.toApply : [],
       dailyTasks: Array.isArray(saved.dailyTasks) ? saved.dailyTasks : [],
       clientTasks: Array.isArray(saved.clientTasks) ? saved.clientTasks : [],
+      emailTaskAiUsage: saved.emailTaskAiUsage || null,
       socialTrends: Array.isArray(saved.socialTrends) ? saved.socialTrends : [],
       emails: dedupeEmails(Array.isArray(saved.emails) ? saved.emails : []).filter(item => !(item.source === 'gmail' && deletedGmailIdSet.has(item.gmailId))),
       deletedGmailIds,

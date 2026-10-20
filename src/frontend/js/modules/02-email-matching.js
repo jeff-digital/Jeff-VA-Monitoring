@@ -19,6 +19,8 @@
   });
   let applicationEmailMatchesCache = new WeakMap();
   let applicationEmailSummaryCache = null;
+  let applicationEmailSummarySource = null;
+  let applicationEmailSummaryCount = 0;
   let ambiguousEmailMatches = new WeakMap();
   const GENERIC_DISAMBIGUATION_ROLE_WORDS = new Set([
     'virtual', 'assistant', 'manager', 'specialist', 'marketing', 'digital', 'remote', 'wfh', 'wfo'
@@ -170,7 +172,9 @@
       application.role || '',
       application.appliedDate || '',
       application.website || '',
-      application.platform || ''
+      application.platform || '',
+      application.status || '', application.contractStatus || '', application.contractEndDate || '',
+      Boolean(application.activePendingDocument), Boolean(application.activePendingEmail)
     ].join('|')).join('~');
   }
 
@@ -273,10 +277,32 @@
     return new RegExp(`\\b${escaped}\\b`, 'i').test(haystack || '');
   }
 
+  function isEmailTaskActiveClient(application) {
+    return Boolean(application && isActiveContract(application)
+      && !application.activePendingDocument && !application.activePendingEmail);
+  }
+
+  function activeClientsMatchingSender(emailItem) {
+    if (isSentEmail(emailItem)) return [];
+    const sender = extractEmailAddress(emailItem.from);
+    if (!isEmailAddress(sender) || PLATFORM_SENDER_EMAIL_SET.has(sender)) return [];
+    return data.applications.filter(application => isEmailTaskActiveClient(application)
+      && extractEmailAddress(application.email) === sender);
+  }
+
+  function activeClientsForTaskEmail(emailItem) {
+    if (!emailItem || isSentEmail(emailItem)) return [];
+    return matchApplicationsForEmail(emailItem).filter(isEmailTaskActiveClient);
+  }
+
   function matchApplicationsForEmail(emailItem) {
     // Outgoing emails may repeat a company's name and role, but they are not
     // evidence of a client response. Check before consulting cached matches.
     if (isSentEmail(emailItem)) return [];
+    // Work emails from an established client's saved address don't need to
+    // mention the original job title, and must not be treated as job replies.
+    const activeClients = activeClientsMatchingSender(emailItem);
+    if (activeClients.length) return activeClients;
     const cachedMatches = applicationEmailMatchesCache.get(emailItem);
     if (cachedMatches) return cachedMatches;
     const fromAddress = extractEmailAddress(emailItem.from);
@@ -383,7 +409,12 @@
   }
 
   function matchingEmailsForApplication(application) {
-    if (!applicationEmailSummaryCache) applicationEmailSummaryCache = buildApplicationEmailSummary();
+    if (!applicationEmailSummaryCache || applicationEmailSummarySource !== data.emails
+      || applicationEmailSummaryCount !== data.emails.length) {
+      applicationEmailSummaryCache = buildApplicationEmailSummary();
+      applicationEmailSummarySource = data.emails;
+      applicationEmailSummaryCount = data.emails.length;
+    }
     return applicationEmailSummaryCache.get(application.id) || [];
   }
 
@@ -1359,6 +1390,8 @@
   }
 
   function renderEmails() {
+    renderGmailSyncStatus();
+    renderEmailTaskAiStatus();
     const query = $('#emailSearch').value.trim().toLowerCase();
     const weekOffset = Number(emailDateSort);
     const weekRangeFilter = emailDateSort === 'all' ? null : weekRange(weekOffset);
@@ -1421,6 +1454,7 @@
       const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
       const recipient = extractEmailAddress(isSentEmail(item) ? item.to : item.from);
       const canCompose = matches.length > 0 && isEmailAddress(recipient);
+      const canCreateTask = activeClientsForTaskEmail(item).length > 0;
       const sentClass = isSentEmail(item) ? ' sent' : '';
       const sentBadge = isSentEmail(item) ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = isSentEmail(item) ? 'Sent' : 'Received';
@@ -1428,7 +1462,7 @@
       const selectionLabel = platformName ? `${platformName} email` : (item.subject || 'email');
       const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}" />` : '';
       const previewMarkup = platformName ? '' : `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
-      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCreateTask ? `<button type="button" role="menuitem" data-email-action="create-task" data-email-id="${escapeHtml(item.id)}">Create task</button>` : ''}${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
   }
