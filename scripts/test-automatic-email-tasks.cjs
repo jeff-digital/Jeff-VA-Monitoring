@@ -66,6 +66,13 @@ const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, cur
   }
 });
 vm.runInContext(read('pages/10a-email-client-tasks.js'), context);
+context.renderEmailTaskAiStatus('Email tasks: active-client messages checked.');
+assert.equal($('#accountEmailAiStatus').textContent, 'Messages checked');
+assert.match($('#accountEmailAiDetails').textContent, /0\/40 checks today.*Active-client emails only/);
+context.navigator.onLine = false;
+context.renderEmailTaskAiStatus();
+assert.equal($('#accountEmailAiStatus').textContent, 'Offline');
+context.navigator.onLine = true;
 const documents = read('03-documents.js');
 vm.runInContext(documents.slice(documents.indexOf('  function alertNewMatches('), documents.indexOf('  const generatedNotificationTypes')), context);
 const gmail = read('04-gmail.js');

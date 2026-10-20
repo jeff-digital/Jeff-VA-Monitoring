@@ -450,6 +450,8 @@
     renderPasswordPage();
     renderAccountPage();
     refreshAccountStorageUsage();
+    renderGmailSyncStatus();
+    renderEmailTaskAiStatus();
     if (!$('#settingsModal').open) $('#settingsModal').showModal();
   }
 
@@ -7070,6 +7072,12 @@
       synced: 'Gmail synced', partial: 'Gmail sync incomplete', paused: 'Gmail retrying', offline: 'Gmail offline', permission: 'Gmail permission needed' };
     $('#gmailSyncStatusText').textContent = compactLabels[state] || compactLabels.checking;
     summary.title = `${labels[state] || labels.checking} · ${lastSyncLabel}`;
+    const accountDetails = $('#accountGmailSyncDetails');
+    if (accountDetails) accountDetails.textContent = summary.title;
+    const accountConnection = $('#accountGmailStatus');
+    if (accountConnection) accountConnection.textContent = ({ synced: 'Connected', syncing: 'Syncing',
+      renewing: 'Reconnecting', checking: 'Checking connection', permission: 'Permission required',
+      offline: 'Offline', partial: 'Sync incomplete', paused: 'Retrying connection' })[state] || 'Checking connection';
     const time = $('#gmailSyncTime');
     time.hidden = !lastSync || Number.isNaN(date.getTime());
     time.textContent = time.hidden ? '' : date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -10465,6 +10473,12 @@
       usage.title = `${emailAiDailyUsage().requests} of 40 email checks today · Resets at 8 AM (Philippines)`;
       usage.ariaLabel = usage.title;
     }
+    const accountStatus = $('#accountEmailAiStatus');
+    const accountDetails = $('#accountEmailAiDetails');
+    if (accountStatus) accountStatus.textContent = navigator.onLine === false ? 'Offline'
+      : attention ? 'Needs attention' : processing ? 'Checking messages' : queued ? 'Checks queued'
+        : /messages checked/i.test(fullStatus) ? 'Messages checked' : 'Waiting for next check';
+    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Active-client emails only.`;
   }
 
   async function analyzeClientEmail(email, client, scanKey) {

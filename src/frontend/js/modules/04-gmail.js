@@ -961,6 +961,12 @@
       synced: 'Gmail synced', partial: 'Gmail sync incomplete', paused: 'Gmail retrying', offline: 'Gmail offline', permission: 'Gmail permission needed' };
     $('#gmailSyncStatusText').textContent = compactLabels[state] || compactLabels.checking;
     summary.title = `${labels[state] || labels.checking} · ${lastSyncLabel}`;
+    const accountDetails = $('#accountGmailSyncDetails');
+    if (accountDetails) accountDetails.textContent = summary.title;
+    const accountConnection = $('#accountGmailStatus');
+    if (accountConnection) accountConnection.textContent = ({ synced: 'Connected', syncing: 'Syncing',
+      renewing: 'Reconnecting', checking: 'Checking connection', permission: 'Permission required',
+      offline: 'Offline', partial: 'Sync incomplete', paused: 'Retrying connection' })[state] || 'Checking connection';
     const time = $('#gmailSyncTime');
     time.hidden = !lastSync || Number.isNaN(date.getTime());
     time.textContent = time.hidden ? '' : date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });

@@ -447,6 +447,8 @@
     renderPasswordPage();
     renderAccountPage();
     refreshAccountStorageUsage();
+    renderGmailSyncStatus();
+    renderEmailTaskAiStatus();
     if (!$('#settingsModal').open) $('#settingsModal').showModal();
   }
 
