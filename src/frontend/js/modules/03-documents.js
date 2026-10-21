@@ -1149,7 +1149,8 @@
   const generatedNotificationTypes = new Set([
     'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
     'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended',
-    'wallet-payment-due-soon', 'wallet-payment-due-today', 'wallet-payment-overdue'
+    'wallet-payment-due-soon', 'wallet-payment-due-today', 'wallet-payment-overdue',
+    'subscription-due-soon', 'subscription-due-today', 'subscription-expired'
   ]);
   let notificationFilter = 'all';
   let notificationReturnFocus = null;
@@ -1250,6 +1251,18 @@
         urgency: daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : 'ending-soon'
       });
     });
+    (data.subscriptions || []).forEach(item => {
+      if (!item?.id || item.tracking === 'cancelled') return;
+      const expiry = subscriptionDateValue(item.expiryDate);
+      const daysLeft = Math.round((expiry - subscriptionDateValue(subscriptionToday())) / 86400000);
+      if (!Number.isFinite(daysLeft) || daysLeft > 7) return;
+      const type = daysLeft < 0 ? 'subscription-expired' : daysLeft === 0 ? 'subscription-due-today' : 'subscription-due-soon';
+      add({ id: `${type}|subscription:${item.id}|${item.expiryDate}`, type, subscriptionId: item.id,
+        clientName: item.name || 'Paid account',
+        subject: `${item.name || 'Subscription'}: ${daysLeft < 0 ? 'expired' : daysLeft === 0 ? 'expires today' : `expires in ${plural(daysLeft, 'day')}`}`,
+        from: 'Subscription reminder', date: notificationDate(item.expiryDate),
+        urgency: daysLeft < 0 ? 'overdue' : daysLeft === 0 ? 'due-today' : 'ending-soon' });
+    });
     (data.applications || []).forEach(item => {
       if (!item.id || item.status !== 'Active client') return;
       const endDate = dateKey(item.contractEndDate);
@@ -1319,7 +1332,7 @@
 
   function notificationCategory(alert) {
     if (alert.type?.startsWith('task-')) return 'daily-tasks';
-    if (alert.type?.startsWith('wallet-payment-')) return 'finance';
+    if (alert.type?.startsWith('wallet-payment-') || alert.type?.startsWith('subscription-')) return 'finance';
     if (alert.type === 'to-apply' || alert.id?.startsWith('to-apply|due|')) return 'to-apply';
     if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission', 'active-client-email', 'active-client-email-review'].includes(alert.type)) return 'active-clients';
     const linkedApplication = (data.applications || []).find(item =>
@@ -1373,7 +1386,7 @@
       { key: 'active-clients', label: 'Active Clients' },
       { key: 'daily-tasks', label: 'Daily Tasks' },
       { key: 'to-apply', label: 'To Apply' },
-      { key: 'finance', label: 'Wallet' }
+      { key: 'finance', label: 'Finance' }
     ].map(group => ({
       label: group.label,
       items: shownAlerts.filter(alert => notificationCategory(alert) === group.key)
@@ -1385,7 +1398,7 @@
         'active-clients': 'No active client notifications right now.',
         'daily-tasks': 'No daily task notifications right now.',
         'to-apply': 'No To Apply notifications right now.',
-        finance: 'No Wallet notifications right now.',
+        finance: 'No finance notifications right now.',
         unread: 'You’re all caught up. No unread notifications.'
       };
       list.innerHTML = `<div class="notification-empty">${emptyMessages[notificationFilter]}</div>`;
@@ -1527,7 +1540,10 @@
   function startNotificationRefreshTimer() {
     if (!notificationRefreshTimer) {
       notificationRefreshTimer = setInterval(() => {
-        if (dataReady && supabaseDataLoaded) renderAlerts();
+        if (dataReady && supabaseDataLoaded) {
+          renderAlerts();
+          if (activeView === 'subscriptions') renderSubscriptions();
+        }
       }, 60000);
     }
   }

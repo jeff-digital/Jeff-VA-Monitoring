@@ -569,10 +569,19 @@
       ? `AI application check: ${applicationAiSkipReason(emailItem, pendingApplication, data.emails)
         || (emailAiRetryState()?.until > Date.now() ? emailAiRetryState().message : 'Matched and waiting for AI analysis during Gmail sync.')}`
       : assessmentMatches?.length === 0 ? 'AI check: no saved application or active client is matched to this email.' : '';
+    const outcomeApplication = applicationAnalysis && data.applications.find(app => app.id === applicationAnalysis.applicationId
+      || app.emailClosure?.emailRecordId === emailItem.id);
+    const outcomeSaved = outcomeApplication?.status === 'Not selected'
+      && outcomeApplication.emailClosure?.emailId === (emailItem.gmailId || emailItem.id);
+    const outcomeBlockedReason = outcomeApplication && !outcomeSaved && typeof applicationAiSkipReason === 'function'
+      ? applicationAiSkipReason(emailItem, outcomeApplication, data.emails)
+        || (outcomeApplication.emailClosure?.emailId === (emailItem.gmailId || emailItem.id) ? 'Your later manual stage change is retained.' : '') : '';
     const analysisStatus = $('#emailDetailAiStatus');
     analysisStatus.hidden = !analysis && !pendingAssessment;
     analysisStatus.textContent = applicationAnalysis
-      ? `AI application assessment: ${applicationAnalysis.outcome === 'uncertain' ? 'Needs your review' : applicationAnalysis.rejectApplication ? 'Final negative outcome confirmed' : 'No rejection confirmed'} — ${applicationAnalysis.reason}${applicationAnalysis.evidence ? ` · From the email: “${applicationAnalysis.evidence}”` : ''}`
+      ? `AI application assessment: ${applicationAnalysis.outcome === 'uncertain' ? 'Outcome unclear; status unchanged' : applicationAnalysis.rejectApplication
+        ? outcomeSaved ? 'Automatically marked Rejected' : outcomeBlockedReason ? `Closure confirmed; status unchanged: ${outcomeBlockedReason}` : 'Closure confirmed; automatic status update pending'
+        : 'No rejection confirmed'} — ${applicationAnalysis.reason}${applicationAnalysis.evidence ? ` · From the email: “${applicationAnalysis.evidence}”` : ''}`
       : analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : pendingAssessment;
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);

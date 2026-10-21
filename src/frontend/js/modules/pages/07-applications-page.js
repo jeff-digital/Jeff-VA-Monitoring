@@ -246,22 +246,6 @@
     renderApplications();
     updateWeekNavigationCounts();
   });
-  document.querySelectorAll('[data-application-quick-filter]').forEach(button => {
-    button.addEventListener('click', () => {
-      const filter = button.dataset.applicationQuickFilter;
-      if (filter === 'week') {
-        applicationDateSort = applicationDateSort === '0' ? 'all' : '0';
-        applicationDateFilter = '';
-        $('#applicationDateFilter').value = '';
-        $('#applicationDateSort').value = applicationDateSort;
-      }
-      if (filter === 'applied') {
-        $('#statusFilter').value = $('#statusFilter').value === 'Applied' ? '' : 'Applied';
-      }
-      renderApplications();
-      updateWeekNavigationCounts();
-    });
-  });
   document.addEventListener('click', async event => {
     const removeFilter = event.target.closest('[data-remove-application-filter]');
     const detailButton = event.target.closest('button[data-view-details]');

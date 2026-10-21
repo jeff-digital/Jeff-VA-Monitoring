@@ -24,7 +24,8 @@ const context = vm.createContext({ $, console, AbortSignal, currentUser: { id: '
   },
   isSentEmail: email => email.direction === 'sent' || email.labelIds?.includes('SENT') || email.from === 'me@example.com',
   matchApplicationsForEmail: email => context.data.applications.filter(app => app.email === email.from),
-  persist: async () => saveSucceeds, renderAlerts() {}, renderAll() {}, showActionResult(value) { notice = value; },
+  activeClientsMatchingSender: () => [],
+  persist: async () => saveSucceeds, renderAlerts() {}, renderAll() {}, renderApplications() {}, showActionResult(value) { notice = value; },
   showView() {}, openEmailDetail(id) { openedEmail = id; }
 });
 vm.runInContext(source('pages/10a-email-client-tasks.js'), context);
@@ -63,6 +64,21 @@ const run = budget => context.applyAiApplicationOutcomes(context.data.emails, bu
   for (const outcome of ['rejected', 'position_closed', 'position_filled', 'position_unavailable', 'application_expired']) {
     record = reset(); decision.outcome = outcome; assert.equal((await run()).changed.length, 1);
   }
+  record = reset(); decision.confidence = 0.92;
+  result = await run(); assert.equal(result.changed.length, 1);
+  assert.equal(record.status, 'Not selected', 'a confirmed server decision must update the stage without a second confidence veto or confirmation');
+  record = reset();
+  const pendingEmail = context.data.emails[0];
+  const pendingKey = context.applicationAiScanKey(pendingEmail, record);
+  assert.ok(pendingKey.startsWith('application-v2:'), 'previously reviewed messages must be rechecked under the automatic-action policy');
+  pendingEmail.applicationAiAnalysis = { ...decision, scanKey: pendingKey, applicationId: record.id };
+  pendingEmail.applicationAiProcessedKey = pendingKey;
+  context.data.alerts.push({ id: `application-email-closed|${record.id}|${pendingEmail.gmailId}`, type: 'application-email-closed' });
+  assert.equal(context.pendingEmailAiChecks().length, 1, 'a decision is not complete while its application status is still unchanged');
+  result = await run();
+  assert.equal(record.status, 'Not selected'); assert.equal(result.changed.length, 1);
+  assert.equal(calls, 0, 'a cached confirmed decision can repair its status without another AI request');
+  assert.equal(context.data.alerts.length, 1, 'an existing notification must not block status repair or be duplicated');
   // The user's Frontline example must remain eligible after unrelated edits.
   record = reset();
   Object.assign(record, { clientName: 'Frontline Accounting', role: 'AU Administrative Assistant (Hybrid) - with 30K Signing Bonus!',

@@ -40,6 +40,7 @@ APP_ROUTES = {
     "/hired",
     "/inbox",
     "/documents",
+    "/subscriptions",
     "/wallet",
     "/account",
 }

@@ -66,6 +66,9 @@
             <a class="nav-link" href="/documents" data-view="documents" title="Career tools">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-toolbox"></i></span><span class="nav-label">Career tools</span>
             </a>
+            <a class="nav-link" href="/subscriptions" data-view="subscriptions" title="Account subscriptions">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-credit-card"></i></span><span class="nav-label">Account subscriptions</span><span class="nav-count" id="navSubscriptionsCount">0</span>
+            </a>
           </div>
           <div class="nav-group">
             <p class="nav-group-label">CLIENT MANAGEMENT</p>
@@ -145,7 +148,7 @@
                     <button type="button" role="tab" id="notificationActiveClientsTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="active-clients" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Active Clients</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                     <button type="button" role="tab" id="notificationDailyTasksTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="daily-tasks" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Daily Tasks</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                     <button type="button" role="tab" id="notificationToApplyTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="to-apply" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">To Apply</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
-                    <button type="button" role="tab" id="notificationWalletTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="finance" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Wallet</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
+                    <button type="button" role="tab" id="notificationWalletTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="finance" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Finance</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                     <button type="button" role="tab" id="notificationUnreadTab" aria-selected="false" aria-controls="notificationList" data-notification-filter="unread" tabindex="-1"><span class="notification-tab-label"><span class="notification-tab-text">Unread</span></span><span class="notification-tab-count" aria-hidden="true" hidden></span></button>
                   </div>
                 </div>
@@ -381,7 +384,7 @@
         <section class="view" id="applicationsView" data-view-panel="applications" data-page="applications">
           <section class="application-workspace-head">
             <div class="application-workspace-count">
-              <span class="application-workspace-count-summary"><strong id="applicationListLabel">0 applications</strong><span id="applicationPlatformCounts" aria-label="Applications by source"></span></span>
+              <span class="application-workspace-count-summary"><strong id="applicationListLabel" tabindex="0" aria-describedby="applicationPlatformCounts">0 applications</strong><span id="applicationPlatformCounts" role="tooltip"></span></span>
             </div>
           </section>
           <section class="application-filters" aria-label="Application filters">
@@ -394,10 +397,6 @@
               <label class="application-filter-field"><span><i class="fa-solid fa-globe" aria-hidden="true"></i> Source</span><select id="platformFilter"><option value="">All sources</option></select></label>
             </div>
             <div class="application-filter-footer">
-              <div class="application-quick-filters" role="group" aria-label="Quick application filters">
-                <button class="application-quick-filter" type="button" data-application-quick-filter="week" aria-pressed="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i><span>This week</span><i class="fa-solid fa-check application-quick-filter-check" aria-hidden="true"></i></button>
-                <button class="application-quick-filter" type="button" data-application-quick-filter="applied" aria-pressed="false"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i><span>Applied</span><i class="fa-solid fa-check application-quick-filter-check" aria-hidden="true"></i></button>
-              </div>
               <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
               <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
               <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
@@ -733,6 +732,39 @@
               </div>
             </div>
           </section>
+        </section>
+
+        <section class="view subscriptions-view" id="subscriptionsView" data-view-panel="subscriptions" data-page="subscriptions">
+          <div class="subscriptions-intro"><div><h2>Your paid accounts</h2><p>Track expiry dates and plan your next renewal.</p></div><button class="button button-primary" id="addSubscription" type="button">Add subscription</button></div>
+          <div class="subscriptions-summary" id="subscriptionSummary" aria-label="Subscription overview"></div>
+          <div class="subscriptions-toolbar">
+            <label class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="subscriptionSearch" placeholder="Search service or account" aria-label="Search subscriptions" /></label>
+            <label><span class="sr-only">Filter subscriptions by status</span><select id="subscriptionFilter"><option value="all">All subscriptions</option><option value="active">Active</option><option value="soon">Expiring soon</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></label>
+          </div>
+          <p class="subscriptions-count" id="subscriptionCount" role="status" aria-live="polite"></p>
+          <div class="subscriptions-grid" id="subscriptionList"></div>
+          <dialog class="subscription-editor" id="subscriptionEditor" aria-labelledby="subscriptionEditorTitle">
+            <form id="subscriptionForm">
+              <header><div><p class="eyebrow">PAID ACCOUNT</p><h2 id="subscriptionEditorTitle">Add subscription</h2></div><button class="icon-button" id="closeSubscriptionEditor" type="button" aria-label="Close subscription editor">×</button></header>
+              <div class="subscription-panel-actions" id="subscriptionPanelActions" hidden><span>Already renewed with the provider?</span><button class="button button-secondary" id="subscriptionRecordRenewal" type="button">Record renewal</button></div>
+              <div class="subscription-form-body">
+                <input type="hidden" id="subscriptionId" />
+                <label class="form-field"><span>Service or account name</span><input id="subscriptionName" maxlength="120" required placeholder="e.g. Canva Pro" /></label>
+                <label class="form-field"><span>Account email or username</span><input id="subscriptionAccount" maxlength="200" placeholder="Which account is subscribed?" /></label>
+                <label class="form-field"><span>Plan</span><input id="subscriptionPlan" maxlength="120" placeholder="e.g. Pro, Team, Premium" /></label>
+                <div class="subscription-form-row"><label class="form-field"><span>Cost per billing cycle</span><input id="subscriptionCost" type="number" min="0.01" max="999999999" step="0.01" inputmode="decimal" required /></label><label class="form-field"><span>Currency</span><select id="subscriptionCurrency"><option>PHP</option><option>USD</option><option>AUD</option><option>CAD</option><option>GBP</option><option>EUR</option></select></label></div>
+                <div class="subscription-form-row"><label class="form-field"><span>Billing cycle</span><select id="subscriptionCycle"><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="custom">Custom</option></select></label><label class="form-field"><span>Expiry / next renewal date</span><input id="subscriptionExpiry" type="date" required /></label></div>
+                <p class="subscription-renewal-help" id="subscriptionRenewalHelp" hidden>Record the new expiry date after renewing with the provider.</p>
+                <label class="form-field"><span>Renewal decision</span><select id="subscriptionDecision"><option value="undecided">Decide later</option><option value="renew">Renew</option><option value="cancel">Do not renew</option></select></label>
+                <label class="form-field"><span>Tracking status</span><select id="subscriptionTracking"><option value="active">Track subscription</option><option value="cancelled">Cancelled / no longer used</option></select></label>
+                <label class="form-field"><span>Provider / billing website</span><input id="subscriptionWebsite" maxlength="2048" placeholder="https://" inputmode="url" /></label>
+                <label class="form-field"><span>Notes</span><textarea id="subscriptionNotes" rows="3" maxlength="2000" placeholder="Anything to remember before renewing"></textarea></label>
+                <p class="subscription-form-hint">This page tracks your accounts. Renewals and billing changes are made with the provider.</p>
+                <p class="subscription-form-error" id="subscriptionFormError" role="alert" hidden></p>
+              </div>
+              <footer><button class="button button-secondary subscription-delete" id="deleteSubscription" type="button" hidden>Delete</button><div><button class="button button-secondary" id="cancelSubscriptionEditor" type="button">Cancel</button><button class="button button-primary" id="saveSubscription" type="submit">Save subscription</button></div></footer>
+            </form>
+          </dialog>
         </section>
 
         <section class="view" id="walletView" data-view-panel="wallet" data-page="wallet">

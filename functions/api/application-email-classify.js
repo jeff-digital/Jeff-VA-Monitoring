@@ -61,10 +61,12 @@ export function validateApplicationClassification(raw, text) {
   // Only a quote from the newly authored body can authorize a status change.
   const grounded = evidence.length >= 8 && quoted(text).includes(quoted(evidence));
   const negative = !['no_change', 'uncertain'].includes(result.outcome);
-  const rejectApplication = negative && result.matchesApplication && result.confidence >= 0.95 && grounded;
-  return { outcome: (negative && !rejectApplication) || result.confidence < 0.9 || !result.matchesApplication ? 'uncertain' : result.outcome,
+  // The model's explicit outcome is the decision. Confidence is retained for
+  // audit, rather than vetoing a matched closure backed by an actual quote.
+  const rejectApplication = negative && result.matchesApplication && grounded;
+  return { outcome: (negative && !rejectApplication) || (!negative && result.confidence < 0.9) || !result.matchesApplication ? 'uncertain' : result.outcome,
     confidence: result.confidence, matchesApplication: result.matchesApplication, rejectApplication,
-    reason: result.reason.trim().slice(0, 300), evidence, model: MODEL, version: 1 };
+    reason: result.reason.trim().slice(0, 300), evidence, model: MODEL, version: 2 };
 }
 
 export async function classifyApplicationEmail(input, request, env, user) {
@@ -88,18 +90,18 @@ export async function classifyApplicationEmail(input, request, env, user) {
       return reply({ error: 'A newer application message is available. Recheck the latest email.', retryAfter: 30 }, 409);
     }
     const subject = String(email.subject || '').slice(0, 300), text = authoredEmailText(email.body);
-    const context = JSON.stringify({ company: String(app.companyName || app.company || app.clientName || '').slice(0, 300),
+    const context = JSON.stringify({ policyVersion: 2, company: String(app.companyName || app.company || app.clientName || '').slice(0, 300),
       role: String(app.role || '').slice(0, 300), subject, message: text, automated: Boolean(email.automatedMessage) });
     const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(context)))].map(byte => byte.toString(16).padStart(2, '0')).join('');
     const key = `${user.id}:${app.id}:${email.id}:${digest}`;
     const saved = email.applicationAiAnalysis;
-    const cached = saved?.inputKey === digest && saved.applicationId === app.id && saved.version === 1 && saved.model === MODEL ? saved : recent.get(key);
+    const cached = saved?.inputKey === digest && saved.applicationId === app.id && saved.version === 2 && saved.model === MODEL ? saved : recent.get(key);
     if (cached) {
       const validated = validateApplicationClassification(cached, text);
       if (validated) return reply({ ...validated, inputKey: digest });
     }
     if (!text || !app.role) return reply({ outcome: 'uncertain', confidence: 0, matchesApplication: false, rejectApplication: false,
-      reason: 'A saved role and full email body are needed to verify the application outcome.', evidence: '', model: MODEL, version: 1, inputKey: digest });
+      reason: 'A saved role and full email body are needed to verify the application outcome.', evidence: '', model: MODEL, version: 2, inputKey: digest });
     const usage = state.emailTaskAiUsage;
     if (usage?.day === new Date().toISOString().slice(0, 10) && Number(usage.requests) >= 40) return reply({ error: 'Daily email AI check limit reached. Messages remain queued until 8 AM.', retryAfter:
       Math.max(60, Math.ceil((Date.parse(`${usage.day}T00:00:00Z`) + 86400000 - Date.now()) / 1000)) }, 429);

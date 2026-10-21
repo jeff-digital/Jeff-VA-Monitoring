@@ -1187,10 +1187,11 @@
       const name = String(item.platform || 'Unspecified').trim() || 'Unspecified';
       platformCounts.set(name, (platformCounts.get(name) || 0) + 1);
     });
-    $('#applicationPlatformCounts').innerHTML = [...platformCounts]
+    const sourceBreakdown = [...platformCounts]
       .sort(([first], [second]) => first.localeCompare(second, undefined, { sensitivity: 'base' }))
-      .map(([name, count]) => `<span class="application-platform-count">${escapeHtml(name)} - ${count}</span>`)
+      .map(([name, count]) => `<span class="application-source-row"><span>${escapeHtml(name)}</span><strong>${count}</strong></span>`)
       .join('');
+    $('#applicationPlatformCounts').innerHTML = `<span class="application-source-heading"><span>Applications by source</span><strong>${filtered.length}</strong></span><span class="application-source-caption">Current filtered results</span><span class="application-source-list">${sourceBreakdown || '<span class="application-source-empty">No applications in this view</span>'}</span>`;
     const target = $('#applicationList');
     const filterChips = [
       query ? ['search', `Search: ${query}`] : null,
@@ -1200,13 +1201,6 @@
       applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
-    document.querySelectorAll('[data-application-quick-filter]').forEach(button => {
-      const active = button.dataset.applicationQuickFilter === 'week'
-        ? applicationDateSort === '0'
-        : status === 'Applied';
-      button.classList.toggle('active', active);
-      button.setAttribute('aria-pressed', String(active));
-    });
     $('#clearApplicationFilters').hidden = filterChips.length === 0 && applicationDateSort !== '0' && status !== 'Applied';
     $$('[data-application-view]').forEach(button => {
       const selected = button.dataset.applicationView === applicationViewMode;
@@ -2178,6 +2172,9 @@
       case 'wallet':
         renderWallet();
         break;
+      case 'subscriptions':
+        renderSubscriptions();
+        break;
       case 'news':
         if (!newsLoading && (!newsLastLoaded || Date.now() - newsLastLoaded >= 3600000)) loadNews({ reset: true });
         break;
@@ -2199,6 +2196,7 @@
     $('#navToApplyCount').textContent = (data.toApply || []).filter(item => item.dueDate === today()).length;
     updateToApplyAttention();
     $('#navHiredCount').textContent = hiredClients().filter(isActiveContract).length;
+    $('#navSubscriptionsCount').textContent = (data.subscriptions || []).filter(item => ['soon', 'expired'].includes(subscriptionStatus(item).key)).length;
     $('#settingsAppCount').textContent = data.applications.length;
     $('#settingsEmailCount').textContent = receivedEmails().length;
     const autoBackupFrequency = $('#autoBackupFrequency');
@@ -2246,6 +2244,7 @@
     }
     const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['', 'News'], 'social-trends': ['', 'Social Trends'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
+    labels.subscriptions = ['', 'Account subscriptions'];
     $('#pageEyebrow').textContent = labels[view][0];
     $('#pageTitle').textContent = labels[view][1];
     $('#pageEyebrow').hidden = !labels[view][0];

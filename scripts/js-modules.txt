@@ -19,5 +19,6 @@ pages/12-weekly-report.js
 pages/14-wallet-page.js
 pages/15-news-page.js
 pages/16-social-trends-page.js
+pages/17-subscriptions-page.js
 pages/12-auth-startup.js
 pages/13-client-tasks-page.js

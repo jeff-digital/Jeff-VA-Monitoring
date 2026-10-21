@@ -3,7 +3,7 @@
   const APPLICATION_AI_PENDING_STATUSES = ['Applied', 'Ongoing', 'To Proceed', 'To Proceeding', 'Interview'];
 
   function applicationAiScanKey(email, app) {
-    return `application-v1:${clientEmailTaskScanKey({ ...email, subject: JSON.stringify([email.subject, email.from,
+    return `application-v2:${clientEmailTaskScanKey({ ...email, subject: JSON.stringify([email.subject, email.from,
       email.to, email.date, email.direction, email.labelIds]) }, [{ id: app.id,
       role: JSON.stringify([app.role, app.clientName, app.companyName, app.company, app.email, app.website,
         app.status, app.appliedDate, app.updatedAt, app.manualStatusChangedAt]) }])}`;
@@ -55,7 +55,8 @@
       if (!email || !applicationAiStillEligible(email, app, emails)) continue;
       if (!String(email.body || '').trim() && email.bodyLoaded !== true) continue;
       const scanKey = applicationAiScanKey(email, app), emailId = email.gmailId || email.id;
-      if (email.applicationAiProcessedKey === scanKey || app.emailClosure?.emailId === emailId) continue;
+      if (app.emailClosure?.emailId === emailId) continue;
+      if (email.applicationAiProcessedKey === scanKey && email.applicationAiAnalysis?.rejectApplication !== true) continue;
       if (budget.remaining <= 0) { waiting = true; budget.queued = true; continue; }
       let analysis;
       try { analysis = await analyzeClientEmail(email, app, scanKey, true); budget.remaining--; }
@@ -72,10 +73,9 @@
       email.applicationAiProcessedKey = scanKey;
       const outcomeReasons = { rejected: 'Not selected', position_closed: 'Position closed', position_filled: 'Position filled',
         position_unavailable: 'Position unavailable', application_expired: 'Application expired' };
-      if (analysis.rejectApplication === true && analysis.matchesApplication === true && analysis.confidence >= 0.95
+      if (analysis.rejectApplication === true && analysis.matchesApplication === true
         && outcomeReasons[analysis.outcome] && analysis.evidence?.trim().length >= 8) {
         const alertId = `application-email-closed|${app.id}|${emailId}`;
-        if (workspace.alerts.some(alert => alert.id === alertId)) continue;
         const previous = { status: app.status, updatedAt: app.updatedAt, emailClosure: app.emailClosure, interviewPriority: app.interviewPriority };
         const now = new Date().toISOString(), reason = outcomeReasons[analysis.outcome];
         app.status = 'Not selected'; app.updatedAt = now; app.interviewPriority = false;
@@ -85,7 +85,9 @@
           clientName: app.clientName, from: email.from, date: now, unread: true,
           subject: `${reason} — marked Rejected: ${app.role || app.clientName}`, evidence: analysis.evidence,
           reason: analysis.reason, emailSubject: email.subject || '(No subject)' };
-        workspace.alerts.unshift(alert); addedAlerts.push(alert);
+        if (!workspace.alerts.some(item => item.id === alertId)) {
+          workspace.alerts.unshift(alert); addedAlerts.push(alert);
+        }
         mutations.push({ app, previous });
         result.changed.push({ app, email, outcome: { reason, evidence: analysis.evidence } });
       } else if (analysis.outcome === 'uncertain' || !analysis.matchesApplication) {
@@ -112,6 +114,7 @@
       }
     }
     if (currentUser?.id !== userId || data !== workspace) return { changed: [], review: [], failed: false };
+    if (result.changed.length) renderApplications();
     // Do not overwrite a provider/session error with a successful status.
     if (!(emailAiRetryState()?.until > Date.now())) renderEmailTaskAiStatus(waiting || budget.queued
       ? 'Email AI: remaining messages are queued for the next sync.' : 'Email AI: application and active-client messages checked.');

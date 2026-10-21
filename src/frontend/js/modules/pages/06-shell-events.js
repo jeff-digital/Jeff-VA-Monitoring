@@ -47,6 +47,7 @@
     { id: 'to-apply', label: 'To Apply', detail: 'Review application reminders', icon: 'fa-calendar-check' },
     { id: 'hired', label: 'Active clients', detail: 'View your active client list', icon: 'fa-user-tie' },
     { id: 'documents', label: 'Tools', detail: 'Open your tools library', icon: 'fa-toolbox' },
+    { id: 'subscriptions', label: 'Account subscriptions', detail: 'Paid accounts, expiry dates and renewal decisions', icon: 'fa-credit-card' },
     { id: 'wallet', label: 'Wallet', detail: 'Income, expenses, salary and account balances', icon: 'fa-wallet' },
     { id: 'weekly-report', label: 'Weekly report', detail: 'Review or export this week’s report', icon: 'fa-chart-column' },
     { id: 'settings', label: 'Settings', detail: 'Manage your workspace preferences', icon: 'fa-gear' }
@@ -288,6 +289,9 @@
         }
       } else if (alert?.type === 'to-apply' || alert?.id?.startsWith('to-apply|due|')) {
         showView('to-apply');
+      } else if (alert?.type?.startsWith('subscription-')) {
+        showView('subscriptions');
+        if ((data.subscriptions || []).some(item => item.id === alert.subscriptionId)) openSubscriptionEditor(alert.subscriptionId);
       } else if (alert?.type?.startsWith('wallet-payment-')) {
         showView('wallet');
         renderWallet();

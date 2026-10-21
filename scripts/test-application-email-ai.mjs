@@ -32,7 +32,14 @@ assert.equal((await request({ emailId: 'email', applicationId: '' })).status, 40
 let response = await request({ emailId: 'email', applicationId: 'app', body: 'forged', role: 'CEO', outcome: 'rejected' });
 assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'private, no-store');
 let analysis = await response.json(); assert.equal(analysis.rejectApplication, true); assert.equal(analysis.createTask, undefined);
+assert.equal(analysis.version, 2);
 await request(); assert.equal(calls, 1, 'server caches repeated application requests');
+email.applicationAiAnalysis = { ...analysis, version: 1, outcome: 'uncertain', rejectApplication: false, applicationId: app.id };
+email.id = 'policy-recheck';
+response = await request({ emailId: email.id, applicationId: app.id });
+assert.equal((await response.json()).rejectApplication, true);
+assert.equal(calls, 2, 'old review-only decisions must be re-evaluated under the automatic-action policy');
+email.id = 'email'; delete email.applicationAiAnalysis;
 const originalApp = { ...app }, originalEmail = { ...email }, originalOutput = output;
 Object.assign(app, { clientName: 'Frontline Accounting', role: 'AU Administrative Assistant (Hybrid) - with 30K Signing Bonus!',
   email: 'sherilyn@frontlineaccounting.com', updatedAt: new Date().toISOString() });
@@ -46,7 +53,8 @@ app.manualStatusChangedAt = new Date().toISOString();
 assert.equal((await request()).status, 403, 'an explicit manual stage change must remain protected');
 delete app.manualStatusChangedAt;
 Object.assign(app, originalApp); Object.assign(email, originalEmail); output = originalOutput;
-assert.equal(validateApplicationClassification({ ...output, confidence: 0.94 }, email.body).rejectApplication, false);
+assert.equal(validateApplicationClassification({ ...output, confidence: 0.94 }, email.body).rejectApplication, true, 'explicit matched outcomes backed by quotes do not require a separate 95% approval gate');
+assert.equal(validateApplicationClassification({ ...output, outcome: 'uncertain', confidence: 0.94 }, email.body).rejectApplication, false, 'genuinely unclear outcomes remain unchanged regardless of the reason text');
 assert.equal(validateApplicationClassification({ ...output, matchesApplication: false }, email.body).outcome, 'uncertain');
 assert.equal(validateApplicationClassification({ ...output, evidence: 'an invented quote' }, email.body).outcome, 'uncertain');
 assert.equal(validateApplicationClassification({ ...output, evidence: '' }, email.body).rejectApplication, false);

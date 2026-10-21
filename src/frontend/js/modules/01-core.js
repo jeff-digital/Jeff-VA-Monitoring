@@ -7,7 +7,7 @@
   const AUTH_PROVIDER_SESSION_KEY = 'jeff-va-auth-provider-v1';
   const AUTH_TAB_READY_KEY = 'jeff-va-auth-tab-ready-v1';
   const WORKSPACE_READY_NOTICE_KEY = 'jeff-va-workspace-ready-v1';
-  const APP_VIEWS = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'social-trends', 'hired', 'inbox', 'documents', 'wallet', 'account'];
+  const APP_VIEWS = ['dashboard', 'daily-task', 'applications', 'to-apply', 'news', 'social-trends', 'hired', 'inbox', 'documents', 'subscriptions', 'wallet', 'account'];
   const APP_VIEW_SET = new Set(APP_VIEWS);
   const appViewPath = view => `/${APP_VIEW_SET.has(view) ? view : 'dashboard'}`;
   function appViewFromLocation() {
@@ -16,7 +16,7 @@
     const pathView = window.location.pathname.split('/').filter(Boolean).pop() || '';
     return APP_VIEW_SET.has(pathView) ? pathView : '';
   }
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], accountSignInHistory: [], weeklyActivityGoal: null });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], subscriptions: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -619,6 +619,7 @@
       scripts: Array.isArray(saved.scripts) ? saved.scripts : [],
       workLinks: Array.isArray(saved.workLinks) ? saved.workLinks : [],
       walletEntries: Array.isArray(saved.walletEntries) ? saved.walletEntries : [],
+      subscriptions: Array.isArray(saved.subscriptions) ? saved.subscriptions : [],
       weeklyActivityGoal
     };
   }

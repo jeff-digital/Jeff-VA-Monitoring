@@ -106,6 +106,13 @@ assert.match(node('#emailDetailAiStatus').textContent, /manually changed/);
 delete app.manualStatusChangedAt;
 context.openEmailDetail(received.id);
 assert.match(node('#emailDetailAiStatus').textContent, /waiting for AI analysis/);
+received.applicationAiAnalysis = { applicationId: app.id, outcome: 'position_filled', rejectApplication: true,
+  reason: 'The role has been filled.', evidence: 'The role has been filled.' };
+context.openEmailDetail(received.id);
+assert.match(node('#emailDetailAiStatus').textContent, /automatic status update pending/);
+app.status = 'Not selected'; app.emailClosure = { emailId: received.id, emailRecordId: received.id };
+context.openEmailDetail(received.id);
+assert.match(node('#emailDetailAiStatus').textContent, /Automatically marked Rejected/);
 const unmatched = { id: 'unknown', from: 'unknown@example.com', body: 'An unmatched email', date: new Date().toISOString() };
 context.data.emails.push(unmatched); context.openEmailDetail(unmatched.id);
 assert.match(node('#emailDetailAiStatus').textContent, /no saved application or active client is matched/);

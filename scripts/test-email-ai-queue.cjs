@@ -14,7 +14,7 @@ const context = vm.createContext({ $, AbortSignal, document: { addEventListener(
   isSentEmail: email => email.direction === 'sent',
   activeClientsMatchingSender: email => context.data.applications.filter(app => app.status === 'Active client' && app.email === email.from),
   matchApplicationsForEmail: email => context.data.applications.filter(app => app.email === email.from),
-  persist: async () => true, renderAlerts() {}, renderClientTasks() {}, emailContentText: text => text,
+  persist: async () => true, renderAlerts() {}, renderClientTasks() {}, renderApplications() {}, emailContentText: text => text,
   fetch: async (url, options) => {
     calls++; inFlight++; maxInFlight = Math.max(inFlight, maxInFlight);
     const input = JSON.parse(options.body);

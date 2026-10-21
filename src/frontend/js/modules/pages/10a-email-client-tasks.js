@@ -56,7 +56,7 @@
         if (!email || !applicationAiStillEligible(email, app, data.emails)
           || (!String(email.body || '').trim() && email.bodyLoaded !== true)
           || app.emailClosure?.emailId === (email.gmailId || email.id)) continue;
-        if (email.applicationAiProcessedKey !== applicationAiScanKey(email, app)) checks.push(`application:${app.id}:${email.id}`);
+        if (email.applicationAiProcessedKey !== applicationAiScanKey(email, app) || email.applicationAiAnalysis?.rejectApplication === true) checks.push(`application:${app.id}:${email.id}`);
       }
     }
     return checks;
