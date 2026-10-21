@@ -560,8 +560,8 @@
     $('#emailDetailDate').textContent = emailDate(emailItem.date);
     $('#emailDetailBody').textContent = `${emailContentText(emailItem.body) || 'This inbox sync stores message headers only. Open the message in Gmail to read its full content.'}${emailItem.attachmentName ? `\n\nAttachment: ${emailItem.attachmentName}` : ''}`;
     $('#emailDetailStatus').textContent = isSent ? 'This message was sent from Jeff VA.' : 'Reply from this client directly through Gmail.';
-    const applicationAnalysis = emailItem.applicationAiAnalysis;
-    const analysis = applicationAnalysis || emailItem.taskAiAnalysis;
+    const applicationAnalysis = isSent ? null : emailItem.applicationAiAnalysis;
+    const analysis = isSent ? null : applicationAnalysis || emailItem.taskAiAnalysis;
     const analysisStatus = $('#emailDetailAiStatus');
     analysisStatus.hidden = !analysis;
     analysisStatus.textContent = applicationAnalysis

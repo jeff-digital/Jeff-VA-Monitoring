@@ -56,6 +56,7 @@ assert.equal(node('#gmailSyncSummary').hidden, true);
 const documents = read('03-documents.js');
 const alertsContext = vm.createContext({
   data: { alerts: [] }, matchApplicationsForEmail: () => [alertsContext.client],
+  isSentEmail: email => email.direction === 'sent' || email.labelIds?.includes('SENT'),
   client: { id: 'active', clientName: 'Acme', status: 'Active client' },
   isEmailTaskActiveClient: app => app.status === 'Active client',
   isInterviewEmail: () => true, interviewDateFromEmail: () => '', limitAlertHistory() {},
@@ -75,5 +76,7 @@ alertsContext.notice.onAction();
 assert.equal(alertsContext.view, 'inbox');
 assert.equal(alertsContext.opened, 'e1');
 assert.equal(alertsContext.alertNewMatches([email]), false, 'repeated sync must not repeat the notification');
+assert.equal(alertsContext.data.alerts.length, 1);
+assert.equal(alertsContext.alertNewMatches([{ ...email, id: 'sent', direction: 'sent' }]), false, 'sent mail cannot trigger a client update even if a matcher returns a stale association');
 assert.equal(alertsContext.data.alerts.length, 1);
 console.log('Gmail status and notification checks passed: sync states, accurate timestamps, account isolation, active-client alerts, direct email navigation and deduplication.');

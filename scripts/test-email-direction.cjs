@@ -34,7 +34,8 @@ const outgoing = [
 for (const email of outgoing) {
   context.applicationEmailMatchesCache.set(email, [app]);
   assert.equal(context.matchApplicationsForEmail(email).length, 0, 'sent mail cannot count as a client response even when cached');
-  assert.equal(context.applicationsRelatedToEmail(email)[0].id, app.id, 'sent mail remains linked by recipient for sent history');
+  assert.equal(context.applicationsRelatedToEmail(email).length, 0, 'sent mail has no application matches, even with a saved recipient');
+  assert.equal(context.applicationsRelatedToEmail({ ...email, applicationId: app.id }).length, 0, 'saved application links must not turn outgoing mail into a match');
 }
 const incoming = { from: 'Client <client@example.com>', to: 'me@example.com', direction: 'received' };
 assert.equal(context.matchApplicationsForEmail(incoming)[0].id, app.id, 'real received reply must still match');
@@ -57,4 +58,36 @@ app.activePendingEmail = false;
 assert.equal(context.activeClientsForTaskEmail({ ...workEmail, direction: 'sent' }).length, 0);
 assert.equal(context.activeClientsMatchingSender({ from: 'support@onlinejobs.ph' }).length, 0, 'shared platform sender must not bypass role disambiguation');
 assert.equal(context.activeClientsForTaskEmail(undefined).length, 0);
-console.log('Email direction checks passed: outgoing exclusion, cached matches, Gmail labels, own addresses, recipient linking, and real received replies.');
+// Exercise both inbox tabs with the actual renderer: Sent remains visible but
+// has no matching badges, including previously linked and unlinked messages.
+const nodes = new Map();
+const node = key => {
+  if (!nodes.has(key)) nodes.set(key, { value: '', textContent: '', innerHTML: '', dataset: {}, showModal() {} });
+  return nodes.get(key);
+};
+Object.assign(context, { $: node, $$: () => [], renderGmailSyncStatus() {}, renderEmailTaskAiStatus() {},
+  emailDateSort: 'all', emailDateFilter: '', emailViewFilter: 'sent', emailSelectionMode: false,
+  emailWeekOptions: () => '', sortByDate: items => items, escapeHtml: value => String(value || ''),
+  emailContentText: value => String(value || ''), emailDate: value => value || '', emailTime: () => '',
+  dateKey: value => value, weeklyRangeLabel: () => '', weekRange: () => null });
+const linkedSent = { id: 'linked-sent', from: 'me@example.com', to: app.email, direction: 'sent', applicationId: app.id,
+  subject: 'My follow up', body: 'Hello', applicationAiAnalysis: { outcome: 'rejected', reason: 'Stale analysis' } };
+const unlinkedSent = { id: 'unlinked-sent', from: 'me@example.com', to: 'stranger@example.com', direction: 'sent', subject: 'My email', body: 'Hi' };
+const received = { ...incoming, id: 'received', subject: 'Client reply', body: 'Thanks' };
+context.data.emails = [linkedSent, unlinkedSent, received];
+vm.runInContext(fn(matcher, 'renderEmails'), context);
+context.renderEmails();
+assert.equal(node('#emailSentCount').textContent, 2);
+assert.equal(node('#emailReceivedCount').textContent, 1);
+assert.match(node('#emailList').innerHTML, /data-email-detail="linked-sent"/);
+assert.match(node('#emailList').innerHTML, /data-email-detail="unlinked-sent"/);
+assert.ok(!node('#emailList').innerHTML.includes('client-match-tag'), 'Sent must not render an application-match badge');
+context.emailViewFilter = 'client'; context.renderEmails();
+assert.match(node('#emailList').innerHTML, /data-email-detail="received"/);
+assert.match(node('#emailList').innerHTML, /client-match-tag/);
+assert.ok(!node('#emailList').innerHTML.includes('linked-sent'));
+vm.runInContext(fn(read('04-gmail.js'), 'openEmailDetail'), context);
+context.openEmailDetail(linkedSent.id);
+assert.equal(node('#emailDetailAiStatus').hidden, true, 'Sent details must not display stale AI analysis');
+assert.equal(node('#emailDetailAiStatus').textContent, '');
+console.log('Email direction checks passed: outgoing exclusion, cached matches, Gmail labels, own addresses, linked sent messages excluded, and real received replies.');

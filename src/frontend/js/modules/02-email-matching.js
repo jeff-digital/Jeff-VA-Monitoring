@@ -379,13 +379,7 @@
   }
 
   function applicationsRelatedToEmail(emailItem) {
-    if (!isSentEmail(emailItem)) return matchApplicationsForEmail(emailItem);
-    const linkedApplication = data.applications.find(application => application.id === emailItem.applicationId);
-    if (linkedApplication) return [linkedApplication];
-    const recipient = extractEmailAddress(emailItem.to);
-    return isEmailAddress(recipient)
-      ? data.applications.filter(application => (application.email || '').trim().toLowerCase() === recipient)
-      : [];
+    return isSentEmail(emailItem) ? [] : matchApplicationsForEmail(emailItem);
   }
 
   function buildApplicationEmailSummary() {
@@ -1399,8 +1393,7 @@
     $('#emailDateSort').innerHTML = emailWeekOptions();
     $('#emailDateSort').value = emailDateSort;
     const received = receivedEmails();
-    const sent = data.emails.filter(item => (isSentEmail(item))
-      && applicationsRelatedToEmail(item).length > 0);
+    const sent = data.emails.filter(isSentEmail);
     $('#emailReceivedCount').textContent = received.length;
     $('#emailSentCount').textContent = sent.length;
     const emails = data.emails
@@ -1408,7 +1401,7 @@
       .filter(item => !emailDateFilter || dateKey(item.date) === emailDateFilter)
       .filter(item => emailDateSort === 'all' || isInWeeklyRange(item.date, weekRangeFilter))
       .filter(item => emailViewFilter === 'sent'
-        ? (isSentEmail(item)) && applicationsRelatedToEmail(item).length > 0
+        ? isSentEmail(item)
         : !isSentEmail(item));
     const clientEmails = emails.filter(item => !isSentEmail(item));
     const sentEmails = emails.filter(item => isSentEmail(item));
@@ -1427,14 +1420,14 @@
     if (!visibleEmails.length) {
       const hasFilters = Boolean(query || emailDateFilter || emailDateSort !== 'all');
       const title = emailViewFilter === 'sent'
-        ? (hasFilters ? 'No matching sent emails' : 'No application-linked sent emails yet')
+        ? (hasFilters ? 'No sent emails found' : 'No sent emails yet')
         : hasFilters
           ? 'No matching client emails'
           : 'No emails received yet';
       const copy = hasFilters
         ? 'Try another search term or date range.'
         : emailViewFilter === 'sent'
-          ? 'Sent messages linked to an application or saved client will appear here.'
+          ? 'Your saved sent messages will appear here.'
           : 'Received messages from Gmail will appear here.';
       target.innerHTML = `<section class="${sectionClass}"><div class="email-empty"><h3>${title}</h3><p>${copy}</p></div></section>`;
       return;
@@ -1452,7 +1445,7 @@
       const preview = bodyPreview.length > 110 ? `${bodyPreview.slice(0, 110).trimEnd()}...` : bodyPreview;
       const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
       const recipient = extractEmailAddress(isSentEmail(item) ? item.to : item.from);
-      const canCompose = matches.length > 0 && isEmailAddress(recipient);
+      const canCompose = isEmailAddress(recipient) && (isSentEmail(item) || matches.length > 0);
       const sentClass = isSentEmail(item) ? ' sent' : '';
       const sentBadge = isSentEmail(item) ? '<span class="sent-email-badge">SENT</span>' : '';
       const dateLabel = isSentEmail(item) ? 'Sent' : 'Received';

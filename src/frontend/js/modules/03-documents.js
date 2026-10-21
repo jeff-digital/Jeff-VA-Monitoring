@@ -1033,6 +1033,7 @@
     data.alerts = data.alerts || [];
     let added = false;
     (emails || []).forEach(emailItem => {
+      if (isSentEmail(emailItem)) return;
       const fromHeader = String(emailItem.from || '');
       const bracketAddress = fromHeader.match(/<([^>]+)>/);
       const senderAddress = (bracketAddress?.[1] || fromHeader.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || '').trim().toLowerCase();
@@ -1056,6 +1057,7 @@
   function alertNewMatches(newEmails, { showNotice = true, createdTasks = [] } = {}) {
     const matches = [];
     newEmails.forEach(emailItem => {
+      if (isSentEmail(emailItem)) return;
       const applications = matchApplicationsForEmail(emailItem);
       applications.forEach(app => matches.push({ emailItem, app }));
     });
