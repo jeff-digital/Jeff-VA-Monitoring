@@ -7417,3 +7417,48 @@ body:has(#subscriptionsView.active) .topbar h1 { margin: 0; font-size: 24px; let
   body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar { grid-template-columns: 28px minmax(0, 1fr); }
   body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar-actions { grid-column: 1 / -1; width: 100%; max-width: none; }
 }
+
+/* Keep mobile header utilities beside the title, without overlapping client counts. */
+@media (max-width: 640px) {
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) .content { padding: 8px 12px 20px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) .topbar { display: grid; grid-template-columns: 28px minmax(0, 1fr) 30px 30px; align-items: start; height: auto; min-height: 0; gap: 7px; padding: 6px 0; margin: 0 0 12px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) .mobile-menu { grid-column: 1; grid-row: 1; width: 28px; min-width: 28px; height: 32px; margin: 0; padding: 0; font-size: 20px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) .topbar-title-area { display: block; grid-column: 2; grid-row: 1; min-width: 0; padding-top: 3px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) .topbar-copy { display: block; min-width: 0; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) #pageTitle { margin: 0; font-size: 18px; line-height: 1.3; white-space: normal; overflow-wrap: normal; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) .page-context { margin: 3px 0 0; font-size: 10px; line-height: 1.4; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) .topbar-actions { display: contents; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) #openQuickSearch { grid-column: 3; grid-row: 1; width: 30px; min-width: 30px; height: 32px; min-height: 32px; padding: 0; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) #notificationMenu { grid-column: 4; grid-row: 1; width: 30px; margin: 0; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) #notificationButton { width: 30px; min-width: 30px; height: 32px; min-height: 32px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView, #hiredView, #dailyTaskView).active) #saveIndicator { grid-column: 2 / -1; font-size: 9px; justify-self: end; }
+  body:has(#applicationsView.active) #openAddModal:not([hidden]) { grid-column: 2 / -1; grid-row: 2; justify-self: end; width: auto; min-height: 30px; padding: 5px 9px; font-size: 10px; }
+  body:has(#hiredView.active) .page-title-row { gap: 4px 6px; }
+  body:has(#hiredView.active) .hired-header-count:not([hidden]) { font-size: 10px; }
+  body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-basis: 100%; min-width: 0; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+  body:has(#hiredView.active) .hired-header-summary > span { padding: 3px 5px; gap: 4px; font-size: 9px; }
+  body:has(#hiredView.active) .hired-header-summary strong { font-size: 10px; }
+  #dailyTaskView .daily-task-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+  #dailyTaskView .daily-task-date-navigation { display: grid; grid-column: 1 / -1; grid-template-columns: 30px minmax(0, 1fr) 30px auto; width: 100%; min-width: 0; gap: 5px; }
+  #dailyTaskView .daily-task-date-step { width: 30px; min-width: 30px; height: 32px; min-height: 32px; padding: 0; font-size: 11px; }
+  #dailyTaskView .daily-task-date-label { width: 100%; min-width: 0; min-height: 32px; padding: 5px 6px; font-size: 12px; }
+  #dailyTaskView .daily-task-today-button { min-height: 32px; padding: 5px 8px; font-size: 10px; }
+  #dailyTaskView .daily-task-filter-field { min-width: 0; margin: 0; }
+  #dailyTaskView .daily-task-filter-field select { box-sizing: border-box; width: 100%; min-width: 0; height: 32px; min-height: 32px; padding: 5px 8px; font-size: 12px; }
+  #dailyTaskView #openDailyTaskAddModal { width: auto; min-height: 32px; padding: 5px 10px; font-size: 11px; }
+  #dailyTaskView .daily-task-history-shortcuts { gap: 6px; }
+  body #dailyTaskView .daily-task-history-shortcuts .button { min-height: 30px; padding: 5px 8px; font-size: 10px; }
+  #dailyTaskView.active .daily-task-action, #dailyTaskView.active .daily-task-delete { flex: 0 0 28px; width: 28px; min-width: 28px; height: 28px; min-height: 28px; font-size: 11px; }
+  #dailyTaskView .daily-task-summary { gap: 6px; margin: 10px 0; }
+  #dailyTaskView .daily-task-summary > div, #dailyTaskView .daily-task-summary-overdue { flex: 1 1 60px; min-width: 0; padding: 8px; }
+  #dailyTaskView .daily-task-summary span { font-size: 10px; }
+  #dailyTaskView .daily-task-summary strong { font-size: 18px; }
+  #dailyTaskView .daily-task-list-panel, #dailyTaskView .daily-task-history-panel { padding: 12px; }
+  #dailyTaskView .daily-task-list-tools { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  #dailyTaskView .daily-task-quick-add, #dailyTaskView .daily-task-search { flex: none; min-height: 0; }
+  #dailyTaskView .daily-task-section-heading h3 { font-size: 13px; }
+  #dailyTaskView .daily-task-list-tools input { height: 34px; min-height: 34px; padding: 6px 8px; font-size: 12px; }
+  #dailyTaskView .daily-task-search input { padding-left: 29px; }
+  #dailyTaskView .daily-task-item-title { font-size: 12px; }
+  #dailyTaskView .daily-task-history-controls .daily-task-date-field input { height: 32px; min-height: 32px; padding: 5px 7px; font-size: 12px; }
+}
