@@ -2,105 +2,104 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const app = (extra = {}) => ({ id: 'app-1', clientName: 'Acme', role: 'VA', status: 'Applied',
-  appliedDate: new Date(Date.now() - 172800000).toISOString(),
-  updatedAt: new Date(Date.now() - 86400000).toISOString(), ...extra });
-const email = (body, extra = {}) => ({ id: 'email-1', gmailId: 'gmail-1', from: 'client@acme.example', to: 'me@example.com',
-  subject: 'Application update', body, date: new Date(Date.now() - 3600000).toISOString(), ...extra });
-let saveSucceeds = true;
-let saves = 0;
-const context = vm.createContext({
-  data: { applications: [], emails: [], alerts: [] },
-  isSentEmail: item => item.direction === 'sent' || item.source === 'sent' || item.labelIds?.includes('SENT') || item.from === 'me@example.com',
-  matchApplicationsForEmail: item => item.ambiguous ? context.data.applications : [context.data.applications[0]],
-  persist: async () => { saves++; return saveSucceeds; },
-  emailContentText: value => value
+const source = name => fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules', name), 'utf8');
+const nodes = new Map();
+const $ = key => { if (!nodes.has(key)) nodes.set(key, { dataset: {}, textContent: '', addEventListener() {} }); return nodes.get(key); };
+const app = (extra = {}) => ({ id: 'app-1', clientName: 'Acme', role: 'Content Specialist', email: 'client@acme.example', status: 'Applied',
+  appliedDate: new Date(Date.now() - 172800000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(), ...extra });
+const mail = (extra = {}) => ({ id: 'email-1', gmailId: 'gmail-1', from: 'client@acme.example', subject: 'Application update',
+  body: 'We have filled this position.', bodyLoaded: true, date: new Date(Date.now() - 3600000).toISOString(), ...extra });
+const storage = new Map();
+let saveSucceeds = true, decision, calls = 0, fail = false, duringRequest, notice, openedEmail;
+const context = vm.createContext({ $, console, AbortSignal, currentUser: { id: 'u1' }, navigator: { onLine: true },
+  dataReady: true, supabaseDataLoaded: true, data: {}, document: { addEventListener() {} },
+  localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+  requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session', user: { id: 'u1' } } } }) } }),
+  fetch: async (url, options) => {
+    const input = JSON.parse(options.body);
+    assert.deepEqual(Object.keys(input).sort(), ['applicationId', 'emailId']);
+    assert.equal(input.applicationId, 'app-1'); assert.equal(url, '/api/email/classify'); calls++;
+    if (duringRequest) duringRequest();
+    return { status: fail ? 503 : 200, ok: !fail, json: async () => fail ? { error: 'AI unavailable', retryAfter: 60 } : decision };
+  },
+  isSentEmail: email => email.direction === 'sent' || email.labelIds?.includes('SENT') || email.from === 'me@example.com',
+  matchApplicationsForEmail: email => context.data.applications.filter(app => app.email === email.from),
+  persist: async () => saveSucceeds, renderAlerts() {}, renderAll() {}, showActionResult(value) { notice = value; },
+  showView() {}, openEmailDetail(id) { openedEmail = id; }
 });
-vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules/04a-email-outcomes.js'), 'utf8'), context);
-const detect = body => context.detectApplicationEmailOutcome(email(body));
-for (const body of [
-  'We have decided not to move forward with your application.',
-  'We will not be moving forward with your candidacy.',
-  "We won't proceed with your application.",
-  'We are no longer proceeding with your application.',
-  'Your application has been unsuccessful.',
-  'You have not been selected for this role.',
-  'We have decided to move forward with other candidates.',
-  'We will be moving forward with another candidate.',
-  'We have selected a different candidate.',
-  'We have filled the position.',
-  'The position has been filled.',
-  'The role has now been closed.',
-  'The vacancy is cancelled.',
-  'The position is no longer available.',
-  'Your application is now closed.',
-  'Your application has expired.'
-]) assert.ok(detect(body), `expected a clear outcome: ${body}`);
-for (const body of [
-  'Please close the browser after the interview.',
-  'Your interview is close to our office.',
-  'Our office is closed on Friday.',
-  'Please complete the required form.',
-  'Your password has expired.',
-  'Applications are now closed. We are still reviewing your application.',
-  'The job posting has expired, but we are reviewing your application.',
-  'The role is not yet filled.',
-  'If the position has been filled, we will let you know.',
-  'The position may have been filled.',
-  'It is not true that the role has been closed.',
-  'You have not received the interview link yet.',
-  'We are pleased to invite you to an interview.',
-  'We have not decided whether to proceed with your application.',
-  'You have not been selected yet. We will update you.',
-  'You have been selected. The position has been filled by you.',
-  'A previous role has been filled. We are still reviewing this one.',
-  'Thank you for your time.\nOn Monday, Client wrote:\nThe position has been filled.',
-  'Thank you.\n> The position has been filled.',
-  'Thanks.\n-----Original Message-----\nYour application has been rejected.'
-]) assert.equal(detect(body), null, `must not reject: ${body}`);
-assert.equal(context.detectApplicationEmailOutcome(email('We will not proceed with your application.', { direction: 'sent' })), null);
-assert.equal(context.detectApplicationEmailOutcome(email('The position has been filled.', { from: 'me@example.com' })), null);
-assert.equal(context.detectApplicationEmailOutcome(email('We would like to invite you for an interview.', { subject: 'Re: Position filled' })), null);
-
-async function reset(extra = {}) {
-  context.data = { applications: [app(extra)], emails: [], alerts: [] };
-  saveSucceeds = true;
-  return context.data.applications[0];
+vm.runInContext(source('pages/10a-email-client-tasks.js'), context);
+vm.runInContext(source('04a-email-outcomes.js'), context);
+assert.equal(context.detectApplicationEmailOutcome, undefined, 'the phrase-based classifier must be removed');
+assert.equal(context.applyApplicationEmailOutcomes, undefined, 'the old rejection process must be removed');
+function reset() {
+  context.currentUser = { id: 'u1' }; const record = app();
+  context.data = { applications: [record], emails: [mail()], alerts: [], clientTasks: [] };
+  storage.clear(); saveSucceeds = true; calls = 0; fail = false; duringRequest = null;
+  decision = { outcome: 'position_filled', confidence: 0.98, matchesApplication: true, rejectApplication: true,
+    evidence: 'We have filled this position.', reason: 'The recruiter confirms hiring is finished.' };
+  return record;
 }
+const run = budget => context.applyAiApplicationOutcomes(context.data.emails, budget);
 (async () => {
-  let record = await reset();
-  let changes = await context.applyApplicationEmailOutcomes([email('The position has been filled.')]);
-  assert.equal(record.status, 'Not selected');
-  assert.equal(changes.length, 1);
-  assert.equal(context.data.alerts[0].unread, true);
+  let record = reset();
+  const budget = { remaining: 1 };
+  let result = await run(budget);
+  assert.equal(budget.remaining, 0);
+  assert.equal(result.changed.length, 1); assert.equal(record.status, 'Not selected');
+  assert.equal(record.emailClosure.source, 'cloudflare-ai');
+  assert.equal(record.emailClosure.analysis.outcome, 'position_filled');
   assert.equal(context.data.alerts[0].type, 'application-email-closed');
-  assert.equal(context.data.alerts[0].emailId, 'email-1');
-  assert.equal(record.emailClosure.previousStatus, 'Applied');
-  assert.match(context.data.alerts[0].evidence, /filled/);
-  record.status = 'Applied';
-  changes = await context.applyApplicationEmailOutcomes([email('The position has been filled.')]);
-  assert.equal(changes.length, 0, 'manual reopen must not reprocess the same email');
-  assert.equal(record.status, 'Applied');
-  assert.equal(context.data.alerts.length, 1, 'no duplicate notifications');
-  for (const status of ['Active client', 'Offer', 'Not selected', 'Rejected', 'To Apply']) {
-    record = await reset({ status });
-    assert.equal((await context.applyApplicationEmailOutcomes([email('The role is closed.')])).length, 0);
-    assert.equal(record.status, status);
+  assert.equal(context.data.alerts[0].unread, true); assert.ok(context.data.alerts[0].evidence);
+  assert.equal(context.data.clientTasks.length, 0, 'application analysis cannot create tasks');
+  assert.equal(context.data.emailTaskAiUsage.requests, 1, 'applications share the existing daily AI counter');
+  context.showApplicationEmailOutcomeNotice(result.changed);
+  assert.equal(notice.label, 'APPLICATION UPDATE');
+  assert.match(notice.details[0].subject, /We have filled this position/);
+  notice.onAction(); assert.equal(openedEmail, 'email-1');
+  record.status = 'Applied'; await run();
+  assert.equal(record.status, 'Applied', 'manually reopened applications must not be rejected again from the same email');
+  assert.equal(calls, 1);
+
+  for (const outcome of ['rejected', 'position_closed', 'position_filled', 'position_unavailable', 'application_expired']) {
+    record = reset(); decision.outcome = outcome; assert.equal((await run()).changed.length, 1);
   }
-  record = await reset();
-  context.data.applications.push(app({ id: 'app-2' }));
-  assert.equal((await context.applyApplicationEmailOutcomes([email('The role is closed.', { ambiguous: true })])).length, 0);
-  record = await reset();
-  const old = email('The role is closed.', { date: new Date(Date.now() - 259200000).toISOString() });
-  assert.equal((await context.applyApplicationEmailOutcomes([old])).length, 0, 'historical mail cannot reject a newer application');
-  assert.equal((await context.applyApplicationEmailOutcomes([email('The role is closed.'), email('We would like to invite you for an interview.', { id: 'new', gmailId: 'new', date: new Date(Date.now() - 10000).toISOString() })])).length, 0, 'a newer reply supersedes an older closure');
-  record = await reset();
-  saveSucceeds = false;
-  assert.equal((await context.applyApplicationEmailOutcomes([email('The role is closed.')])).length, 0);
-  assert.equal(record.status, 'Applied', 'failed cloud save must roll back automatic rejection');
-  assert.equal(context.data.alerts.length, 0, 'failed save must not leave a success notification');
-  saveSucceeds = true;
-  assert.equal((await context.applyApplicationEmailOutcomes([email('The role is closed.')])).length, 1, 'a later sync can retry');
-  assert.ok(saves >= 3);
-  console.log('Email outcome checks passed: rejection wording, negation, quotations, direction, matching, chronology, notifications, idempotency, and save rollback.');
+  record = reset(); decision = { ...decision, outcome: 'no_change', rejectApplication: false };
+  await run(); await run(); assert.equal(record.status, 'Applied'); assert.equal(calls, 1, 'non-outcomes must be cached too');
+  assert.equal(context.data.alerts.length, 0);
+  for (const modification of [{ outcome: 'uncertain', rejectApplication: false }, { confidence: 0.8, outcome: 'uncertain', rejectApplication: false },
+    { matchesApplication: false, outcome: 'uncertain', rejectApplication: false }]) {
+    record = reset(); Object.assign(decision, modification); result = await run();
+    assert.equal(record.status, 'Applied'); assert.equal(result.review.length, 1);
+    context.showApplicationAiReviewNotice(result.review);
+    assert.equal(notice.label, 'APPLICATION REVIEW'); assert.match(notice.message, /status is unchanged/);
+    assert.equal(context.data.alerts[0].type, 'application-email-review'); await run(); assert.equal(context.data.alerts.length, 1);
+  }
+  for (const status of ['Active client', 'Offer', 'Not selected', 'Rejected', 'To Apply']) {
+    record = reset(); record.status = status; await run(); assert.equal(record.status, status); assert.equal(calls, 0);
+  }
+  record = reset(); context.data.applications.push(app({ id: 'other' })); await run(); assert.equal(calls, 0);
+  for (const extra of [{ direction: 'sent' }, { labelIds: ['SENT'] }, { from: 'me@example.com' },
+    { date: new Date(Date.now() - 259200000).toISOString() }, { date: new Date(Date.now() + 3600000).toISOString() }]) {
+    record = reset(); Object.assign(context.data.emails[0], extra); await run(); assert.equal(calls, 0); assert.equal(record.status, 'Applied');
+  }
+  record = reset(); context.data.emails.push(mail({ id: 'new', gmailId: 'new', body: 'You are invited to an interview.', date: new Date().toISOString() }));
+  decision = { ...decision, outcome: 'no_change', rejectApplication: false }; await run();
+  assert.equal(record.status, 'Applied'); assert.equal(context.data.emails[0].applicationAiAnalysis, undefined, 'old closure cannot override latest invitation');
+  for (const change of [() => { context.data.applications[0].status = 'Interview'; },
+    () => { context.data.emails[0].body = 'Edited'; }, () => { context.data.emails[0].date = new Date().toISOString(); },
+    () => { context.data.emails.push(mail({ id: 'new', date: new Date().toISOString() })); }]) {
+    record = reset(); duringRequest = change; result = await run(); assert.equal(result.changed.length, 0, 'in-flight edits invalidate the decision');
+  }
+  record = reset(); duringRequest = () => { context.currentUser = { id: 'other' }; };
+  assert.equal((await run()).changed.length, 0); assert.equal(record.status, 'Applied');
+  record = reset(); saveSucceeds = false; result = await run();
+  assert.equal(result.failed, true); assert.equal(record.status, 'Applied'); assert.equal(context.data.alerts.length, 0);
+  assert.equal(context.data.emails[0].applicationAiProcessedKey, undefined);
+  saveSucceeds = true; result = await run(); assert.equal(result.changed.length, 1); assert.equal(calls, 1, 'failed saves reuse the cached AI response');
+  record = reset(); fail = true; await run(); assert.equal(record.status, 'Applied'); assert.equal(context.data.alerts.length, 0);
+  record = reset(); await run({ remaining: 0 }); assert.equal(calls, 0, 'the per-sync budget is shared');
+  record = reset(); context.data.emailTaskAiUsage = { day: new Date().toISOString().slice(0, 10), requests: 40 };
+  await run(); assert.equal(calls, 0); assert.equal(record.status, 'Applied');
+  record = reset(); decision = { broken: true }; await run(); assert.equal(record.status, 'Applied');
+  console.log('AI application integration passed: outcomes, review, no tasks, shared limits, cache, chronology, direction, ambiguity, in-flight edits, account isolation, provider failures and save rollback.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -39,7 +39,7 @@
     finally { if (emailAiSessionRenewal === renewal) emailAiSessionRenewal = null; }
   }
 
-  async function postClientEmailAi(emailId, clientId, userId) {
+  async function postClientEmailAi(emailId, clientId, userId, application = false) {
     const authClient = requireSupabase().auth;
     const current = await authClient.getSession();
     if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
@@ -51,7 +51,7 @@
       if (currentUser?.id !== userId || (session.user?.id && session.user.id !== userId)) throw new Error('Your signed-in account changed during email analysis.');
       const response = await fetch('/api/email/classify', {
         method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ emailId, clientId }), signal: AbortSignal.timeout(25000)
+        body: JSON.stringify(application ? { emailId, applicationId: clientId } : { emailId, clientId }), signal: AbortSignal.timeout(25000)
       });
       const result = await response.json().catch(() => ({}));
       if (response.status !== 401) return { response, result };
@@ -89,7 +89,7 @@
     const retry = emailAiRetryState();
     const fullStatus = retry?.until > Date.now() ? retry.message
       : clientEmailAiStatus.userId === currentUser.id && clientEmailAiStatus.message
-        ? clientEmailAiStatus.message : 'Email tasks: AI checks active-client messages during sync.';
+        ? clientEmailAiStatus.message : 'Email AI checks matched applications and active-client messages during sync.';
     const attention = retry?.until > Date.now();
     const processing = !attention && /checking the purpose|renewing your dashboard/i.test(fullStatus);
     const queued = !attention && /queued/i.test(fullStatus);
@@ -111,15 +111,16 @@
     if (accountStatus) accountStatus.textContent = navigator.onLine === false ? 'Offline'
       : attention ? 'Needs attention' : processing ? 'Checking messages' : queued ? 'Checks queued'
         : /messages checked/i.test(fullStatus) ? 'Messages checked' : 'Waiting for next check';
-    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Active-client emails only.`;
+    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Shared by application outcomes and active-client tasks.`;
   }
 
-  async function analyzeClientEmail(email, client, scanKey) {
-    if (email.taskAiAnalysis?.scanKey === scanKey) return email.taskAiAnalysis;
+  async function analyzeClientEmail(email, client, scanKey, application = false) {
+    const cached = application ? email.applicationAiAnalysis : email.taskAiAnalysis;
+    if (cached?.scanKey === scanKey) return cached;
     const userId = currentUser.id;
     const retry = emailAiRetryState();
     if (retry?.until > Date.now()) throw new Error(retry.message);
-    renderEmailTaskAiStatus('Email tasks: AI is checking the purpose of client messages…');
+    renderEmailTaskAiStatus(application ? 'Email AI: checking the purpose and outcome of application messages…' : 'Email tasks: AI is checking the purpose of client messages…');
     try {
       const usage = emailAiDailyUsage();
       if (usage.requests >= 40) {
@@ -127,7 +128,7 @@
         failure.retryAfter = Math.ceil((Date.parse(`${usage.day}T00:00:00Z`) + 86400000 - Date.now()) / 1000);
         throw failure;
       }
-      const { response, result } = await postClientEmailAi(email.id, client.id, userId);
+      const { response, result } = await postClientEmailAi(email.id, client.id, userId, application);
       if (!response.ok) {
         const code = typeof result.code === 'string' && /^[A-Z_]{1,64}$/.test(result.code) ? result.code : '';
         const detail = code ? ` (${code}${Number.isInteger(result.providerCode) ? `/${result.providerCode}` : ''})` : '';
@@ -135,10 +136,15 @@
         failure.retryAfter = result.retryAfter || (response.status === 404 ? 60 : 120);
         throw failure;
       }
-      if (!['work_task', 'administrative', 'informational', 'personal', 'uncertain'].includes(result.purpose)
-        || typeof result.createTask !== 'boolean' || typeof result.reason !== 'string'
-        || typeof result.confidence !== 'number' || !Number.isFinite(result.confidence)
-        || typeof result.evidence !== 'string' || typeof result.title !== 'string') {
+      const valid = application ? ['rejected', 'position_closed', 'position_filled', 'position_unavailable', 'application_expired', 'no_change', 'uncertain'].includes(result.outcome)
+        && typeof result.rejectApplication === 'boolean' && typeof result.matchesApplication === 'boolean'
+        && typeof result.reason === 'string' && typeof result.evidence === 'string'
+        && typeof result.confidence === 'number' && Number.isFinite(result.confidence) && result.confidence >= 0 && result.confidence <= 1
+        : ['work_task', 'administrative', 'informational', 'personal', 'uncertain'].includes(result.purpose)
+        && typeof result.createTask === 'boolean' && typeof result.reason === 'string'
+        && typeof result.confidence === 'number' && Number.isFinite(result.confidence)
+        && typeof result.evidence === 'string' && typeof result.title === 'string';
+      if (!valid) {
         throw new Error('Email tasks: AI returned an unreadable result. Messages remain queued.');
       }
       if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
@@ -158,7 +164,7 @@
   }
 
   let automaticEmailTaskRun = null;
-  async function createAutomaticEmailTasks() {
+  async function createAutomaticEmailTasks(budget = { remaining: 3 }) {
     if (automaticEmailTaskRun) return automaticEmailTaskRun;
     if (!currentUser || !dataReady || !supabaseDataLoaded) return { created: [], failed: false };
     const userId = currentUser.id;
@@ -186,8 +192,8 @@
           && (!Number.isFinite(activeAt) || receivedAt >= activeAt);
         let analysis = null;
         if (client && duringContract && !isSentEmail(email) && !email.automatedMessage) {
-          if (analyses >= 3) { waiting = true; continue; }
-          try { analysis = await analyzeClientEmail(email, client, scanKey); analyses++; }
+          if (analyses >= 3 || budget.remaining <= 0) { waiting = true; budget.queued = true; continue; }
+          try { analysis = await analyzeClientEmail(email, client, scanKey); analyses++; budget.remaining--; }
           catch { waiting = true; break; }
           if (currentUser?.id !== userId || data !== workspace) return { created: [], review: [], failed: false };
           // Recheck after the network request: the client or message can be edited

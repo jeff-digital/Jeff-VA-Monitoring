@@ -1615,7 +1615,7 @@
   }
 
   function isInterviewEmail(emailItem) {
-    if (detectApplicationEmailOutcome(emailItem)) return false;
+    if (emailItem.applicationAiAnalysis?.rejectApplication === true) return false;
     const source = `${emailItem.subject || ''} ${emailItem.body || ''}`;
     return /\b(interview|meeting|video call|phone call|screening)\b/i.test(source);
   }
@@ -5458,7 +5458,8 @@
               <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName || 'Notification')}</strong><time datetime="${escapeHtml(alert.date || '')}">${escapeHtml(notificationRelativeTime(alert.date))}</time></span>
               <button type="button" class="notification-item-subject" data-alert-open="${escapeHtml(alert.id)}">${escapeHtml(alert.subject || '(No subject)')}</button>
               ${alert.from ? `<small>${escapeHtml(alert.from)}</small>` : ''}
-              ${alert.type === 'application-email-closed' && alert.evidence ? `<small>From the email: ${escapeHtml(alert.evidence)}</small>` : ''}
+              ${['application-email-closed', 'application-email-review'].includes(alert.type) && alert.evidence ? `<small>From the email: ${escapeHtml(alert.evidence)}</small>` : ''}
+              ${['application-email-closed', 'application-email-review'].includes(alert.type) && alert.reason ? `<small>AI assessment: ${escapeHtml(alert.reason)}</small>` : ''}
               <div class="notification-item-actions">
                 <button type="button" data-alert-action="snooze" data-alert-id="${escapeHtml(alert.id)}" aria-label="Snooze ${escapeHtml(alert.subject || 'notification')} for one day">Snooze</button>
                 <button type="button" data-alert-action="dismiss" data-alert-id="${escapeHtml(alert.id)}" aria-label="Dismiss ${escapeHtml(alert.subject || 'notification')}">Dismiss</button>
@@ -6671,10 +6672,13 @@
     $('#emailDetailDate').textContent = emailDate(emailItem.date);
     $('#emailDetailBody').textContent = `${emailContentText(emailItem.body) || 'This inbox sync stores message headers only. Open the message in Gmail to read its full content.'}${emailItem.attachmentName ? `\n\nAttachment: ${emailItem.attachmentName}` : ''}`;
     $('#emailDetailStatus').textContent = isSent ? 'This message was sent from Jeff VA.' : 'Reply from this client directly through Gmail.';
-    const analysis = emailItem.taskAiAnalysis;
+    const applicationAnalysis = emailItem.applicationAiAnalysis;
+    const analysis = applicationAnalysis || emailItem.taskAiAnalysis;
     const analysisStatus = $('#emailDetailAiStatus');
     analysisStatus.hidden = !analysis;
-    analysisStatus.textContent = analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : '';
+    analysisStatus.textContent = applicationAnalysis
+      ? `AI application assessment: ${applicationAnalysis.outcome === 'uncertain' ? 'Needs your review' : applicationAnalysis.rejectApplication ? 'Final negative outcome confirmed' : 'No rejection confirmed'} — ${applicationAnalysis.reason}${applicationAnalysis.evidence ? ` · From the email: “${applicationAnalysis.evidence}”` : ''}`
+      : analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : '';
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;
@@ -7407,12 +7411,14 @@
         await persist();
         renderAll();
       }
-      const closedApplications = await applyApplicationEmailOutcomes(data.emails);
+      const aiBudget = { remaining: 3 };
+      const automaticTasks = await createAutomaticEmailTasks(aiBudget);
+      if (currentUser?.id !== syncUserId) return;
+      const applicationOutcomes = await applyAiApplicationOutcomes(data.emails, aiBudget);
+      const closedApplications = applicationOutcomes.changed;
       if (currentUser?.id !== syncUserId) return;
       const closedEmailIds = new Set(closedApplications.map(({ email }) => email.gmailId || email.id));
       const ordinaryNewEmails = newOnes.filter(email => !closedEmailIds.has(email.gmailId || email.id));
-      const automaticTasks = await createAutomaticEmailTasks();
-      if (currentUser?.id !== syncUserId) return;
       const notificationEmails = [...new Map([...ordinaryNewEmails,
         ...data.emails.filter(email => email.clientEmailNotificationPending && !closedEmailIds.has(email.gmailId || email.id))]
         .map(email => [email.gmailId || email.id, email])).values()];
@@ -7429,6 +7435,9 @@
         : automaticTasks.created;
       if (tasksOutsideNewEmails.length) showAutomaticEmailTasksNotice(tasksOutsideNewEmails);
       showEmailAiReviewNotice(automaticTasks.review);
+      showApplicationAiReviewNotice(applicationOutcomes.review);
+      if (applicationOutcomes.failed) showActionResult({ title: 'Application update save pending', status: 'error',
+        message: 'The AI result could not be saved. Your application status is unchanged; the update will retry during the next Gmail sync.' });
       if (automaticTasks.failed) showActionResult({ title: 'Automatic task save pending', status: 'error',
         message: 'The client email is available, but its task could not be saved. Automatic creation will retry on the next Gmail sync.' });
       if (!silent) {
@@ -7458,132 +7467,136 @@
     if (currentUser && document.visibilityState === 'visible') scheduleGmailSync({ silent: true });
   });
 
-  // Only explicit, unambiguous outcomes may change an application's status.
-  // This is a conservative text classifier, not an AI verdict on every email.
-  function currentEmailOutcomeText(email) {
-    let body = String(email.body || '');
-    if (/<[a-z][\s\S]*>/i.test(body)) {
-      const document = new DOMParser().parseFromString(body, 'text/html');
-      document.querySelectorAll('blockquote, .gmail_quote, .yahoo_quoted').forEach(node => node.remove());
-      const reply = document.querySelector('#divRplyFwdMsg');
-      if (reply) {
-        while (reply.nextSibling) reply.nextSibling.remove();
-        reply.remove();
-      }
-      body = emailContentText(document.body.innerHTML);
-    }
-    body = body.split(/\n\s*(?:On [^\n]{0,200}wrote:|[-_]{2,}\s*(?:Original|Forwarded) message|Begin forwarded message:|From:\s*[^\n]+\nSent:)/i)[0];
-    body = body.split('\n').filter(line => !/^\s*>/.test(line)).join('\n');
-    // Reply/forward subjects can describe a previous outcome rather than the
-    // newly authored message. Require the reply body to state its own outcome.
-    const subject = /^(?:re|fw|fwd):/i.test(String(email.subject || '').trim())
-      ? '' : String(email.subject || '');
-    return { subject, body };
+  // Application outcomes use the authenticated AI endpoint. No phrase-based
+  // rejection classifier runs in the browser.
+  const APPLICATION_AI_PENDING_STATUSES = ['Applied', 'Ongoing', 'To Proceed', 'To Proceeding', 'Interview'];
+
+  function applicationAiScanKey(email, app) {
+    return `application-v1:${clientEmailTaskScanKey({ ...email, subject: JSON.stringify([email.subject, email.from,
+      email.to, email.date, email.direction, email.labelIds]) }, [{ id: app.id,
+      role: JSON.stringify([app.role, app.clientName, app.companyName, app.company, app.email, app.website,
+        app.status, app.appliedDate, app.updatedAt]) }])}`;
   }
 
-  function detectApplicationEmailOutcome(email) {
-    if (isSentEmail(email)) return null;
-    const text = currentEmailOutcomeText(email);
-    const normalize = value => value.normalize('NFKC').replace(/[\u2018\u2019]/g, "'").replace(/[ \t]+/g, ' ').trim();
-    const body = normalize(text.body);
-    // A new invitation or reopened role takes precedence over a stale subject.
-    if (/\b(?:we|i) (?:would like to|want to|will|are pleased to|are happy to) (?:invite|offer|move forward|proceed)\b/i.test(body)
-      || /\byou (?:have been|are|were) (?:selected|successful|hired)\b/i.test(body)
-      || /\b(?:position|role|vacancy|job) (?:is |remains |has been )?(?:still open|not (?:yet )?(?:filled|closed)|reopened)\b/i.test(body)) return null;
-    const rules = [
-      ['Not selected', /\b(?:we|i|our team) (?:have |has )?(?:decided |chosen )?not to (?:move forward|proceed|continue|progress)\b[^.!?\n]{0,80}\b(?:you|your|application|candidacy)\b/i],
-      ['Not selected', /\b(?:we|i|our team) (?:will not|won't|cannot|can't|are unable to|will no longer|are no longer|are not|is not) (?:be )?(?:moving forward|move forward|proceed(?:ing)?|continu(?:e|ing)|progress(?:ing)?)\b[^.!?\n]{0,80}\b(?:you|your|application|candidacy)\b/i],
-      ['Not selected', /\bwe (?:will not|won't) (?:be )?(?:taking|progressing) your (?:application|candidacy) (?:any )?further\b/i],
-      ['Not selected', /\bwe (?:are unable to|cannot|can't) offer you (?:the|this|a) (?:role|position|job)\b/i],
-      ['Not selected', /\byour (?:application|candidacy)\b[^.!?\n]{0,55}\b(?:was unsuccessful|is unsuccessful|has been unsuccessful|was not successful|has not been successful|has been rejected|was rejected|has been declined|was declined|will not (?:be progressing|proceed|progress)|is no longer (?:being )?(?:under consideration|considered))\b/i],
-      ['Not selected', /\byou (?:(?:have not been|were not|weren't) (?:selected|shortlisted)|were unsuccessful|have been unsuccessful)\b/i],
-      ['Not selected', /\b(?:we have|we've) (?:decided|chosen) to (?:move forward|proceed) with (?:another|other|a different) candidate[s]?\b/i],
-      ['Not selected', /\b(?:we|i) (?:will be|are|am) (?:moving forward|proceeding) with (?:another|other|a different) candidate[s]?\b/i],
-      ['Not selected', /\b(?:we have|we've) (?:selected|chosen|hired) (?:another|a different) candidate\b/i],
-      ['Position filled', /\b(?:we have|we've) (?:now |already )?filled (?:the|this|our) (?:role|position|vacancy)\b/i],
-      ['Position filled', /\b(?:the |this |our )?(?:position|role|vacancy|job opening) (?:has (?:now |already )?been|is|was) (?:now |already |successfully )?filled\b/i],
-      ['Position filled', /^(?:the |this |our )?(?:position|role|vacancy|job opening) (?:already )?filled$/i],
-      ['Position closed', /\b(?:the |this |our )?(?:position|role|vacancy|job opening) (?:has (?:now )?been|is|was) (?:now |permanently )?(?:closed|cancelled|canceled)\b/i],
-      ['Position closed', /^(?:the |this |our )?(?:position|role|vacancy|job opening) (?:closed|cancelled|canceled)$/i],
-      ['Position unavailable', /\b(?:the |this |our )?(?:position|role|vacancy|job opening) (?:is |will be )?no longer (?:available|open)\b/i],
-      ['Application closed', /\byour application (?:has (?:now )?been|is|was) (?:now )?closed\b/i],
-      ['Application expired', /\byour application (?:has (?:now )?expired|is (?:now )?expired)\b/i]
-    ];
-    // Evaluate sentences separately so conditional examples don't cause changes.
-    for (const sentence of `${normalize(text.subject)}\n${body}`.split(/[.!?\n]+/)) {
-      if (/\b(?:if|unless|might|may|could|whether|in case|not sure|not true|incorrect|mistake)\b/i.test(sentence)
-        || /\b(?:another|different|previous|other|former) (?:role|position|vacancy)\b/i.test(sentence)
-        || /\b(?:not yet (?:been )?(?:selected|shortlisted)|(?:selected|shortlisted) yet)\b/i.test(sentence)) continue;
-      for (const [reason, pattern] of rules) {
-        if (pattern.test(sentence)) return { reason, evidence: sentence.trim().slice(0, 300) };
-      }
-    }
-    return null;
-  }
-
-  async function applyApplicationEmailOutcomes(emails) {
-    const candidates = new Map();
-    for (const email of emails) {
-      if (isSentEmail(email)) continue;
+  function latestApplicationAiEmails(emails) {
+    const latest = new Map();
+    for (const email of [...emails].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0))) {
+      if (isSentEmail(email) || !Number.isFinite(Date.parse(email.date)) || Date.parse(email.date) > Date.now() + 300000) continue;
       const matches = matchApplicationsForEmail(email);
-      if (matches.length !== 1) continue;
-      const app = matches[0];
-      if (!['Applied', 'Ongoing', 'To Proceed', 'To Proceeding', 'Interview'].includes(app.status)) continue;
-      const emailId = email.gmailId || email.id;
-      if (!emailId || app.emailClosure?.emailId === emailId) continue;
-      const emailTime = Date.parse(email.date);
-      const appliedTime = Date.parse(app.appliedDate || '');
-      const lastChanged = Date.parse(app.updatedAt || app.createdAt || app.appliedDate || '');
-      if (!Number.isFinite(emailTime) || !Number.isFinite(appliedTime)
-        || emailTime < appliedTime || (Number.isFinite(lastChanged) && emailTime < lastChanged)
-        || emailTime > Date.now() + 300000) continue;
-      const previous = candidates.get(app.id);
-      if (!previous || emailTime > Date.parse(previous.email.date)) candidates.set(app.id, { app, email });
-    }
-    const changed = [];
-    for (const { app, email } of candidates.values()) {
-      const outcome = detectApplicationEmailOutcome(email);
-      if (!outcome) continue;
-      const emailId = email.gmailId || email.id;
-      const alertId = `application-email-closed|${app.id}|${emailId}`;
-      if ((data.alerts || []).some(alert => alert.id === alertId)) continue;
-      const previous = { status: app.status, updatedAt: app.updatedAt, emailClosure: app.emailClosure, interviewPriority: app.interviewPriority };
-      const now = new Date().toISOString();
-      app.status = 'Not selected';
-      app.updatedAt = now;
-      app.interviewPriority = false;
-      app.emailClosure = { emailId, emailRecordId: email.id, reason: outcome.reason, evidence: outcome.evidence,
-        previousStatus: previous.status, receivedAt: email.date, processedAt: now };
-      data.alerts = data.alerts || [];
-      data.alerts.unshift({ id: alertId, type: 'application-email-closed', applicationId: app.id,
-        emailId: email.id, clientName: app.clientName, from: email.from, date: now, unread: true,
-        subject: `${outcome.reason} — marked Rejected: ${app.role || app.clientName}`,
-        evidence: outcome.evidence, emailSubject: email.subject || '(No subject)' });
-      changed.push({ app, email, outcome, previous, alertId });
-    }
-    if (!changed.length) return [];
-    const saved = await persist();
-    if (!saved) {
-      for (const change of changed) {
-        if (change.app.emailClosure?.emailId === (change.email.gmailId || change.email.id)) Object.assign(change.app, change.previous);
+      for (const app of matches) {
+        // Even an ambiguous newer message blocks rejecting from an older one.
+        if (!latest.has(app.id)) latest.set(app.id, { email, unique: matches.length === 1 });
       }
-      const failedIds = new Set(changed.map(change => change.alertId));
-      data.alerts = data.alerts.filter(alert => !failedIds.has(alert.id));
-      return [];
     }
-    return changed;
+    return latest;
+  }
+
+  function applicationAiStillEligible(email, app, emails) {
+    if (!APPLICATION_AI_PENDING_STATUSES.includes(app.status) || isSentEmail(email)) return false;
+    const latest = latestApplicationAiEmails(emails).get(app.id);
+    if (!latest?.unique || latest.email !== email) return false;
+    const received = Date.parse(email.date), applied = Date.parse(app.appliedDate || '');
+    const updated = Date.parse(app.updatedAt || app.createdAt || app.appliedDate || '');
+    return Number.isFinite(received) && Number.isFinite(applied) && received >= applied
+      && received <= Date.now() + 300000 && (!Number.isFinite(updated) || received >= updated);
+  }
+
+  async function applyAiApplicationOutcomes(emails, budget = { remaining: 3 }) {
+    const result = { changed: [], review: [], failed: false };
+    if (!currentUser || !dataReady || !supabaseDataLoaded) return result;
+    const userId = currentUser.id, workspace = data;
+    const mutations = [], addedAlerts = [], processed = [];
+    const latest = latestApplicationAiEmails(emails);
+    let waiting = false;
+    for (const app of workspace.applications) {
+      const email = latest.get(app.id)?.email;
+      if (!email || !applicationAiStillEligible(email, app, emails)) continue;
+      if (!String(email.body || '').trim() && email.bodyLoaded !== true) continue;
+      const scanKey = applicationAiScanKey(email, app), emailId = email.gmailId || email.id;
+      if (email.applicationAiProcessedKey === scanKey || app.emailClosure?.emailId === emailId) continue;
+      if (budget.remaining <= 0) { waiting = true; budget.queued = true; continue; }
+      let analysis;
+      try { analysis = await analyzeClientEmail(email, app, scanKey, true); budget.remaining--; }
+      catch { waiting = true; break; }
+      if (currentUser?.id !== userId || data !== workspace) return result;
+      if (!workspace.applications.includes(app) || !workspace.emails.includes(email)
+        || !applicationAiStillEligible(email, app, workspace.emails) || applicationAiScanKey(email, app) !== scanKey) {
+        waiting = true; continue;
+      }
+      // Keep an isolated cache even after a failed save; never repeat inference
+      // just because the database was briefly unavailable.
+      email.applicationAiAnalysis = { ...analysis, applicationId: app.id };
+      processed.push({ email, previousKey: email.applicationAiProcessedKey });
+      email.applicationAiProcessedKey = scanKey;
+      const outcomeReasons = { rejected: 'Not selected', position_closed: 'Position closed', position_filled: 'Position filled',
+        position_unavailable: 'Position unavailable', application_expired: 'Application expired' };
+      if (analysis.rejectApplication === true && analysis.matchesApplication === true && analysis.confidence >= 0.95
+        && outcomeReasons[analysis.outcome] && analysis.evidence?.trim().length >= 8) {
+        const alertId = `application-email-closed|${app.id}|${emailId}`;
+        if (workspace.alerts.some(alert => alert.id === alertId)) continue;
+        const previous = { status: app.status, updatedAt: app.updatedAt, emailClosure: app.emailClosure, interviewPriority: app.interviewPriority };
+        const now = new Date().toISOString(), reason = outcomeReasons[analysis.outcome];
+        app.status = 'Not selected'; app.updatedAt = now; app.interviewPriority = false;
+        app.emailClosure = { emailId, emailRecordId: email.id, reason, evidence: analysis.evidence,
+          previousStatus: previous.status, receivedAt: email.date, processedAt: now, source: 'cloudflare-ai', analysis };
+        const alert = { id: alertId, type: 'application-email-closed', applicationId: app.id, emailId: email.id,
+          clientName: app.clientName, from: email.from, date: now, unread: true,
+          subject: `${reason} — marked Rejected: ${app.role || app.clientName}`, evidence: analysis.evidence,
+          reason: analysis.reason, emailSubject: email.subject || '(No subject)' };
+        workspace.alerts.unshift(alert); addedAlerts.push(alert);
+        mutations.push({ app, previous });
+        result.changed.push({ app, email, outcome: { reason, evidence: analysis.evidence } });
+      } else if (analysis.outcome === 'uncertain' || !analysis.matchesApplication) {
+        const alert = { id: `application-ai-review:${app.id}:${email.id}:${scanKey}`, type: 'application-email-review',
+          applicationId: app.id, emailId: email.id, clientName: app.clientName, from: email.from,
+          date: new Date().toISOString(), unread: true, subject: `Review application update: ${app.role || app.clientName}`,
+          reason: analysis.reason, evidence: analysis.evidence };
+        if (!workspace.alerts.some(item => item.id === alert.id)) {
+          workspace.alerts.unshift(alert); addedAlerts.push(alert); result.review.push({ app, email, analysis });
+        }
+      }
+    }
+    if (processed.length) {
+      let saved = false;
+      try { saved = await persist(); } catch { /* Retry the cached decisions next sync. */ }
+      if (!saved) {
+        for (const { app, previous } of mutations) Object.assign(app, previous);
+        workspace.alerts = workspace.alerts.filter(alert => !addedAlerts.includes(alert));
+        for (const { email, previousKey } of processed) {
+          if (previousKey === undefined) delete email.applicationAiProcessedKey;
+          else email.applicationAiProcessedKey = previousKey;
+        }
+        return { changed: [], review: [], failed: true };
+      }
+    }
+    if (currentUser?.id !== userId || data !== workspace) return { changed: [], review: [], failed: false };
+    // Do not overwrite a provider/session error with a successful status.
+    if (!(emailAiRetryState()?.until > Date.now())) renderEmailTaskAiStatus(waiting || budget.queued
+      ? 'Email AI: remaining messages are queued for the next sync.' : 'Email AI: application and active-client messages checked.');
+    if (result.review.length) renderAlerts();
+    return result;
   }
 
   function showApplicationEmailOutcomeNotice(changes) {
     if (!changes.length) return;
     renderAll();
     const live = $('#notificationLive');
-    if (live) live.textContent = `${changes.length} application${changes.length === 1 ? ' was' : 's were'} marked Rejected after a closure email. Check notifications for details.`;
+    if (live) live.textContent = `${changes.length} application${changes.length === 1 ? ' was' : 's were'} marked Rejected after AI checked a matched email. Check notifications for details.`;
     showActionResult({ title: 'Application closed', status: 'info', label: 'APPLICATION UPDATE',
-      message: `${changes.length} application${changes.length === 1 ? ' was' : 's were'} automatically marked Rejected based on a matched incoming email. A notification has been saved.`,
+      message: `${changes.length} application${changes.length === 1 ? ' was' : 's were'} automatically marked Rejected after AI confirmed a final outcome in a matched email. A notification with the supporting quote has been saved.`,
       actionLabel: 'Read email', details: changes.map(({ app, email, outcome }) => ({
-        clientName: app.clientName, subject: `${outcome.reason}: ${email.subject || '(No subject)'}`, from: email.from, date: email.date
+        clientName: app.clientName, subject: `${outcome.reason}: ${email.subject || '(No subject)'} — ${outcome.evidence}`, from: email.from, date: email.date
       })), onAction: () => { showView('inbox'); openEmailDetail(changes[0].email.id); } });
+  }
+
+  function showApplicationAiReviewNotice(items) {
+    if (!items.length) return;
+    renderAlerts();
+    showActionResult({ title: 'Application email needs review', status: 'info', label: 'APPLICATION REVIEW',
+      message: 'AI could not confidently confirm a final outcome. Your application status is unchanged.',
+      actionLabel: 'Review email', onAction: () => { showView('inbox'); openEmailDetail(items[0].email.id); },
+      details: items.map(({ app, email, analysis }) => ({ clientName: app.clientName,
+        subject: `${email.subject || '(No subject)'} — ${analysis.reason}`, from: email.from, date: email.date })) });
   }
 
   // --- Excel export/restore ---
@@ -10406,7 +10419,7 @@
     finally { if (emailAiSessionRenewal === renewal) emailAiSessionRenewal = null; }
   }
 
-  async function postClientEmailAi(emailId, clientId, userId) {
+  async function postClientEmailAi(emailId, clientId, userId, application = false) {
     const authClient = requireSupabase().auth;
     const current = await authClient.getSession();
     if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
@@ -10418,7 +10431,7 @@
       if (currentUser?.id !== userId || (session.user?.id && session.user.id !== userId)) throw new Error('Your signed-in account changed during email analysis.');
       const response = await fetch('/api/email/classify', {
         method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ emailId, clientId }), signal: AbortSignal.timeout(25000)
+        body: JSON.stringify(application ? { emailId, applicationId: clientId } : { emailId, clientId }), signal: AbortSignal.timeout(25000)
       });
       const result = await response.json().catch(() => ({}));
       if (response.status !== 401) return { response, result };
@@ -10456,7 +10469,7 @@
     const retry = emailAiRetryState();
     const fullStatus = retry?.until > Date.now() ? retry.message
       : clientEmailAiStatus.userId === currentUser.id && clientEmailAiStatus.message
-        ? clientEmailAiStatus.message : 'Email tasks: AI checks active-client messages during sync.';
+        ? clientEmailAiStatus.message : 'Email AI checks matched applications and active-client messages during sync.';
     const attention = retry?.until > Date.now();
     const processing = !attention && /checking the purpose|renewing your dashboard/i.test(fullStatus);
     const queued = !attention && /queued/i.test(fullStatus);
@@ -10478,15 +10491,16 @@
     if (accountStatus) accountStatus.textContent = navigator.onLine === false ? 'Offline'
       : attention ? 'Needs attention' : processing ? 'Checking messages' : queued ? 'Checks queued'
         : /messages checked/i.test(fullStatus) ? 'Messages checked' : 'Waiting for next check';
-    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Active-client emails only.`;
+    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Shared by application outcomes and active-client tasks.`;
   }
 
-  async function analyzeClientEmail(email, client, scanKey) {
-    if (email.taskAiAnalysis?.scanKey === scanKey) return email.taskAiAnalysis;
+  async function analyzeClientEmail(email, client, scanKey, application = false) {
+    const cached = application ? email.applicationAiAnalysis : email.taskAiAnalysis;
+    if (cached?.scanKey === scanKey) return cached;
     const userId = currentUser.id;
     const retry = emailAiRetryState();
     if (retry?.until > Date.now()) throw new Error(retry.message);
-    renderEmailTaskAiStatus('Email tasks: AI is checking the purpose of client messages…');
+    renderEmailTaskAiStatus(application ? 'Email AI: checking the purpose and outcome of application messages…' : 'Email tasks: AI is checking the purpose of client messages…');
     try {
       const usage = emailAiDailyUsage();
       if (usage.requests >= 40) {
@@ -10494,7 +10508,7 @@
         failure.retryAfter = Math.ceil((Date.parse(`${usage.day}T00:00:00Z`) + 86400000 - Date.now()) / 1000);
         throw failure;
       }
-      const { response, result } = await postClientEmailAi(email.id, client.id, userId);
+      const { response, result } = await postClientEmailAi(email.id, client.id, userId, application);
       if (!response.ok) {
         const code = typeof result.code === 'string' && /^[A-Z_]{1,64}$/.test(result.code) ? result.code : '';
         const detail = code ? ` (${code}${Number.isInteger(result.providerCode) ? `/${result.providerCode}` : ''})` : '';
@@ -10502,10 +10516,15 @@
         failure.retryAfter = result.retryAfter || (response.status === 404 ? 60 : 120);
         throw failure;
       }
-      if (!['work_task', 'administrative', 'informational', 'personal', 'uncertain'].includes(result.purpose)
-        || typeof result.createTask !== 'boolean' || typeof result.reason !== 'string'
-        || typeof result.confidence !== 'number' || !Number.isFinite(result.confidence)
-        || typeof result.evidence !== 'string' || typeof result.title !== 'string') {
+      const valid = application ? ['rejected', 'position_closed', 'position_filled', 'position_unavailable', 'application_expired', 'no_change', 'uncertain'].includes(result.outcome)
+        && typeof result.rejectApplication === 'boolean' && typeof result.matchesApplication === 'boolean'
+        && typeof result.reason === 'string' && typeof result.evidence === 'string'
+        && typeof result.confidence === 'number' && Number.isFinite(result.confidence) && result.confidence >= 0 && result.confidence <= 1
+        : ['work_task', 'administrative', 'informational', 'personal', 'uncertain'].includes(result.purpose)
+        && typeof result.createTask === 'boolean' && typeof result.reason === 'string'
+        && typeof result.confidence === 'number' && Number.isFinite(result.confidence)
+        && typeof result.evidence === 'string' && typeof result.title === 'string';
+      if (!valid) {
         throw new Error('Email tasks: AI returned an unreadable result. Messages remain queued.');
       }
       if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
@@ -10525,7 +10544,7 @@
   }
 
   let automaticEmailTaskRun = null;
-  async function createAutomaticEmailTasks() {
+  async function createAutomaticEmailTasks(budget = { remaining: 3 }) {
     if (automaticEmailTaskRun) return automaticEmailTaskRun;
     if (!currentUser || !dataReady || !supabaseDataLoaded) return { created: [], failed: false };
     const userId = currentUser.id;
@@ -10553,8 +10572,8 @@
           && (!Number.isFinite(activeAt) || receivedAt >= activeAt);
         let analysis = null;
         if (client && duringContract && !isSentEmail(email) && !email.automatedMessage) {
-          if (analyses >= 3) { waiting = true; continue; }
-          try { analysis = await analyzeClientEmail(email, client, scanKey); analyses++; }
+          if (analyses >= 3 || budget.remaining <= 0) { waiting = true; budget.queued = true; continue; }
+          try { analysis = await analyzeClientEmail(email, client, scanKey); analyses++; budget.remaining--; }
           catch { waiting = true; break; }
           if (currentUser?.id !== userId || data !== workspace) return { created: [], review: [], failed: false };
           // Recheck after the network request: the client or message can be edited

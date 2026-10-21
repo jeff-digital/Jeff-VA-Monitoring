@@ -560,10 +560,13 @@
     $('#emailDetailDate').textContent = emailDate(emailItem.date);
     $('#emailDetailBody').textContent = `${emailContentText(emailItem.body) || 'This inbox sync stores message headers only. Open the message in Gmail to read its full content.'}${emailItem.attachmentName ? `\n\nAttachment: ${emailItem.attachmentName}` : ''}`;
     $('#emailDetailStatus').textContent = isSent ? 'This message was sent from Jeff VA.' : 'Reply from this client directly through Gmail.';
-    const analysis = emailItem.taskAiAnalysis;
+    const applicationAnalysis = emailItem.applicationAiAnalysis;
+    const analysis = applicationAnalysis || emailItem.taskAiAnalysis;
     const analysisStatus = $('#emailDetailAiStatus');
     analysisStatus.hidden = !analysis;
-    analysisStatus.textContent = analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : '';
+    analysisStatus.textContent = applicationAnalysis
+      ? `AI application assessment: ${applicationAnalysis.outcome === 'uncertain' ? 'Needs your review' : applicationAnalysis.rejectApplication ? 'Final negative outcome confirmed' : 'No rejection confirmed'} — ${applicationAnalysis.reason}${applicationAnalysis.evidence ? ` · From the email: “${applicationAnalysis.evidence}”` : ''}`
+      : analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : '';
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;
@@ -1296,12 +1299,14 @@
         await persist();
         renderAll();
       }
-      const closedApplications = await applyApplicationEmailOutcomes(data.emails);
+      const aiBudget = { remaining: 3 };
+      const automaticTasks = await createAutomaticEmailTasks(aiBudget);
+      if (currentUser?.id !== syncUserId) return;
+      const applicationOutcomes = await applyAiApplicationOutcomes(data.emails, aiBudget);
+      const closedApplications = applicationOutcomes.changed;
       if (currentUser?.id !== syncUserId) return;
       const closedEmailIds = new Set(closedApplications.map(({ email }) => email.gmailId || email.id));
       const ordinaryNewEmails = newOnes.filter(email => !closedEmailIds.has(email.gmailId || email.id));
-      const automaticTasks = await createAutomaticEmailTasks();
-      if (currentUser?.id !== syncUserId) return;
       const notificationEmails = [...new Map([...ordinaryNewEmails,
         ...data.emails.filter(email => email.clientEmailNotificationPending && !closedEmailIds.has(email.gmailId || email.id))]
         .map(email => [email.gmailId || email.id, email])).values()];
@@ -1318,6 +1323,9 @@
         : automaticTasks.created;
       if (tasksOutsideNewEmails.length) showAutomaticEmailTasksNotice(tasksOutsideNewEmails);
       showEmailAiReviewNotice(automaticTasks.review);
+      showApplicationAiReviewNotice(applicationOutcomes.review);
+      if (applicationOutcomes.failed) showActionResult({ title: 'Application update save pending', status: 'error',
+        message: 'The AI result could not be saved. Your application status is unchanged; the update will retry during the next Gmail sync.' });
       if (automaticTasks.failed) showActionResult({ title: 'Automatic task save pending', status: 'error',
         message: 'The client email is available, but its task could not be saved. Automatic creation will retry on the next Gmail sync.' });
       if (!silent) {

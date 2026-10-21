@@ -1,3 +1,5 @@
+import { classifyApplicationEmail } from './application-email-classify.js';
+
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const PURPOSES = ['work_task', 'administrative', 'informational', 'personal', 'uncertain'];
 const headers = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
@@ -89,6 +91,10 @@ export async function classifyClientEmail(request, env, user) {
     if (raw.length > 2048) return reply({ error: 'Request too large.' }, 413);
     input = JSON.parse(raw);
   } catch { return reply({ error: 'Invalid request.' }, 400); }
+  if (input?.applicationId !== undefined) {
+    if (!env.AI?.run) return reply({ error: 'Connect the Workers AI binding named AI in Cloudflare to enable email analysis.', code: 'AI_NOT_CONFIGURED', retryAfter: 60 }, 503);
+    return classifyApplicationEmail(input, request, env, user);
+  }
   if (typeof input?.emailId !== 'string' || typeof input?.clientId !== 'string'
     || !input.emailId || !input.clientId || input.emailId.length > 200 || input.clientId.length > 200) return reply({ error: 'Choose a saved email and active client.' }, 400);
   if (!env.AI?.run) return reply({ error: 'Connect the Workers AI binding named AI in Cloudflare to enable email analysis.', code: 'AI_NOT_CONFIGURED', retryAfter: 60 }, 503);

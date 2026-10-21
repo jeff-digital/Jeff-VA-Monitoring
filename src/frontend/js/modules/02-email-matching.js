@@ -455,7 +455,7 @@
   }
 
   function isInterviewEmail(emailItem) {
-    if (detectApplicationEmailOutcome(emailItem)) return false;
+    if (emailItem.applicationAiAnalysis?.rejectApplication === true) return false;
     const source = `${emailItem.subject || ''} ${emailItem.body || ''}`;
     return /\b(interview|meeting|video call|phone call|screening)\b/i.test(source);
   }

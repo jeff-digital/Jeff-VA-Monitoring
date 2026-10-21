@@ -53,7 +53,8 @@ const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, cur
   persist: async () => saving, renderAll() {}, renderClientTasks() {}, renderAlerts() {},
   dedupeEmails: emails => [...new Map(emails.map(email => [email.id, email])).values()],
   alertPortfolioSubmissionEmails: () => false,
-  applyApplicationEmailOutcomes: async () => closed ? [{ email: { id: 'other-email' } }] : [],
+  applyAiApplicationOutcomes: async () => ({ changed: closed ? [{ email: { id: 'other-email' } }] : [], review: [], failed: false }),
+  showApplicationAiReviewNotice() {},
   showApplicationEmailOutcomeNotice: results => { if (results.length) notices.push({ title: 'Application closed' }); },
   updateGmailConnectionUI() {}, setGmailSyncDisplay() {}, recordGmailSyncSuccess() {}, setGmailStatus() {},
   showActionResult: notice => notices.push(notice), plural: (count, word) => `${count} ${word}`,
@@ -68,7 +69,7 @@ const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, cur
 vm.runInContext(read('pages/10a-email-client-tasks.js'), context);
 context.renderEmailTaskAiStatus('Email tasks: active-client messages checked.');
 assert.equal($('#accountEmailAiStatus').textContent, 'Messages checked');
-assert.match($('#accountEmailAiDetails').textContent, /0\/40 checks today.*Active-client emails only/);
+assert.match($('#accountEmailAiDetails').textContent, /0\/40 checks today.*Shared by application outcomes and active-client tasks/);
 context.navigator.onLine = false;
 context.renderEmailTaskAiStatus();
 assert.equal($('#accountEmailAiStatus').textContent, 'Offline');
