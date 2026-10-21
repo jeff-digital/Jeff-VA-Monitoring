@@ -1,3 +1,23 @@
+  function emailAiWeekRange(now = Date.now()) {
+    const day = 86400000, offset = 8 * 3600000;
+    const local = new Date(now + offset);
+    const start = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate())
+      - ((local.getUTCDay() + 6) % 7) * day - offset;
+    return { start, end: start + 7 * day };
+  }
+
+  function isEmailInAiWeek(email, now = Date.now()) {
+    const received = Date.parse(email?.date || '');
+    const { start, end } = emailAiWeekRange(now);
+    return Number.isFinite(received) && received >= start && received < end && received <= now + 300000;
+  }
+
+  function emailAiWeekLabel() {
+    const range = emailAiWeekRange();
+    const format = new Intl.DateTimeFormat(undefined, { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' });
+    return `${format.format(new Date(range.start))} – ${format.format(new Date(range.end - 1))} (Philippines)`;
+  }
+
   function emailTaskExisting(email, clientId) {
     return (data.clientTasks || []).find(task => task.clientId === clientId
       && (task.sourceEmailId === email.id || (email.gmailId && task.sourceGmailId === email.gmailId)));
@@ -15,6 +35,77 @@
   }
 
   let clientEmailAiStatus = { userId: '', message: '' };
+  let emailAiQueueState = { userId: '', running: false, checked: 0, total: 0, keys: new Set() };
+  let automaticEmailQueueRun = null;
+
+  function pendingEmailAiChecks() {
+    const checks = [];
+    for (const email of data.emails || []) {
+      if (!isEmailInAiWeek(email) || isSentEmail(email) || email.automatedMessage
+        || (!String(email.body || '').trim() && email.bodyLoaded !== true)) continue;
+      const clients = activeClientsMatchingSender(email);
+      if (clients.length !== 1) continue;
+      const client = clients[0], activeAt = Date.parse(client.activeAt || '');
+      if (Number.isFinite(activeAt) && Date.parse(email.date) < activeAt) continue;
+      if (email.autoTaskPending || email.autoTaskScanKey !== clientEmailTaskScanKey(email, clients)) checks.push(`task:${email.id}`);
+    }
+    if (typeof latestApplicationAiEmails === 'function') {
+      const latest = latestApplicationAiEmails(data.emails || []);
+      for (const app of data.applications || []) {
+        const email = latest.get(app.id)?.email;
+        if (!email || !applicationAiStillEligible(email, app, data.emails)
+          || (!String(email.body || '').trim() && email.bodyLoaded !== true)
+          || app.emailClosure?.emailId === (email.gmailId || email.id)) continue;
+        if (email.applicationAiProcessedKey !== applicationAiScanKey(email, app)) checks.push(`application:${app.id}:${email.id}`);
+      }
+    }
+    return checks;
+  }
+
+  function recordEmailAiQueueCheck(email, client, scanKey, application) {
+    if (!emailAiQueueState.running || emailAiQueueState.userId !== currentUser?.id) return;
+    emailAiQueueState.keys.add(`${application ? 'application' : 'task'}:${client.id}:${email.id}:${scanKey}`);
+    emailAiQueueState.checked = emailAiQueueState.keys.size;
+    emailAiQueueState.total = Math.max(emailAiQueueState.total, emailAiQueueState.checked);
+    renderEmailTaskAiStatus();
+  }
+
+  async function checkAllEmailAiMessages() {
+    if (automaticEmailQueueRun) return automaticEmailQueueRun;
+    const userId = currentUser?.id, workspace = data;
+    if (!userId || !dataReady || !supabaseDataLoaded) return { automaticTasks: { created: [], review: [], failed: false },
+      applicationOutcomes: { changed: [], review: [], failed: false } };
+    const total = pendingEmailAiChecks().length;
+    emailAiQueueState = { userId, running: total > 0, checked: 0, total, keys: new Set() };
+    renderEmailTaskAiStatus(total ? 'Email AI: checking the purpose of this week’s eligible messages…'
+      : 'Email AI: this week’s eligible messages checked.');
+    automaticEmailQueueRun = (async () => {
+      // Continue the whole queue in one run. Calls remain sequential to avoid
+      // flooding the provider; analyzeClientEmail enforces the shared daily cap.
+      const budget = { remaining: Infinity };
+      let failed = false;
+      try {
+        const automaticTasks = await createAutomaticEmailTasks(budget);
+        if (currentUser?.id !== userId || data !== workspace) return { automaticTasks: { created: [], review: [], failed: false },
+          applicationOutcomes: { changed: [], review: [], failed: false } };
+        const applicationOutcomes = automaticTasks.failed || emailAiRetryState()?.until > Date.now()
+          ? { changed: [], review: [], failed: false } : await applyAiApplicationOutcomes(data.emails, budget);
+        failed = automaticTasks.failed || applicationOutcomes.failed;
+        return { automaticTasks, applicationOutcomes };
+      } finally {
+        if (currentUser?.id === userId && data === workspace) {
+          emailAiQueueState.running = false;
+          const remaining = pendingEmailAiChecks().length;
+          emailAiQueueState.total = emailAiQueueState.checked + remaining;
+          renderEmailTaskAiStatus(failed ? 'Email AI: updates could not be saved; queued to retry during the next sync.'
+            : remaining ? `Email AI: ${remaining} eligible messages remain queued. Checks will resume automatically.`
+              : 'Email AI: this week’s eligible messages checked.');
+        }
+      }
+    })();
+    try { return await automaticEmailQueueRun; }
+    finally { automaticEmailQueueRun = null; }
+  }
   let emailAiSessionRenewal = null;
   async function renewEmailAiSession(authClient, userId) {
     if (currentUser?.id !== userId) throw new Error('Your signed-in account changed during email analysis.');
@@ -123,12 +214,14 @@
     const retry = emailAiRetryState();
     const fullStatus = retry?.until > Date.now() ? retry.message
       : clientEmailAiStatus.userId === currentUser.id && clientEmailAiStatus.message
-        ? clientEmailAiStatus.message : 'Email AI checks matched applications and active-client messages during sync.';
+        ? clientEmailAiStatus.message : 'Email AI checks this week’s matched applications and active-client messages during sync.';
     const attention = retry?.until > Date.now();
     const offline = navigator.onLine === false;
-    const processing = !offline && !attention && /checking the purpose|renewing your dashboard/i.test(fullStatus);
+    const queue = emailAiQueueState.userId === currentUser.id ? emailAiQueueState : null;
+    const processing = !offline && !attention && (queue?.running || /checking the purpose|renewing your dashboard/i.test(fullStatus));
     const queued = !attention && /queued/i.test(fullStatus);
-    element.textContent = offline ? 'AI offline' : attention ? 'AI needs attention' : processing ? 'AI checking…' : queued ? 'AI queued'
+    element.textContent = offline ? 'AI offline' : attention ? 'AI needs attention' : processing
+      ? queue?.running && queue.total ? `AI checking ${queue.checked}/${queue.total}…` : 'AI checking…' : queued ? 'AI queued'
       : /messages checked/i.test(fullStatus) ? 'AI checked' : 'AI ready';
     element.title = '';
     if (summary) {
@@ -138,9 +231,13 @@
     const trigger = $('#emailAiStatusTrigger');
     if (trigger) trigger.ariaBusy = String(processing);
     const detailState = $('#emailAiDetailsState'), lastCheck = $('#emailAiLastCheck'), detailUsage = $('#emailAiDetailsUsage');
-    if (detailState) detailState.textContent = `${offline ? 'Offline. ' : ''}${fullStatus}`;
+    if (detailState) detailState.textContent = `${offline ? 'Offline. ' : ''}${queue?.running ? `Checking this week’s queue: ${queue.checked} of ${queue.total} completed. ` : ''}${fullStatus}`;
+    const progress = $('#emailAiQueueProgress');
+    if (progress) progress.textContent = queue ? `${queue.checked}/${queue.total} this run` : 'No check running';
     if (lastCheck) lastCheck.textContent = lastEmailAiCheck();
     if (detailUsage) detailUsage.textContent = `${emailAiDailyUsage().requests}/40 checks`;
+    const week = $('#emailAiWeekScope');
+    if (week) week.textContent = emailAiWeekLabel();
     const retryRow = $('#emailAiRetryRow'), retryTime = $('#emailAiRetryTime');
     if (retryRow) retryRow.hidden = !attention;
     if (retryTime) retryTime.textContent = attention ? new Date(retry.until).toLocaleString() : '';
@@ -155,12 +252,13 @@
     if (accountStatus) accountStatus.textContent = navigator.onLine === false ? 'Offline'
       : attention ? 'Needs attention' : processing ? 'Checking messages' : queued ? 'Checks queued'
         : /messages checked/i.test(fullStatus) ? 'Messages checked' : 'Waiting for next check';
-    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Shared by application outcomes and active-client tasks.`;
+    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Shared by application outcomes and active-client tasks. This week only: ${emailAiWeekLabel()}.`;
   }
 
   async function analyzeClientEmail(email, client, scanKey, application = false) {
+    if (!isEmailInAiWeek(email)) throw new Error('AI checks emails received this week only (Monday–Sunday, Philippine time).');
     const cached = application ? email.applicationAiAnalysis : email.taskAiAnalysis;
-    if (cached?.scanKey === scanKey) return cached;
+    if (cached?.scanKey === scanKey) { recordEmailAiQueueCheck(email, client, scanKey, application); return cached; }
     const userId = currentUser.id;
     const retry = emailAiRetryState();
     if (retry?.until > Date.now()) throw new Error(retry.message);
@@ -197,6 +295,7 @@
       try { localStorage.setItem(`email-task-ai-usage:${userId}`, JSON.stringify(usage)); } catch { /* The next account save retains the usage. */ }
       const analyzedAt = new Date().toISOString();
       try { localStorage.setItem(`email-ai-last-check:${userId}`, analyzedAt); } catch { /* Saved analyses also retain the timestamp. */ }
+      recordEmailAiQueueCheck(email, client, scanKey, application);
       return { ...result, scanKey, analyzedAt };
     } catch (error) {
       if (currentUser?.id === userId) {
@@ -210,7 +309,7 @@
   }
 
   let automaticEmailTaskRun = null;
-  async function createAutomaticEmailTasks(budget = { remaining: 3 }) {
+  async function createAutomaticEmailTasks(budget = { remaining: Infinity }) {
     if (automaticEmailTaskRun) return automaticEmailTaskRun;
     if (!currentUser || !dataReady || !supabaseDataLoaded) return { created: [], failed: false };
     const userId = currentUser.id;
@@ -221,11 +320,11 @@
       const review = [];
       const reviewAlerts = [];
       const initialUsage = workspace.emailTaskAiUsage;
-      let analyses = 0;
       let waiting = false;
       // Version the scan so saved messages evaluated under older matching rules
       // are checked once again, without recreating tasks on every sync.
       for (const email of [...workspace.emails].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0))) {
+        if (!isEmailInAiWeek(email)) continue;
         const clients = activeClientsMatchingSender(email);
         if (!email.autoTaskPending && !clients.length) continue;
         if (!String(email.body || '').trim() && email.bodyLoaded !== true) continue;
@@ -238,15 +337,15 @@
           && (!Number.isFinite(activeAt) || receivedAt >= activeAt);
         let analysis = null;
         if (client && duringContract && !isSentEmail(email) && !email.automatedMessage) {
-          if (analyses >= 3 || budget.remaining <= 0) { waiting = true; budget.queued = true; continue; }
-          try { analysis = await analyzeClientEmail(email, client, scanKey); analyses++; budget.remaining--; }
+          if (budget.remaining <= 0) { waiting = true; budget.queued = true; continue; }
+          try { analysis = await analyzeClientEmail(email, client, scanKey); budget.remaining--; }
           catch { waiting = true; break; }
           if (currentUser?.id !== userId || data !== workspace) return { created: [], review: [], failed: false };
           // Recheck after the network request: the client or message can be edited
           // while AI is working, and that old decision must not create a task.
           const currentClients = activeClientsMatchingSender(email);
           if (!workspace.emails.includes(email) || currentClients.length !== 1
-            || currentClients[0].id !== client.id || clientEmailTaskScanKey(email, currentClients) !== scanKey) { waiting = true; continue; }
+            || !isEmailInAiWeek(email) || currentClients[0].id !== client.id || clientEmailTaskScanKey(email, currentClients) !== scanKey) { waiting = true; continue; }
         }
         const existing = client && emailTaskExisting(email, client.id);
         const evidence = analysis?.evidence || '';

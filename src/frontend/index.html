@@ -597,10 +597,12 @@
                     <div class="email-ai-details" id="emailAiStatusDetails" popover="manual" role="tooltip" hidden>
                       <strong class="email-ai-details-title">Email AI status</strong>
                       <p id="emailAiDetailsState"></p>
+                      <div class="email-ai-detail-row"><span>This week only</span><strong id="emailAiWeekScope"></strong></div>
+                      <div class="email-ai-detail-row"><span>Progress</span><strong id="emailAiQueueProgress">No check running</strong></div>
                       <div class="email-ai-detail-row"><span>Last successful check</span><strong id="emailAiLastCheck">Not checked yet</strong></div>
                       <div class="email-ai-detail-row"><span>Daily usage</span><strong id="emailAiDetailsUsage">0/40</strong></div>
                       <div class="email-ai-detail-row" id="emailAiRetryRow" hidden><span>Next retry after</span><strong id="emailAiRetryTime"></strong></div>
-                      <p class="email-ai-details-scope">Checks matched application outcomes and active-client work requests. Daily allowance resets at 8 AM (Philippines).</p>
+                      <p class="email-ai-details-scope">Checks emails received this week only, Monday–Sunday in Philippine time, for matched application outcomes and active-client work requests. Daily allowance resets at 8 AM.</p>
                     </div>
                   </div>
                 </div>
@@ -789,7 +791,7 @@
               </div>
               <div class="account-connection-row">
                 <dt>Email AI</dt>
-                <dd><strong id="accountEmailAiStatus">Not checked yet</strong><small id="accountEmailAiDetails" aria-live="polite">Checks matched application outcomes and incoming active-client work requests.</small></dd>
+                <dd><strong id="accountEmailAiStatus">Not checked yet</strong><small id="accountEmailAiDetails" aria-live="polite">Checks this week’s matched application outcomes and incoming active-client work requests (Monday–Sunday, Philippine time).</small></dd>
               </div>
             </dl>
           </section>

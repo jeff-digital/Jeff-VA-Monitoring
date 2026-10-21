@@ -41,7 +41,7 @@ const summary = node('#emailAiStatusSummary'), trigger = node('#emailAiStatusTri
   dispatch(document, 'click', { target: node('outside') }); assert.equal(details.hidden, true);
   assert.equal(requests, 0, 'focus and tap only open status details');
 
-  const pending = context.analyzeClientEmail({ id: 'e1' }, { id: 'a1' }, 'scan', true);
+  const pending = context.analyzeClientEmail({ id: 'e1', date: new Date().toISOString() }, { id: 'a1' }, 'scan', true);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(requests, 1); assert.equal(summary.dataset.state, 'processing');
   assert.equal(trigger.ariaBusy, 'true'); assert.equal(node('#clientEmailAiStatus').textContent, 'AI checking…');

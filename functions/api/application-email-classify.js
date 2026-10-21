@@ -1,4 +1,5 @@
 import { authoredEmailText, emailAiFailure } from './email-classify.js';
+import { emailIsInCurrentAiWeek } from './email-ai-week.js';
 
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const OUTCOMES = ['rejected', 'position_closed', 'position_filled', 'position_unavailable', 'application_expired', 'no_change', 'uncertain'];
@@ -39,7 +40,7 @@ export function applicationEmailCandidates(applications, email) {
 }
 
 export function applicationEmailEligible(applications, email, applicationId, user) {
-  if (!incoming(email, user)) return false;
+  if (!incoming(email, user) || !emailIsInCurrentAiWeek(email.date)) return false;
   const matches = applicationEmailCandidates(applications, email);
   if (matches.length !== 1 || matches[0].id !== applicationId || !PENDING.includes(matches[0].status)) return false;
   const app = matches[0];
@@ -79,6 +80,7 @@ export async function classifyApplicationEmail(input, request, env, user) {
     const app = state?.applications?.find(item => item.id === input.applicationId);
     const email = state?.emails?.find(item => item.id === input.emailId);
     if (!app || !email) return reply({ error: 'The saved application or email is not available yet.', retryAfter: 60 }, 409);
+    if (!emailIsInCurrentAiWeek(email.date)) return reply({ error: 'AI checks emails received this week only (Monday–Sunday, Philippine time).', code: 'AI_OUTSIDE_CURRENT_WEEK' }, 403);
     if (!applicationEmailEligible(state.applications, email, app.id, user)) return reply({ error: 'Application analysis requires a recent incoming email uniquely matched to a pending application.' }, 403);
     if (state.emails.some(other => other.id !== email.id && incoming(other, user)
       && Date.parse(other.date) > Date.parse(email.date) && Date.parse(other.date) <= Date.now() + 300000

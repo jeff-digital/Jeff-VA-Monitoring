@@ -68,6 +68,13 @@ for (const status of ['Active client', 'Not selected', 'Rejected', 'Offer']) {
   app.status = status; assert.equal((await request()).status, 403);
 }
 app.status = 'Applied';
+const savedDates = { applied: app.appliedDate, updated: app.updatedAt, email: email.date };
+email.date = new Date(Date.now() - 14 * 86400000).toISOString();
+app.appliedDate = new Date(Date.now() - 20 * 86400000).toISOString(); app.updatedAt = app.appliedDate;
+const oldWeekCalls = calls;
+response = await request(); assert.equal(response.status, 403); assert.equal((await response.json()).code, 'AI_OUTSIDE_CURRENT_WEEK');
+assert.equal(calls, oldWeekCalls);
+app.appliedDate = savedDates.applied; app.updatedAt = savedDates.updated; email.date = savedDates.email;
 state.applications.push({ ...app, id: 'other' }); assert.equal((await request()).status, 403); state.applications.pop();
 const originalDate = email.date; email.date = new Date(Date.now() - 172800000).toISOString();
 assert.equal((await request()).status, 403); email.date = originalDate;

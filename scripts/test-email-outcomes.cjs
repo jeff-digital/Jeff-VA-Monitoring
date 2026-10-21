@@ -97,6 +97,12 @@ const run = budget => context.applyAiApplicationOutcomes(context.data.emails, bu
   assert.equal(context.data.emails[0].applicationAiProcessedKey, undefined);
   saveSucceeds = true; result = await run(); assert.equal(result.changed.length, 1); assert.equal(calls, 1, 'failed saves reuse the cached AI response');
   record = reset(); fail = true; await run(); assert.equal(record.status, 'Applied'); assert.equal(context.data.alerts.length, 0);
+  record = reset();
+  const previousWeek = new Date(context.emailAiWeekRange().start - 1000).toISOString();
+  record.appliedDate = new Date(Date.parse(previousWeek) - 86400000).toISOString(); record.updatedAt = record.appliedDate;
+  context.data.emails[0].date = previousWeek;
+  await run(); assert.equal(calls, 0, 'older matching applications must not be checked even when chronology is otherwise valid');
+  assert.equal(record.status, 'Applied'); assert.equal(context.data.emails.length, 1); assert.equal(context.data.alerts.length, 0);
   record = reset(); await run({ remaining: 0 }); assert.equal(calls, 0, 'the per-sync budget is shared');
   record = reset(); context.data.emailTaskAiUsage = { day: new Date().toISOString().slice(0, 10), requests: 40 };
   await run(); assert.equal(calls, 0); assert.equal(record.status, 'Applied');

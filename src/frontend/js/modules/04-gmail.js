@@ -1299,10 +1299,13 @@
         await persist();
         renderAll();
       }
-      const aiBudget = { remaining: 3 };
-      const automaticTasks = await createAutomaticEmailTasks(aiBudget);
-      if (currentUser?.id !== syncUserId) return;
-      const applicationOutcomes = await applyAiApplicationOutcomes(data.emails, aiBudget);
+      // Inbox fetching is complete; AI progress has its own independent status.
+      updateGmailConnectionUI(true);
+      if (failedMessageFetches.length) setGmailSyncDisplay('partial');
+      else recordGmailSyncSuccess();
+      sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
+      setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}${failedMessageFetches.length ? ` · ${plural(failedMessageFetches.length, 'message')} failed to load` : ''}`);
+      const { automaticTasks, applicationOutcomes } = await checkAllEmailAiMessages();
       const closedApplications = applicationOutcomes.changed;
       if (currentUser?.id !== syncUserId) return;
       const closedEmailIds = new Set(closedApplications.map(({ email }) => email.gmailId || email.id));
@@ -1310,11 +1313,6 @@
       const notificationEmails = [...new Map([...ordinaryNewEmails,
         ...data.emails.filter(email => email.clientEmailNotificationPending && !closedEmailIds.has(email.gmailId || email.id))]
         .map(email => [email.gmailId || email.id, email])).values()];
-      updateGmailConnectionUI(true);
-      if (failedMessageFetches.length) setGmailSyncDisplay('partial');
-      else recordGmailSyncSuccess();
-      sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
-      setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}${failedMessageFetches.length ? ` · ${plural(failedMessageFetches.length, 'message')} failed to load` : ''}`);
       // A closure notice must not suppress an unrelated active-client email.
       // The shared result modal queues these notices instead of dropping them.
       const hasNewMatches = alertNewMatches(notificationEmails, { createdTasks: automaticTasks.created });

@@ -231,9 +231,17 @@ const addEmail = (id, body, extra = {}) => {
   });
   const batchCalls = classificationCalls;
   await context.syncGmail(true);
-  assert.equal(classificationCalls - batchCalls, 3, 'one sync must cap inference calls so inbox work stays bounded');
+  assert.equal(classificationCalls - batchCalls, 5, 'one sync must continue through the entire eligible queue');
   await context.syncGmail(true);
   assert.equal(classificationCalls - batchCalls, 5);
+  const oldWeekEmail = { id: 'last-week', from: client.email, subject: 'Old request', body: 'Please upload content.',
+    date: new Date(context.emailAiWeekRange().start - 1000).toISOString(), bodyLoaded: true, autoTaskPending: true };
+  context.data.emails.push(oldWeekEmail);
+  const weeklyCalls = classificationCalls, weeklyTasks = context.data.clientTasks.length;
+  await context.syncGmail(true);
+  assert.equal(classificationCalls, weeklyCalls, 'previous-week pending messages must not use an AI request');
+  assert.equal(context.data.clientTasks.length, weeklyTasks);
+  assert.equal(oldWeekEmail.autoTaskProcessedAt, undefined, 'older emails stay unchanged and visible');
   context.data.emailTaskAiUsage = { day: new Date().toISOString().slice(0, 10), requests: 40 };
   addEmail('daily-cap', 'Please upload new content.');
   const cappedCalls = classificationCalls;

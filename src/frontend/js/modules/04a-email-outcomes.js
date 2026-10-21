@@ -12,7 +12,7 @@
   function latestApplicationAiEmails(emails) {
     const latest = new Map();
     for (const email of [...emails].sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0))) {
-      if (isSentEmail(email) || !Number.isFinite(Date.parse(email.date)) || Date.parse(email.date) > Date.now() + 300000) continue;
+      if (isSentEmail(email) || !isEmailInAiWeek(email)) continue;
       const matches = matchApplicationsForEmail(email);
       for (const app of matches) {
         // Even an ambiguous newer message blocks rejecting from an older one.
@@ -32,7 +32,7 @@
       && received <= Date.now() + 300000 && (!Number.isFinite(updated) || received >= updated);
   }
 
-  async function applyAiApplicationOutcomes(emails, budget = { remaining: 3 }) {
+  async function applyAiApplicationOutcomes(emails, budget = { remaining: Infinity }) {
     const result = { changed: [], review: [], failed: false };
     if (!currentUser || !dataReady || !supabaseDataLoaded) return result;
     const userId = currentUser.id, workspace = data;

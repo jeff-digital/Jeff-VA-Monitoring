@@ -1,4 +1,5 @@
 import { classifyApplicationEmail } from './application-email-classify.js';
+import { emailIsInCurrentAiWeek } from './email-ai-week.js';
 
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const PURPOSES = ['work_task', 'administrative', 'informational', 'personal', 'uncertain'];
@@ -110,6 +111,7 @@ export async function classifyClientEmail(request, env, user) {
     const client = state?.applications?.find(item => item.id === input.clientId);
     const email = state?.emails?.find(item => item.id === input.emailId);
     if (!client || !email) return reply({ error: 'The saved email or client is not available yet.', retryAfter: 60 }, 409);
+    if (!emailIsInCurrentAiWeek(email.date)) return reply({ error: 'AI checks emails received this week only (Monday–Sunday, Philippine time).', code: 'AI_OUTSIDE_CURRENT_WEEK' }, 403);
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const active = item => item.status === 'Active client' && !item.activePendingDocument && !item.activePendingEmail
       && String(item.contractStatus || 'Active').toLowerCase().trim() === 'active'
