@@ -320,7 +320,7 @@
       const scoredMatches = [];
       const applicationIndex = buildApplicationMatchIndex(data.applications);
       for (const item of applicationIndex) {
-        const score = platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens);
+        const score = platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens, emailItem.date);
         if (score !== null) scoredMatches.push({ item, score });
       }
       let topCandidates = [];

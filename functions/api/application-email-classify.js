@@ -14,6 +14,16 @@ const incoming = (email, user) => !['sent'].includes(email.direction) && email.s
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
 const recent = new Map();
 
+function onlineJobsJobIds(value) {
+  const ids = new Set();
+  const pattern = /(?:https?:\/\/(?:www\.)?|www\.)onlinejobs\.ph\/jobseekers\/job\/([^\s<>"'?#/]+)/gi;
+  for (const match of String(value || '').matchAll(pattern)) {
+    const id = match[1].replace(/[),.;!]+$/, '').match(/(?:^|-)(\d+)$/)?.[1];
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
 // Independently verify the saved association. The browser supplies IDs, never
 // authority to reject an arbitrary record. Ambiguous shared addresses stay out.
 export function applicationEmailCandidates(applications, email) {
@@ -28,10 +38,25 @@ export function applicationEmailCandidates(applications, email) {
     const namedSender = includes(name, company) || includes(name, app.contact);
     const namedCompany = includes(text, company);
     const link = String(app.website || '').trim().toLowerCase().replace(/[?#].*$/, '').replace(/\/$/, '');
-    const linkedJob = /^https?:\/\//.test(link) && /\/(?:jobs?|jobseekers\/info|job-postings?|listings?|vacancies)\/[^/]+/i.test(link)
-      && String(email.body || '').toLowerCase().includes(link);
+    const savedJobIds = onlineJobsJobIds(link), emailJobIds = onlineJobsJobIds(email.body);
+    const linkedJob = (sender === 'support@onlinejobs.ph' && savedJobIds.some(id => emailJobIds.includes(id)))
+      || (/^https?:\/\//.test(link) && /\/(?:jobs?|jobseekers\/info|job-postings?|listings?|vacancies)\/[^/]+/i.test(link)
+      && String(email.body || '').toLowerCase().includes(link));
     return platform ? namedCompany || linkedJob : namedSender && (namedCompany || includes(text, app.role));
   });
+  if (!candidates.length && sender === 'support@onlinejobs.ph') {
+    const subject = normalize(email.subject).replace(/^(?:(?:re|fw|fwd)\s+)+/, '');
+    const roleCandidates = applications.filter(app => {
+      const role = normalize(app.role);
+      return String(app.platform || '').trim().toLowerCase() === 'onlinejobs.ph'
+        && role.length >= 3 && [`application for ${role}`, `application for the ${role}`].includes(subject);
+    });
+    if (roleCandidates.length === 1) {
+      const app = roleCandidates[0], savedIds = onlineJobsJobIds(app.website), emailIds = onlineJobsJobIds(email.body);
+      const conflict = savedIds.length && emailIds.length && !savedIds.some(id => emailIds.includes(id));
+      if (!conflict && Date.parse(email.date) >= Date.parse(app.appliedDate)) candidates = roleCandidates;
+    }
+  }
   if (candidates.length > 1) {
     const roleMatches = candidates.filter(app => includes(text, app.role));
     if (roleMatches.length === 1) candidates = roleMatches;
