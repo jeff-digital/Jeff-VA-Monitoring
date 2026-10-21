@@ -6,7 +6,7 @@
     return `application-v1:${clientEmailTaskScanKey({ ...email, subject: JSON.stringify([email.subject, email.from,
       email.to, email.date, email.direction, email.labelIds]) }, [{ id: app.id,
       role: JSON.stringify([app.role, app.clientName, app.companyName, app.company, app.email, app.website,
-        app.status, app.appliedDate, app.updatedAt]) }])}`;
+        app.status, app.appliedDate, app.updatedAt, app.manualStatusChangedAt]) }])}`;
   }
 
   function latestApplicationAiEmails(emails) {
@@ -22,14 +22,25 @@
     return latest;
   }
 
-  function applicationAiStillEligible(email, app, emails) {
-    if (!APPLICATION_AI_PENDING_STATUSES.includes(app.status) || isSentEmail(email)) return false;
+  function applicationAiSkipReason(email, app, emails) {
+    if (!APPLICATION_AI_PENDING_STATUSES.includes(app.status)) return 'This application is no longer in a pending stage.';
+    if (isSentEmail(email)) return 'Only received emails are checked.';
+    if (!isEmailInAiWeek(email)) return 'Only emails received this week are checked.';
     const latest = latestApplicationAiEmails(emails).get(app.id);
-    if (!latest?.unique || latest.email !== email) return false;
+    if (!latest?.unique) return 'This message is not uniquely matched to one application.';
+    if (latest.email !== email) return 'A newer matched email takes priority over this message.';
     const received = Date.parse(email.date), applied = Date.parse(app.appliedDate || '');
-    const updated = Date.parse(app.updatedAt || app.createdAt || app.appliedDate || '');
-    return Number.isFinite(received) && Number.isFinite(applied) && received >= applied
-      && received <= Date.now() + 300000 && (!Number.isFinite(updated) || received >= updated);
+    const manualStatusChanged = Date.parse(app.manualStatusChangedAt || '');
+    if (!Number.isFinite(received) || !Number.isFinite(applied)) return 'A valid email date and application date are needed.';
+    if (received < applied) return 'This email predates the application date.';
+    if (received > Date.now() + 300000) return 'The email has a future received date.';
+    if (Number.isFinite(manualStatusChanged) && received < manualStatusChanged) return 'You manually changed the application stage after receiving this email.';
+    if (!String(email.body || '').trim() && email.bodyLoaded !== true) return 'The full email body is still loading.';
+    return '';
+  }
+
+  function applicationAiStillEligible(email, app, emails) {
+    return !applicationAiSkipReason(email, app, emails);
   }
 
   async function applyAiApplicationOutcomes(emails, budget = { remaining: Infinity }) {

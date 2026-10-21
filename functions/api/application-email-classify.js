@@ -44,9 +44,9 @@ export function applicationEmailEligible(applications, email, applicationId, use
   const matches = applicationEmailCandidates(applications, email);
   if (matches.length !== 1 || matches[0].id !== applicationId || !PENDING.includes(matches[0].status)) return false;
   const app = matches[0];
-  const received = Date.parse(email.date), applied = Date.parse(app.appliedDate || ''), updated = Date.parse(app.updatedAt || app.createdAt || app.appliedDate || '');
+  const received = Date.parse(email.date), applied = Date.parse(app.appliedDate || ''), manualStatusChanged = Date.parse(app.manualStatusChangedAt || '');
   if (!Number.isFinite(received) || !Number.isFinite(applied) || received < applied || received > Date.now() + 300000
-    || (Number.isFinite(updated) && received < updated)) return false;
+    || (Number.isFinite(manualStatusChanged) && received < manualStatusChanged)) return false;
   return true;
 }
 

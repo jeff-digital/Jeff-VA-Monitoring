@@ -2644,6 +2644,7 @@
       salaryAmount: $('#salaryAmount').value === '' ? '' : Number($('#salaryAmount').value),
       hoursPerWeek: $('#salaryHoursPerWeek').value === '' ? '' : Number($('#salaryHoursPerWeek').value),
       status: $('#clientStatus').value,
+      manualStatusChangedAt: manualApplicationStatusTimestamp(existing, $('#clientStatus').value),
       nextStep: $('#clientStatus').value === 'To Proceed' ? $('#nextStep').value.trim() : '',
       // Moving an application into Active Clients always requires a newly
       // confirmed contract for the activation email. Existing client files are

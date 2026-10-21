@@ -63,6 +63,18 @@ const run = budget => context.applyAiApplicationOutcomes(context.data.emails, bu
   for (const outcome of ['rejected', 'position_closed', 'position_filled', 'position_unavailable', 'application_expired']) {
     record = reset(); decision.outcome = outcome; assert.equal((await run()).changed.length, 1);
   }
+  // The user's Frontline example must remain eligible after unrelated edits.
+  record = reset();
+  Object.assign(record, { clientName: 'Frontline Accounting', role: 'AU Administrative Assistant (Hybrid) - with 30K Signing Bonus!',
+    email: 'sherilyn@frontlineaccounting.com', updatedAt: new Date().toISOString(), notes: 'Edited after email arrived' });
+  Object.assign(context.data.emails[0], { from: 'sherilyn@frontlineaccounting.com', subject: 'Your Application at Frontline Accounting',
+    body: 'Dear Jeffrey,\nThank you for your application for the position of AU Administrative Assistant (Hybrid) - with 30K Signing Bonus! with Frontline Accounting.\nWe truly appreciate the time and effort you put into your application. At this time, we would like to let you know that the role has been filled.\nWhile this position may not be the right match at the moment, we encourage you to explore other opportunities.' });
+  decision = { ...decision, outcome: 'position_filled', evidence: 'At this time, we would like to let you know that the role has been filled.' };
+  result = await run(); assert.equal(result.changed.length, 1); assert.equal(record.status, 'Not selected');
+  assert.equal(record.emailClosure.reason, 'Position filled');
+  record = reset(); record.manualStatusChangedAt = new Date().toISOString();
+  result = await run(); assert.equal(calls, 0); assert.equal(record.status, 'Applied', 'a real manual stage change must remain protected');
+  assert.match(context.applicationAiSkipReason(context.data.emails[0], record, context.data.emails), /manually changed/);
   record = reset(); decision = { ...decision, outcome: 'no_change', rejectApplication: false };
   await run(); await run(); assert.equal(record.status, 'Applied'); assert.equal(calls, 1, 'non-outcomes must be cached too');
   assert.equal(context.data.alerts.length, 0);

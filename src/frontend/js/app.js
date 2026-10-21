@@ -1092,6 +1092,10 @@
     return Boolean(sender && ownAddresses.includes(sender));
   }
 
+  function manualApplicationStatusTimestamp(existing, nextStatus, now = new Date().toISOString()) {
+    return existing && existing.status !== nextStatus ? now : existing?.manualStatusChangedAt || '';
+  }
+
   function statusPill(status) {
     return `<span class="status-pill ${STATUS_CLASS[status] || ''}">${escapeHtml(STATUS_LABELS[status] || status)}</span>`;
   }
@@ -3804,6 +3808,7 @@
       salaryAmount: $('#salaryAmount').value === '' ? '' : Number($('#salaryAmount').value),
       hoursPerWeek: $('#salaryHoursPerWeek').value === '' ? '' : Number($('#salaryHoursPerWeek').value),
       status: $('#clientStatus').value,
+      manualStatusChangedAt: manualApplicationStatusTimestamp(existing, $('#clientStatus').value),
       nextStep: $('#clientStatus').value === 'To Proceed' ? $('#nextStep').value.trim() : '',
       // Moving an application into Active Clients always requires a newly
       // confirmed contract for the activation email. Existing client files are
@@ -6669,11 +6674,18 @@
     $('#emailDetailStatus').textContent = isSent ? 'This message was sent from Jeff VA.' : 'Reply from this client directly through Gmail.';
     const applicationAnalysis = isSent ? null : emailItem.applicationAiAnalysis;
     const analysis = isSent ? null : applicationAnalysis || emailItem.taskAiAnalysis;
+    const assessmentMatches = !isSent && !analysis && typeof applicationAiSkipReason === 'function'
+      ? matchApplicationsForEmail(emailItem) : null;
+    const pendingApplication = assessmentMatches?.find(app => APPLICATION_AI_PENDING_STATUSES.includes(app.status));
+    const pendingAssessment = pendingApplication
+      ? `AI application check: ${applicationAiSkipReason(emailItem, pendingApplication, data.emails)
+        || (emailAiRetryState()?.until > Date.now() ? emailAiRetryState().message : 'Matched and waiting for AI analysis during Gmail sync.')}`
+      : assessmentMatches?.length === 0 ? 'AI check: no saved application or active client is matched to this email.' : '';
     const analysisStatus = $('#emailDetailAiStatus');
-    analysisStatus.hidden = !analysis;
+    analysisStatus.hidden = !analysis && !pendingAssessment;
     analysisStatus.textContent = applicationAnalysis
       ? `AI application assessment: ${applicationAnalysis.outcome === 'uncertain' ? 'Needs your review' : applicationAnalysis.rejectApplication ? 'Final negative outcome confirmed' : 'No rejection confirmed'} — ${applicationAnalysis.reason}${applicationAnalysis.evidence ? ` · From the email: “${applicationAnalysis.evidence}”` : ''}`
-      : analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : '';
+      : analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : pendingAssessment;
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;
@@ -7468,7 +7480,7 @@
     return `application-v1:${clientEmailTaskScanKey({ ...email, subject: JSON.stringify([email.subject, email.from,
       email.to, email.date, email.direction, email.labelIds]) }, [{ id: app.id,
       role: JSON.stringify([app.role, app.clientName, app.companyName, app.company, app.email, app.website,
-        app.status, app.appliedDate, app.updatedAt]) }])}`;
+        app.status, app.appliedDate, app.updatedAt, app.manualStatusChangedAt]) }])}`;
   }
 
   function latestApplicationAiEmails(emails) {
@@ -7484,14 +7496,25 @@
     return latest;
   }
 
-  function applicationAiStillEligible(email, app, emails) {
-    if (!APPLICATION_AI_PENDING_STATUSES.includes(app.status) || isSentEmail(email)) return false;
+  function applicationAiSkipReason(email, app, emails) {
+    if (!APPLICATION_AI_PENDING_STATUSES.includes(app.status)) return 'This application is no longer in a pending stage.';
+    if (isSentEmail(email)) return 'Only received emails are checked.';
+    if (!isEmailInAiWeek(email)) return 'Only emails received this week are checked.';
     const latest = latestApplicationAiEmails(emails).get(app.id);
-    if (!latest?.unique || latest.email !== email) return false;
+    if (!latest?.unique) return 'This message is not uniquely matched to one application.';
+    if (latest.email !== email) return 'A newer matched email takes priority over this message.';
     const received = Date.parse(email.date), applied = Date.parse(app.appliedDate || '');
-    const updated = Date.parse(app.updatedAt || app.createdAt || app.appliedDate || '');
-    return Number.isFinite(received) && Number.isFinite(applied) && received >= applied
-      && received <= Date.now() + 300000 && (!Number.isFinite(updated) || received >= updated);
+    const manualStatusChanged = Date.parse(app.manualStatusChangedAt || '');
+    if (!Number.isFinite(received) || !Number.isFinite(applied)) return 'A valid email date and application date are needed.';
+    if (received < applied) return 'This email predates the application date.';
+    if (received > Date.now() + 300000) return 'The email has a future received date.';
+    if (Number.isFinite(manualStatusChanged) && received < manualStatusChanged) return 'You manually changed the application stage after receiving this email.';
+    if (!String(email.body || '').trim() && email.bodyLoaded !== true) return 'The full email body is still loading.';
+    return '';
+  }
+
+  function applicationAiStillEligible(email, app, emails) {
+    return !applicationAiSkipReason(email, app, emails);
   }
 
   async function applyAiApplicationOutcomes(emails, budget = { remaining: Infinity }) {
@@ -8615,6 +8638,7 @@
       return;
     }
     selected.forEach(item => {
+      item.manualStatusChangedAt = manualApplicationStatusTimestamp(item, newStatus);
       item.status = newStatus;
       if (newStatus !== 'Interview') {
         item.interviewDate = '';
@@ -8664,6 +8688,7 @@
         : 'Complete the client activation steps to change this status.');
       return;
     }
+    item.manualStatusChangedAt = manualApplicationStatusTimestamp(item, nextStatus);
     item.status = nextStatus;
     if (nextStatus !== 'To Proceed') item.nextStep = '';
     item.interviewDate = '';

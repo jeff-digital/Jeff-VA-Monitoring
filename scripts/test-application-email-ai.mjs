@@ -33,6 +33,19 @@ let response = await request({ emailId: 'email', applicationId: 'app', body: 'fo
 assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'private, no-store');
 let analysis = await response.json(); assert.equal(analysis.rejectApplication, true); assert.equal(analysis.createTask, undefined);
 await request(); assert.equal(calls, 1, 'server caches repeated application requests');
+const originalApp = { ...app }, originalEmail = { ...email }, originalOutput = output;
+Object.assign(app, { clientName: 'Frontline Accounting', role: 'AU Administrative Assistant (Hybrid) - with 30K Signing Bonus!',
+  email: 'sherilyn@frontlineaccounting.com', updatedAt: new Date().toISOString() });
+Object.assign(email, { from: 'Sherilyn Rulloda - De la Vega <sherilyn@frontlineaccounting.com>', subject: 'Your Application at Frontline Accounting',
+  body: 'Thank you for your application for the position of AU Administrative Assistant (Hybrid) - with 30K Signing Bonus! with Frontline Accounting. We truly appreciate the time and effort you put into your application. At this time, we would like to let you know that the role has been filled. While this position may not be the right match at the moment, we encourage you to explore other opportunities.' });
+output = { outcome: 'position_filled', confidence: 0.99, matchesApplication: true,
+  reason: 'The recruiter confirms the role has been filled.', evidence: 'At this time, we would like to let you know that the role has been filled.' };
+response = await request(); assert.equal(response.status, 200);
+assert.equal((await response.json()).rejectApplication, true, 'unrelated detail edits must not block the Frontline outcome');
+app.manualStatusChangedAt = new Date().toISOString();
+assert.equal((await request()).status, 403, 'an explicit manual stage change must remain protected');
+delete app.manualStatusChangedAt;
+Object.assign(app, originalApp); Object.assign(email, originalEmail); output = originalOutput;
 assert.equal(validateApplicationClassification({ ...output, confidence: 0.94 }, email.body).rejectApplication, false);
 assert.equal(validateApplicationClassification({ ...output, matchesApplication: false }, email.body).outcome, 'uncertain');
 assert.equal(validateApplicationClassification({ ...output, evidence: 'an invented quote' }, email.body).outcome, 'uncertain');

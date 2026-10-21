@@ -22,7 +22,12 @@ const context = vm.createContext({ currentUser: { email: 'me@example.com', ident
 const core = read('01-core.js');
 const matcher = read('02-email-matching.js');
 for (const name of ['extractEmailAddress', 'isEmailAddress', 'extractSenderName', 'containsWholeWord']) vm.runInContext(fn(matcher, name), context);
-for (const name of ['isSentEmail', 'receivedEmails']) vm.runInContext(fn(core, name), context);
+for (const name of ['isSentEmail', 'receivedEmails', 'manualApplicationStatusTimestamp']) vm.runInContext(fn(core, name), context);
+const stageTime = '2026-10-21T12:00:00Z';
+assert.equal(context.manualApplicationStatusTimestamp({ status: 'Applied', notes: 'Edited notes' }, 'Applied', stageTime), '');
+assert.equal(context.manualApplicationStatusTimestamp({ status: 'Applied' }, 'Interview', stageTime), stageTime);
+assert.equal(context.manualApplicationStatusTimestamp({ status: 'Interview', manualStatusChangedAt: stageTime }, 'Interview', 'later'), stageTime);
+assert.equal(context.manualApplicationStatusTimestamp(undefined, 'Applied', stageTime), '');
 for (const name of ['isEmailTaskActiveClient', 'activeClientsMatchingSender', 'activeClientsForTaskEmail', 'matchApplicationsForEmail', 'applicationsRelatedToEmail']) vm.runInContext(fn(matcher, name), context);
 const outgoing = [
   { from: app.email, to: app.email, direction: 'sent' },
@@ -90,4 +95,18 @@ vm.runInContext(fn(read('04-gmail.js'), 'openEmailDetail'), context);
 context.openEmailDetail(linkedSent.id);
 assert.equal(node('#emailDetailAiStatus').hidden, true, 'Sent details must not display stale AI analysis');
 assert.equal(node('#emailDetailAiStatus').textContent, '');
+context.isEmailInAiWeek = () => true; context.emailAiRetryState = () => null;
+context.emailExplicitlyNamesDifferentRole = () => false;
+vm.runInContext(read('04a-email-outcomes.js'), context);
+app.status = 'Applied'; app.appliedDate = new Date(Date.now() - 86400000).toISOString();
+app.manualStatusChangedAt = new Date().toISOString(); received.date = new Date(Date.now() - 3600000).toISOString();
+context.openEmailDetail(received.id);
+assert.equal(node('#emailDetailAiStatus').hidden, false);
+assert.match(node('#emailDetailAiStatus').textContent, /manually changed/);
+delete app.manualStatusChangedAt;
+context.openEmailDetail(received.id);
+assert.match(node('#emailDetailAiStatus').textContent, /waiting for AI analysis/);
+const unmatched = { id: 'unknown', from: 'unknown@example.com', body: 'An unmatched email', date: new Date().toISOString() };
+context.data.emails.push(unmatched); context.openEmailDetail(unmatched.id);
+assert.match(node('#emailDetailAiStatus').textContent, /no saved application or active client is matched/);
 console.log('Email direction checks passed: outgoing exclusion, cached matches, Gmail labels, own addresses, linked sent messages excluded, and real received replies.');

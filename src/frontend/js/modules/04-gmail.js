@@ -562,11 +562,18 @@
     $('#emailDetailStatus').textContent = isSent ? 'This message was sent from Jeff VA.' : 'Reply from this client directly through Gmail.';
     const applicationAnalysis = isSent ? null : emailItem.applicationAiAnalysis;
     const analysis = isSent ? null : applicationAnalysis || emailItem.taskAiAnalysis;
+    const assessmentMatches = !isSent && !analysis && typeof applicationAiSkipReason === 'function'
+      ? matchApplicationsForEmail(emailItem) : null;
+    const pendingApplication = assessmentMatches?.find(app => APPLICATION_AI_PENDING_STATUSES.includes(app.status));
+    const pendingAssessment = pendingApplication
+      ? `AI application check: ${applicationAiSkipReason(emailItem, pendingApplication, data.emails)
+        || (emailAiRetryState()?.until > Date.now() ? emailAiRetryState().message : 'Matched and waiting for AI analysis during Gmail sync.')}`
+      : assessmentMatches?.length === 0 ? 'AI check: no saved application or active client is matched to this email.' : '';
     const analysisStatus = $('#emailDetailAiStatus');
-    analysisStatus.hidden = !analysis;
+    analysisStatus.hidden = !analysis && !pendingAssessment;
     analysisStatus.textContent = applicationAnalysis
       ? `AI application assessment: ${applicationAnalysis.outcome === 'uncertain' ? 'Needs your review' : applicationAnalysis.rejectApplication ? 'Final negative outcome confirmed' : 'No rejection confirmed'} — ${applicationAnalysis.reason}${applicationAnalysis.evidence ? ` · From the email: “${applicationAnalysis.evidence}”` : ''}`
-      : analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : '';
+      : analysis ? `AI: ${analysis.purpose === 'work_task' && analysis.createTask ? 'Job-related work request' : analysis.purpose === 'uncertain' ? 'Needs your review' : analysis.purpose} — ${analysis.reason}` : pendingAssessment;
     const composeButton = $('#emailDetailComposeButton');
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;

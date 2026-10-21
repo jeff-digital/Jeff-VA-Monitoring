@@ -1089,6 +1089,10 @@
     return Boolean(sender && ownAddresses.includes(sender));
   }
 
+  function manualApplicationStatusTimestamp(existing, nextStatus, now = new Date().toISOString()) {
+    return existing && existing.status !== nextStatus ? now : existing?.manualStatusChangedAt || '';
+  }
+
   function statusPill(status) {
     return `<span class="status-pill ${STATUS_CLASS[status] || ''}">${escapeHtml(STATUS_LABELS[status] || status)}</span>`;
   }

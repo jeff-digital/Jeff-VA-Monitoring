@@ -309,6 +309,7 @@
       return;
     }
     selected.forEach(item => {
+      item.manualStatusChangedAt = manualApplicationStatusTimestamp(item, newStatus);
       item.status = newStatus;
       if (newStatus !== 'Interview') {
         item.interviewDate = '';
@@ -358,6 +359,7 @@
         : 'Complete the client activation steps to change this status.');
       return;
     }
+    item.manualStatusChangedAt = manualApplicationStatusTimestamp(item, nextStatus);
     item.status = nextStatus;
     if (nextStatus !== 'To Proceed') item.nextStep = '';
     item.interviewDate = '';
