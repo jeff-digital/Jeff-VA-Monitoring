@@ -10458,33 +10458,77 @@
   function emailAiRetryState() {
     try { return JSON.parse(localStorage.getItem(`email-task-ai-retry-v3:${currentUser?.id}`) || 'null'); } catch { return null; }
   }
+  let emailAiDetailsCloseTimer = null;
+  function closeEmailAiStatusDetails() {
+    const details = $('#emailAiStatusDetails'), trigger = $('#emailAiStatusTrigger');
+    if (details) {
+      try { details.hidePopover?.(); } catch { /* Already closed. */ }
+      details.hidden = true;
+    }
+    if (trigger) trigger.ariaExpanded = 'false';
+  }
+  function openEmailAiStatusDetails() {
+    if (!currentUser) return;
+    if (emailAiDetailsCloseTimer) clearTimeout(emailAiDetailsCloseTimer);
+    const details = $('#emailAiStatusDetails'), trigger = $('#emailAiStatusTrigger');
+    if (!details || !trigger) return;
+    details.hidden = false;
+    // Native popovers escape the inbox's rounded, clipped container. Older
+    // browsers can still use the fixed-position details panel.
+    try { details.showPopover?.(); } catch { /* Already open. */ }
+    trigger.ariaExpanded = 'true';
+    const rect = trigger.getBoundingClientRect(), size = details.getBoundingClientRect();
+    details.style.left = `${Math.max(16, Math.min(rect.right - size.width, window.innerWidth - size.width - 16))}px`;
+    details.style.top = `${Math.max(16, Math.min(rect.bottom + 8, window.innerHeight - size.height - 16))}px`;
+  }
+  function lastEmailAiCheck() {
+    let stored = '';
+    try { stored = localStorage.getItem(`email-ai-last-check:${currentUser?.id}`) || ''; } catch { /* Use saved analyses. */ }
+    const times = [stored, ...(data.emails || []).flatMap(email => [email.taskAiAnalysis?.analyzedAt, email.applicationAiAnalysis?.analyzedAt])]
+      .map(value => Date.parse(value || '')).filter(value => Number.isFinite(value) && value <= Date.now());
+    return times.length ? new Date(times.reduce((latest, time) => Math.max(latest, time), 0)).toLocaleString() : 'No successful check yet';
+  }
   function renderEmailTaskAiStatus(message) {
     const element = $('#clientEmailAiStatus');
     if (!element) return;
     element.hidden = !currentUser;
     const summary = $('#emailAiStatusSummary');
     if (summary) summary.hidden = !currentUser;
-    if (!currentUser) return;
+    if (!currentUser) { closeEmailAiStatusDetails(); return; }
+    if (summary && summary.dataset.userId !== currentUser.id) {
+      closeEmailAiStatusDetails();
+      summary.dataset.userId = currentUser.id;
+    }
     if (message) clientEmailAiStatus = { userId: currentUser.id, message };
     const retry = emailAiRetryState();
     const fullStatus = retry?.until > Date.now() ? retry.message
       : clientEmailAiStatus.userId === currentUser.id && clientEmailAiStatus.message
         ? clientEmailAiStatus.message : 'Email AI checks matched applications and active-client messages during sync.';
     const attention = retry?.until > Date.now();
-    const processing = !attention && /checking the purpose|renewing your dashboard/i.test(fullStatus);
+    const offline = navigator.onLine === false;
+    const processing = !offline && !attention && /checking the purpose|renewing your dashboard/i.test(fullStatus);
     const queued = !attention && /queued/i.test(fullStatus);
-    element.textContent = attention ? fullStatus : processing ? 'AI checking…' : queued ? 'AI queued'
+    element.textContent = offline ? 'AI offline' : attention ? 'AI needs attention' : processing ? 'AI checking…' : queued ? 'AI queued'
       : /messages checked/i.test(fullStatus) ? 'AI checked' : 'AI ready';
-    element.title = fullStatus;
+    element.title = '';
     if (summary) {
-      summary.dataset.state = attention ? 'attention' : processing ? 'processing' : queued ? 'queued' : 'ready';
-      summary.title = fullStatus;
+      summary.dataset.state = offline ? 'offline' : attention ? 'attention' : processing ? 'processing' : queued ? 'queued' : 'ready';
+      summary.title = '';
     }
+    const trigger = $('#emailAiStatusTrigger');
+    if (trigger) trigger.ariaBusy = String(processing);
+    const detailState = $('#emailAiDetailsState'), lastCheck = $('#emailAiLastCheck'), detailUsage = $('#emailAiDetailsUsage');
+    if (detailState) detailState.textContent = `${offline ? 'Offline. ' : ''}${fullStatus}`;
+    if (lastCheck) lastCheck.textContent = lastEmailAiCheck();
+    if (detailUsage) detailUsage.textContent = `${emailAiDailyUsage().requests}/40 checks`;
+    const retryRow = $('#emailAiRetryRow'), retryTime = $('#emailAiRetryTime');
+    if (retryRow) retryRow.hidden = !attention;
+    if (retryTime) retryTime.textContent = attention ? new Date(retry.until).toLocaleString() : '';
     const usage = $('#emailAiUsage');
     if (usage) {
       usage.textContent = `${emailAiDailyUsage().requests}/40`;
-      usage.title = `${emailAiDailyUsage().requests} of 40 email checks today · Resets at 8 AM (Philippines)`;
-      usage.ariaLabel = usage.title;
+      usage.title = '';
+      usage.ariaLabel = `${emailAiDailyUsage().requests} of 40 email checks today · Resets at 8 AM (Philippines)`;
     }
     const accountStatus = $('#accountEmailAiStatus');
     const accountDetails = $('#accountEmailAiDetails');
@@ -10531,7 +10575,9 @@
       usage.requests++;
       data.emailTaskAiUsage = usage;
       try { localStorage.setItem(`email-task-ai-usage:${userId}`, JSON.stringify(usage)); } catch { /* The next account save retains the usage. */ }
-      return { ...result, scanKey, analyzedAt: new Date().toISOString() };
+      const analyzedAt = new Date().toISOString();
+      try { localStorage.setItem(`email-ai-last-check:${userId}`, analyzedAt); } catch { /* Saved analyses also retain the timestamp. */ }
+      return { ...result, scanKey, analyzedAt };
     } catch (error) {
       if (currentUser?.id === userId) {
         const state = { until: Date.now() + Math.max(30, Math.min(86400, Number(error.retryAfter) || 120)) * 1000,
@@ -10676,6 +10722,28 @@
     showView('hired');
     renderHiredDetail(client);
     selectClientDetailTab('tasks');
+  }
+
+  const emailAiSummary = $('#emailAiStatusSummary'), emailAiTrigger = $('#emailAiStatusTrigger'), emailAiDetails = $('#emailAiStatusDetails');
+  emailAiSummary?.addEventListener?.('mouseenter', openEmailAiStatusDetails);
+  emailAiSummary?.addEventListener?.('focusin', openEmailAiStatusDetails);
+  emailAiTrigger?.addEventListener?.('click', openEmailAiStatusDetails);
+  emailAiSummary?.addEventListener?.('mouseleave', () => {
+    emailAiDetailsCloseTimer = setTimeout(() => {
+      if (!emailAiSummary.contains(document.activeElement)) closeEmailAiStatusDetails();
+    }, 150);
+  });
+  emailAiDetails?.addEventListener?.('mouseenter', () => { if (emailAiDetailsCloseTimer) clearTimeout(emailAiDetailsCloseTimer); });
+  emailAiSummary?.addEventListener?.('focusout', event => {
+    if (!emailAiSummary.contains(event.relatedTarget)) closeEmailAiStatusDetails();
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeEmailAiStatusDetails(); });
+  document.addEventListener('click', event => {
+    if (!emailAiSummary?.contains?.(event.target)) closeEmailAiStatusDetails();
+  });
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', closeEmailAiStatusDetails);
+    window.addEventListener('scroll', event => { if (event.target !== emailAiDetails) closeEmailAiStatusDetails(); }, true);
   }
 
   document.addEventListener('click', event => {
