@@ -7584,6 +7584,32 @@ body:has(#subscriptionsView.active) .topbar h1 { margin: 0; font-size: 24px; let
   body .sidebar .sidebar-bottom { margin-top: 4px; padding-top: 4px; }
 }
 
+/* Keep the application dashboard readable within a phone viewport. */
+@media (max-width: 640px) {
+  body:has(#dashboardView.active) #pageTitle,
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #pageTitle { font-size: 17px; line-height: 1.3; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: normal; }
+  body:has(#dashboardView.active) .topbar-copy { min-width: 0; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .weekly-report-banner { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 14px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .weekly-report-banner > div:first-child { display: grid; gap: 4px; min-width: 0; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .weekly-report-banner h2 { margin: 0; font-size: 16px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .weekly-report-banner p { margin: 0; font-size: 11px; white-space: normal; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .weekly-report-banner > .today-focus-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; width: 100%; order: 0; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .today-focus-items > span { min-width: 0; font-size: 10px; line-height: 1.4; white-space: normal; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .today-focus-items > span > strong { font-size: 15px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .today-focus-items .dashboard-weekly-goal { grid-column: 1 / -1; padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--color-border); gap: 4px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #openWeeklyReport { justify-self: start; margin: 0; padding: 0; font-size: 11px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .interview-calendar-panel { min-width: 0; min-height: 0; height: auto; margin-inline: 0; padding: 12px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .interview-calendar-panel .panel-heading { gap: 6px; flex-wrap: wrap; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .interview-calendar-panel .panel-heading h2 { font-size: 15px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .calendar-controls { gap: 2px; margin-left: auto; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .calendar-controls strong { min-width: 86px; font-size: 11px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .calendar-controls .icon-button { width: 26px; min-width: 26px; height: 28px; min-height: 28px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .interview-calendar { width: 100%; max-width: 294px; min-width: 0; min-height: 0; height: auto; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 20px repeat(6, 36px); touch-action: auto; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .calendar-weekday { padding: 0; font-size: 9px; text-align: center; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .calendar-day-number { width: 24px; height: 24px; flex-basis: 24px; font-size: 11px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .calendar-interview { min-height: 0; font-size: 9px; line-height: 12px; white-space: nowrap; }
+}
+
 /* A narrower desktop rail; keep mobile and collapsed navigation unchanged. */
 @media (min-width: 721px) {
   body:not(.sidebar-collapsed) .app-shell { grid-template-columns: 220px minmax(0, 1fr); }
