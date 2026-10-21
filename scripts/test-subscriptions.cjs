@@ -24,19 +24,11 @@ assert.equal(run("subscriptionStatus({expiryDate:'2026-10-22'}, '2026-10-22').la
 assert.equal(run("subscriptionStatus({expiryDate:'2026-10-21'}, '2026-10-22').key"), 'expired');
 assert.equal(run("subscriptionStatus({expiryDate:'2026-10-21',tracking:'cancelled'}, '2026-10-22').key"), 'cancelled');
 assert.equal(run("subscriptionStatus(null).key"), 'date-needed');
-assert.equal(run("subscriptionNextDate({expiryDate:'2028-01-31',cycle:'monthly'}, '2028-01-01')"), '2028-02-29');
-assert.equal(run("subscriptionNextDate({expiryDate:'2028-02-29',cycle:'yearly'}, '2028-01-01')"), '2029-02-28');
-assert.equal(run("subscriptionNextDate({expiryDate:'2026-01-01',cycle:'monthly'}, '2026-10-22')"), '2026-11-22');
-assert.equal(run("subscriptionNextDate({cycle:'custom'})"), '');
 assert.equal(run("Number.isNaN(subscriptionDateValue('2026-02-30'))"), true);
-for (const url of ['javascript:alert(1)', 'https://user:password@example.com', 'data:text/html,test', 'file:///etc/passwd']) {
-  context.testURL = url; assert.equal(run('subscriptionWebsite(testURL)'), null);
-}
-assert.equal(run("subscriptionWebsite('canva.com/billing')"), 'https://canva.com/billing');
-context.draft = { name: 'Canva', account: 'me@example.com', cost: '12.50', currency: 'USD', cycle: 'monthly', expiryDate: '2026-11-22', decision: 'undecided', tracking: 'active' };
-assert.equal(run('validateSubscriptionDraft(draft).value.cents'), 1250);
-for (const cost of ['0', '-1', '1.001', 'Infinity']) {
-  context.badCost = cost; assert.ok(run('validateSubscriptionDraft({...draft,cost:badCost}).error'));
+context.draft = { name: 'Canva', account: 'me@example.com', expiryDate: '2026-11-22' };
+assert.deepEqual(Array.from(run('Object.keys(validateSubscriptionDraft(draft).value)')).sort(), ['account', 'expiryDate', 'name']);
+for (const email of ['', 'not an email', 'me@', '@example.com']) {
+  context.badEmail = email; assert.ok(run('validateSubscriptionDraft({...draft,account:badEmail}).error'));
 }
 assert.ok(run("validateSubscriptionDraft(draft,[{...draft,id:'existing',name:' CANVA '}]).error"));
 assert.ok(run("validateSubscriptionDraft(draft,[{...draft,id:'existing'}],'existing').value"));
@@ -51,21 +43,27 @@ async function submit() { await $('#subscriptionForm').submit({ preventDefault()
 (async () => {
   context.data.subscriptions = [];
   run('openSubscriptionEditor()'); fill(context.draft);
-  $('#subscriptionId').value = ''; $('#subscriptionWebsite').value = ''; $('#subscriptionPlan').value = ''; $('#subscriptionNotes').value = '';
+  $('#subscriptionId').value = '';
   await submit();
-  assert.equal(context.data.subscriptions.length, 1); assert.equal(context.data.subscriptions[0].cents, 1250);
+  assert.equal(context.data.subscriptions.length, 1); assert.equal(context.data.subscriptions[0].account, 'me@example.com');
+  assert.equal(context.data.subscriptions[0].cents, undefined, 'No billing fields are required or stored for a new account');
+  $('#subscriptionFilter').value = 'all';
+  run('renderSubscriptions()');
+  assert.match($('#subscriptionList').innerHTML, /me@example.com/);
+  assert.match($('#subscriptionList').innerHTML, /End of subscription/);
+  assert.ok(!/subscription-price|subscription-decision|Billing site/.test($('#subscriptionList').innerHTML));
   assert.ok(context.data.subscriptions[0].createdAt); assert.equal($('#subscriptionEditor').open, false);
-  run("openSubscriptionEditor('sub-1')"); $('#subscriptionCost').value = '20'; saveResult = false;
-  await submit(); assert.equal(context.data.subscriptions[0].cents, 1250); assert.equal($('#subscriptionEditor').open, true);
+  run("openSubscriptionEditor('sub-1')"); $('#subscriptionAccount').value = 'updated@example.com'; saveResult = false;
+  await submit(); assert.equal(context.data.subscriptions[0].account, 'me@example.com'); assert.equal($('#subscriptionEditor').open, true);
   assert.equal($('#subscriptionFormError').hidden, false);
-  saveResult = true; await submit(); assert.equal(context.data.subscriptions[0].cents, 2000);
+  saveResult = true; await submit(); assert.equal(context.data.subscriptions[0].account, 'updated@example.com');
   run("openSubscriptionEditor('sub-1')");
-  assert.equal($('#subscriptionPanelActions').hidden, false);
-  await $('#subscriptionRecordRenewal').click();
-  assert.equal($('#subscriptionForm').dataset.mode, 'renewal');
-  assert.equal($('#subscriptionPanelActions').hidden, true);
   $('#subscriptionExpiry').value = '2030-01-01'; await submit();
-  assert.equal(context.data.subscriptions[0].expiryDate, '2030-01-01'); assert.ok(context.data.subscriptions[0].lastRenewedAt);
+  assert.equal(context.data.subscriptions[0].expiryDate, '2030-01-01');
+  // Legacy records retain saved metadata while the editor only changes the three requested fields.
+  context.data.subscriptions[0].cents = 1250;
+  run("openSubscriptionEditor('sub-1')"); $('#subscriptionName').value = 'Canva Pro'; await submit();
+  assert.equal(context.data.subscriptions[0].cents, 1250);
   run("openSubscriptionEditor('sub-1')"); saveResult = false; await $('#deleteSubscription').click();
   assert.equal(context.data.subscriptions.length, 1);
   saveResult = true; await $('#deleteSubscription').click(); assert.equal(context.data.subscriptions.length, 0);
@@ -93,5 +91,5 @@ async function submit() { await $('#subscriptionForm').submit({ preventDefault()
   context.data.subscriptions[1].tracking = 'cancelled';
   context.data.subscriptions = context.data.subscriptions.filter(item => item?.id !== 'expired');
   run('refreshGeneratedNotifications()'); assert.equal(context.data.alerts.length, 0);
-  console.log('Subscription dates, validation, save/rollback, renewal, delete, account isolation, and expiry reminders passed.');
+  console.log('Three-field subscriptions passed: email/date validation, duplicate checks, cards, save/rollback, end-date editing, legacy data preservation, delete, account isolation, and expiry reminders.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
