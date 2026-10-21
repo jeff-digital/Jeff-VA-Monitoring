@@ -2359,7 +2359,7 @@
     const filterChips = [
       query ? ['search', `Search: ${query}`] : null,
       dateFilter ? ['date', `Date: ${emailDate(dateFilter)}`] : null,
-      status ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
+      status && status !== 'Applied' ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
       platform ? ['platform', `Source: ${platform}`] : null,
       applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
@@ -2371,7 +2371,7 @@
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
-    $('#clearApplicationFilters').hidden = filterChips.length === 0;
+    $('#clearApplicationFilters').hidden = filterChips.length === 0 && applicationDateSort !== '0' && status !== 'Applied';
     $$('[data-application-view]').forEach(button => {
       const selected = button.dataset.applicationView === applicationViewMode;
       button.classList.toggle('active', selected);
@@ -8579,13 +8579,13 @@
     button.addEventListener('click', () => {
       const filter = button.dataset.applicationQuickFilter;
       if (filter === 'week') {
-        applicationDateSort = '0';
+        applicationDateSort = applicationDateSort === '0' ? 'all' : '0';
         applicationDateFilter = '';
         $('#applicationDateFilter').value = '';
-        $('#applicationDateSort').value = '0';
+        $('#applicationDateSort').value = applicationDateSort;
       }
       if (filter === 'applied') {
-        $('#statusFilter').value = 'Applied';
+        $('#statusFilter').value = $('#statusFilter').value === 'Applied' ? '' : 'Applied';
       }
       renderApplications();
       updateWeekNavigationCounts();

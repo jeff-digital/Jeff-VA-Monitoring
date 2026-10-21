@@ -250,13 +250,13 @@
     button.addEventListener('click', () => {
       const filter = button.dataset.applicationQuickFilter;
       if (filter === 'week') {
-        applicationDateSort = '0';
+        applicationDateSort = applicationDateSort === '0' ? 'all' : '0';
         applicationDateFilter = '';
         $('#applicationDateFilter').value = '';
-        $('#applicationDateSort').value = '0';
+        $('#applicationDateSort').value = applicationDateSort;
       }
       if (filter === 'applied') {
-        $('#statusFilter').value = 'Applied';
+        $('#statusFilter').value = $('#statusFilter').value === 'Applied' ? '' : 'Applied';
       }
       renderApplications();
       updateWeekNavigationCounts();

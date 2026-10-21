@@ -394,8 +394,11 @@
               <label class="application-filter-field"><span><i class="fa-solid fa-globe" aria-hidden="true"></i> Source</span><select id="platformFilter"><option value="">All sources</option></select></label>
             </div>
             <div class="application-filter-footer">
+              <div class="application-quick-filters" role="group" aria-label="Quick application filters">
+                <button class="application-quick-filter" type="button" data-application-quick-filter="week" aria-pressed="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i><span>This week</span><i class="fa-solid fa-check application-quick-filter-check" aria-hidden="true"></i></button>
+                <button class="application-quick-filter" type="button" data-application-quick-filter="applied" aria-pressed="false"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i><span>Applied</span><i class="fa-solid fa-check application-quick-filter-check" aria-hidden="true"></i></button>
+              </div>
               <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
-              <div class="application-quick-filters" role="group" aria-label="Quick application filters"><button class="button button-ghost" type="button" data-application-quick-filter="week">This week</button><button class="button button-ghost" type="button" data-application-quick-filter="applied">Applied</button></div>
               <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
               <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
               <div class="application-view-toggle" role="group" aria-label="Application view">

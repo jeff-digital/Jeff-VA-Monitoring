@@ -4530,9 +4530,18 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .w
 .filter-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 4px 9px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-neutral-50); color: var(--color-text-primary); font-size: 12px; }
 .filter-chip:hover { background: var(--color-primary-soft); }
 .application-view-toggle { display: flex; gap: 4px; margin-left: auto; }
-.application-quick-filters { display: flex; align-items: center; gap: 5px; }
-.application-quick-filters .button { min-height: 30px; padding: 5px 10px; border-color: #e0e5df; color: #68746b; font-size: 11px; }
-.application-quick-filters .button:hover, .application-quick-filters .button.active { border-color: #a5b8a8; background: #edf5ee; color: #31543b; }
+.application-quick-filters { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+.application-quick-filter { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 4px 9px; border: 1px solid #dfe4eb; border-radius: 999px; background: #fff; color: #667085; font: inherit; font-size: 11px; font-weight: 600; line-height: 1.4; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.application-quick-filter > i { font-size: 10px; }
+.application-quick-filter .application-quick-filter-check { width: 10px; visibility: hidden; font-size: 9px; }
+.application-quick-filter:hover { background: #f5f7fa; border-color: #bbc5d3; color: #344054; }
+.application-quick-filter[aria-pressed="true"] { border-color: #b9d0c0; background: #edf5ef; color: #315c40; }
+.application-quick-filter[aria-pressed="true"] .application-quick-filter-check { visibility: visible; }
+.application-quick-filter:focus-visible { outline: 2px solid #698b73; outline-offset: 2px; }
+#applicationsView .application-filter-chips:empty { gap: 0; }
+#applicationsView .filter-chip { min-height: 28px; padding: 4px 8px; gap: 5px; font-size: 11px; }
+@media (pointer: coarse) { .application-quick-filter { min-height: 36px; padding: 6px 10px; } }
+@media (prefers-reduced-motion: reduce) { .application-quick-filter { transition: none; } }
 .application-filter-footer > #clearApplicationFilters { margin-left: auto; }
 .application-filter-footer > #toggleApplicationSelection { flex: 0 0 auto; min-height: 32px; padding: 5px 12px; white-space: nowrap; }
 .application-filter-footer > .application-view-toggle { margin-left: 0; }
@@ -4624,6 +4633,7 @@ html:has(#applicationActionsPanel[open]) { scrollbar-gutter: auto; }
   .today-focus-items .dashboard-weekly-goal { padding-left: 0; border-left: 0; }
   .application-filter-footer { flex-wrap: wrap; }
   .application-filter-chips { order: 3; flex-basis: 100%; }
+  #applicationsView .application-filter-chips:empty { display: none; }
   .application-view-toggle { margin-left: auto; }
   .application-bulk-bar { flex-wrap: wrap; }
   .application-bulk-bar > span { flex-basis: 100%; }
