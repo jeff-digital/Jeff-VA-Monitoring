@@ -1278,15 +1278,15 @@
       return;
     }
     const currentDate = today();
-    target.innerHTML = `<div class="to-apply-list-head"><span><i class="fa-regular fa-bookmark" aria-hidden="true"></i> Opportunity</span><span>Deadline</span><span>Manage</span></div>${reminders.map(item => {
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table to-apply-data-table"><thead><tr><th scope="col">Opportunity</th><th scope="col">Deadline</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${reminders.map(item => {
       const overdue = item.dueDate < currentDate;
       const dueToday = item.dueDate === currentDate;
-      return `<article class="to-apply-row${overdue ? ' overdue' : dueToday ? ' due-today' : ''}">
-        <div class="to-apply-title"><strong>${escapeHtml(item.title)}</strong><a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener">${escapeHtml(item.link)}</a></div>
-        <time class="to-apply-date"><span>${overdue ? 'Missed' : dueToday ? 'Apply today' : 'Apply by'}</span>${escapeHtml(formatDate(item.dueDate))}</time>
-        <div class="to-apply-actions"><button class="button button-secondary to-apply-actions-trigger" type="button" data-to-apply-actions="${escapeHtml(item.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(item.title)}">Actions</button></div>
-      </article>`;
-    }).join('')}`;
+      return `<tr class="to-apply-data-row${overdue ? ' overdue' : dueToday ? ' due-today' : ''}">
+        <td><strong>${escapeHtml(item.title)}</strong><a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(item.link)}">${escapeHtml(item.link)}</a></td>
+        <td><time datetime="${escapeHtml(item.dueDate)}">${escapeHtml(formatDate(item.dueDate))}</time>${overdue || dueToday ? `<small class="to-apply-deadline-status">${overdue ? 'Missed' : 'Apply today'}</small>` : ''}</td>
+        <td><button class="icon-button to-apply-actions-trigger" type="button" data-to-apply-actions="${escapeHtml(item.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(item.title)}">⋯</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
   }
 
   function processDueApplyReminders() {

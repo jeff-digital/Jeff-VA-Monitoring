@@ -7256,3 +7256,52 @@ body:has(#subscriptionsView.active) .topbar h1 { margin: 0; font-size: 24px; let
   #subscriptionsView .subscriptions-grid:has(.subscriptions-empty) { display: flex; }
   #subscriptionsView .subscriptions-empty { flex: 1; min-width: 0; min-height: 0; align-self: stretch; }
 }
+
+/* To Apply uses the same compact records layout as Applications. */
+#toApplyView .to-apply-workspace-head { padding: 0 0 12px; gap: 12px; }
+#toApplyView .to-apply-count-card { min-width: 0; padding: 4px 0 4px 14px; background: transparent; }
+#toApplyView .to-apply-head-actions { display: flex; }
+#toApplyView .to-apply-add-button { min-height: 32px; padding: 7px 12px; font-size: 11px; line-height: 1.4; box-shadow: none; }
+#toApplyView .to-apply-filters { display: flex; align-items: end; gap: 12px; margin: 10px 0; padding: 0 0 10px; border-bottom: 1px solid var(--workspace-line); background: transparent; box-shadow: none; }
+#toApplyView .application-search-field { max-width: 460px; min-width: 0; height: 32px; }
+#toApplyView .application-search-field input { font-size: 12px; }
+#toApplyView .to-apply-filter-controls { display: flex; margin-left: auto; }
+#toApplyView .application-filter-field { min-width: 180px; gap: 4px; font-size: 10px; }
+#toApplyView .application-filter-field select { min-height: 32px; height: 32px; padding: 5px 9px; font-size: 11px; }
+#toApplyView .to-apply-page-panel { min-width: 0; min-height: 180px; border: 1px solid var(--color-border); border-radius: 9px; background: #fff; box-shadow: none; }
+#toApplyView .to-apply-list { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0; }
+#toApplyView .application-table-wrap { width: 100%; max-width: 100%; min-width: 0; overflow-x: clip; }
+#toApplyView .to-apply-list.is-empty { display: flex; min-height: 160px; }
+#toApplyView .to-apply-data-table { display: table; width: 100%; max-width: 100%; min-width: 0; table-layout: fixed; }
+#toApplyView .to-apply-data-table thead { display: table-header-group; }
+#toApplyView .to-apply-data-table tbody { display: table-row-group; }
+#toApplyView .to-apply-data-table tr { display: table-row; width: auto; }
+#toApplyView .to-apply-data-table th { padding: 8px 10px; font-size: 10px; }
+#toApplyView .to-apply-data-table th:nth-child(2) { width: 145px; }
+#toApplyView .to-apply-data-table th:last-child { width: 48px; }
+#toApplyView .to-apply-data-table td { display: table-cell; position: static; width: auto; min-width: 0; overflow-wrap: anywhere; padding: 6px 10px; font-size: 11.5px; line-height: 1.35; vertical-align: middle; border-top: 1px solid var(--color-border); }
+#toApplyView .to-apply-data-table td strong { font-size: 11.5px; font-weight: 650; overflow-wrap: anywhere; }
+#toApplyView .to-apply-data-table td a { display: block; max-width: 100%; margin-top: 2px; overflow: hidden; color: var(--workspace-accent); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+#toApplyView .to-apply-data-table td small { margin-top: 2px; font-size: 10px; }
+#toApplyView .to-apply-data-row.overdue, #toApplyView .to-apply-data-row.due-today { background: #fff9f3; }
+#toApplyView .to-apply-deadline-status { color: #9b6336; }
+#toApplyView .to-apply-actions-trigger { width: 28px; min-width: 28px; max-width: 28px; height: 28px; min-height: 28px; padding: 0; font-size: 15px; }
+@media (max-width: 640px) {
+  #toApplyView .to-apply-filters { flex-wrap: wrap; }
+  #toApplyView .application-search-field { flex: 1 1 100%; max-width: none; }
+  #toApplyView .to-apply-filter-controls { margin-left: 0; }
+  #toApplyView .to-apply-data-table th:nth-child(2) { width: 105px; }
+  #toApplyView .to-apply-data-table th:last-child { width: 40px; }
+  #toApplyView .to-apply-data-table th, #toApplyView .to-apply-data-table td { padding-inline: 6px; }
+  #toApplyView .to-apply-data-table td a { white-space: normal; overflow-wrap: anywhere; }
+}
+@media (min-width: 1100px) {
+  body:has(#toApplyView.active) { height: 100dvh; overflow: hidden; }
+  body:has(#toApplyView.active) .app-shell { height: 100dvh; min-height: 0; }
+  body:has(#toApplyView.active) .content { display: grid; grid-template-rows: 56px minmax(0, 1fr); gap: 12px; height: 100dvh; min-height: 0; padding: 12px 24px 16px; overflow: hidden; }
+  body:has(#toApplyView.active) .topbar { height: 56px; min-height: 0; margin: 0; }
+  #toApplyView.active { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+  #toApplyView .to-apply-page-panel { height: auto; min-height: 0; }
+  #toApplyView .to-apply-page-panel .to-apply-list { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; }
+  #toApplyView .to-apply-data-table thead th { position: sticky; top: 0; z-index: 1; }
+}
