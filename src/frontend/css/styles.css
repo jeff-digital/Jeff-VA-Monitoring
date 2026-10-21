@@ -7305,3 +7305,115 @@ body:has(#subscriptionsView.active) .topbar h1 { margin: 0; font-size: 24px; let
   #toApplyView .to-apply-page-panel .to-apply-list { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; }
   #toApplyView .to-apply-data-table thead th { position: sticky; top: 0; z-index: 1; }
 }
+
+/* Phone-only density and placement; desktop styles and behavior stay intact. */
+@media (max-width: 640px) {
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .content { padding: 8px 12px 20px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; padding: 4px 0; margin-bottom: 12px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) #pageTitle { font-size: 19px; white-space: normal; overflow: visible; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .page-context { font-size: 10px; line-height: 1.4; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar-title-area { min-width: 0; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .mobile-menu { width: 28px; min-width: 28px; height: 34px; padding: 0; font-size: 20px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; max-width: 174px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar-actions .button { min-height: 32px; padding: 6px 8px; font-size: 10px; white-space: nowrap; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .global-search-trigger { width: 30px; min-width: 30px; }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .notification-button { width: 30px; min-width: 30px; height: 32px; min-height: 32px; }
+  #applicationsView .application-workspace-head { padding-bottom: 8px; }
+  #applicationsView #applicationListLabel { font-size: 11px; }
+  #applicationsView .application-filters, #inboxView .email-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 8px 0; padding: 0 0 8px; }
+  #applicationsView .application-filter-controls, #inboxView .email-filter-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; min-width: 0; }
+  #applicationsView .application-filter-controls > label:last-child { grid-column: 1 / -1; }
+  #applicationsView .application-filter-field, #inboxView .application-filter-field { min-width: 0; gap: 4px; font-size: 10px; }
+  #applicationsView .application-filter-field > span, #inboxView .application-filter-field > span { font-size: 10px; line-height: 1.3; }
+  #applicationsView .application-filter-field input, #applicationsView .application-filter-field select,
+  #inboxView .application-filter-field input, #inboxView .application-filter-field select { box-sizing: border-box; width: 100%; min-width: 0; height: 32px; min-height: 32px; padding: 5px 7px; font-size: 12px; line-height: 1.3; }
+  #applicationsView .application-search-field, #inboxView .application-search-field { min-width: 0; max-width: none; height: 34px; padding: 0 9px; }
+  #applicationsView .application-search-field input, #inboxView .application-search-field input { min-width: 0; font-size: 12px; }
+  #applicationsView .application-filter-footer { gap: 6px; flex-wrap: wrap; }
+  #applicationsView .application-filter-footer .button, #applicationsView #clearApplicationFilters { min-height: 30px; padding: 5px 7px; font-size: 10px; }
+  #applicationsView .application-table-wrap { overflow: visible; }
+  #applicationsView .application-data-table { display: block; width: 100%; min-width: 0; }
+  #applicationsView .application-data-table thead { display: none; }
+  #applicationsView .application-data-table tbody { display: grid; width: 100%; padding: 0; gap: 0; }
+  #applicationsView .application-list .application-data-table tbody tr { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 12px; width: 100%; padding: 10px; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; }
+  #applicationsView .application-data-table td { display: block; width: auto; min-width: 0; padding: 0; border: 0; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+  #applicationsView .application-list .application-data-table td:first-child { grid-column: 1 / -1; grid-row: auto; min-width: 0; padding-right: 36px; }
+  #applicationsView .application-data-table td strong { font-size: 12px; }
+  #applicationsView .application-data-table td small { font-size: 10px; }
+  #applicationsView .application-data-table td:last-child { position: absolute; top: 8px; right: 8px; width: 30px; }
+  #applicationsView .application-list.selection-mode .application-data-table td:first-child { position: absolute; top: 11px; left: 10px; width: 18px; padding: 0; }
+  #applicationsView .application-list.selection-mode .application-data-table td:nth-child(2) { grid-column: 1 / -1; padding-left: 25px; padding-right: 36px; }
+  #applicationsView .application-list:not(.selection-mode) td:nth-child(4)::before,
+  #applicationsView .application-list.selection-mode td:nth-child(5)::before { content: 'Salary · '; color: #8893a1; font-size: 9px; }
+  #applicationsView .application-list:not(.selection-mode) td:nth-child(5)::before,
+  #applicationsView .application-list.selection-mode td:nth-child(6)::before { content: 'Applied · '; color: #8893a1; font-size: 9px; }
+  #applicationsView .application-list:not(.selection-mode) td:nth-child(6)::before,
+  #applicationsView .application-list.selection-mode td:nth-child(7)::before { content: 'Follow-up · '; color: #8893a1; font-size: 9px; }
+  #applicationsView .application-data-table .status-pill { min-height: 0; font-size: 10px; padding: 3px 6px; }
+
+  #inboxView .email-panel-heading { gap: 8px; padding: 10px; }
+  #inboxView .email-panel-heading-actions { margin-left: auto; }
+  #inboxView .email-view-tab, #inboxView .email-panel-heading-actions .button { min-height: 30px; padding: 5px 7px; font-size: 10px; }
+  #inboxView .email-header-status-group { gap: 5px; }
+  #inboxView .email-status-chip { min-height: 24px; padding: 3px 6px; font-size: 10px; }
+  #inboxView .email-filters { padding-inline: 10px; }
+  #inboxView .email-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 60px; gap: 4px 8px; align-items: start; padding: 10px; min-width: 0; }
+  #inboxView .email-selection-mode .email-row { grid-template-columns: 16px 28px minmax(0, 1fr) 60px; }
+  #inboxView .email-avatar { grid-column: 1; grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; border-radius: 6px; }
+  #inboxView .email-selection-mode .email-avatar { grid-column: 2; }
+  #inboxView .email-select-checkbox { grid-column: 1; grid-row: 1 / span 2; width: 14px; height: 14px; margin-top: 6px; }
+  #inboxView .email-row-content { grid-column: 2; grid-row: 1; min-width: 0; gap: 3px; }
+  #inboxView .email-selection-mode .email-row-content { grid-column: 3; }
+  #inboxView .email-sender-line { min-width: 0; gap: 4px; align-items: start; }
+  #inboxView .email-from { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow: hidden; overflow-wrap: anywhere; font-size: 12px; line-height: 1.35; }
+  #inboxView .email-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow: hidden; overflow-wrap: anywhere; font-size: 11px; line-height: 1.45; }
+  #inboxView .email-subject, #inboxView .email-snippet { font-size: 11px; line-height: 1.45; }
+  #inboxView .client-match-tag { flex-shrink: 0; min-width: 15px; height: 16px; padding: 0 3px; font-size: 9px; }
+  #inboxView .email-row .email-date { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; gap: 2px 6px; min-width: 0; margin: 1px 0 0; font-size: 9px; line-height: 1.4; text-align: left; white-space: normal; }
+  #inboxView .email-row .email-time { font-size: 9px; }
+  #inboxView .email-selection-mode .email-date { grid-column: 3; }
+  #inboxView .email-row .email-row-actions { grid-column: 3; grid-row: 1 / span 2; display: flex; justify-content: flex-end; align-self: start; }
+  #inboxView .email-selection-mode .email-row-actions { grid-column: 4; }
+  #inboxView .email-actions-trigger { box-sizing: border-box; width: 60px; min-width: 0; min-height: 30px; padding: 5px 6px; font-size: 10px; line-height: 1.4; }
+  #inboxView .email-actions-menu { right: 0; left: auto; min-width: 150px; }
+
+  html:has(#weeklyReportModal[open]) { overflow: hidden; scrollbar-gutter: auto; }
+  #weeklyReportModal { position: fixed; inset: 0; width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; padding: 0; border: 0; border-radius: 0; overflow: hidden; }
+  #weeklyReportModal > .weekly-report-form { display: block; width: 100%; height: 100%; max-height: 100%; min-height: 0; margin: 0; padding: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; }
+  #weeklyReportModal .weekly-report-header { position: sticky; top: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto 30px; gap: 8px; min-height: 0; padding: 12px; }
+  #weeklyReportModal .weekly-report-header-title { grid-column: 1 / 3; grid-row: 1; min-width: 0; margin: 0; padding-right: 0; }
+  #weeklyReportModal .weekly-report-header-title .eyebrow { font-size: 9px; margin: 0 0 3px; }
+  #weeklyReportModal .weekly-report-header-title h2 { font-size: 18px; }
+  #weeklyReportModal .weekly-report-date { margin: 4px 0 0; font-size: 11px; white-space: normal; }
+  #weeklyReportModal .weekly-report-close { position: static; grid-column: 3; grid-row: 1; width: 30px; min-width: 30px; height: 32px; min-height: 32px; align-self: start; font-size: 20px; }
+  #weeklyReportModal .weekly-report-status { grid-column: 1; grid-row: 2; justify-self: start; padding: 4px 7px; font-size: 10px; }
+  #weeklyReportModal .weekly-report-download-menu { grid-column: 2 / 4; grid-row: 2; margin: 0; justify-self: end; }
+  #weeklyReportModal .weekly-report-download-menu > .button { min-height: 30px; padding: 5px 9px; font-size: 11px; }
+  #weeklyReportModal .weekly-report-week-controls { grid-column: 1 / -1; grid-row: 3; display: grid; grid-template-columns: 28px 28px minmax(0, 1fr) auto; width: 100%; min-width: 0; gap: 4px; }
+  #weeklyReportModal .weekly-report-week-controls .icon-button { width: 28px; min-width: 28px; height: 32px; min-height: 32px; padding: 0; font-size: 20px; }
+  #weeklyReportModal .weekly-report-week-controls select { width: 100%; max-width: 100%; min-width: 0; height: 32px; min-height: 32px; padding: 4px; font-size: 10px; }
+  #weeklyReportModal .weekly-report-week-controls .button { min-height: 32px; padding: 4px 6px; font-size: 9px; }
+  #weeklyReportModal .weekly-report-nav { position: sticky; top: var(--weekly-report-header-height, 150px); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px 10px; gap: 3px; overflow: visible; }
+  #weeklyReportModal .weekly-report-nav button { min-width: 0; min-height: 28px; padding: 5px 3px; font-size: 9.5px; }
+  #weeklyReportModal .weekly-report-content { min-height: 0; padding: 12px; }
+  #weeklyReportModal .weekly-report-content::after { height: 120px; min-height: 0; }
+  #weeklyReportModal .weekly-report-section { scroll-margin-top: 12px; padding-bottom: 18px; }
+  #weeklyReportModal .weekly-report-section-title { margin-bottom: 10px; }
+  #weeklyReportModal .weekly-report-section-title .eyebrow { font-size: 9px; }
+  #weeklyReportModal .weekly-report-section-title h3 { font-size: 16px; }
+  #weeklyReportModal .weekly-report-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #weeklyReportModal .weekly-report-stat-card { min-height: 0; padding: 10px; gap: 6px; border-radius: 8px; }
+  #weeklyReportModal .weekly-report-stat-card > span:first-child { font-size: 11px; }
+  #weeklyReportModal .weekly-report-stat-card > strong { font-size: 23px; }
+  #weeklyReportModal .weekly-report-change { font-size: 10px; }
+  #weeklyReportModal .weekly-report-overview-grid { gap: 10px; margin-top: 10px; }
+  #weeklyReportModal .weekly-report-card { padding: 10px; border-radius: 8px; }
+  #weeklyReportModal .weekly-report-section-heading h4 { font-size: 12px; }
+  #weeklyReportModal .weekly-report-section-heading > span { font-size: 10px; }
+  #weeklyReportModal .weekly-report-table { min-width: 0; table-layout: fixed; }
+  #weeklyReportModal .weekly-report-table th, #weeklyReportModal .weekly-report-table td { padding: 7px 5px; font-size: 10px; overflow-wrap: anywhere; white-space: normal; }
+}
+@media (max-width: 360px) {
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar { grid-template-columns: 28px minmax(0, 1fr); }
+  body:has(:is(#applicationsView, #inboxView, #toApplyView).active) .topbar-actions { grid-column: 1 / -1; width: 100%; max-width: none; }
+}
