@@ -1055,6 +1055,8 @@
   }
 
   function alertNewMatches(newEmails, { showNotice = true, createdTasks = [] } = {}) {
+    const matchTypeFor = app => app.status === 'Active client'
+      ? (isContractEnded(app) ? 'Ended client' : 'Active client') : 'Application';
     const matches = [];
     newEmails.forEach(emailItem => {
       if (isSentEmail(emailItem)) return;
@@ -1083,7 +1085,7 @@
     }
 
     unique.forEach(({ emailItem, app }) => {
-      if (isEmailTaskActiveClient(app)) return;
+      if (app.status === 'Active client') return;
       if (!isInterviewEmail(emailItem)) return;
       const interviewDate = interviewDateFromEmail(emailItem);
       const sameDay = Boolean(interviewDate && app.interviewDate && interviewDate === app.interviewDate);
@@ -1096,13 +1098,14 @@
     unique.forEach(({ emailItem, app }) => {
       const alertId = `${emailItem.gmailId || emailItem.id}|${app.id}`;
       if (!data.alerts.some(alert => alert.id === alertId)) {
-        const activeClient = isEmailTaskActiveClient(app);
-        const interview = !activeClient && isInterviewEmail(emailItem);
+        const clientRecord = app.status === 'Active client';
+        const interview = !clientRecord && isInterviewEmail(emailItem);
         const interviewDate = interviewDateFromEmail(emailItem);
         const sameDay = Boolean(app.interviewSameDay);
         data.alerts.unshift({
           id: alertId,
-          type: activeClient ? 'active-client-email' : 'application-email',
+          type: clientRecord ? 'active-client-email' : 'application-email',
+          matchType: matchTypeFor(app),
           applicationId: app.id,
           emailId: emailItem.id,
           taskId: createdTasks.find(task => task.clientId === app.id && task.sourceEmailId === emailItem.id)?.id || '',
@@ -1119,15 +1122,27 @@
     saveClientEmailNotifications(pendingEmails);
     renderAlerts();
 
+    const categories = ['Application', 'Active client', 'Ended client'].map(label => ({
+      label, count: new Set(unique.filter(({ app }) => matchTypeFor(app) === label).map(({ app }) => app.id)).size
+    })).filter(category => category.count);
+    const emailCount = new Set(unique.map(({ emailItem }) => emailItem.gmailId || emailItem.id)).size;
+    const mixed = categories.length > 1;
+    const category = categories[0].label;
+    const matchSummary = mixed
+      ? `${plural(emailCount, 'new email')} matched to ${categories.map(item => plural(item.count, item.label.toLowerCase())).join(' and ')}.`
+      : `${plural(emailCount, 'new email')} matched to your ${category.toLowerCase()}s.`;
     if (showNotice) showActionResult({
-      title: unique.length === 1 && isEmailTaskActiveClient(unique[0].app)
-        ? `${unique[0].app.contact || unique[0].app.clientName || 'Your client'} sent you an email` : 'New client email',
-      message: `${plural(unique.length, 'new email')} matched to your applications or active clients.${createdTasks.length ? ` ${plural(createdTasks.length, 'task')} created automatically from work requests.` : ''}`,
+      title: mixed ? `New ${categories.map(item => item.label.toLowerCase()).join(' and ')} emails`
+        : category !== 'Application' && unique.length === 1
+          ? `${category}: ${unique[0].app.contact || unique[0].app.clientName || 'Your client'} sent you an email`
+          : `New ${category.toLowerCase()} email${emailCount === 1 ? '' : 's'}`,
+      message: `${matchSummary}${createdTasks.length ? ` ${plural(createdTasks.length, 'task')} created automatically from work requests.` : ''}`,
       status: 'info',
-      label: 'CLIENT EMAIL ALERT',
+      label: mixed ? 'MATCHED EMAIL ALERT' : category === 'Application' ? 'APPLICATION EMAIL ALERT' : category === 'Ended client' ? 'ENDED CLIENT EMAIL ALERT' : 'CLIENT EMAIL ALERT',
       actionLabel: 'Open inbox',
       details: unique.map(({ emailItem, app }) => ({
         clientName: app.clientName,
+        matchType: matchTypeFor(app),
         subject: emailItem.subject || '(No subject)',
         from: emailItem.from || 'Unknown sender',
         date: emailItem.date || '',

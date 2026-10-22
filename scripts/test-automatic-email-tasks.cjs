@@ -47,6 +47,7 @@ const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, cur
   activeClientsMatchingSender: email => context.isSentEmail(email) ? [] : context.data.applications.filter(app =>
     app.status === 'Active client' && app.contractStatus !== 'Contract Ended' && email.from === app.email),
   isEmailTaskActiveClient: app => app.status === 'Active client' && app.contractStatus !== 'Contract Ended',
+  isContractEnded: app => app.contractStatus === 'Contract Ended',
   matchApplicationsForEmail: email => context.activeClientsMatchingSender(email),
   isDirectClientApplication: () => false, extractEmailAddress: value => value, isEmailAddress: value => value.includes('@'),
   emailContentText: value => value.trim(), gmailMessageBody: payload => payload.body,

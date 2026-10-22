@@ -137,6 +137,13 @@
       const item = document.createElement('article');
       item.className = 'client-email-alert-item';
       item.setAttribute('role', 'listitem');
+      if (detail.matchType) {
+        const category = document.createElement('span');
+        category.className = 'client-email-alert-category';
+        category.dataset.kind = detail.matchType === 'Active client' ? 'active-client' : detail.matchType === 'Ended client' ? 'ended-client' : 'application';
+        category.textContent = detail.matchType;
+        item.append(category);
+      }
 
       const heading = document.createElement('div');
       heading.className = 'client-email-alert-heading';
@@ -2322,6 +2329,22 @@
     ));
   }
 
+  function applicationFollowUpState(item) {
+    const scheduledDate = dateKey(item.followUpDate);
+    const sentDate = dateKey(item.followUpSentAt);
+    if (sentDate && (!scheduledDate || sentDate >= scheduledDate)) return 'sent';
+    if (scheduledDate === today() && !['Active client', 'Not selected'].includes(item.status)) return 'due';
+    return '';
+  }
+
+  function applicationFollowUpMarkup(item) {
+    const state = applicationFollowUpState(item);
+    const date = state === 'sent' ? dateKey(item.followUpSentAt) : dateKey(item.followUpDate);
+    if (!date) return '—';
+    const label = state === 'sent' ? 'Follow-up sent successfully' : state === 'due' ? 'Follow-up due today — not sent yet' : 'Scheduled follow-up';
+    return `<span class="application-follow-up${state ? ` is-${state}` : ''}" title="${escapeHtml(label)}"><span>${escapeHtml(emailDate(date))}</span>${state === 'sent' ? '<span class="follow-up-check" aria-label="Sent successfully">✓</span>' : state === 'due' ? '<span class="follow-up-due-label">Due today</span>' : ''}</span>`;
+  }
+
   function renderApplications() {
     const query = $('#applicationSearch').value.trim().toLowerCase();
     const status = $('#statusFilter').value;
@@ -2402,7 +2425,7 @@
       const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
         : '—';
-      return `<tr data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${item.followUpDate ? escapeHtml(emailDate(item.followUpDate)) : '—'}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
+      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
@@ -2611,7 +2634,7 @@
       const sentTime = emailTime(item.date);
       const selectionLabel = platformName ? `${platformName} email` : (item.subject || 'email');
       const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}" />` : '';
-      const previewMarkup = platformName ? '' : `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
+      const previewMarkup = `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
       return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
@@ -3352,12 +3375,40 @@
     }
   }
 
+  const inboxSeenEmailIds = new Map();
+
+  function updateInboxAttention() {
+    const dot = $('#navEmailNewDot');
+    if (!dot) return;
+    if (!currentUser?.id || !dataReady || !supabaseDataLoaded) {
+      dot.hidden = true;
+      return;
+    }
+    const userId = currentUser.id;
+    const key = `jeff-va-inbox-seen-v1:${userId}`;
+    const ids = receivedEmails().map(item => String(item.gmailId || item.id || '')).filter(Boolean);
+    if (!inboxSeenEmailIds.has(userId)) {
+      let saved;
+      try { saved = JSON.parse(localStorage.getItem(key)); } catch {}
+      inboxSeenEmailIds.set(userId, Array.isArray(saved) ? new Set(saved) : null);
+    }
+    // Establish a baseline once; opening the inbox acknowledges every received
+    // message regardless of the currently selected date or Sent/Received tab.
+    if (!inboxSeenEmailIds.get(userId) || activeView === 'inbox') {
+      inboxSeenEmailIds.set(userId, new Set(ids));
+      try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
+    }
+    const seen = inboxSeenEmailIds.get(userId);
+    dot.hidden = !ids.some(id => !seen.has(id));
+  }
+
   function renderAll() {
     // perf: keep match caches until the application snapshot changes, instead of blowing them away on every rerender.
     invalidateApplicationMatchCaches();
     processContractEndedAlerts();
     renderCurrentView();
     updateWeekNavigationCounts();
+    updateInboxAttention();
     $('#navToApplyCount').textContent = (data.toApply || []).filter(item => item.dueDate === today()).length;
     updateToApplyAttention();
     $('#navHiredCount').textContent = hiredClients().filter(isActiveContract).length;
@@ -3389,6 +3440,7 @@
     }
     localStorage.setItem(ACTIVE_VIEW_KEY, view);
     activeView = view;
+    updateInboxAttention();
     if (view === 'applications') {
       applicationDateSort = '0';
       applicationDateFilter = '';
@@ -5131,6 +5183,8 @@
   }
 
   function alertNewMatches(newEmails, { showNotice = true, createdTasks = [] } = {}) {
+    const matchTypeFor = app => app.status === 'Active client'
+      ? (isContractEnded(app) ? 'Ended client' : 'Active client') : 'Application';
     const matches = [];
     newEmails.forEach(emailItem => {
       if (isSentEmail(emailItem)) return;
@@ -5159,7 +5213,7 @@
     }
 
     unique.forEach(({ emailItem, app }) => {
-      if (isEmailTaskActiveClient(app)) return;
+      if (app.status === 'Active client') return;
       if (!isInterviewEmail(emailItem)) return;
       const interviewDate = interviewDateFromEmail(emailItem);
       const sameDay = Boolean(interviewDate && app.interviewDate && interviewDate === app.interviewDate);
@@ -5172,13 +5226,14 @@
     unique.forEach(({ emailItem, app }) => {
       const alertId = `${emailItem.gmailId || emailItem.id}|${app.id}`;
       if (!data.alerts.some(alert => alert.id === alertId)) {
-        const activeClient = isEmailTaskActiveClient(app);
-        const interview = !activeClient && isInterviewEmail(emailItem);
+        const clientRecord = app.status === 'Active client';
+        const interview = !clientRecord && isInterviewEmail(emailItem);
         const interviewDate = interviewDateFromEmail(emailItem);
         const sameDay = Boolean(app.interviewSameDay);
         data.alerts.unshift({
           id: alertId,
-          type: activeClient ? 'active-client-email' : 'application-email',
+          type: clientRecord ? 'active-client-email' : 'application-email',
+          matchType: matchTypeFor(app),
           applicationId: app.id,
           emailId: emailItem.id,
           taskId: createdTasks.find(task => task.clientId === app.id && task.sourceEmailId === emailItem.id)?.id || '',
@@ -5195,15 +5250,27 @@
     saveClientEmailNotifications(pendingEmails);
     renderAlerts();
 
+    const categories = ['Application', 'Active client', 'Ended client'].map(label => ({
+      label, count: new Set(unique.filter(({ app }) => matchTypeFor(app) === label).map(({ app }) => app.id)).size
+    })).filter(category => category.count);
+    const emailCount = new Set(unique.map(({ emailItem }) => emailItem.gmailId || emailItem.id)).size;
+    const mixed = categories.length > 1;
+    const category = categories[0].label;
+    const matchSummary = mixed
+      ? `${plural(emailCount, 'new email')} matched to ${categories.map(item => plural(item.count, item.label.toLowerCase())).join(' and ')}.`
+      : `${plural(emailCount, 'new email')} matched to your ${category.toLowerCase()}s.`;
     if (showNotice) showActionResult({
-      title: unique.length === 1 && isEmailTaskActiveClient(unique[0].app)
-        ? `${unique[0].app.contact || unique[0].app.clientName || 'Your client'} sent you an email` : 'New client email',
-      message: `${plural(unique.length, 'new email')} matched to your applications or active clients.${createdTasks.length ? ` ${plural(createdTasks.length, 'task')} created automatically from work requests.` : ''}`,
+      title: mixed ? `New ${categories.map(item => item.label.toLowerCase()).join(' and ')} emails`
+        : category !== 'Application' && unique.length === 1
+          ? `${category}: ${unique[0].app.contact || unique[0].app.clientName || 'Your client'} sent you an email`
+          : `New ${category.toLowerCase()} email${emailCount === 1 ? '' : 's'}`,
+      message: `${matchSummary}${createdTasks.length ? ` ${plural(createdTasks.length, 'task')} created automatically from work requests.` : ''}`,
       status: 'info',
-      label: 'CLIENT EMAIL ALERT',
+      label: mixed ? 'MATCHED EMAIL ALERT' : category === 'Application' ? 'APPLICATION EMAIL ALERT' : category === 'Ended client' ? 'ENDED CLIENT EMAIL ALERT' : 'CLIENT EMAIL ALERT',
       actionLabel: 'Open inbox',
       details: unique.map(({ emailItem, app }) => ({
         clientName: app.clientName,
+        matchType: matchTypeFor(app),
         subject: emailItem.subject || '(No subject)',
         from: emailItem.from || 'Unknown sender',
         date: emailItem.date || '',

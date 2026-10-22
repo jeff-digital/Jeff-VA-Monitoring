@@ -134,6 +134,13 @@
       const item = document.createElement('article');
       item.className = 'client-email-alert-item';
       item.setAttribute('role', 'listitem');
+      if (detail.matchType) {
+        const category = document.createElement('span');
+        category.className = 'client-email-alert-category';
+        category.dataset.kind = detail.matchType === 'Active client' ? 'active-client' : detail.matchType === 'Ended client' ? 'ended-client' : 'application';
+        category.textContent = detail.matchType;
+        item.append(category);
+      }
 
       const heading = document.createElement('div');
       heading.className = 'client-email-alert-heading';
