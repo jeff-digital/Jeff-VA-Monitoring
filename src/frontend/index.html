@@ -390,11 +390,11 @@
           <section class="application-filters" aria-label="Application filters">
             <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="applicationSearch" aria-label="Search applications" placeholder="Search applications" /></label>
             <div class="application-filter-controls">
-              <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Application Date</span><input type="date" id="applicationDateFilter" aria-label="Filter applications by application date" /></label>
-              <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Select week</span><select id="applicationDateSort"><option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option></select></label>
-              <label class="application-filter-field"><span><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Sort</span><select id="applicationOrderSort" aria-label="Sort applications by date"><option value="newest">Newest</option><option value="oldest">Oldest</option></select></label>
-              <label class="application-filter-field"><span><i class="fa-solid fa-bars-staggered" aria-hidden="true"></i> Stage</span><select id="statusFilter"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
-              <label class="application-filter-field"><span><i class="fa-solid fa-globe" aria-hidden="true"></i> Source</span><select id="platformFilter"><option value="">All sources</option></select></label>
+              <label class="application-filter-field"><input type="date" id="applicationDateFilter" aria-label="Filter applications by application date" /></label>
+              <label class="application-filter-field"><select id="applicationDateSort" aria-label="Filter applications by week"><option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option></select></label>
+              <label class="application-filter-field"><select id="applicationOrderSort" aria-label="Sort applications by date"><option value="newest">Newest</option><option value="oldest">Oldest</option></select></label>
+              <label class="application-filter-field"><select id="statusFilter" aria-label="Filter applications by stage"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
+              <label class="application-filter-field"><select id="platformFilter" aria-label="Filter applications by source"><option value="">All sources</option></select></label>
             </div>
             <div class="application-filter-footer">
               <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
@@ -614,8 +614,8 @@
               <section class="application-filters email-filters" aria-label="Email filters">
                 <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>
                 <div class="application-filter-controls email-filter-controls">
-                  <label class="application-filter-field"><span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Exact date</span><input type="date" id="emailDateFilter" aria-label="Filter emails by exact date" /></label>
-                  <label class="application-filter-field"><span><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Received week</span><select id="emailDateSort"><option value="0">This week</option></select></label>
+                  <label class="application-filter-field"><input type="date" id="emailDateFilter" aria-label="Filter emails by exact date" /></label>
+                  <label class="application-filter-field"><select id="emailDateSort" aria-label="Filter emails by week"><option value="0">This week</option></select></label>
                 </div>
               </section>
             </header>
