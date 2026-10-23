@@ -1157,9 +1157,33 @@
     ));
   }
 
+  function confirmedApplicationFollowUpSentAt(item) {
+    const scheduledDate = dateKey(item.followUpDate);
+    const recipient = extractEmailAddress(item.email || '');
+    const sameRecipient = recipient ? data.applications.filter(app => extractEmailAddress(app.email || '') === recipient) : [];
+    const expectedSubject = `follow-up: ${String(item.clientName || '').trim()}`.toLowerCase();
+    const sentDates = [item.followUpSentAt, ...data.emails.filter(email => {
+      if (!isSentEmail(email)) return false;
+      const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
+      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject)) return false;
+      if (email.applicationId) return email.applicationId === item.id;
+      if (!recipient || extractEmailAddress(email.to || '') !== recipient) return false;
+      // Shared recruiter addresses need a company-specific subject; a generic
+      // follow-up to that address must not complete every application.
+      return (sameRecipient.length === 1 && sameRecipient[0].id === item.id)
+        || (String(item.clientName || '').trim() && subject.toLowerCase() === expectedSubject);
+    }).map(email => email.date)].filter(value => {
+      const date = dateKey(value);
+      return date && (!scheduledDate || date >= scheduledDate)
+        && (!item.appliedDate || date >= dateKey(item.appliedDate))
+        && Number.isFinite(new Date(value).getTime());
+    });
+    return sentDates.sort((a, b) => new Date(b) - new Date(a))[0] || '';
+  }
+
   function applicationFollowUpState(item) {
     const scheduledDate = dateKey(item.followUpDate);
-    const sentDate = dateKey(item.followUpSentAt);
+    const sentDate = dateKey(confirmedApplicationFollowUpSentAt(item));
     if (sentDate && (!scheduledDate || sentDate >= scheduledDate)) return 'sent';
     if (scheduledDate === today() && !['Active client', 'Not selected'].includes(item.status)) return 'due';
     return '';
@@ -1167,7 +1191,7 @@
 
   function applicationFollowUpMarkup(item) {
     const state = applicationFollowUpState(item);
-    const date = state === 'sent' ? dateKey(item.followUpSentAt) : dateKey(item.followUpDate);
+    const date = state === 'sent' ? dateKey(confirmedApplicationFollowUpSentAt(item)) : dateKey(item.followUpDate);
     if (!date) return '—';
     const label = state === 'sent' ? 'Follow-up sent successfully' : state === 'due' ? 'Follow-up due today — not sent yet' : 'Scheduled follow-up';
     return `<span class="application-follow-up${state ? ` is-${state}` : ''}" title="${escapeHtml(label)}"><span>${escapeHtml(emailDate(date))}</span>${state === 'sent' ? '<span class="follow-up-check" aria-label="Sent successfully">✓</span>' : state === 'due' ? '<span class="follow-up-due-label">Due today</span>' : ''}</span>`;

@@ -1821,33 +1821,48 @@
   }
 
   async function processDueFollowUps() {
-    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
+    if (followUpProcessing) return followUpProcessing;
+    const run = runDueFollowUps();
+    followUpProcessing = run;
+    try { return await run; } finally { if (followUpProcessing === run) followUpProcessing = null; }
+  }
+
+  let followUpProcessing = null;
+
+  async function runDueFollowUps() {
+    const userId = currentUser?.id;
+    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
     if (!due.length) return;
     data.alerts = data.alerts || [];
     let followUpAlertsAdded = 0;
     let automaticEmailsSent = 0;
     let automaticEmailsFailed = 0;
     let followUpsNeedingReview = 0;
+    let lastFailure = '';
     for (const item of due) {
+      if (currentUser?.id !== userId) return;
+      if (!item.followUpDate || applicationFollowUpState(item) === 'sent') continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
       const body = template.body;
       let sent = false;
+      let delivery = null;
       if (item.automaticFollowUp && gmailAccessToken && isEmailAddress(item.email)) {
         try {
-          const rawMessage = buildRawEmailMessage({ to: item.email, subject, body });
-          await sendGmailRaw(rawMessage);
+          delivery = await sendAutomaticFollowUpOnce(item, scheduledFollowUpDate, subject, body);
           sent = true;
           automaticEmailsSent += 1;
         } catch (error) {
           console.error('Automatic follow-up failed:', error);
           automaticEmailsFailed += 1;
+          lastFailure = error.message || 'Follow-up delivery could not be confirmed.';
         }
       }
+      if (currentUser?.id !== userId) return;
       item.followUpProcessedAt = new Date().toISOString();
-      item.followUpSentAt = sent ? item.followUpProcessedAt : '';
-      if (sent) {
+      item.followUpSentAt = sent ? delivery.sentAt : '';
+      if (sent && item.followUpDate === scheduledFollowUpDate) {
         item.followUpDate = '';
         item.automaticFollowUp = false;
         if (editingId === item.id) {
@@ -1871,7 +1886,10 @@
         followUpAlertsAdded += 1;
       }
       if (sent) {
-        data.emails.unshift({ id: uid(), applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: new Date().toISOString(), importedAt: new Date().toISOString(), source: 'sent', direction: 'sent' });
+        if (!delivery.gmailId || !data.emails.some(email => email.gmailId === delivery.gmailId)) {
+          data.emails.unshift({ id: delivery.gmailId ? `gmail-${delivery.gmailId}` : uid(), gmailId: delivery.gmailId || '', applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: delivery.sentAt, importedAt: new Date().toISOString(), source: delivery.gmailId ? 'gmail' : 'sent', direction: 'sent' });
+        }
+        await persist();
       } else if (!item.automaticFollowUp || !gmailAccessToken || !isEmailAddress(item.email)) {
         followUpsNeedingReview += 1;
       }
@@ -1884,7 +1902,7 @@
     if (followUpAlertsAdded || automaticEmailsSent) {
       const summary = [
         automaticEmailsSent ? `${plural(automaticEmailsSent, 'automatic follow-up email')} sent` : '',
-          automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} could not be sent; sign in with Google again and review the alert` : '',
+          automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} need review. ${lastFailure}` : '',
         followUpsNeedingReview ? `${plural(followUpsNeedingReview, 'follow-up')} need your attention in Applications` : ''
       ].filter(Boolean).join('. ');
       showActionResult({

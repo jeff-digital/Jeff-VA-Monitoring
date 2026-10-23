@@ -739,11 +739,82 @@
     }
   }
 
-  async function sendGmailRaw(rawMessage) {
+  async function requestFollowUpReservation(item, scheduledDate, action, receipt = {}) {
+    const userId = currentUser?.id;
+    if (!userId) throw new Error('Sign in before sending follow-ups.');
+    const auth = requireSupabase().auth;
+    let current = await auth.getSession();
+    let session = current.data?.session;
+    if (current.error || !session?.access_token || session.expires_at <= Date.now() / 1000 + 60) {
+      current = await auth.refreshSession();
+      session = current.data?.session;
+    }
+    if (current.error || !session?.access_token || currentUser?.id !== userId || (session.user?.id && session.user.id !== userId)) {
+      throw new Error('Could not verify your session. No new follow-up was sent.');
+    }
+    const response = await fetch('/api/follow-up/delivery', {
+      method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ applicationId: item.id, scheduledDate, action, ...receipt }), signal: AbortSignal.timeout(15000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Send protection is unavailable. Automatic sending is paused.');
+    return result;
+  }
+
+  async function findGmailSentFollowUp(item, scheduledDate, subject) {
+    const after = Math.floor(new Date(`${scheduledDate}T00:00:00+08:00`).getTime() / 1000);
+    const recipient = extractEmailAddress(item.email);
+    const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
+    const q = `in:sent to:${recipient} after:${after} subject:"${subject.replace(/["\\]/g, ' ')}"`;
+    const list = await fetchGmailJson(`${root}?${new URLSearchParams({ q, maxResults: '100' })}`);
+    for (const message of list.messages || []) {
+      const email = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=To&metadataHeaders=Subject`);
+      const header = name => email.payload?.headers?.find(value => value.name.toLowerCase() === name)?.value || '';
+      const sentAt = Number(email.internalDate);
+      if (extractEmailAddress(header('to')) === recipient && header('subject').trim() === subject
+        && Number.isFinite(sentAt) && sentAt >= after * 1000) {
+        return { sentAt: new Date(sentAt).toISOString(), gmailId: email.id, recovered: true };
+      }
+    }
+    if (list.nextPageToken) throw new Error('Sent history needs review. Automatic sending is paused to avoid duplicates.');
+    return null;
+  }
+
+  async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body) {
+    const userId = currentUser?.id;
+    await ensureGmailAccessToken();
+    // Read Gmail directly before claiming; do not depend on an old tab's cache.
+    const existing = await findGmailSentFollowUp(item, scheduledDate, subject);
+    if (currentUser?.id !== userId) throw new Error('Account changed. No follow-up was sent.');
+    if (existing) return existing;
+    const claim = await requestFollowUpReservation(item, scheduledDate, 'claim');
+    if (claim.status === 'sent') return claim;
+    if (claim.status !== 'claimed' || !claim.claimToken) throw new Error(claim.error || 'This follow-up is already sending. Check Gmail Sent; automatic resending is blocked.');
+    if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
+    let gmail;
+    try { gmail = await sendGmailRaw(buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
+    catch (error) {
+      if (error.gmailRejected && currentUser?.id === userId) {
+        await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});
+      }
+      throw new Error(error.gmailRejected ? 'Gmail rejected the follow-up. It can retry later.' : 'Delivery is uncertain. Check Gmail Sent; automatic resending is blocked.');
+    }
+    const delivery = { sentAt: new Date().toISOString(), gmailId: gmail?.id || '' };
+    if (currentUser?.id !== userId) throw new Error('Account changed. Check Gmail Sent to confirm delivery.');
+    // A failed receipt save leaves the durable reservation locked, never open
+    // for another send. Gmail history can recover this delivery on the next run.
+    await requestFollowUpReservation(item, scheduledDate, 'complete', { claimToken: claim.claimToken, ...delivery }).catch(error => {
+      console.error('Follow-up sent; shared receipt save pending:', error);
+    });
+    return delivery;
+  }
+
+  async function sendGmailRaw(rawMessage, { timeoutMs = 0 } = {}) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await ensureGmailAccessToken();
       const response = await fetch(GMAIL_SEND_ENDPOINT, {
         method: 'POST',
+        ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
         headers: { Authorization: `Bearer ${gmailAccessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw: encodeBase64Url(rawMessage) })
       });
@@ -754,7 +825,9 @@
       }
       if (response.status === 401) handleGmailAuthorizationFailure();
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error?.message || `Gmail returned ${response.status}`);
+      const error = new Error(errorData.error?.message || `Gmail returned ${response.status}`);
+      error.gmailRejected = [400, 401, 403, 404, 429].includes(response.status);
+      throw error;
     }
     throw new Error('Gmail could not send the message.');
   }

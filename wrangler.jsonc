@@ -4,6 +4,8 @@
   "main": "src/backend/worker.mjs",
   "compatibility_date": "2026-10-08",
   "ai": { "binding": "AI" },
+  "durable_objects": { "bindings": [{ "name": "FOLLOW_UP_DELIVERIES", "class_name": "FollowUpDelivery" }] },
+  "migrations": [{ "tag": "follow-up-delivery-v1", "new_sqlite_classes": ["FollowUpDelivery"] }],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

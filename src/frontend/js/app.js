@@ -2329,9 +2329,33 @@
     ));
   }
 
+  function confirmedApplicationFollowUpSentAt(item) {
+    const scheduledDate = dateKey(item.followUpDate);
+    const recipient = extractEmailAddress(item.email || '');
+    const sameRecipient = recipient ? data.applications.filter(app => extractEmailAddress(app.email || '') === recipient) : [];
+    const expectedSubject = `follow-up: ${String(item.clientName || '').trim()}`.toLowerCase();
+    const sentDates = [item.followUpSentAt, ...data.emails.filter(email => {
+      if (!isSentEmail(email)) return false;
+      const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
+      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject)) return false;
+      if (email.applicationId) return email.applicationId === item.id;
+      if (!recipient || extractEmailAddress(email.to || '') !== recipient) return false;
+      // Shared recruiter addresses need a company-specific subject; a generic
+      // follow-up to that address must not complete every application.
+      return (sameRecipient.length === 1 && sameRecipient[0].id === item.id)
+        || (String(item.clientName || '').trim() && subject.toLowerCase() === expectedSubject);
+    }).map(email => email.date)].filter(value => {
+      const date = dateKey(value);
+      return date && (!scheduledDate || date >= scheduledDate)
+        && (!item.appliedDate || date >= dateKey(item.appliedDate))
+        && Number.isFinite(new Date(value).getTime());
+    });
+    return sentDates.sort((a, b) => new Date(b) - new Date(a))[0] || '';
+  }
+
   function applicationFollowUpState(item) {
     const scheduledDate = dateKey(item.followUpDate);
-    const sentDate = dateKey(item.followUpSentAt);
+    const sentDate = dateKey(confirmedApplicationFollowUpSentAt(item));
     if (sentDate && (!scheduledDate || sentDate >= scheduledDate)) return 'sent';
     if (scheduledDate === today() && !['Active client', 'Not selected'].includes(item.status)) return 'due';
     return '';
@@ -2339,7 +2363,7 @@
 
   function applicationFollowUpMarkup(item) {
     const state = applicationFollowUpState(item);
-    const date = state === 'sent' ? dateKey(item.followUpSentAt) : dateKey(item.followUpDate);
+    const date = state === 'sent' ? dateKey(confirmedApplicationFollowUpSentAt(item)) : dateKey(item.followUpDate);
     if (!date) return '—';
     const label = state === 'sent' ? 'Follow-up sent successfully' : state === 'due' ? 'Follow-up due today — not sent yet' : 'Scheduled follow-up';
     return `<span class="application-follow-up${state ? ` is-${state}` : ''}" title="${escapeHtml(label)}"><span>${escapeHtml(emailDate(date))}</span>${state === 'sent' ? '<span class="follow-up-check" aria-label="Sent successfully">✓</span>' : state === 'due' ? '<span class="follow-up-due-label">Due today</span>' : ''}</span>`;
@@ -5949,33 +5973,48 @@
   }
 
   async function processDueFollowUps() {
-    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
+    if (followUpProcessing) return followUpProcessing;
+    const run = runDueFollowUps();
+    followUpProcessing = run;
+    try { return await run; } finally { if (followUpProcessing === run) followUpProcessing = null; }
+  }
+
+  let followUpProcessing = null;
+
+  async function runDueFollowUps() {
+    const userId = currentUser?.id;
+    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
     if (!due.length) return;
     data.alerts = data.alerts || [];
     let followUpAlertsAdded = 0;
     let automaticEmailsSent = 0;
     let automaticEmailsFailed = 0;
     let followUpsNeedingReview = 0;
+    let lastFailure = '';
     for (const item of due) {
+      if (currentUser?.id !== userId) return;
+      if (!item.followUpDate || applicationFollowUpState(item) === 'sent') continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
       const body = template.body;
       let sent = false;
+      let delivery = null;
       if (item.automaticFollowUp && gmailAccessToken && isEmailAddress(item.email)) {
         try {
-          const rawMessage = buildRawEmailMessage({ to: item.email, subject, body });
-          await sendGmailRaw(rawMessage);
+          delivery = await sendAutomaticFollowUpOnce(item, scheduledFollowUpDate, subject, body);
           sent = true;
           automaticEmailsSent += 1;
         } catch (error) {
           console.error('Automatic follow-up failed:', error);
           automaticEmailsFailed += 1;
+          lastFailure = error.message || 'Follow-up delivery could not be confirmed.';
         }
       }
+      if (currentUser?.id !== userId) return;
       item.followUpProcessedAt = new Date().toISOString();
-      item.followUpSentAt = sent ? item.followUpProcessedAt : '';
-      if (sent) {
+      item.followUpSentAt = sent ? delivery.sentAt : '';
+      if (sent && item.followUpDate === scheduledFollowUpDate) {
         item.followUpDate = '';
         item.automaticFollowUp = false;
         if (editingId === item.id) {
@@ -5999,7 +6038,10 @@
         followUpAlertsAdded += 1;
       }
       if (sent) {
-        data.emails.unshift({ id: uid(), applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: new Date().toISOString(), importedAt: new Date().toISOString(), source: 'sent', direction: 'sent' });
+        if (!delivery.gmailId || !data.emails.some(email => email.gmailId === delivery.gmailId)) {
+          data.emails.unshift({ id: delivery.gmailId ? `gmail-${delivery.gmailId}` : uid(), gmailId: delivery.gmailId || '', applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: delivery.sentAt, importedAt: new Date().toISOString(), source: delivery.gmailId ? 'gmail' : 'sent', direction: 'sent' });
+        }
+        await persist();
       } else if (!item.automaticFollowUp || !gmailAccessToken || !isEmailAddress(item.email)) {
         followUpsNeedingReview += 1;
       }
@@ -6012,7 +6054,7 @@
     if (followUpAlertsAdded || automaticEmailsSent) {
       const summary = [
         automaticEmailsSent ? `${plural(automaticEmailsSent, 'automatic follow-up email')} sent` : '',
-          automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} could not be sent; sign in with Google again and review the alert` : '',
+          automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} need review. ${lastFailure}` : '',
         followUpsNeedingReview ? `${plural(followUpsNeedingReview, 'follow-up')} need your attention in Applications` : ''
       ].filter(Boolean).join('. ');
       showActionResult({
@@ -6954,11 +6996,82 @@
     }
   }
 
-  async function sendGmailRaw(rawMessage) {
+  async function requestFollowUpReservation(item, scheduledDate, action, receipt = {}) {
+    const userId = currentUser?.id;
+    if (!userId) throw new Error('Sign in before sending follow-ups.');
+    const auth = requireSupabase().auth;
+    let current = await auth.getSession();
+    let session = current.data?.session;
+    if (current.error || !session?.access_token || session.expires_at <= Date.now() / 1000 + 60) {
+      current = await auth.refreshSession();
+      session = current.data?.session;
+    }
+    if (current.error || !session?.access_token || currentUser?.id !== userId || (session.user?.id && session.user.id !== userId)) {
+      throw new Error('Could not verify your session. No new follow-up was sent.');
+    }
+    const response = await fetch('/api/follow-up/delivery', {
+      method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ applicationId: item.id, scheduledDate, action, ...receipt }), signal: AbortSignal.timeout(15000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Send protection is unavailable. Automatic sending is paused.');
+    return result;
+  }
+
+  async function findGmailSentFollowUp(item, scheduledDate, subject) {
+    const after = Math.floor(new Date(`${scheduledDate}T00:00:00+08:00`).getTime() / 1000);
+    const recipient = extractEmailAddress(item.email);
+    const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
+    const q = `in:sent to:${recipient} after:${after} subject:"${subject.replace(/["\\]/g, ' ')}"`;
+    const list = await fetchGmailJson(`${root}?${new URLSearchParams({ q, maxResults: '100' })}`);
+    for (const message of list.messages || []) {
+      const email = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=To&metadataHeaders=Subject`);
+      const header = name => email.payload?.headers?.find(value => value.name.toLowerCase() === name)?.value || '';
+      const sentAt = Number(email.internalDate);
+      if (extractEmailAddress(header('to')) === recipient && header('subject').trim() === subject
+        && Number.isFinite(sentAt) && sentAt >= after * 1000) {
+        return { sentAt: new Date(sentAt).toISOString(), gmailId: email.id, recovered: true };
+      }
+    }
+    if (list.nextPageToken) throw new Error('Sent history needs review. Automatic sending is paused to avoid duplicates.');
+    return null;
+  }
+
+  async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body) {
+    const userId = currentUser?.id;
+    await ensureGmailAccessToken();
+    // Read Gmail directly before claiming; do not depend on an old tab's cache.
+    const existing = await findGmailSentFollowUp(item, scheduledDate, subject);
+    if (currentUser?.id !== userId) throw new Error('Account changed. No follow-up was sent.');
+    if (existing) return existing;
+    const claim = await requestFollowUpReservation(item, scheduledDate, 'claim');
+    if (claim.status === 'sent') return claim;
+    if (claim.status !== 'claimed' || !claim.claimToken) throw new Error(claim.error || 'This follow-up is already sending. Check Gmail Sent; automatic resending is blocked.');
+    if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
+    let gmail;
+    try { gmail = await sendGmailRaw(buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
+    catch (error) {
+      if (error.gmailRejected && currentUser?.id === userId) {
+        await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});
+      }
+      throw new Error(error.gmailRejected ? 'Gmail rejected the follow-up. It can retry later.' : 'Delivery is uncertain. Check Gmail Sent; automatic resending is blocked.');
+    }
+    const delivery = { sentAt: new Date().toISOString(), gmailId: gmail?.id || '' };
+    if (currentUser?.id !== userId) throw new Error('Account changed. Check Gmail Sent to confirm delivery.');
+    // A failed receipt save leaves the durable reservation locked, never open
+    // for another send. Gmail history can recover this delivery on the next run.
+    await requestFollowUpReservation(item, scheduledDate, 'complete', { claimToken: claim.claimToken, ...delivery }).catch(error => {
+      console.error('Follow-up sent; shared receipt save pending:', error);
+    });
+    return delivery;
+  }
+
+  async function sendGmailRaw(rawMessage, { timeoutMs = 0 } = {}) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await ensureGmailAccessToken();
       const response = await fetch(GMAIL_SEND_ENDPOINT, {
         method: 'POST',
+        ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
         headers: { Authorization: `Bearer ${gmailAccessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw: encodeBase64Url(rawMessage) })
       });
@@ -6969,7 +7082,9 @@
       }
       if (response.status === 401) handleGmailAuthorizationFailure();
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error?.message || `Gmail returned ${response.status}`);
+      const error = new Error(errorData.error?.message || `Gmail returned ${response.status}`);
+      error.gmailRejected = [400, 401, 403, 404, 429].includes(response.status);
+      throw error;
     }
     throw new Error('Gmail could not send the message.');
   }

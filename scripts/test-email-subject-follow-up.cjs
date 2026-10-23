@@ -26,12 +26,17 @@ const context = vm.createContext({
   emailContentText: value => String(value || ''), extractEmailAddress: value => value,
   isEmailAddress: value => value.includes('@'), emailTime: () => '8:00 AM',
   gmailAccessToken: 'test-token', editingId: '', activeView: 'applications',
+  currentUser: { id: 'test-user' },
+  sendAutomaticFollowUpOnce: async () => {
+    await context.sendGmailRaw();
+    return { sentAt: new Date().toISOString(), gmailId: 'gmail-confirmed' };
+  },
   buildDocumentEmailTemplate: () => ({ subject: 'Follow-up', body: 'Following up.' }),
   buildRawEmailMessage: value => value, uid: () => 'sent-follow-up',
   limitAlertHistory: noop, persist: noop, renderApplications: noop, renderAlerts: noop,
   showActionResult: noop, plural: (count, word) => `${count} ${word}`
 });
-vm.runInContext(matching.slice(matching.indexOf('  function applicationFollowUpState('), matching.indexOf('  function renderApplications(')), context);
+vm.runInContext(matching.slice(matching.indexOf('  function confirmedApplicationFollowUpSentAt('), matching.indexOf('  function renderApplications(')), context);
 vm.runInContext(matching.slice(matching.indexOf('  function renderEmails('), matching.indexOf('  function hiredClients(')), context);
 const documents = read('03-documents.js');
 vm.runInContext(documents.slice(documents.indexOf('  async function processDueFollowUps('), documents.indexOf('  function markAlertsRead(')), context);
@@ -53,7 +58,36 @@ context.data.emails[0].subject = '';
 context.renderEmails();
 assert.match(nodes.get('#emailList').innerHTML, /\(No subject\)/);
 
+const sentFollowUp = { id: 'manual', applicationId: due.id, direction: 'sent', to: due.email, subject: 'Follow-up: Acme', date: '2026-10-23T08:00:00Z' };
+context.data.applications = [due];
+context.data.emails = [sentFollowUp];
+assert.equal(context.applicationFollowUpState(due), 'sent', 'Saved sent follow-up completes the indicator without followUpSentAt');
+assert.match(context.applicationFollowUpMarkup(due), /follow-up-check/);
+assert.doesNotMatch(context.applicationFollowUpMarkup(due), /Due today/);
+for (const extra of [
+  { direction: 'received' }, { applicationId: 'another-application' },
+  { date: '2026-10-22T08:00:00Z' }, { subject: 'Invoice for services' }, { date: 'invalid' }
+]) {
+  context.data.emails = [{ ...sentFollowUp, ...extra }];
+  assert.equal(context.applicationFollowUpState(due), 'due', 'Incoming, unrelated, earlier and invalid messages cannot mark follow-up sent');
+}
+const named = { ...due, clientName: 'Acme' };
+context.data.applications = [named];
+context.data.emails = [{ ...sentFollowUp, applicationId: '', subject: 'Re: Following up on my application' }];
+assert.equal(context.applicationFollowUpState(named), 'sent', 'Gmail-synced sent follow-up can match a unique recipient');
+context.data.applications.push({ ...named, id: 'other', clientName: 'Other company' });
+assert.equal(context.applicationFollowUpState(named), 'due', 'Shared recruiter address alone cannot complete multiple applications');
+context.data.emails[0].subject = 'Follow-up: Acme';
+assert.equal(context.applicationFollowUpState(named), 'sent', 'Company-specific follow-up disambiguates a shared address');
+assert.equal(context.applicationFollowUpState(context.data.applications[1]), 'due');
+
 (async () => {
+  context.data.applications = [{ ...due }];
+  context.data.emails = [sentFollowUp];
+  let sends = 0;
+  context.sendGmailRaw = async () => { sends++; };
+  await context.processDueFollowUps();
+  assert.equal(sends, 0, 'Automatic follow-up must not resend a confirmed sent follow-up');
   context.data.applications = [{ ...due }];
   context.data.emails = [];
   context.sendGmailRaw = async () => { throw new Error('Network failed'); };
@@ -66,5 +100,18 @@ assert.match(nodes.get('#emailList').innerHTML, /\(No subject\)/);
   assert.equal(context.applicationFollowUpState(item), 'sent');
   assert.match(context.applicationFollowUpMarkup(item), /is-sent/);
   assert.match(context.applicationFollowUpMarkup(item), /✓/);
+  context.data.applications = [{ ...due }];
+  context.data.emails = [];
+  sends = 0;
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  context.sendGmailRaw = async () => { sends++; await pending; };
+  const firstRun = context.processDueFollowUps();
+  const secondRun = context.processDueFollowUps();
+  await Promise.resolve();
+  assert.equal(sends, 1, 'Overlapping calls within a tab share one processing run');
+  release();
+  await Promise.all([firstRun, secondRun]);
+  assert.equal(sends, 1);
   console.log('Passed: platform subjects, missing subject, pending/failed/successful follow-ups, and rescheduling.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
