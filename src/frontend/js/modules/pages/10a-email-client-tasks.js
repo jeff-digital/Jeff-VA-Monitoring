@@ -18,6 +18,13 @@
     return `${format.format(new Date(range.start))} – ${format.format(new Date(range.end - 1))} (Philippines)`;
   }
 
+  function emailTaskDueDate(analysis) {
+    const value = analysis?.dueDate || '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !analysis.deadlineEvidence || !(analysis.deadlineConfidence >= .9)) return '';
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value ? value : '';
+  }
+
   function emailTaskExisting(email, clientId) {
     return (data.clientTasks || []).find(task => task.clientId === clientId
       && (task.sourceEmailId === email.id || (email.gmailId && task.sourceGmailId === email.gmailId)));
@@ -407,7 +414,7 @@
           const task = {
             id: `email-task:${encodeURIComponent(client.id)}:${encodeURIComponent(email.gmailId || email.id)}`,
             clientId: client.id, title: analysis.title || String(email.subject || '').replace(/^(?:(?:re|fw|fwd):\s*)+/i, '').trim().slice(0, 160) || evidence.slice(0, 160),
-            category: 'Other', priority: 'Medium', dueDate: '', estimateMinutes: '',
+            category: 'Other', priority: 'Medium', dueDate: emailTaskDueDate(analysis), estimateMinutes: '',
             notes: emailContentText(email.body || '').slice(0, 3000),
             repeat: { frequency: 'none', weekdays: [], dayOfMonth: null }, status: 'todo', completedAt: '',
             timeEntries: [], timerStartedAt: '', createdAt: now, updatedAt: now,
@@ -481,7 +488,7 @@
   function showAutomaticEmailTasksNotice(tasks) {
     if (!tasks.length) return;
     showActionResult({ title: 'Client tasks created', label: 'EMAIL TO TASK',
-      message: `${plural(tasks.length, 'task')} automatically created from active-client work requests. Review the tasks to set any deadline or estimate.`,
+      message: `${plural(tasks.length, 'task')} automatically created from active-client work requests. Clear dates from the email are filled in automatically; unclear or missing deadlines stay blank.`,
       actionLabel: 'View tasks', onAction: () => viewEmailClientTask(tasks[0]),
       details: tasks.map(task => ({ clientName: data.applications.find(client => client.id === task.clientId)?.clientName,
         subject: task.title, from: task.sourceEmailFrom, date: task.sourceEmailDate, taskCreated: true })) });

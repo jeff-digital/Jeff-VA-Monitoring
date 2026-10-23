@@ -36,7 +36,8 @@ const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, cur
     const purpose = purposeOverride || (ignored ? 'informational' : 'work_task');
     return { ok: true, json: async () => ({ purpose,
       createTask: purpose === 'work_task', confidence: purpose === 'uncertain' ? 0.4 : 0.96, roleRelated: purpose === 'work_task', reason: ignored ? 'Acknowledgement, not outstanding work.' : 'Client requests a role-related deliverable.',
-      evidence: email.body.slice(0, 300), title: 'Prepare client content', inputKey: `digest-${email.id}`, version: 1 }) };
+      evidence: email.body.slice(0, 300), title: 'Prepare client content', inputKey: `digest-${email.id}`, version: 3,
+      ...(email.id === 'gmail-deadline' ? { dueDate: '2026-10-27', deadlineEvidence: 'by October 27', deadlineConfidence: .98 } : {}) }) };
   },
   dataReady: true, supabaseDataLoaded: true, hiredEditingId: '', gmailSyncInFlight: false,
   gmailAccessToken: 'token', gmailReconnectRequired: false, navigator: { onLine: true },
@@ -250,5 +251,15 @@ const addEmail = (id, body, extra = {}) => {
   const cappedCalls = classificationCalls;
   await context.syncGmail(true);
   assert.equal(classificationCalls, cappedCalls, 'daily app cap must queue additional analysis without contacting the provider');
+  context.data.emailTaskAiUsage = { day: new Date().toISOString().slice(0, 10), requests: 0 };
+  localValues.clear(); providerStatus = 200; purposeOverride = '';
+  addEmail('deadline', 'Please upload the campaign content by October 27.');
+  await context.syncGmail(true);
+  const datedTask = context.data.clientTasks.find(item => item.sourceEmailId === 'gmail-deadline');
+  assert.equal(datedTask?.dueDate, '2026-10-27', 'A validated email deadline becomes the task due date');
+  assert.equal(datedTask.aiClassification.deadlineEvidence, 'by October 27');
+  datedTask.dueDate = '2026-10-28';
+  await context.syncGmail(true);
+  assert.equal(datedTask.dueDate, '2026-10-28', 'Rechecking never overwrites a manually adjusted task date');
   console.log('Automatic email task integration passed: fresh work requests, quoted history, bulk/outgoing mail, active-only matching, ambiguity, saved task metadata, deduplication, retry and client modals alongside closure notices.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
