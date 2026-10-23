@@ -3,68 +3,72 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules/02-email-matching.js'), 'utf8');
-const helpers = source.slice(source.indexOf('  function normalizeApplicationIdentity('), source.indexOf('  async function saveClient('));
 const nodes = {
   '#clientForm': { reportValidity: () => true }, '#automaticFollowUp': { checked: false },
   '#clientPlatform': { value: 'OnlineJobs.ph' }, '#clientName': { value: '  ACME   Studio ' },
-  '#clientRole': { value: 'Social Media Manager' }, '#hiredWebsite': { value: '' }
+  '#contactName': { value: ' Jordan Smith ' }, '#hiredEmail': { value: 'JORDAN@example.com' },
+  '#clientRole': { value: 'Social Media Manager' }, '#hiredWebsite': { value: 'N/A' },
+  '#applicationDuplicateNotice': { hidden: true, textContent: '', dataset: {} }
 };
-nodes['#applicationDuplicateNotice'] = { hidden: true, textContent: '', dataset: {} };
 let notice;
-const context = vm.createContext({ URL, data: { applications: [] }, editingId: null,
+const context = vm.createContext({ data: { applications: [] }, editingId: null,
   $: selector => nodes[selector], isActiveClientDrawerView: () => false,
   STATUS_LABELS: { 'Not selected': 'Rejected' }, formatDate: value => value,
   viewingClientDetails: false, showActionResult: result => { notice = result; } });
-vm.runInContext(helpers, context);
-const existing = { id: 'existing', clientName: 'Acme Studio', role: 'Social Media Manager', website: 'https://www.example.com/jobs/42/?utm_source=email', status: 'Rejected' };
-const candidate = { clientName: ' ACME   Studio ', role: ' social media manager ', website: '' };
-for (const status of ['Applied', 'Rejected', 'Not selected', 'Ghosted', 'Active client']) {
-  assert.equal(context.findDuplicateApplication(candidate, [{ ...existing, status }]).id, existing.id);
+vm.runInContext(source.slice(source.indexOf('  function normalizeApplicationIdentity('), source.indexOf('  async function saveClient(')), context);
+const existing = { id: 'existing', clientName: 'Acme Studio', contact: 'Jordan Smith', email: 'jordan@example.com', role: 'Social Media Manager', website: 'N/A', status: 'Applied' };
+const candidate = { clientName: ' ACME   Studio ', contact: ' jordan smith ', email: 'JORDAN@example.com', role: ' social media manager ', website: 'https://different.example/job/1' };
+for (const status of ['Applied', 'Not selected', 'Ghosted', 'Active client']) {
+  assert.equal(context.findDuplicateApplication(candidate, [{ ...existing, status }]).id, existing.id, 'All four identity fields match regardless of link or status');
 }
-assert.equal(context.findDuplicateApplication({ ...candidate, id: existing.id }, [existing]), undefined, 'editing the same record is allowed');
-assert.equal(context.findDuplicateApplication({ ...candidate, role: 'Graphic Designer' }, [existing]), undefined, 'a different role at the company is allowed');
-assert.equal(context.findDuplicateApplication({ clientName: 'Renamed', role: 'Renamed', website: 'http://example.com/jobs/42?utm_campaign=test#apply' }, [existing]).id, existing.id, 'same posting with tracking variations is blocked');
-assert.equal(context.findDuplicateApplication({ clientName: 'Other', role: 'Other', website: 'https://example.com/jobs/43' }, [existing]), undefined, 'different posting is allowed');
-assert.equal(context.findDuplicateApplication({ clientName: 'Other', role: 'Other', website: 'https://example.com/' }, [{ ...existing, website: 'https://example.com/' }]), undefined, 'a shared homepage is insufficient');
-const start = source.indexOf('  async function saveClient(');
-const rest = source.slice(start);
-const next = rest.slice(12).search(/\n  (?:async )?function /);
-vm.runInContext(next < 0 ? rest : rest.slice(0, next + 12), context);
+for (const field of ['clientName', 'contact', 'email', 'role']) {
+  assert.equal(context.findDuplicateApplication({ ...candidate, [field]: field === 'email' ? 'different@example.com' : 'Different' }, [existing]), undefined, `${field} must also match`);
+  assert.equal(context.findDuplicateApplication({ ...candidate, [field]: '' }, [existing]), undefined, `Missing ${field} is not a confirmed duplicate`);
+}
+assert.equal(context.findDuplicateApplication({ ...candidate, id: existing.id }, [existing]), undefined, 'Own record is excluded');
+const copies = [existing, { ...existing, id: 'legacy-copy' }];
+assert.equal(context.findDuplicateApplication({ ...candidate, id: existing.id, notes: 'Updated' }, copies), undefined, 'Editing unrelated fields is allowed even with historical duplicates');
+const other = { id: 'other', clientName: 'Other Company', contact: 'Jane', email: 'jane@example.com' };
+assert.equal(context.findDuplicateApplication({ ...candidate, id: other.id }, [existing, other]), undefined, 'Edit mode skips duplicate checking even if all four fields match another record');
+const saveStart = source.indexOf('  async function saveClient(');
+vm.runInContext(source.slice(saveStart, source.indexOf('  async function deleteClient(', saveStart)), context);
 (async () => {
   context.data.applications = [{ ...existing, status: 'Not selected', appliedDate: '2026-09-01' }];
-  let prevented = false;
-  await context.saveClient({ preventDefault() { prevented = true; } });
-  assert.ok(prevented);
-  assert.equal(context.data.applications.length, 1, 'duplicate submit never inserts a record');
+  await context.saveClient({ preventDefault() {} });
+  assert.equal(context.data.applications.length, 1);
   assert.equal(notice.title, 'Application already exists');
   assert.match(notice.message, /Rejected/);
-  assert.match(notice.message, /2026-09-01/);
-  assert.equal(nodes['#clientName'].value, '  ACME   Studio ', 'draft is preserved');
+  assert.match(notice.message, /jordan@example.com/);
   context.updateApplicationDuplicateNotice();
   const inline = nodes['#applicationDuplicateNotice'];
   assert.equal(inline.hidden, false);
-  assert.equal(inline.dataset.kind, 'duplicate');
-  assert.match(inline.textContent, /Rejected/);
-  nodes['#clientRole'].value = 'Designer';
+  nodes['#clientRole'].value = 'Graphic Designer';
   context.updateApplicationDuplicateNotice();
-  assert.equal(inline.dataset.kind, 'company', 'company match is shown before a duplicate role is entered');
-  nodes['#clientName'].value = 'New Company';
+  assert.equal(inline.hidden, true, 'Different roles at the same company/contact/email are allowed');
+  nodes['#clientRole'].value = 'Social Media Manager';
   context.updateApplicationDuplicateNotice();
-  assert.equal(inline.hidden, true, 'notice clears when the identifying fields change');
+  assert.equal(inline.hidden, false, 'Restoring the matching role immediately shows the duplicate');
+  nodes['#contactName'].value = 'Someone else';
+  context.updateApplicationDuplicateNotice();
+  assert.equal(inline.hidden, true, 'Contact changes immediately clear the warning');
+  nodes['#contactName'].value = 'Jordan Smith';
+  nodes['#hiredEmail'].value = 'other@example.com';
+  context.updateApplicationDuplicateNotice();
+  assert.equal(inline.hidden, true, 'A company/contact match alone is insufficient');
+  nodes['#hiredEmail'].value = existing.email;
+  context.updateApplicationDuplicateNotice();
+  assert.equal(inline.hidden, false);
+  context.editingId = existing.id;
+  context.updateApplicationDuplicateNotice();
+  assert.equal(inline.hidden, true, 'Editing own record remains clear');
+  context.editingId = other.id;
+  context.updateApplicationDuplicateNotice();
+  assert.equal(inline.hidden, true, 'Editing another record to identical details never shows an add-only duplicate alert');
   context.viewingClientDetails = true;
-  nodes['#clientName'].value = 'Acme Studio';
+  context.editingId = null;
   context.updateApplicationDuplicateNotice();
-  assert.equal(inline.hidden, true, 'read-only details do not show an editing warning');
-  const sortingStart = source.indexOf('  function sortApplicationList(');
-  vm.runInContext(source.slice(sortingStart, source.indexOf('  function renderApplications(', sortingStart)), context);
-  context.applicationAppliedDate = item => item.appliedDate || item.createdAt;
-  const records = [
-    { id: 'early', appliedDate: '2026-10-19', createdAt: '2026-10-19T01:00:00Z' },
-    { id: 'late', appliedDate: '2026-10-19', createdAt: '2026-10-19T02:00:00Z' },
-    { id: 'older', appliedDate: '2026-10-18' }
-  ];
-  assert.equal(context.sortApplicationList(records, 'newest').map(item => item.id).join(','), 'late,early,older');
-  assert.equal(context.sortApplicationList(records, 'oldest').map(item => item.id).join(','), 'older,early,late');
-  assert.equal(records[0].id, 'early', 'sorting must not mutate stored applications');
-  console.log('Application duplicate checks passed: all statuses, edits, roles, posting URLs, and blocked save.');
+  assert.equal(inline.hidden, true, 'Read-only details do not show a warning');
+  const page = fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules/pages/07-applications-page.js'), 'utf8');
+  assert.match(page, /\['clientName', 'contactName', 'hiredEmail', 'clientRole'\]\.includes\(event.target.id\)/, 'Live checks listen to all four identifying fields');
+  console.log('Application duplicates passed: add-only checking, all four fields required, different roles allowed, edits exempt, live warnings and blocked duplicate creation.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

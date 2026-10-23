@@ -196,7 +196,7 @@
   $('#clientForm').addEventListener('submit', saveClient);
   ['input', 'change'].forEach(eventName => {
     $('#clientForm').addEventListener(eventName, event => {
-      if (['clientName', 'clientRole', 'hiredWebsite'].includes(event.target.id)) updateApplicationDuplicateNotice();
+      if (['clientName', 'contactName', 'hiredEmail', 'clientRole'].includes(event.target.id)) updateApplicationDuplicateNotice();
       if ($('#clientModal').open && !editingId && !viewingClientDetails) saveNewClientApplicationDraft();
     });
   });

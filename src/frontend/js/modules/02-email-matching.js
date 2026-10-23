@@ -2603,33 +2603,13 @@
     return String(value || '').normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
-  function applicationPostingKey(value) {
-    const input = String(value || '').trim();
-    if (!input) return '';
-    try {
-      const url = new URL(/^https?:\/\//i.test(input) ? input : `https://${input}`);
-      if (!['http:', 'https:'].includes(url.protocol)) return '';
-      url.hash = '';
-      for (const key of [...url.searchParams.keys()]) {
-        if (/^(utm_|fbclid$|gclid$|ref$|source$)/i.test(key)) url.searchParams.delete(key);
-      }
-      url.searchParams.sort();
-      const pathname = url.pathname.replace(/\/+$/, '');
-      // A shared company homepage alone does not identify a job posting.
-      if (!pathname && !url.searchParams.size) return '';
-      return `${url.hostname.toLowerCase().replace(/^www\./, '')}${pathname}${url.search}`;
-    } catch { return ''; }
-  }
-
   function findDuplicateApplication(candidate, applications = data.applications) {
-    const company = normalizeApplicationIdentity(candidate.clientName);
-    const role = normalizeApplicationIdentity(candidate.role);
-    const posting = applicationPostingKey(candidate.website);
-    return applications.find(item => item.id !== candidate.id && (
-      (company && role && normalizeApplicationIdentity(item.clientName) === company
-        && normalizeApplicationIdentity(item.role) === role)
-      || (posting && applicationPostingKey(item.website) === posting)
-    ));
+    if (candidate.id) return undefined;
+    const fields = ['clientName', 'contact', 'email', 'role'];
+    const values = fields.map(field => normalizeApplicationIdentity(candidate[field]));
+    if (values.some(value => !value) || !values[2].includes('@')) return undefined;
+    const matches = item => fields.every((field, index) => normalizeApplicationIdentity(item[field]) === values[index]);
+    return applications.find(matches);
   }
 
   function updateApplicationDuplicateNotice() {
@@ -2637,20 +2617,16 @@
     if (!notice) return;
     notice.hidden = true;
     notice.textContent = '';
-    if (viewingClientDetails) return;
+    if (viewingClientDetails || editingId) return;
     const candidate = { id: editingId || '', clientName: $('#clientName').value,
-      role: $('#clientRole').value, website: $('#hiredWebsite').value };
+      contact: $('#contactName').value, email: $('#hiredEmail').value, role: $('#clientRole').value };
     const duplicate = findDuplicateApplication(candidate);
-    const company = normalizeApplicationIdentity(candidate.clientName);
-    const sameCompany = company ? data.applications.find(item => item.id !== candidate.id
-      && normalizeApplicationIdentity(item.clientName) === company) : null;
-    const existing = duplicate || sameCompany;
+    if (candidate.id && !duplicate) return;
+    const existing = duplicate;
     if (!existing) return;
     const status = STATUS_LABELS[existing.status] || existing.status || 'Not specified';
-    notice.dataset.kind = duplicate ? 'duplicate' : 'company';
-    notice.textContent = duplicate
-      ? `Already saved: ${existing.clientName} — ${existing.role || 'Role not specified'} (${status}${existing.appliedDate ? `; applied ${formatDate(existing.appliedDate)}` : ''}). Update the existing application instead of adding it again.`
-      : `${existing.clientName} already has a saved application: ${existing.role || 'Role not specified'} (${status}). A different role can be added.`;
+    notice.dataset.kind = 'duplicate';
+    notice.textContent = `${candidate.id ? 'These details match another saved application' : 'Already saved'}: ${existing.clientName} — ${existing.contact} — ${existing.email} — ${existing.role} (${status}${existing.appliedDate ? `; applied ${formatDate(existing.appliedDate)}` : ''}). ${candidate.id ? 'Check the company name, contact person, email and role/service.' : 'Update the existing application instead of adding it again.'}`;
     notice.hidden = false;
   }
 
@@ -2673,12 +2649,12 @@
     const previousApplication = existing ? JSON.parse(JSON.stringify(existing)) : null;
     const duplicate = findDuplicateApplication({
       id: editingId || '', clientName: $('#clientName').value,
-      role: $('#clientRole').value, website: $('#hiredWebsite').value
+      contact: $('#contactName').value, email: $('#hiredEmail').value, role: $('#clientRole').value
     });
     if (duplicate) {
       showActionResult({
         title: 'Application already exists',
-        message: `${duplicate.clientName} — ${duplicate.role || 'Role not specified'} is already saved (status: ${STATUS_LABELS[duplicate.status] || duplicate.status || 'Not specified'}${duplicate.appliedDate ? `; applied ${formatDate(duplicate.appliedDate)}` : ''}). Open the existing application to update it.`,
+        message: `${duplicate.clientName} — ${duplicate.contact} — ${duplicate.email} — ${duplicate.role} is already saved (status: ${STATUS_LABELS[duplicate.status] || duplicate.status || 'Not specified'}${duplicate.appliedDate ? `; applied ${formatDate(duplicate.appliedDate)}` : ''}). Open the existing application to update it.`,
         status: 'error'
       });
       return;
