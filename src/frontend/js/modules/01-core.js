@@ -832,6 +832,7 @@
     let workspaceRenderFailed = false;
     try {
       startNotificationRefreshTimer();
+      startSavedEmailAiChecks();
       if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
       autoRejectedApplications = processStaleApplications();
       renderAll();

@@ -70,6 +70,58 @@
     renderEmailTaskAiStatus();
   }
 
+  let savedEmailAiTimer = null;
+  let savedEmailAiDebounce = null;
+  let savedEmailAiRun = null;
+
+  function scheduleSavedEmailAiCheck() {
+    if (!currentUser || !dataReady || !supabaseDataLoaded || savedEmailAiRun) return;
+    if (savedEmailAiDebounce) clearTimeout(savedEmailAiDebounce);
+    savedEmailAiDebounce = setTimeout(() => {
+      savedEmailAiDebounce = null;
+      runSavedEmailAiChecks().catch(error => console.error('Saved email AI check failed:', error));
+    }, 300);
+  }
+
+  function startSavedEmailAiChecks() {
+    if (!savedEmailAiTimer) savedEmailAiTimer = setInterval(scheduleSavedEmailAiCheck, 15000);
+    scheduleSavedEmailAiCheck();
+  }
+
+  function stopSavedEmailAiChecks() {
+    if (savedEmailAiTimer) clearInterval(savedEmailAiTimer);
+    if (savedEmailAiDebounce) clearTimeout(savedEmailAiDebounce);
+    savedEmailAiTimer = null;
+    savedEmailAiDebounce = null;
+  }
+
+  async function runSavedEmailAiChecks() {
+    if (savedEmailAiRun) return savedEmailAiRun;
+    if (!currentUser || !dataReady || !supabaseDataLoaded || navigator.onLine === false
+      || emailAiRetryState()?.until > Date.now() || !pendingEmailAiChecks().length) return;
+    const userId = currentUser.id, workspace = data;
+    const run = (async () => {
+      const { automaticTasks, applicationOutcomes } = await checkAllEmailAiMessages();
+      if (currentUser?.id !== userId || data !== workspace) return;
+      let linkedTask = false;
+      for (const task of automaticTasks.created) {
+        const alert = (data.alerts || []).find(item => item.applicationId === task.clientId && item.emailId === task.sourceEmailId);
+        if (alert && alert.taskId !== task.id) { alert.taskId = task.id; linkedTask = true; }
+      }
+      if (linkedTask) await persist();
+      if (currentUser?.id !== userId || data !== workspace) return;
+      if (automaticTasks.created.length) showAutomaticEmailTasksNotice(automaticTasks.created);
+      showEmailAiReviewNotice(automaticTasks.review);
+      showApplicationAiReviewNotice(applicationOutcomes.review);
+      showApplicationEmailOutcomeNotice(applicationOutcomes.changed);
+      if (automaticTasks.failed || applicationOutcomes.failed) showActionResult({ title: 'Email AI update pending', status: 'error',
+        message: 'An AI update could not be saved. Saved emails remain available; the independent checker will retry.' });
+      if (automaticTasks.created.length || applicationOutcomes.changed.length || linkedTask) renderAll();
+    })();
+    savedEmailAiRun = run;
+    try { return await run; } finally { if (savedEmailAiRun === run) savedEmailAiRun = null; }
+  }
+
   async function checkAllEmailAiMessages() {
     if (automaticEmailQueueRun) return automaticEmailQueueRun;
     const userId = currentUser?.id, workspace = data;
@@ -97,7 +149,7 @@
           emailAiQueueState.running = false;
           const remaining = pendingEmailAiChecks().length;
           emailAiQueueState.total = emailAiQueueState.checked + remaining;
-          renderEmailTaskAiStatus(failed ? 'Email AI: updates could not be saved; queued to retry during the next sync.'
+          renderEmailTaskAiStatus(failed ? 'Email AI: updates could not be saved; queued for the next automatic check.'
             : remaining ? `Email AI: ${remaining} eligible messages remain queued. Checks will resume automatically.`
               : 'Email AI: this week’s eligible messages checked.');
         }
@@ -391,7 +443,7 @@
         return { created, review, failed: false };
       }
       let saved = false;
-      try { saved = await persist(); } catch (_) { /* Restore the pending work for the next sync. */ }
+      try { saved = await persist(); } catch (_) { /* Restore pending work for the independent checker. */ }
       if (!saved) {
         workspace.clientTasks = (workspace.clientTasks || []).filter(task => !created.includes(task));
         workspace.alerts = workspace.alerts.filter(alert => !reviewAlerts.includes(alert));
@@ -410,7 +462,7 @@
       if (currentUser?.id !== userId || data !== workspace) return { created: [], failed: false };
       if (hiredEditingId && created.some(task => task.clientId === hiredEditingId)) renderClientTasks(hiredEditingId);
       if (review.length) renderAlerts();
-      renderEmailTaskAiStatus(waiting ? 'Email tasks: remaining messages are queued for the next sync.' : 'Email tasks: active-client messages checked.');
+      renderEmailTaskAiStatus(waiting ? 'Email tasks: remaining messages are queued for the next automatic check.' : 'Email tasks: active-client messages checked.');
       return { created, review, failed: false };
     })();
     try { return await automaticEmailTaskRun; }
@@ -461,6 +513,9 @@
     if (!emailAiSummary?.contains?.(event.target)) closeEmailAiStatusDetails();
   });
   if (typeof window !== 'undefined') {
+    window.addEventListener('online', scheduleSavedEmailAiCheck);
+    window.addEventListener('focus', scheduleSavedEmailAiCheck);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSavedEmailAiCheck(); });
     window.addEventListener('resize', closeEmailAiStatusDetails);
     window.addEventListener('scroll', event => { if (event.target !== emailAiDetails) closeEmailAiStatusDetails(); }, true);
   }

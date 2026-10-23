@@ -1394,35 +1394,19 @@
       else recordGmailSyncSuccess();
       sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
       setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}${failedMessageFetches.length ? ` · ${plural(failedMessageFetches.length, 'message')} failed to load` : ''}`);
-      const { automaticTasks, applicationOutcomes } = await checkAllEmailAiMessages();
-      const closedApplications = applicationOutcomes.changed;
       if (currentUser?.id !== syncUserId) return;
-      const closedEmailIds = new Set(closedApplications.map(({ email }) => email.gmailId || email.id));
-      const ordinaryNewEmails = newOnes.filter(email => !closedEmailIds.has(email.gmailId || email.id));
-      const notificationEmails = [...new Map([...ordinaryNewEmails,
-        ...data.emails.filter(email => email.clientEmailNotificationPending && !closedEmailIds.has(email.gmailId || email.id))]
+      const notificationEmails = [...new Map([...newOnes,
+        ...data.emails.filter(email => email.clientEmailNotificationPending)]
         .map(email => [email.gmailId || email.id, email])).values()];
-      // A closure notice must not suppress an unrelated active-client email.
-      // The shared result modal queues these notices instead of dropping them.
-      const hasNewMatches = alertNewMatches(notificationEmails, { createdTasks: automaticTasks.created });
-      const tasksOutsideNewEmails = hasNewMatches
-        ? automaticTasks.created.filter(task => !notificationEmails.some(email => email.id === task.sourceEmailId))
-        : automaticTasks.created;
-      if (tasksOutsideNewEmails.length) showAutomaticEmailTasksNotice(tasksOutsideNewEmails);
-      showEmailAiReviewNotice(automaticTasks.review);
-      showApplicationAiReviewNotice(applicationOutcomes.review);
-      if (applicationOutcomes.failed) showActionResult({ title: 'Application update save pending', status: 'error',
-        message: 'The AI result could not be saved. Your application status is unchanged; the update will retry during the next Gmail sync.' });
-      if (automaticTasks.failed) showActionResult({ title: 'Automatic task save pending', status: 'error',
-        message: 'The client email is available, but its task could not be saved. Automatic creation will retry on the next Gmail sync.' });
+      const hasNewMatches = alertNewMatches(notificationEmails);
+      if (typeof scheduleSavedEmailAiCheck === 'function') scheduleSavedEmailAiCheck();
       if (!silent) {
         if (failedMessageFetches.length) {
           showActionResult({ title: 'Gmail sync incomplete', message: `${plural(failedMessageFetches.length, 'message')} could not be loaded. Gmail will retry on the next sync.`, status: 'error' });
-        } else if (!hasNewMatches && !closedApplications.length) {
+        } else if (!hasNewMatches) {
           showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
         }
       }
-      showApplicationEmailOutcomeNotice(closedApplications);
     } catch (error) {
       if (currentUser?.id !== syncUserId) return;
       if (!gmailReconnectRequired) setGmailSyncDisplay('paused');

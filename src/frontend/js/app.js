@@ -835,6 +835,7 @@
     let workspaceRenderFailed = false;
     try {
       startNotificationRefreshTimer();
+      startSavedEmailAiChecks();
       if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
       autoRejectedApplications = processStaleApplications();
       renderAll();
@@ -3427,6 +3428,7 @@
   }
 
   function renderAll() {
+    if (typeof scheduleSavedEmailAiCheck === 'function') scheduleSavedEmailAiCheck();
     // perf: keep match caches until the application snapshot changes, instead of blowing them away on every rerender.
     invalidateApplicationMatchCaches();
     processContractEndedAlerts();
@@ -7627,35 +7629,19 @@
       else recordGmailSyncSuccess();
       sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
       setGmailStatus(`Connected — ${plural(activeIds.length, 'message')}${newOnes.length ? ` · ${plural(newOnes.length, 'new message')} just now` : ''}${failedMessageFetches.length ? ` · ${plural(failedMessageFetches.length, 'message')} failed to load` : ''}`);
-      const { automaticTasks, applicationOutcomes } = await checkAllEmailAiMessages();
-      const closedApplications = applicationOutcomes.changed;
       if (currentUser?.id !== syncUserId) return;
-      const closedEmailIds = new Set(closedApplications.map(({ email }) => email.gmailId || email.id));
-      const ordinaryNewEmails = newOnes.filter(email => !closedEmailIds.has(email.gmailId || email.id));
-      const notificationEmails = [...new Map([...ordinaryNewEmails,
-        ...data.emails.filter(email => email.clientEmailNotificationPending && !closedEmailIds.has(email.gmailId || email.id))]
+      const notificationEmails = [...new Map([...newOnes,
+        ...data.emails.filter(email => email.clientEmailNotificationPending)]
         .map(email => [email.gmailId || email.id, email])).values()];
-      // A closure notice must not suppress an unrelated active-client email.
-      // The shared result modal queues these notices instead of dropping them.
-      const hasNewMatches = alertNewMatches(notificationEmails, { createdTasks: automaticTasks.created });
-      const tasksOutsideNewEmails = hasNewMatches
-        ? automaticTasks.created.filter(task => !notificationEmails.some(email => email.id === task.sourceEmailId))
-        : automaticTasks.created;
-      if (tasksOutsideNewEmails.length) showAutomaticEmailTasksNotice(tasksOutsideNewEmails);
-      showEmailAiReviewNotice(automaticTasks.review);
-      showApplicationAiReviewNotice(applicationOutcomes.review);
-      if (applicationOutcomes.failed) showActionResult({ title: 'Application update save pending', status: 'error',
-        message: 'The AI result could not be saved. Your application status is unchanged; the update will retry during the next Gmail sync.' });
-      if (automaticTasks.failed) showActionResult({ title: 'Automatic task save pending', status: 'error',
-        message: 'The client email is available, but its task could not be saved. Automatic creation will retry on the next Gmail sync.' });
+      const hasNewMatches = alertNewMatches(notificationEmails);
+      if (typeof scheduleSavedEmailAiCheck === 'function') scheduleSavedEmailAiCheck();
       if (!silent) {
         if (failedMessageFetches.length) {
           showActionResult({ title: 'Gmail sync incomplete', message: `${plural(failedMessageFetches.length, 'message')} could not be loaded. Gmail will retry on the next sync.`, status: 'error' });
-        } else if (!hasNewMatches && !closedApplications.length) {
+        } else if (!hasNewMatches) {
           showActionResult({ title: 'Gmail synced', message: `${plural(activeIds.length, 'message')} are available in the inbox.` });
         }
       }
-      showApplicationEmailOutcomeNotice(closedApplications);
     } catch (error) {
       if (currentUser?.id !== syncUserId) return;
       if (!gmailReconnectRequired) setGmailSyncDisplay('paused');
@@ -10662,6 +10648,58 @@
     renderEmailTaskAiStatus();
   }
 
+  let savedEmailAiTimer = null;
+  let savedEmailAiDebounce = null;
+  let savedEmailAiRun = null;
+
+  function scheduleSavedEmailAiCheck() {
+    if (!currentUser || !dataReady || !supabaseDataLoaded || savedEmailAiRun) return;
+    if (savedEmailAiDebounce) clearTimeout(savedEmailAiDebounce);
+    savedEmailAiDebounce = setTimeout(() => {
+      savedEmailAiDebounce = null;
+      runSavedEmailAiChecks().catch(error => console.error('Saved email AI check failed:', error));
+    }, 300);
+  }
+
+  function startSavedEmailAiChecks() {
+    if (!savedEmailAiTimer) savedEmailAiTimer = setInterval(scheduleSavedEmailAiCheck, 15000);
+    scheduleSavedEmailAiCheck();
+  }
+
+  function stopSavedEmailAiChecks() {
+    if (savedEmailAiTimer) clearInterval(savedEmailAiTimer);
+    if (savedEmailAiDebounce) clearTimeout(savedEmailAiDebounce);
+    savedEmailAiTimer = null;
+    savedEmailAiDebounce = null;
+  }
+
+  async function runSavedEmailAiChecks() {
+    if (savedEmailAiRun) return savedEmailAiRun;
+    if (!currentUser || !dataReady || !supabaseDataLoaded || navigator.onLine === false
+      || emailAiRetryState()?.until > Date.now() || !pendingEmailAiChecks().length) return;
+    const userId = currentUser.id, workspace = data;
+    const run = (async () => {
+      const { automaticTasks, applicationOutcomes } = await checkAllEmailAiMessages();
+      if (currentUser?.id !== userId || data !== workspace) return;
+      let linkedTask = false;
+      for (const task of automaticTasks.created) {
+        const alert = (data.alerts || []).find(item => item.applicationId === task.clientId && item.emailId === task.sourceEmailId);
+        if (alert && alert.taskId !== task.id) { alert.taskId = task.id; linkedTask = true; }
+      }
+      if (linkedTask) await persist();
+      if (currentUser?.id !== userId || data !== workspace) return;
+      if (automaticTasks.created.length) showAutomaticEmailTasksNotice(automaticTasks.created);
+      showEmailAiReviewNotice(automaticTasks.review);
+      showApplicationAiReviewNotice(applicationOutcomes.review);
+      showApplicationEmailOutcomeNotice(applicationOutcomes.changed);
+      if (automaticTasks.failed || applicationOutcomes.failed) showActionResult({ title: 'Email AI update pending', status: 'error',
+        message: 'An AI update could not be saved. Saved emails remain available; the independent checker will retry.' });
+      if (automaticTasks.created.length || applicationOutcomes.changed.length || linkedTask) renderAll();
+    })();
+    savedEmailAiRun = run;
+    try { return await run; } finally { if (savedEmailAiRun === run) savedEmailAiRun = null; }
+  }
+
   async function checkAllEmailAiMessages() {
     if (automaticEmailQueueRun) return automaticEmailQueueRun;
     const userId = currentUser?.id, workspace = data;
@@ -10689,7 +10727,7 @@
           emailAiQueueState.running = false;
           const remaining = pendingEmailAiChecks().length;
           emailAiQueueState.total = emailAiQueueState.checked + remaining;
-          renderEmailTaskAiStatus(failed ? 'Email AI: updates could not be saved; queued to retry during the next sync.'
+          renderEmailTaskAiStatus(failed ? 'Email AI: updates could not be saved; queued for the next automatic check.'
             : remaining ? `Email AI: ${remaining} eligible messages remain queued. Checks will resume automatically.`
               : 'Email AI: this week’s eligible messages checked.');
         }
@@ -10983,7 +11021,7 @@
         return { created, review, failed: false };
       }
       let saved = false;
-      try { saved = await persist(); } catch (_) { /* Restore the pending work for the next sync. */ }
+      try { saved = await persist(); } catch (_) { /* Restore pending work for the independent checker. */ }
       if (!saved) {
         workspace.clientTasks = (workspace.clientTasks || []).filter(task => !created.includes(task));
         workspace.alerts = workspace.alerts.filter(alert => !reviewAlerts.includes(alert));
@@ -11002,7 +11040,7 @@
       if (currentUser?.id !== userId || data !== workspace) return { created: [], failed: false };
       if (hiredEditingId && created.some(task => task.clientId === hiredEditingId)) renderClientTasks(hiredEditingId);
       if (review.length) renderAlerts();
-      renderEmailTaskAiStatus(waiting ? 'Email tasks: remaining messages are queued for the next sync.' : 'Email tasks: active-client messages checked.');
+      renderEmailTaskAiStatus(waiting ? 'Email tasks: remaining messages are queued for the next automatic check.' : 'Email tasks: active-client messages checked.');
       return { created, review, failed: false };
     })();
     try { return await automaticEmailTaskRun; }
@@ -11053,6 +11091,9 @@
     if (!emailAiSummary?.contains?.(event.target)) closeEmailAiStatusDetails();
   });
   if (typeof window !== 'undefined') {
+    window.addEventListener('online', scheduleSavedEmailAiCheck);
+    window.addEventListener('focus', scheduleSavedEmailAiCheck);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleSavedEmailAiCheck(); });
     window.addEventListener('resize', closeEmailAiStatusDetails);
     window.addEventListener('scroll', event => { if (event.target !== emailAiDetails) closeEmailAiStatusDetails(); }, true);
   }
@@ -13216,6 +13257,7 @@
       applyReminderTimer = null;
     }
     stopNotificationRefreshTimer();
+    stopSavedEmailAiChecks();
     dataReady = false;
     supabaseDataLoaded = false;
     data = emptyData();

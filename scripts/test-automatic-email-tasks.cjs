@@ -20,6 +20,7 @@ let classificationCalls = 0;
 let providerStatus = 200;
 let purposeOverride = '';
 const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, currentUser: { id: 'u1' },
+  setTimeout: () => 1, clearTimeout() {},
   localStorage: { getItem: key => localValues.get(key), setItem: (key, value) => localValues.set(key, value) },
   requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session' } } }) } }),
   // Provider fixtures test app decisions, not the model's semantic accuracy.
@@ -79,6 +80,8 @@ const documents = read('03-documents.js');
 vm.runInContext(documents.slice(documents.indexOf('  function alertNewMatches('), documents.indexOf('  const generatedNotificationTypes')), context);
 const gmail = read('04-gmail.js');
 vm.runInContext(gmail.slice(gmail.indexOf('  async function syncGmail('), gmail.indexOf('  // perf: debounce visibility')), context);
+const syncOnly = context.syncGmail;
+context.syncGmail = async (...args) => { await syncOnly(...args); await context.runSavedEmailAiChecks(); };
 const addEmail = (id, body, extra = {}) => {
   liveIds = [id];
   messages.set(id, { payload: { body, headers: [
@@ -108,8 +111,7 @@ const addEmail = (id, body, extra = {}) => {
   const modal = notices.find(notice => notice.label === 'CLIENT EMAIL ALERT');
   assert.ok(modal, 'background sync must show the client email modal');
   assert.match(modal.title, /Jordan sent you an email/);
-  assert.match(modal.message, /created automatically/);
-  assert.equal(modal.details[0].taskCreated, true);
+  assert.ok(notices.some(notice => notice.label === 'EMAIL TO TASK' && notice.details[0].taskCreated), 'Independent AI sends its own task-created notice');
   assert.ok(notices.some(notice => notice.title === 'Application closed'), 'both notices must be delivered');
   assert.equal(context.data.alerts[0].taskId, task.id);
   assert.equal(client.interviewPriority, undefined);

@@ -165,6 +165,7 @@
       applyReminderTimer = null;
     }
     stopNotificationRefreshTimer();
+    stopSavedEmailAiChecks();
     dataReady = false;
     supabaseDataLoaded = false;
     data = emptyData();
