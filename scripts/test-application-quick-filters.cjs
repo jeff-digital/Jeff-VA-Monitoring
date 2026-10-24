@@ -2,7 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const read = file => fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules', file), 'utf8');
+const { readModules, moduleGroups } = require('./lib/read-modules.cjs');
+const read = file => moduleGroups[file] ? readModules(moduleGroups[file]) : fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules', file), 'utf8');
 const nodes = new Map();
 const $ = key => { if (!nodes.has(key)) nodes.set(key, { value: '', textContent: '', innerHTML: '', hidden: false }); return nodes.get(key); };
 const context = vm.createContext({ $, applicationDateSort: 'all', applicationDateFilter: '2026-10-21',

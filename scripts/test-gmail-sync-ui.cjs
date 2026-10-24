@@ -2,7 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const read = name => fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules', name), 'utf8');
+const { readModules, moduleGroups } = require('./lib/read-modules.cjs');
+const read = name => moduleGroups[name] ? readModules(moduleGroups[name]) : fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules', name), 'utf8');
 const nodes = new Map();
 const storage = new Map();
 const node = id => {

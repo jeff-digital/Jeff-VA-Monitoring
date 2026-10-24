@@ -2,7 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules/02-email-matching.js'), 'utf8');
+const { readModules, moduleGroups } = require('./lib/read-modules.cjs');
+const source = readModules(moduleGroups['02-email-matching.js']);
 const nodes = {
   '#clientForm': { reportValidity: () => true }, '#automaticFollowUp': { checked: false },
   '#clientPlatform': { value: 'OnlineJobs.ph' }, '#clientName': { value: '  ACME   Studio ' },

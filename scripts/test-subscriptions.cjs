@@ -71,7 +71,8 @@ async function submit() { await $('#subscriptionForm').submit({ preventDefault()
   assert.equal(context.data.subscriptions.length, 0, 'Old account form cannot write into another account');
   assert.ok(renderCount >= 4);
   // Exercise generated alerts, deduplication, and clearing after a renewal/cancellation.
-  const notifications = read('src/frontend/js/modules/03-documents.js');
+  const { readModules, moduleGroups } = require('./lib/read-modules.cjs');
+  const notifications = readModules(moduleGroups['03-documents.js']);
   const start = notifications.indexOf('  const generatedNotificationTypes');
   const end = notifications.indexOf('  function visibleNotificationAlerts', start);
   Object.assign(context, { dataReady: true, supabaseDataLoaded: true, today: () => '2026-10-22', dateKey: value => value });

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { applicationEmailCandidates } from '../functions/api/application-email-classify.js';
-const read = name => fs.readFileSync(new URL(`../src/frontend/js/modules/${name}`, import.meta.url), 'utf8');
+import { createRequire } from 'node:module';
+const { readModules, moduleGroups } = createRequire(import.meta.url)('./lib/read-modules.cjs');
+const read = name => moduleGroups[name] ? readModules(moduleGroups[name]) : fs.readFileSync(new URL(`../src/frontend/js/modules/${name}`, import.meta.url), 'utf8');
 const matcher = read('02-email-matching.js');
 const context = vm.createContext({ $: () => null, currentUser: { email: 'me@example.com' },
   data: { applications: [], emails: [] }, isActiveContract: () => false });
