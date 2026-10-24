@@ -1,3 +1,4 @@
+import { automaticBackupReceipt } from '../../functions/api/backup-download.js';
 import { onRequestGet as news, onRequestGetUsage as newsUsage } from '../../functions/api/news.js';
 import { onRequestGet as tools } from '../../functions/api/tools.js';
 import { refreshGmail } from '../../functions/api/gmail-refresh.js';
@@ -21,9 +22,10 @@ export default {
     const isGmailRefresh = path === '/api/gmail/refresh';
     const isEmailClassification = path === '/api/email/classify';
     const isFollowUp = path === '/api/follow-up/delivery';
+    const isBackupReceipt = path === '/api/backup/download';
     const isProgressReview = path === '/api/application-progress';
-    if (!handler && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isProgressReview) return reply('Endpoint not found.', 404);
-    if (request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
+    if (!handler && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isProgressReview && !isBackupReceipt) return reply('Endpoint not found.', 404);
+    if (request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to continue.', 401);
     let verified = false;
@@ -36,6 +38,7 @@ export default {
       const user = await auth.json();
       if (!user.id) return sessionFailure(true);
       verified = true;
+      if (isBackupReceipt) return automaticBackupReceipt(request, env, user);
       if (isGmailRefresh) return refreshGmail(request, env);
       if (isEmailClassification) return classifyClientEmail(request, env, user);
       if (isFollowUp) return sendFollowUp(request, env, user);

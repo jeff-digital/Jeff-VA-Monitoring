@@ -33,6 +33,8 @@ PROGRESS_AI_PATH = "/api/application-progress"
 PROGRESS_AI_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/application-progress"
 FOLLOW_UP_PATH = "/api/follow-up/delivery"
 FOLLOW_UP_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/follow-up/delivery"
+BACKUP_DOWNLOAD_PATH = "/api/backup/download"
+BACKUP_DOWNLOAD_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/backup/download"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
 APP_ROUTES = {
@@ -136,7 +138,8 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             body = json.dumps({"error": "Cloudflare AI is unavailable or not deployed yet. Client emails remain queued.", "retryAfter": 120}
                               if upstream_url == EMAIL_AI_UPSTREAM else {"error": "AI progress review is temporarily unavailable or not deployed yet."}
                               if upstream_url == PROGRESS_AI_UPSTREAM else {"error": "Follow-up protection is unavailable. No new email was sent."}
-                              if upstream_url == FOLLOW_UP_UPSTREAM else {"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
+                              if upstream_url == FOLLOW_UP_UPSTREAM else {"error": "Backup download protection is unavailable. Automatic download was skipped."}
+                              if upstream_url == BACKUP_DOWNLOAD_UPSTREAM else {"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -167,6 +170,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        if urlparse(self.path).path == BACKUP_DOWNLOAD_PATH:
+            self._refresh_gmail(BACKUP_DOWNLOAD_UPSTREAM)
+            return
         if urlparse(self.path).path == PROGRESS_AI_PATH:
             self._refresh_gmail(PROGRESS_AI_UPSTREAM, timeout=30)
             return

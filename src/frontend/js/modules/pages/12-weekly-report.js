@@ -837,7 +837,7 @@
           report.offset = offset;
           return report;
         });
-        const pdf = new pdfLib({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pdf = new pdfLib({ orientation: 'landscape', unit: 'mm', format: 'a4' });
         drawWeeklyReportPdf(pdf, reports, allWeeks);
         pdf.save(allWeeks
           ? 'jeff-va-weekly-reports-all-weeks.pdf'

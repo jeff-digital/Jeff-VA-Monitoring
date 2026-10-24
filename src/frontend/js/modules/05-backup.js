@@ -15,6 +15,7 @@
   const DOCUMENTS_BACKUP_NAME = 'Jeff VA Backup.xlsx';
   const DOCUMENTS_BACKUP_LAST_SAVED_KEY = 'jeff-va-documents-backup-saved-at-v1';
   let automaticBackupTimer = null;
+  let automaticBackupInFlight = false;
   let documentsBackupTimer = null;
   let documentsBackupInFlight = false;
   let documentsBackupQueued = false;
@@ -218,20 +219,60 @@
   }
 
   function autoBackupPeriodKey(frequency) {
-    const currentDate = new Date(`${today()}T12:00:00`);
-    if (frequency === 'daily') return today();
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    if (frequency === 'daily') return day;
     if (frequency !== 'weekly') return '';
-    const firstDay = new Date(currentDate.getFullYear(), 0, 1);
-    const dayOfYear = Math.floor((currentDate - firstDay) / 86400000);
-    return `${currentDate.getFullYear()}-week-${Math.floor((dayOfYear + firstDay.getDay()) / 7)}`;
+    const currentDate = new Date(day + 'T12:00:00Z');
+    currentDate.setUTCDate(currentDate.getUTCDate() - (currentDate.getUTCDay() + 6) % 7);
+    return currentDate.toISOString().slice(0, 10);
   }
 
-  function runAutomaticBackup() {
-    if (!currentUser || !dataReady || !supabaseDataLoaded) return;
+  async function requestBackupDownload(action, frequency, claimToken, userId) {
+    const auth = requireSupabase().auth;
+    let result = await auth.getSession();
+    let session = result.data?.session;
+    if (result.error || !session?.access_token || session.expires_at <= Date.now() / 1000 + 60) {
+      result = await auth.refreshSession();
+      session = result.data?.session;
+    }
+    if (result.error || !session?.access_token || currentUser?.id !== userId || session.user?.id !== userId) throw new Error('Backup session unavailable.');
+    const response = await fetch('/api/backup/download', {
+      method: 'POST', headers: { authorization: 'Bearer ' + session.access_token, 'content-type': 'application/json' },
+      body: JSON.stringify({ action, frequency, ...(claimToken ? { claimToken } : {}) }), signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error('Could not verify the scheduled backup history.');
+    return response.json();
+  }
+
+  async function runAutomaticBackup() {
+    if (!currentUser || !dataReady || !supabaseDataLoaded || !window.XLSX || automaticBackupInFlight) return;
+    const userId = currentUser.id;
     const frequency = localStorage.getItem(AUTO_BACKUP_FREQUENCY_KEY) || 'off';
     const periodKey = autoBackupPeriodKey(frequency);
-    if (!periodKey || localStorage.getItem(AUTO_BACKUP_LAST_RUN_KEY) === `${frequency}:${periodKey}`) return;
-    if (exportBackup({ automatic: true })) localStorage.setItem(AUTO_BACKUP_LAST_RUN_KEY, `${frequency}:${periodKey}`);
+    const runKey = userId + ':' + frequency + ':' + periodKey;
+    if (!periodKey || localStorage.getItem(AUTO_BACKUP_LAST_RUN_KEY) === runKey) return;
+    automaticBackupInFlight = true;
+    try {
+      const receipt = await requestBackupDownload('claim', frequency, null, userId);
+      if (receipt.status !== 'claimed') {
+        if (receipt.status === 'downloaded' || receipt.status === 'pending') localStorage.setItem(AUTO_BACKUP_LAST_RUN_KEY, runKey);
+        return;
+      }
+      // A thrown export error can have an uncertain outcome; retain its claim.
+      // Only release when no download was started. A lost completion response
+      // must retain the shared reservation so another origin cannot duplicate it.
+      if (currentUser?.id !== userId || !dataReady || !supabaseDataLoaded
+        || (localStorage.getItem(AUTO_BACKUP_FREQUENCY_KEY) || 'off') !== frequency) {
+        await requestBackupDownload('release', frequency, receipt.claimToken, userId);
+        return;
+      }
+      const started = exportBackup({ automatic: true });
+      if (!started) { await requestBackupDownload('release', frequency, receipt.claimToken, userId); return; }
+      localStorage.setItem(AUTO_BACKUP_LAST_RUN_KEY, runKey);
+      await requestBackupDownload('complete', frequency, receipt.claimToken, userId);
+    } catch (error) {
+      console.warn('Scheduled backup skipped or receipt pending:', error);
+    } finally { automaticBackupInFlight = false; }
   }
 
   function scheduleAutomaticBackup() {

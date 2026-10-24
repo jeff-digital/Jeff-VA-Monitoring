@@ -103,3 +103,23 @@ with patch.object(server, 'urlopen', side_effect=URLError('offline')):
     assert ai.result_status == 503
     assert 'AI' in json.loads(ai.wfile.getvalue())['error']
 print('Local AI forwarding checks passed: fixed route, authorization forwarding, timeout and unavailable deployment response.')
+
+
+def backup_receipt_fetch(request, timeout):
+    assert request.full_url == server.BACKUP_DOWNLOAD_UPSTREAM
+    assert request.get_header('Authorization') == 'Bearer test-session'
+    return Response()
+
+with patch.object(server, 'urlopen', side_effect=backup_receipt_fetch):
+    backup = handler()
+    backup.path = server.BACKUP_DOWNLOAD_PATH
+    backup.do_POST()
+    assert backup.result_status == 200
+
+with patch.object(server, 'urlopen', side_effect=URLError('offline')):
+    backup = handler()
+    backup.path = server.BACKUP_DOWNLOAD_PATH
+    backup.do_POST()
+    assert backup.result_status == 503
+    assert 'Backup download protection' in json.loads(backup.wfile.getvalue())['error']
+print('Local backup receipt forwarding checks passed.')

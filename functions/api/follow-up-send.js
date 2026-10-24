@@ -1,3 +1,4 @@
+import { coordinateBackup } from './backup-download.js';
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
 
 export function savedFollowUpDelivery(state, app, scheduledDate) {
@@ -58,6 +59,7 @@ export class FollowUpDelivery {
   constructor(ctx) { this.storage = ctx.storage; }
   async fetch(request) {
     const input = await request.json();
+    if (new URL(request.url).pathname === '/backup') return coordinateBackup(this.storage, input);
     return this.storage.transaction(async txn => {
       const existing = await txn.get('delivery');
       if (existing?.status === 'sent') return reply(existing);
