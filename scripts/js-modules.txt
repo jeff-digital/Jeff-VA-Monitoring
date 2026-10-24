@@ -1,5 +1,6 @@
 01-core.js
 02-email-matching.js
+pages/06a-view-router.js
 pages/07c-application-form.js
 02aa-email-disambiguation.js
 02a-email-match-rules.js

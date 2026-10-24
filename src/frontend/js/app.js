@@ -3335,6 +3335,7 @@
     if (render) renderHired();
   }
 
+
   function updateWeekNavigationCounts() {
     const applicationRange = applicationDateSort && applicationDateSort !== 'all' ? weekRange(Number(applicationDateSort)) : null;
     const emailRange = emailDateSort === 'all' ? null : weekRange(Number(emailDateSort));
