@@ -1200,6 +1200,7 @@
   ]);
   let applicationMatchIndex = [];
   let applicationMatchIndexSignature = '';
+
   let activeClientDetailsModalEdit = false;
   const CLIENT_SOCIAL_PLATFORM_LABELS = Object.freeze({
     facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter',
