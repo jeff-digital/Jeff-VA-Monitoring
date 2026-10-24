@@ -10655,20 +10655,10 @@
   });
 
   const CLIENT_WORLD_CLOCKS = [
-    ['Australia', 'Sydney', 'Australia/Sydney'], ['Australia', 'Melbourne', 'Australia/Melbourne'],
-    ['Australia', 'Brisbane', 'Australia/Brisbane'], ['Australia', 'Perth', 'Australia/Perth'],
-    ['Australia', 'Adelaide', 'Australia/Adelaide'], ['Australia', 'Darwin', 'Australia/Darwin'], ['Australia', 'Hobart', 'Australia/Hobart'],
-    ['Canada', 'Toronto / Ottawa', 'America/Toronto'], ['Canada', 'Vancouver', 'America/Vancouver'],
-    ['Canada', 'Calgary / Edmonton', 'America/Edmonton'], ['Canada', 'Winnipeg', 'America/Winnipeg'],
-    ['Canada', 'Halifax', 'America/Halifax'], ['Canada', "St. John's", 'America/St_Johns'],
-    ['United States', 'New York / Miami', 'America/New_York'], ['United States', 'Chicago / Dallas', 'America/Chicago'],
-    ['United States', 'Denver', 'America/Denver'], ['United States', 'Los Angeles / Seattle', 'America/Los_Angeles'],
-    ['United States', 'Phoenix', 'America/Phoenix'], ['United States', 'Anchorage', 'America/Anchorage'], ['United States', 'Honolulu', 'Pacific/Honolulu'],
-    ['United Kingdom', 'London', 'Europe/London'], ['Ireland', 'Dublin', 'Europe/Dublin'],
-    ['Germany', 'Berlin', 'Europe/Berlin'], ['France', 'Paris', 'Europe/Paris'],
-    ['New Zealand', 'Auckland', 'Pacific/Auckland'], ['Philippines', 'Manila', 'Asia/Manila'],
-    ['Singapore', 'Singapore', 'Asia/Singapore'], ['United Arab Emirates', 'Dubai', 'Asia/Dubai'],
-    ['India', 'Kolkata / New Delhi', 'Asia/Kolkata'], ['Japan', 'Tokyo', 'Asia/Tokyo']
+    ['United States', 'New York', 'America/New_York'],
+    ['Canada', 'Toronto', 'America/Toronto'],
+    ['Australia', 'Sydney', 'Australia/Sydney'],
+    ['United Kingdom', 'London', 'Europe/London']
   ].map(([country, city, zone]) => ({ country, city, zone }));
   const worldClockFormatters = new Map();
   let worldClockTimer = null;
@@ -10685,8 +10675,7 @@
 
   function filterClientWorldClocks(query = '', country = '') {
     const search = String(query).trim().toLowerCase();
-    const mainCountries = ['Australia', 'Canada', 'United States'];
-    return CLIENT_WORLD_CLOCKS.filter(clock => (!country || (country === 'other' ? !mainCountries.includes(clock.country) : clock.country === country))
+    return CLIENT_WORLD_CLOCKS.filter(clock => (!country || clock.country === country)
       && `${clock.country} ${clock.city} ${clock.zone}`.toLowerCase().includes(search));
   }
 
@@ -12912,7 +12901,7 @@
   let newsHasMore = false;
   const gatheredNewsStorageKey = 'jeff-va-gathered-news-v1';
 
-  const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing', 'social-trends': 'Social media trends' };
+  const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', chatgpt: 'ChatGPT updates', claude: 'Claude updates', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing', 'social-trends': 'Social media trends' };
   const newsUrlKey = value => {
     try {
       const url = new URL(value);
@@ -13025,10 +13014,27 @@
     if (newsLoading && !reset) return;
     const focus = $('#newsTopicFocus');
     const topicFocus = {
+      chatgpt: 'ChatGPT news: new models, releases, features, and capabilities. Stories appear newest first.',
+      claude: 'Claude news: new models, releases, features, and capabilities. Stories appear newest first.',
       'social-trends': 'Business content inspiration: social media marketing, brand campaigns, product launches, and consumer trends across platforms.',
       'business-markets': 'Business challenges in the UK, US, Canada, and Australia: staffing, workload, customer service, costs, productivity, and growth. Look for opportunities to help owners with VA support.'
     }[$('#newsCategory').value] || '';
-    if (focus) { focus.textContent = topicFocus; focus.hidden = !topicFocus; }
+    if (focus) {
+      focus.textContent = topicFocus;
+      focus.hidden = !topicFocus;
+      const releaseNotes = {
+        chatgpt: ['ChatGPT official release notes', 'https://help.openai.com/en/articles/6825453-chatgpt-release-notes'],
+        claude: ['Claude official release notes', 'https://support.claude.com/en/articles/12138966-release-notes']
+      }[$('#newsCategory').value];
+      if (releaseNotes) {
+        const link = document.createElement('a');
+        link.textContent = releaseNotes[0];
+        link.href = releaseNotes[1];
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        focus.append(' ', link);
+      }
+    }
     const requestId = ++newsRequest;
     if (reset) {
       newsPage = 1;

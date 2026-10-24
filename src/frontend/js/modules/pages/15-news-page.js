@@ -6,7 +6,7 @@
   let newsHasMore = false;
   const gatheredNewsStorageKey = 'jeff-va-gathered-news-v1';
 
-  const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing', 'social-trends': 'Social media trends' };
+  const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', chatgpt: 'ChatGPT updates', claude: 'Claude updates', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing', 'social-trends': 'Social media trends' };
   const newsUrlKey = value => {
     try {
       const url = new URL(value);
@@ -119,10 +119,27 @@
     if (newsLoading && !reset) return;
     const focus = $('#newsTopicFocus');
     const topicFocus = {
+      chatgpt: 'ChatGPT news: new models, releases, features, and capabilities. Stories appear newest first.',
+      claude: 'Claude news: new models, releases, features, and capabilities. Stories appear newest first.',
       'social-trends': 'Business content inspiration: social media marketing, brand campaigns, product launches, and consumer trends across platforms.',
       'business-markets': 'Business challenges in the UK, US, Canada, and Australia: staffing, workload, customer service, costs, productivity, and growth. Look for opportunities to help owners with VA support.'
     }[$('#newsCategory').value] || '';
-    if (focus) { focus.textContent = topicFocus; focus.hidden = !topicFocus; }
+    if (focus) {
+      focus.textContent = topicFocus;
+      focus.hidden = !topicFocus;
+      const releaseNotes = {
+        chatgpt: ['ChatGPT official release notes', 'https://help.openai.com/en/articles/6825453-chatgpt-release-notes'],
+        claude: ['Claude official release notes', 'https://support.claude.com/en/articles/12138966-release-notes']
+      }[$('#newsCategory').value];
+      if (releaseNotes) {
+        const link = document.createElement('a');
+        link.textContent = releaseNotes[0];
+        link.href = releaseNotes[1];
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        focus.append(' ', link);
+      }
+    }
     const requestId = ++newsRequest;
     if (reset) {
       newsPage = 1;

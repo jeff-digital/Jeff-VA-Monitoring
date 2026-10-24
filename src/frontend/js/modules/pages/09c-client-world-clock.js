@@ -1,18 +1,8 @@
   const CLIENT_WORLD_CLOCKS = [
-    ['Australia', 'Sydney', 'Australia/Sydney'], ['Australia', 'Melbourne', 'Australia/Melbourne'],
-    ['Australia', 'Brisbane', 'Australia/Brisbane'], ['Australia', 'Perth', 'Australia/Perth'],
-    ['Australia', 'Adelaide', 'Australia/Adelaide'], ['Australia', 'Darwin', 'Australia/Darwin'], ['Australia', 'Hobart', 'Australia/Hobart'],
-    ['Canada', 'Toronto / Ottawa', 'America/Toronto'], ['Canada', 'Vancouver', 'America/Vancouver'],
-    ['Canada', 'Calgary / Edmonton', 'America/Edmonton'], ['Canada', 'Winnipeg', 'America/Winnipeg'],
-    ['Canada', 'Halifax', 'America/Halifax'], ['Canada', "St. John's", 'America/St_Johns'],
-    ['United States', 'New York / Miami', 'America/New_York'], ['United States', 'Chicago / Dallas', 'America/Chicago'],
-    ['United States', 'Denver', 'America/Denver'], ['United States', 'Los Angeles / Seattle', 'America/Los_Angeles'],
-    ['United States', 'Phoenix', 'America/Phoenix'], ['United States', 'Anchorage', 'America/Anchorage'], ['United States', 'Honolulu', 'Pacific/Honolulu'],
-    ['United Kingdom', 'London', 'Europe/London'], ['Ireland', 'Dublin', 'Europe/Dublin'],
-    ['Germany', 'Berlin', 'Europe/Berlin'], ['France', 'Paris', 'Europe/Paris'],
-    ['New Zealand', 'Auckland', 'Pacific/Auckland'], ['Philippines', 'Manila', 'Asia/Manila'],
-    ['Singapore', 'Singapore', 'Asia/Singapore'], ['United Arab Emirates', 'Dubai', 'Asia/Dubai'],
-    ['India', 'Kolkata / New Delhi', 'Asia/Kolkata'], ['Japan', 'Tokyo', 'Asia/Tokyo']
+    ['United States', 'New York', 'America/New_York'],
+    ['Canada', 'Toronto', 'America/Toronto'],
+    ['Australia', 'Sydney', 'Australia/Sydney'],
+    ['United Kingdom', 'London', 'Europe/London']
   ].map(([country, city, zone]) => ({ country, city, zone }));
   const worldClockFormatters = new Map();
   let worldClockTimer = null;
@@ -29,8 +19,7 @@
 
   function filterClientWorldClocks(query = '', country = '') {
     const search = String(query).trim().toLowerCase();
-    const mainCountries = ['Australia', 'Canada', 'United States'];
-    return CLIENT_WORLD_CLOCKS.filter(clock => (!country || (country === 'other' ? !mainCountries.includes(clock.country) : clock.country === country))
+    return CLIENT_WORLD_CLOCKS.filter(clock => (!country || clock.country === country)
       && `${clock.country} ${clock.city} ${clock.zone}`.toLowerCase().includes(search));
   }
 

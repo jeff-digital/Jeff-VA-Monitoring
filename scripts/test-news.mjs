@@ -20,6 +20,7 @@ globalThis.fetch = async input => {
     providerQueries.push(url.searchParams.get('q'));
     assert.ok(url.searchParams.get('q').length <= 200, 'GNews queries must stay within the provider limit');
     assert.equal(url.searchParams.get('max'), '10');
+    assert.equal(url.searchParams.get('sortby'), 'publishedAt');
     if (providerFails) throw new Error('timeout');
     return Response.json({ totalArticles: 4, articles: [
       { title: 'Provider fixture', url: 'https://www.publisher.example/article?utm_source=newsletter', image: 'https://publisher.example/image.jpg', publishedAt: '2026-10-17T01:00:00Z', source: { name: 'Publisher' } },
@@ -90,4 +91,17 @@ assert.ok(providerQueries.at(-1).includes('Canada'));
 await get(`/api/news?category=social-trends&q=${encodeURIComponent(longSearch)}`);
 assert.ok(providerQueries.at(-1).includes(longSearch), 'social searches must not be truncated by the list of platform names');
 assert.ok(providerQueries[0].includes('viral'), 'All news must include viral coverage');
+for (const [category, names] of [['chatgpt', ['ChatGPT', 'OpenAI']], ['claude', ['Claude', 'Anthropic']]]) {
+  const before = newsRequests;
+  const response = await get('/api/news?category=' + category);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.ok(names.every(name => providerQueries.at(-1).includes(name)));
+  assert.ok(providerQueries.at(-1).includes('capabilities'));
+  assert.ok(result.articles.every(article => article.category === category));
+  assert.equal(result.errors.length, 0);
+  assert.ok(result.articles[0].publishedAt >= result.articles.at(-1).publishedAt);
+  await get('/api/news?category=' + category);
+  assert.equal(newsRequests, before + 1, 'AI topics reuse cached results');
+}
 console.log('News routing, authentication, images, partial failures, caching, and secret handling passed.');

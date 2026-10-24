@@ -5,6 +5,8 @@ const CATEGORY_QUERIES = {
   'va-philippines': '("virtual assistant" OR freelancing OR BPO) AND (Philippines OR Filipino)',
   'remote-work': '("remote work" OR "work from home" OR "digital jobs") AND (Philippines OR Filipino)',
   ai: 'artificial intelligence OR ChatGPT OR Claude OR Gemini',
+  chatgpt: '(ChatGPT OR OpenAI) AND (release OR update OR model OR features OR capabilities)',
+  claude: '(Claude OR Anthropic) AND (release OR update OR model OR features OR capabilities)',
   'ai-tools': 'AI tools productivity writing coding design',
   'virtual-assistants': 'virtual assistant remote work administrative productivity',
   automation: 'n8n OR Zapier OR Make workflow automation',

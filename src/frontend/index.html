@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-career-tools-header" />
+    <link rel="stylesheet" href="css/styles.css?v=20261025-clocks-ai-news" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -457,7 +457,7 @@
               <div class="news-live-meta"><span id="newsUpdatedAt">Updates load when you open News</span><span class="news-usage" id="gnewsUsage" title="Requests tracked by this app">GNews usage -- / 100</span></div>
               <div class="news-live-controls">
                 <label class="search-field news-search"><span class="sr-only">Search articles</span><input id="newsSearch" type="search" maxlength="120" placeholder="Search articles" /></label>
-                <label class="news-category-select"><span class="sr-only">Topic</span><select id="newsCategory"><option value="all">All news</option><option value="business-markets">Business: UK, AU, US &amp; Canada</option><option value="va-philippines">VA Philippines</option><option value="remote-work">Remote work</option><option value="ai">Artificial intelligence</option><option value="ai-tools">AI tools</option><option value="virtual-assistants">Virtual assistants</option><option value="automation">Automation</option><option value="crm-business">CRM &amp; business tools</option><option value="web">Web development</option><option value="marketing">Digital marketing</option><option value="social-trends">Social media trends</option></select></label>
+                <label class="news-category-select"><span class="sr-only">Topic</span><select id="newsCategory"><option value="all">All news</option><option value="business-markets">Business: UK, AU, US &amp; Canada</option><option value="va-philippines">VA Philippines</option><option value="remote-work">Remote work</option><option value="ai">Artificial intelligence</option><option value="chatgpt">ChatGPT updates</option><option value="claude">Claude updates</option><option value="ai-tools">AI tools</option><option value="virtual-assistants">Virtual assistants</option><option value="automation">Automation</option><option value="crm-business">CRM &amp; business tools</option><option value="web">Web development</option><option value="marketing">Digital marketing</option><option value="social-trends">Social media trends</option></select></label>
                 <button class="button button-secondary" type="button" id="refreshNews">Refresh</button>
               </div>
             </div>
@@ -1751,8 +1751,8 @@
     <dialog class="modal world-clock-modal" id="worldClockModal" aria-labelledby="worldClockTitle" aria-describedby="worldClockHelp">
       <form method="dialog" class="world-clock-form">
         <div class="modal-heading"><div><p class="eyebrow">CLIENT TIME ZONES</p><h2 id="worldClockTitle">World clock</h2></div><button class="icon-button" type="submit" value="cancel" aria-label="Close world clock">×</button></div>
-        <p class="world-clock-help" id="worldClockHelp">Countries can have several time zones. Choose the city closest to your client. Times use your device clock and adjust for daylight saving automatically.</p>
-        <div class="world-clock-toolbar"><label><span class="sr-only">Search cities or countries</span><input type="search" id="worldClockSearch" placeholder="Search city or country" /></label><label><span class="sr-only">Filter country</span><select id="worldClockCountry"><option value="">All countries</option><option>Australia</option><option>Canada</option><option>United States</option><option value="other">Other locations</option></select></label></div>
+        <p class="world-clock-help" id="worldClockHelp">Showing New York, Toronto, Sydney, and London. These are city times; other regions in each country may differ. Times use your device clock and adjust for daylight saving automatically.</p>
+        <div class="world-clock-toolbar"><label><span class="sr-only">Search cities or countries</span><input type="search" id="worldClockSearch" placeholder="Search city or country" /></label><label><span class="sr-only">Filter country</span><select id="worldClockCountry"><option value="">All countries</option><option>Australia</option><option>Canada</option><option>United States</option><option>United Kingdom</option></select></label></div>
         <p class="world-clock-local" id="worldClockLocalTime"></p>
         <div class="world-clock-grid" id="worldClockGrid" aria-live="off"></div>
         <div class="modal-actions"><button class="button button-secondary" type="submit" value="cancel">Close</button></div>
@@ -1769,6 +1769,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-career-tools-header"></script>
+    <script src="js/app.js?v=20261025-clocks-ai-news"></script>
   </body>
 </html>

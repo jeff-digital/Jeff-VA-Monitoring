@@ -27,9 +27,10 @@ assert.equal(context.clientWorldClockTime('Asia/Kolkata', winter).offset, 'GMT+5
 assert.match(context.clientWorldClockTime('America/New_York', winter).date, /Dec 31, 2025/, 'Date rolls back correctly across midnight');
 assert.match(context.clientWorldClockTime('Australia/Sydney', winter).date, /Jan 1, 2026/);
 assert.equal(context.filterClientWorldClocks('sydney').length, 1);
-assert.equal(context.filterClientWorldClocks('', 'Canada').length, 6);
+assert.equal(context.filterClientWorldClocks('', 'Canada').length, 1);
 assert.equal(context.filterClientWorldClocks('London', 'Canada').length, 0);
-assert.ok(context.filterClientWorldClocks('', 'other').some(clock => clock.city === 'Manila'));
+assert.deepEqual(Array.from(context.filterClientWorldClocks(), clock => clock.city), ['New York', 'Toronto', 'Sydney', 'London']);
+assert.equal(context.filterClientWorldClocks('', 'United Kingdom')[0].zone, 'Europe/London');
 assert.equal(context.filterClientWorldClocks('unmatched city').length, 0);
 $('#openClientWorldClock').handlers.click();
 assert.equal($('#worldClockModal').open, true);
