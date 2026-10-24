@@ -7785,6 +7785,37 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #a
 .application-progress-ai-check ul { margin: 8px 0; }
 .application-progress-ai-check li { font-size: 12px; }
 .application-progress-ai-check .text-button { padding: 4px 0; font-size: 12px; }
+
+/* Compact desktop task workspace; mobile keeps its existing touch sizing. */
+@media (min-width: 901px) {
+  body:has(#dailyTaskView.active) .content { grid-template-rows: 44px minmax(0, 1fr); gap: 8px; }
+  body:has(#dailyTaskView.active) .topbar { height: 44px; min-height: 44px; }
+  body:has(#dailyTaskView.active) .topbar h1 { font-size: 20px; }
+  body:has(#dailyTaskView.active) #dailyTaskView.active { grid-template-rows: auto auto auto; align-content: start; gap: 10px; overflow-y: auto; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-toolbar { gap: 8px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-date-step { width: 30px; min-width: 30px; height: 32px; min-height: 32px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-date-label { min-height: 32px; padding: 5px 8px; font-size: 12px; }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-today-button, .daily-task-filter-field select, #openDailyTaskAddModal) { height: 32px; min-height: 32px; padding: 5px 10px; font-size: 12px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary { display: flex; gap: 8px; }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-summary > div, .daily-task-summary-overdue) { flex: 0 1 150px; width: auto; min-width: 100px; min-height: 44px; padding: 7px 11px; border-radius: 8px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary span { font-size: 11px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary strong { font-size: 18px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-layout { height: auto; min-height: 0; align-items: start; gap: 12px; }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list-panel, .daily-task-history-panel) { min-height: 180px; height: auto; padding: 12px; border-radius: 10px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-section-heading { min-height: 20px; padding-bottom: 8px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-section-heading h3 { font-size: 14px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-progress { height: 4px; margin-bottom: 10px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-list-tools { gap: 8px; margin-bottom: 8px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-list-tools input { min-height: 32px; height: 32px; padding-top: 5px; padding-bottom: 5px; font-size: 12px; }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list, .daily-task-history-list) { flex: 0 1 auto; min-height: 40px; max-height: min(52dvh, 440px); overflow-y: auto; }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list, .daily-task-history-list) .daily-task-item { min-height: 40px; padding: 6px 8px; gap: 9px; }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-action, .daily-task-delete) { flex-basis: 26px; width: 26px; min-width: 26px; height: 26px; padding: 0; font-size: 12px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-item-title { font-size: 12px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-status { padding: 3px 7px; font-size: 10px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-history-controls { gap: 8px; margin-bottom: 8px; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-history-controls :is(.button, input) { height: 32px; min-height: 32px; padding: 5px 8px; font-size: 11px; }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-empty, .daily-task-history-empty) { height: auto; min-height: 60px; padding: 12px; font-size: 12px; }
+}
 @media (max-width: 900px) {
   body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel > .application-dashboard-insights {
     grid-column: 1 / -1;

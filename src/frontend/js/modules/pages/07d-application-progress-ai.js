@@ -1,6 +1,25 @@
   let applicationProgressReview = null;
   let applicationProgressRequest = null;
+  let applicationProgressLastAttempt = null;
   const applicationProgressLabels = { on_track: 'On track', needs_attention: 'Needs attention', insufficient_data: 'Not enough data' };
+
+  function applicationProgressSnapshot() {
+    return JSON.stringify({ day: today(), goal: data.weeklyActivityGoal,
+      applications: (data.applications || []).map(app => [app.id, app.updatedAt, app.clientName, app.role, app.email, app.platform, app.status, app.appliedDate, app.interviewDate, app.followUpDate, app.followUpSentAt, app.website]),
+      emails: (data.emails || []).map(email => [email.id, email.gmailId, email.importedAt, email.date, email.subject, email.from, email.to, email.applicationId, email.direction, email.source, email.emailType, email.automatedMessage, email.labelIds, String(email.body || '').length]),
+      reminders: (data.toApply || []).map(item => [item.id, item.dueDate, item.completed]) });
+  }
+
+  function maybeReviewApplicationProgress() {
+    const userId = currentUser?.id;
+    if (!userId || !dataReady || document.hidden || activeView !== 'dashboard' || activeDashboardTab !== 'application'
+      || applicationProgressRequest?.userId === userId) return;
+    const previous = applicationProgressReview?.userId === userId ? applicationProgressReview : null;
+    if (applicationProgressLastAttempt?.userId === userId && Date.now() - applicationProgressLastAttempt.at < (previous?.error ? 300000 : 60000)) return;
+    if (previous?.result && !previous.error && previous.snapshot === applicationProgressSnapshot()
+      && Date.now() - Date.parse(previous.result.reviewedAt) < 600000) return;
+    return requestApplicationProgressReview();
+  }
 
   function renderApplicationProgressAi() {
     const status = $('#applicationProgressAiStatus');
@@ -12,8 +31,8 @@
     button.disabled = loading || !currentUser || !dataReady;
     button.textContent = loading ? 'Reviewing…' : review ? 'Review again' : 'Review progress';
     status.textContent = loading ? 'Reviewing your saved activity…' : applicationProgressReview?.userId === currentUser?.id && applicationProgressReview?.error
-      ? applicationProgressReview.error : review ? 'Activity guidance, not a prediction of hiring success. Review again after updating your tracker.'
-        : 'Run a review to see what is going well and what needs attention.';
+      ? applicationProgressReview.error : review ? 'Activity guidance, not a prediction of hiring success. Reviews update automatically when you open this dashboard.'
+        : 'Your review starts automatically when you open the Application Dashboard.';
     result.hidden = !review;
     if (!review) { result.innerHTML = ''; return; }
     const metrics = review.metrics;
@@ -40,6 +59,8 @@
     const userId = currentUser?.id;
     if (!userId || !dataReady || applicationProgressRequest?.userId === userId) return;
     const request = { userId };
+    request.snapshot = applicationProgressSnapshot();
+    applicationProgressLastAttempt = { userId, at: Date.now() };
     applicationProgressRequest = request;
     if (applicationProgressReview?.userId === userId) applicationProgressReview.error = '';
     renderApplicationProgressAi();
@@ -63,7 +84,7 @@
         review = result;
         break;
       }
-      if (currentUser?.id === userId && review) applicationProgressReview = { userId, result: review };
+      if (currentUser?.id === userId && review) applicationProgressReview = { userId, result: review, snapshot: request.snapshot };
     } catch (error) {
       if (currentUser?.id === userId) applicationProgressReview = { userId,
         result: applicationProgressReview?.userId === userId ? applicationProgressReview.result : null,
@@ -75,6 +96,7 @@
   }
 
   $('#reviewApplicationProgress')?.addEventListener('click', requestApplicationProgressReview);
+  document.addEventListener('visibilitychange', maybeReviewApplicationProgress);
   $('#applicationProgressAiResult')?.addEventListener('click', event => {
     const button = event.target.closest('[data-progress-application]');
     if (!button || !currentUser) return;

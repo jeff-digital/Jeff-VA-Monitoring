@@ -222,6 +222,7 @@
       });
       $('#pageEyebrow').textContent = activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE';
       $('#pageTitle').textContent = activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard';
+      maybeReviewApplicationProgress();
       return;
     }
     if (notificationFilterButton) {

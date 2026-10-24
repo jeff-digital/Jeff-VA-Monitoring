@@ -33,6 +33,7 @@
     renderInterviewCalendar();
     renderRecentApplications();
     renderApplicationProgressAi();
+    maybeReviewApplicationProgress();
   }
 
   let clientDashboardSort = 'name';

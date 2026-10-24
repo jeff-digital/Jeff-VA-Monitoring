@@ -11,9 +11,13 @@ const metrics = { start: '2026-10-19', through: '2026-10-25', previousStart: '20
 metrics.responseAnalysis = { recent: { start: '2026-10-04', end: '2026-10-17', applications: 6, repliedApplications: 1, replyRate: 17 }, previous: { start: '2026-09-20', end: '2026-10-03', applications: 6, repliedApplications: 3, replyRate: 50 }, minimumSample: 5, bySource: [{ source: 'Direct client', applications: 3, repliedApplications: 1, replyRate: 33 }] };
 metrics.applicationChecks = [{ applicationId: 'review-app', company: '<img src=x>', role: 'Editor', issues: ['Record the role or missing posting details.'] }];
 const opened = [];
+let clockNow = Date.now();
+class ClockDate extends Date { constructor(...args) { super(...(args.length ? args : [clockNow])); } static now() { return clockNow; } }
 let requests = 0, renewals = 0, respond = () => Response.json({ status: 'on_track', summary: '<script>unsafe</script>', nextSteps: ['<img src=x onerror=bad>'], metrics, reviewedAt: new Date().toISOString() });
 const session = { access_token: 'session', user: { id: 'u1' } };
 const context = vm.createContext({ $, currentUser: null, dataReady: false, AbortSignal,
+  Date: ClockDate,
+  document: { hidden: false, addEventListener() {} }, today: () => '2026-10-25', activeView: 'dashboard', activeDashboardTab: 'application',
   data: { applications: [{ id: 'review-app' }] }, showView: view => opened.push(view), openClientModal: id => opened.push(id),
   escapeHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'),
   requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session } }) } }),
@@ -57,5 +61,45 @@ assert.equal(requests, 0);
   context.currentUser = null;
   context.renderApplicationProgressAi();
   assert.equal($('#applicationProgressAiResult').hidden, true);
-  console.log('Progress UI checks passed: signed-out rendering, click locking, escaped output, auth renewal, failure recovery, and account changes.');
+  const beforeAuto = requests;
+  context.currentUser = { id: 'auto-user' }; session.user.id = 'auto-user';
+  context.activeView = 'applications';
+  await context.maybeReviewApplicationProgress();
+  context.activeView = 'dashboard'; context.activeDashboardTab = 'client';
+  await context.maybeReviewApplicationProgress();
+  context.activeDashboardTab = 'application'; context.document.hidden = true;
+  await context.maybeReviewApplicationProgress();
+  context.document.hidden = false; context.dataReady = false;
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto, 'Automatic review waits for visible application dashboard and loaded user data');
+  context.dataReady = true;
+  respond = () => Response.json({ status: 'on_track', summary: 'Automatic review', nextSteps: ['Review pending work.'], metrics, reviewedAt: new Date(clockNow).toISOString() });
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto + 1, 'Opening the Application Dashboard automatically requests a review');
+  clockNow += 61000;
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto + 1, 'Re-entering with unchanged fresh data reuses the result');
+  context.data.applications[0].role = 'Updated role';
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto + 2, 'Changed application data refreshes the review');
+  context.data.weeklyActivityGoal = 20;
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto + 2, 'Rapid updates respect the request cooldown');
+  clockNow += 61000;
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto + 3);
+  clockNow += 601000;
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto + 4, 'Old review refreshes on a later dashboard visit');
+  respond = () => Response.json({ error: 'Provider temporarily unavailable' }, { status: 503 });
+  clockNow += 601000;
+  await context.maybeReviewApplicationProgress();
+  const afterFailure = requests;
+  clockNow += 61000;
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, afterFailure, 'Automatic failures back off instead of requesting on every render');
+  clockNow += 300000;
+  await context.maybeReviewApplicationProgress();
+  assert.equal(requests, afterFailure + 1, 'A later visit can retry a failed review');
+  console.log('Progress UI checks passed: automatic entry, fresh-result reuse, changed activity, cooldown/backoff, visibility, authentication, escaped output and account changes.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
