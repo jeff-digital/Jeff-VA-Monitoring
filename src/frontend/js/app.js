@@ -2470,6 +2470,7 @@
     return `<option value="all">All weeks</option><option value="0">This week</option>${options}`;
   }
 
+
   function renderToApplyList() {
     const target = $('#toApplyList');
     if (!target) return;
