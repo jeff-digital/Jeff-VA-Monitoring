@@ -51,4 +51,21 @@ assert.equal(context.onlineJobsJobIds('https://evil.example/jobseekers/job/14852
 assert.equal(context.onlineJobsJobIds('https://www.onlinejobs.ph/jobseekers/info/1485266').length, 0, 'A profile ID is not a posting ID');
 const direct = { ...app, id: 'direct', platform: 'Direct client', email: 'kurt@example.com' };
 assert.deepEqual(clientMatches([direct], { ...email, from: 'Kurt <kurt@example.com>' }), ['direct']);
+const unrelated = { id: 'personal-name', clientName: 'Jeffrey Almocera', contact: 'Jeffrey Almocera', role: 'Editor',
+  email: 'jepoyalmocera222@gmail.com', platform: 'Direct client', appliedDate: '2026-10-25', status: 'Applied' };
+const receipt = { id: 'workable-receipt', from: 'Workable <noreply@candidates.workablemail.com>',
+  subject: 'Thanks for applying to BookWithMe!', date: '2026-10-14T08:00:00Z',
+  body: "BookWithMe\nYour application for the Virtual Assistant job was submitted successfully.\nHere's a copy of your application data for safekeeping.\n** PERSONAL INFORMATION **\nName: Jeffrey Almocera\nEmail: almocerajeffreys@gmail.com\n** PROFILE **\nEditor\nhttps://example.com/jobs/personal-profile" };
+assert.deepEqual(clientMatches([unrelated], receipt), [], 'An old receipt cannot match a later unrelated application');
+assert.equal(applicationEmailCandidates([unrelated], receipt).length, 0);
+const earlierUnrelated = { ...unrelated, appliedDate: '2026-10-01' };
+const sameNameWrongSender = { ...receipt, from: 'Jeffrey Almocera <someone-else@example.com>', subject: 'Editor application', body: 'Jeffrey Almocera, Editor' };
+assert.deepEqual(clientMatches([earlierUnrelated], sameNameWrongSender), [], 'A display-name match cannot override a different direct-client email address');
+assert.equal(applicationEmailCandidates([earlierUnrelated], sameNameWrongSender).length, 0);
+assert.deepEqual(clientMatches([earlierUnrelated], receipt), [], 'Applicant name and role in a copied profile are not employer evidence');
+assert.equal(applicationEmailCandidates([earlierUnrelated], receipt).length, 0);
+const bookWithMe = { ...earlierUnrelated, id: 'bookwithme', clientName: 'BookWithMe', contact: 'Recruiting team', role: 'Virtual Assistant' };
+assert.deepEqual(clientMatches([earlierUnrelated, bookWithMe], receipt), ['bookwithme'], 'Company in receipt subject still identifies the real application');
+assert.deepEqual(applicationEmailCandidates([earlierUnrelated, bookWithMe], receipt).map(item => item.id), ['bookwithme']);
+assert.deepEqual(clientMatches([direct], { ...email, from: 'Kurt <kurt@example.com>', date: '2026-10-01' }), [], 'Even a matching sender cannot attach an email from before this application');
 console.log('OnlineJobs matching passed: exact-role interview replies, posting URL variants, ambiguous roles, conflicting IDs, newsletters, chronology, sent exclusion, and direct-client regression.');

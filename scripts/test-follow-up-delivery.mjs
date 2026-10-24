@@ -43,10 +43,11 @@ const env = { SUPABASE_URL: 'https://auth.test', SUPABASE_PUBLISHABLE_KEY: 'publ
     return namespaces.get(key);
   }
 } };
+let savedState = { applications: [{ id: 'app', followUpDate: '2026-10-23', automaticFollowUp: true, status: 'Applied' }] };
 globalThis.fetch = async url => {
   if (String(url).includes('/auth/v1/user')) return Response.json({ id: 'u1' });
   assert.match(String(url), /user_id=eq\.u[12]/, 'State is scoped to the verified account');
-  return Response.json([{ data: { applications: [{ id: 'app', followUpDate: '2026-10-23', automaticFollowUp: true, status: 'Applied' }] } }]);
+  return Response.json([{ data: savedState }]);
 };
 const input = { applicationId: 'app', scheduledDate: '2026-10-23', action: 'claim' };
 const apiRequest = body => new Request('https://app/api/follow-up/delivery', { method: 'POST', headers: { authorization: 'Bearer session' }, body: JSON.stringify(body) });
@@ -56,5 +57,18 @@ assert.equal((await (await sendFollowUp(apiRequest(input), env, { id: 'u2' })).j
 assert.equal((await (await sendFollowUp(apiRequest({ ...input, scheduledDate: '2026-10-22' }), env, { id: 'u1' })).json()).error, 'This follow-up is no longer scheduled for automatic sending.');
 assert.equal((await sendFollowUp(apiRequest({ ...input, gmailToken: 'not-allowed' }), env, { id: 'u1' })).status, 400, 'Credentials/content are rejected by the coordinator');
 assert.equal((await sendFollowUp(apiRequest(input), {}, { id: 'u1' })).status, 503, 'Missing binding fails closed');
+
+savedState = { applications: [{ id: 'historic', status: 'Applied', email: 'client@example.com', followUpDate: '2026-10-23', automaticFollowUp: true, followUpSentAt: '2026-10-23T00:02:00Z' }] };
+const historic = { ...input, applicationId: 'historic' };
+assert.equal((await (await sendFollowUp(apiRequest(historic), env, { id: 'u1' })).json()).status, 'sent', 'Saved sent timestamp blocks a new reservation even without an old ledger');
+delete savedState.applications[0].followUpSentAt;
+assert.equal((await (await sendFollowUp(apiRequest(historic), env, { id: 'u1' })).json()).status, 'sent', 'Recovered receipt survives a later cloud overwrite');
+savedState = { applications: [{ id: 'manual-app', status: 'Applied', email: 'client@example.com', followUpDate: '2026-10-23', automaticFollowUp: false }], emails: [] };
+const manualInput = { ...input, applicationId: 'manual-app', manual: true };
+assert.equal((await (await sendFollowUp(apiRequest(manualInput), env, { id: 'u1' })).json()).status, 'claimed', 'Manual follow-ups also reserve shared delivery');
+savedState.emails.push({ applicationId: 'manual-app', emailType: 'follow-up', direction: 'sent', date: '2026-10-23T00:03:00Z', gmailId: 'manual-mail' });
+assert.equal((await (await sendFollowUp(apiRequest(manualInput), env, { id: 'u1' })).json()).gmailId, 'manual-mail', 'Saved manual send reconciles a pending reservation');
+savedState.applications[0] = { ...savedState.applications[0], id: 'new-schedule', automaticFollowUp: true, followUpSentAt: '2026-10-22T00:00:00Z' };
+assert.equal((await (await sendFollowUp(apiRequest({ ...input, applicationId: 'new-schedule' }), env, { id: 'u1' })).json()).status, 'claimed', 'Older and unrelated follow-ups do not block a new schedule');
 globalThis.fetch = originalFetch;
 console.log('Passed shared delivery reservations: concurrent tabs, restart, uncertain delivery, receipts, rejection, account/date isolation, Worker routing and fail-closed configuration.');

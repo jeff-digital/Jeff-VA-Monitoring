@@ -1489,19 +1489,20 @@
     if (cachedMatches) return cachedMatches;
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
-    const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
+    const employerBody = applicationEmployerEvidenceText(emailItem.body);
+    const contentLower = `${emailItem.subject || ''} ${employerBody}`.toLowerCase();
     const senderPlatformKey = platformKeyForName(platformNameForSender(fromAddress));
     const matches = [];
     if (senderPlatformKey) {
       const subjectText = normalizeMatchText(emailItem.subject);
-      const bodySource = String(emailItem.body || '')
-        .replace(/<[^>]*>/g, ' ')
+      const bodySource = employerBody
         .replace(/\bsent\s+via\s+[\w.-]+\s+contact\s+form\b/gi, ' ');
       const bodyText = normalizeMatchText(bodySource);
-      const bodyLinkTokens = applicationLinkTokens(emailItem.body);
+      const bodyLinkTokens = applicationLinkTokens(employerBody);
       const scoredMatches = [];
       const applicationIndex = buildApplicationMatchIndex(data.applications);
       for (const item of applicationIndex) {
+        if (Date.parse(emailItem.date) < item.appliedTime) continue;
         const score = platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens, emailItem.date);
         if (score !== null) scoredMatches.push({ item, score });
       }
@@ -1529,6 +1530,7 @@
     const applicationIndex = buildApplicationMatchIndex(data.applications);
     const candidateItems = [];
     for (const item of applicationIndex) {
+      if (Date.parse(emailItem.date) < item.appliedTime) continue;
       const { application, email, contact, clientName, role } = item;
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
@@ -1537,6 +1539,7 @@
         candidateItems.push(item);
         continue;
       }
+      if (isDirectClientApplication(application) && isEmailAddress(email)) continue;
       if (!roleReferenced && !companyReferenced) continue;
       if ([contact, clientName].filter(name => name.length >= 3).some(name => containsWholeWord(senderName, name))) {
         matches.push(application);
@@ -1545,13 +1548,13 @@
     }
     if (candidateItems.length > 1) {
       const subjectText = normalizeApplicationMatchEvidence(emailItem.subject);
-      const bodyText = normalizeApplicationMatchEvidence(emailItem.body);
+      const bodyText = normalizeApplicationMatchEvidence(employerBody);
       matches.splice(0, matches.length, ...disambiguateApplicationMatches(
-        candidateItems, emailItem, subjectText, bodyText, applicationLinkTokens(emailItem.body)
+        candidateItems, emailItem, subjectText, bodyText, applicationLinkTokens(employerBody)
       ));
     } else if (candidateItems.length === 1) {
       const subjectText = normalizeApplicationMatchEvidence(emailItem.subject);
-      const bodyText = normalizeApplicationMatchEvidence(emailItem.body);
+      const bodyText = normalizeApplicationMatchEvidence(employerBody);
       if (emailExplicitlyNamesDifferentRole(candidateItems[0], subjectText, bodyText)) {
         matches.length = 0;
       }
@@ -4085,6 +4088,15 @@
       .replace(/\s+/g, ' ');
   }
 
+  function applicationEmployerEvidenceText(value) {
+    // Submission receipts often repeat the applicant's name, email, profile,
+    // and answers. Those fields identify the applicant, not the employer.
+    return String(value || '').replace(/<[^>]*>/g, ' ')
+      .split(/^\s*(?:[#*]+\s*)?(?:personal information|personal details|candidate details|applicant details)\b/im)[0]
+      .replace(/^\s*(?:name|full name|email|e-mail|phone|telephone)\s*:[^\n]*$/gim, '')
+      .replace(/^\s*(?:hi|hello|dear)\s+[^\n,!:]{1,100}[,!:]?\s*$/gim, '');
+  }
+
   function platformKeyForName(platform) {
     const name = String(platform || '').trim().toLowerCase();
     return Object.keys(PLATFORM_SENDER_EMAILS)
@@ -5976,8 +5988,42 @@
 
   let followUpProcessing = null;
 
+  function reconcileSentFollowUpAlerts() {
+    let changed = false;
+    for (const item of data.applications) {
+      const sentAt = confirmedApplicationFollowUpSentAt(item);
+      if (!sentAt) continue;
+      const scheduledDate = item.followUpDate;
+      if (scheduledDate && dateKey(sentAt) < scheduledDate) continue;
+      if (item.followUpSentAt !== sentAt || scheduledDate || item.automaticFollowUp) {
+        item.followUpSentAt = sentAt;
+        item.followUpDate = '';
+        item.automaticFollowUp = false;
+        changed = true;
+      }
+      for (const alert of data.alerts || []) {
+        if (!alert.id?.startsWith(`follow-up|${item.id}|`) || alert.deliveryStatus === 'sent') continue;
+        const alertDate = alert.id.slice(`follow-up|${item.id}|`.length);
+        if (alertDate > dateKey(sentAt)) continue;
+        alert.subject = `Follow-up sent: ${buildDocumentEmailTemplate('follow-up', item).subject}`;
+        alert.from = 'Jeff VA';
+        alert.deliveryStatus = 'sent';
+        alert.unread = true;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   async function runDueFollowUps() {
     const userId = currentUser?.id;
+    if (reconcileSentFollowUpAlerts()) {
+      await persist();
+      if (currentUser?.id !== userId) return;
+      if (activeView === 'applications') renderApplications();
+      if (activeView === 'dashboard') renderDashboard();
+      renderAlerts();
+    }
     const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
     if (!due.length) return;
     data.alerts = data.alerts || [];
@@ -5986,14 +6032,17 @@
     let automaticEmailsFailed = 0;
     let followUpsNeedingReview = 0;
     let lastFailure = '';
-    for (const item of due) {
+    for (const candidate of due) {
       if (currentUser?.id !== userId) return;
-      if (!item.followUpDate || applicationFollowUpState(item) === 'sent') continue;
+      let item = data.applications.find(app => app.id === candidate.id);
+      if (!item) continue;
+      if (!item.followUpDate || item.followUpDate > today() || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
       const body = template.body;
       let sent = false;
+      let deliveryFailed = false;
       let delivery = null;
       if (item.automaticFollowUp && gmailAccessToken && isEmailAddress(item.email)) {
         try {
@@ -6001,14 +6050,22 @@
           sent = true;
           automaticEmailsSent += 1;
         } catch (error) {
+          deliveryFailed = true;
           console.error('Automatic follow-up failed:', error);
           automaticEmailsFailed += 1;
           lastFailure = error.message || 'Follow-up delivery could not be confirmed.';
         }
       }
       if (currentUser?.id !== userId) return;
+      // Realtime refreshes can replace the workspace while Gmail is awaiting.
+      // Write the receipt to the current record, never an abandoned object.
+      item = data.applications.find(app => app.id === candidate.id);
+      if (!item) continue;
       item.followUpProcessedAt = new Date().toISOString();
-      item.followUpSentAt = sent ? delivery.sentAt : '';
+      if (sent) {
+        item.followUpSentAt = delivery.sentAt;
+        item.followUpGmailId = delivery.gmailId || '';
+      }
       if (sent && item.followUpDate === scheduledFollowUpDate) {
         item.followUpDate = '';
         item.automaticFollowUp = false;
@@ -6022,12 +6079,18 @@
       const followUpAlert = {
         id: alertId,
         clientName: item.clientName,
-        subject: sent ? `Automatic follow-up sent: ${subject}` : `Follow-up needed: ${subject}`,
+        subject: sent ? `Automatic follow-up sent: ${subject}` : deliveryFailed ? `Follow-up delivery needs review: ${subject}` : `Follow-up needed: ${subject}`,
         from: sent ? 'Jeff VA' : 'Jeff VA reminder',
+        deliveryStatus: sent ? 'sent' : deliveryFailed ? 'review' : 'due',
         date: new Date().toISOString(),
         unread: true
       };
-      if (existingAlert) Object.assign(existingAlert, followUpAlert);
+      if (existingAlert) {
+        if (existingAlert.deliveryStatus !== 'sent') {
+          const statusChanged = existingAlert.subject !== followUpAlert.subject;
+          Object.assign(existingAlert, followUpAlert, { unread: statusChanged || existingAlert.unread });
+        }
+      }
       else {
         data.alerts.unshift(followUpAlert);
         followUpAlertsAdded += 1;
@@ -7032,19 +7095,28 @@
     return null;
   }
 
-  async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body) {
+  async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body, { manual = false, rawMessage = null } = {}) {
     const userId = currentUser?.id;
     await ensureGmailAccessToken();
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
     const existing = await findGmailSentFollowUp(item, scheduledDate, subject);
     if (currentUser?.id !== userId) throw new Error('Account changed. No follow-up was sent.');
-    if (existing) return existing;
-    const claim = await requestFollowUpReservation(item, scheduledDate, 'claim');
+    const claim = await requestFollowUpReservation(item, scheduledDate, 'claim', manual ? { manual: true } : {});
     if (claim.status === 'sent') return claim;
+    if (existing) {
+      // Keep Gmail recovery in the shared ledger as well as this tab's state.
+      // A pending claim stays locked if its token belongs to another sender.
+      if (claim.status === 'claimed' && claim.claimToken) {
+        await requestFollowUpReservation(item, scheduledDate, 'complete', { claimToken: claim.claimToken, sentAt: existing.sentAt, gmailId: existing.gmailId }).catch(error => {
+          console.error('Recovered follow-up; shared receipt save pending:', error);
+        });
+      }
+      return existing;
+    }
     if (claim.status !== 'claimed' || !claim.claimToken) throw new Error(claim.error || 'This follow-up is already sending. Check Gmail Sent; automatic resending is blocked.');
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
-    try { gmail = await sendGmailRaw(buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
+    try { gmail = await sendGmailRaw(rawMessage || buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
     catch (error) {
       if (error.gmailRejected && currentUser?.id === userId) {
         await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});
@@ -7084,10 +7156,22 @@
     throw new Error('Gmail could not send the message.');
   }
 
+  let composeEmailSendPending = false;
   async function sendComposedEmail() {
+    if (composeEmailSendPending) return;
+    composeEmailSendPending = true;
+    try { return await runComposedEmail(); }
+    finally { composeEmailSendPending = false; }
+  }
+
+  async function runComposedEmail() {
     const to = $('#composeTo').value.trim();
     const subject = $('#composeSubject').value.trim().replace(/[\r\n]+/g, ' ');
     const body = $('#composeBody').value.trim();
+    const followUpApplication = /^follow(?:ing)?[\s-]*up\b/i.test(subject)
+      ? data.applications.find(item => item.id === composeClientId && extractEmailAddress(item.email) === extractEmailAddress(to))
+      : null;
+    const followUpSchedule = followUpApplication?.followUpDate || today();
     const contractEmailMode = composeContractEmailMode;
     const contractEmailApplication = contractEmailMode
       ? data.applications.find(item => item.id === composeDocumentUpdateClientId)
@@ -7138,7 +7222,10 @@
       } else {
         rawMessage = buildRawEmailMessage({ to, subject, body });
       }
-      const gmailMessage = await sendGmailRaw(rawMessage);
+      const followUpDelivery = followUpApplication
+        ? await sendAutomaticFollowUpOnce(followUpApplication, followUpSchedule, subject, body, { manual: true, rawMessage })
+        : null;
+      const gmailMessage = followUpDelivery ? { id: followUpDelivery.gmailId } : await sendGmailRaw(rawMessage);
       gmailAccepted = true;
       const gmailId = gmailMessage?.id || '';
       const sentEmailRecord = {
@@ -7151,13 +7238,26 @@
         to,
         subject,
         body,
-        date: new Date().toISOString(),
+        date: followUpDelivery?.sentAt || new Date().toISOString(),
         importedAt: new Date().toISOString(),
         source: gmailId ? 'gmail' : 'sent',
         direction: 'sent',
         attachmentName: attachment?.name || attachmentFile?.name || ''
       };
-      data.emails.unshift(sentEmailRecord);
+      if (followUpApplication) sentEmailRecord.emailType = 'follow-up';
+      if (!gmailId || !data.emails.some(email => email.gmailId === gmailId)) data.emails.unshift(sentEmailRecord);
+      if (followUpDelivery) {
+        const application = data.applications.find(item => item.id === followUpApplication.id);
+        if (application) {
+          application.followUpSentAt = followUpDelivery.sentAt;
+          application.followUpGmailId = gmailId;
+          if (application.followUpDate === followUpSchedule) {
+            application.followUpDate = '';
+            application.automaticFollowUp = false;
+          }
+        }
+        reconcileSentFollowUpAlerts();
+      }
       if (composeInvoiceDraft) {
         data.invoices = data.invoices || [];
         data.invoices.unshift({ id: uid(), ...composeInvoiceDraft, sentAt: new Date().toISOString() });
@@ -7633,10 +7733,11 @@
         ...existingGmailMessages,
       ]).filter(item => !(item.source === 'gmail' && currentDeletedGmailIds.has(item.gmailId)));
       const portfolioAlertsAdded = alertPortfolioSubmissionEmails(data.emails);
+      const followUpStatusChanged = reconcileSentFollowUpAlerts();
       const savedGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       inboxHistoryQueue = inboxHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
       sentHistoryQueue = sentHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
-      if (fetchedOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded) {
+      if (fetchedOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded || followUpStatusChanged) {
         await persist();
         renderAll();
       }

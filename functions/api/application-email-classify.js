@@ -14,6 +14,13 @@ const incoming = (email, user) => !['sent'].includes(email.direction) && email.s
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
 const recent = new Map();
 
+function employerEvidenceText(value) {
+  return String(value || '').replace(/<[^>]*>/g, ' ')
+    .split(/^\s*(?:[#*]+\s*)?(?:personal information|personal details|candidate details|applicant details)\b/im)[0]
+    .replace(/^\s*(?:name|full name|email|e-mail|phone|telephone)\s*:[^\n]*$/gim, '')
+    .replace(/^\s*(?:hi|hello|dear)\s+[^\n,!:]{1,100}[,!:]?\s*$/gim, '');
+}
+
 function onlineJobsJobIds(value) {
   const ids = new Set();
   const pattern = /(?:https?:\/\/(?:www\.)?|www\.)onlinejobs\.ph\/jobseekers\/job\/([^\s<>"'?#/]+)/gi;
@@ -29,19 +36,23 @@ function onlineJobsJobIds(value) {
 export function applicationEmailCandidates(applications, email) {
   const sender = address(email.from);
   if (!sender.includes('@')) return [];
-  const text = `${email.subject || ''}\n${authoredEmailText(email.body)}`;
+  const employerBody = employerEvidenceText(authoredEmailText(email.body));
+  const text = `${email.subject || ''}\n${employerBody}`;
   const name = String(email.from || '').split('<')[0];
   const platform = PLATFORM_SENDERS.has(sender);
   let candidates = applications.filter(app => {
+    if (Date.parse(email.date) < Date.parse(app.appliedDate)) return false;
     if (!platform && address(app.email) === sender) return true;
+    if (!platform && ['direct client', 'direct apply'].includes(String(app.platform || '').trim().toLowerCase())
+      && address(app.email).includes('@')) return false;
     const company = app.companyName || app.company || app.clientName;
     const namedSender = includes(name, company) || includes(name, app.contact);
     const namedCompany = includes(text, company);
     const link = String(app.website || '').trim().toLowerCase().replace(/[?#].*$/, '').replace(/\/$/, '');
-    const savedJobIds = onlineJobsJobIds(link), emailJobIds = onlineJobsJobIds(email.body);
+    const savedJobIds = onlineJobsJobIds(link), emailJobIds = onlineJobsJobIds(employerBody);
     const linkedJob = (sender === 'support@onlinejobs.ph' && savedJobIds.some(id => emailJobIds.includes(id)))
       || (/^https?:\/\//.test(link) && /\/(?:jobs?|jobseekers\/info|job-postings?|listings?|vacancies)\/[^/]+/i.test(link)
-      && String(email.body || '').toLowerCase().includes(link));
+      && employerBody.toLowerCase().includes(link));
     return platform ? namedCompany || linkedJob : namedSender && (namedCompany || includes(text, app.role));
   });
   if (!candidates.length && sender === 'support@onlinejobs.ph') {

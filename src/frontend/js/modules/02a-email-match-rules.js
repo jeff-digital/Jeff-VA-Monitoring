@@ -13,6 +13,15 @@
       .replace(/\s+/g, ' ');
   }
 
+  function applicationEmployerEvidenceText(value) {
+    // Submission receipts often repeat the applicant's name, email, profile,
+    // and answers. Those fields identify the applicant, not the employer.
+    return String(value || '').replace(/<[^>]*>/g, ' ')
+      .split(/^\s*(?:[#*]+\s*)?(?:personal information|personal details|candidate details|applicant details)\b/im)[0]
+      .replace(/^\s*(?:name|full name|email|e-mail|phone|telephone)\s*:[^\n]*$/gim, '')
+      .replace(/^\s*(?:hi|hello|dear)\s+[^\n,!:]{1,100}[,!:]?\s*$/gim, '');
+  }
+
   function platformKeyForName(platform) {
     const name = String(platform || '').trim().toLowerCase();
     return Object.keys(PLATFORM_SENDER_EMAILS)

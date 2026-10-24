@@ -780,19 +780,28 @@
     return null;
   }
 
-  async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body) {
+  async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body, { manual = false, rawMessage = null } = {}) {
     const userId = currentUser?.id;
     await ensureGmailAccessToken();
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
     const existing = await findGmailSentFollowUp(item, scheduledDate, subject);
     if (currentUser?.id !== userId) throw new Error('Account changed. No follow-up was sent.');
-    if (existing) return existing;
-    const claim = await requestFollowUpReservation(item, scheduledDate, 'claim');
+    const claim = await requestFollowUpReservation(item, scheduledDate, 'claim', manual ? { manual: true } : {});
     if (claim.status === 'sent') return claim;
+    if (existing) {
+      // Keep Gmail recovery in the shared ledger as well as this tab's state.
+      // A pending claim stays locked if its token belongs to another sender.
+      if (claim.status === 'claimed' && claim.claimToken) {
+        await requestFollowUpReservation(item, scheduledDate, 'complete', { claimToken: claim.claimToken, sentAt: existing.sentAt, gmailId: existing.gmailId }).catch(error => {
+          console.error('Recovered follow-up; shared receipt save pending:', error);
+        });
+      }
+      return existing;
+    }
     if (claim.status !== 'claimed' || !claim.claimToken) throw new Error(claim.error || 'This follow-up is already sending. Check Gmail Sent; automatic resending is blocked.');
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
-    try { gmail = await sendGmailRaw(buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
+    try { gmail = await sendGmailRaw(rawMessage || buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
     catch (error) {
       if (error.gmailRejected && currentUser?.id === userId) {
         await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});
@@ -832,10 +841,22 @@
     throw new Error('Gmail could not send the message.');
   }
 
+  let composeEmailSendPending = false;
   async function sendComposedEmail() {
+    if (composeEmailSendPending) return;
+    composeEmailSendPending = true;
+    try { return await runComposedEmail(); }
+    finally { composeEmailSendPending = false; }
+  }
+
+  async function runComposedEmail() {
     const to = $('#composeTo').value.trim();
     const subject = $('#composeSubject').value.trim().replace(/[\r\n]+/g, ' ');
     const body = $('#composeBody').value.trim();
+    const followUpApplication = /^follow(?:ing)?[\s-]*up\b/i.test(subject)
+      ? data.applications.find(item => item.id === composeClientId && extractEmailAddress(item.email) === extractEmailAddress(to))
+      : null;
+    const followUpSchedule = followUpApplication?.followUpDate || today();
     const contractEmailMode = composeContractEmailMode;
     const contractEmailApplication = contractEmailMode
       ? data.applications.find(item => item.id === composeDocumentUpdateClientId)
@@ -886,7 +907,10 @@
       } else {
         rawMessage = buildRawEmailMessage({ to, subject, body });
       }
-      const gmailMessage = await sendGmailRaw(rawMessage);
+      const followUpDelivery = followUpApplication
+        ? await sendAutomaticFollowUpOnce(followUpApplication, followUpSchedule, subject, body, { manual: true, rawMessage })
+        : null;
+      const gmailMessage = followUpDelivery ? { id: followUpDelivery.gmailId } : await sendGmailRaw(rawMessage);
       gmailAccepted = true;
       const gmailId = gmailMessage?.id || '';
       const sentEmailRecord = {
@@ -899,13 +923,26 @@
         to,
         subject,
         body,
-        date: new Date().toISOString(),
+        date: followUpDelivery?.sentAt || new Date().toISOString(),
         importedAt: new Date().toISOString(),
         source: gmailId ? 'gmail' : 'sent',
         direction: 'sent',
         attachmentName: attachment?.name || attachmentFile?.name || ''
       };
-      data.emails.unshift(sentEmailRecord);
+      if (followUpApplication) sentEmailRecord.emailType = 'follow-up';
+      if (!gmailId || !data.emails.some(email => email.gmailId === gmailId)) data.emails.unshift(sentEmailRecord);
+      if (followUpDelivery) {
+        const application = data.applications.find(item => item.id === followUpApplication.id);
+        if (application) {
+          application.followUpSentAt = followUpDelivery.sentAt;
+          application.followUpGmailId = gmailId;
+          if (application.followUpDate === followUpSchedule) {
+            application.followUpDate = '';
+            application.automaticFollowUp = false;
+          }
+        }
+        reconcileSentFollowUpAlerts();
+      }
       if (composeInvoiceDraft) {
         data.invoices = data.invoices || [];
         data.invoices.unshift({ id: uid(), ...composeInvoiceDraft, sentAt: new Date().toISOString() });
@@ -1381,10 +1418,11 @@
         ...existingGmailMessages,
       ]).filter(item => !(item.source === 'gmail' && currentDeletedGmailIds.has(item.gmailId)));
       const portfolioAlertsAdded = alertPortfolioSubmissionEmails(data.emails);
+      const followUpStatusChanged = reconcileSentFollowUpAlerts();
       const savedGmailIds = new Set(data.emails.filter(item => item.source === 'gmail').map(item => item.gmailId));
       inboxHistoryQueue = inboxHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
       sentHistoryQueue = sentHistoryQueue.filter(id => !savedGmailIds.has(id) && !currentDeletedGmailIds.has(id));
-      if (fetchedOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded) {
+      if (fetchedOnes.length || matchedExistingSentMessages || data.emails.length !== emailCountBeforeMerge || portfolioAlertsAdded || followUpStatusChanged) {
         await persist();
         renderAll();
       }

@@ -31,7 +31,7 @@ function fixture({ uncertain = false, rejected = false, completeFails = false, e
         assert.equal(url, '/api/follow-up/delivery');
         assert.equal(options.headers.authorization, 'Bearer dashboard-session');
         const body = JSON.parse(options.body);
-        assert.ok(Object.keys(body).every(key => ['applicationId', 'scheduledDate', 'action', 'claimToken', 'sentAt', 'gmailId'].includes(key)), 'Coordinator receives identifiers/receipts only');
+        assert.ok(Object.keys(body).every(key => ['applicationId', 'scheduledDate', 'action', 'claimToken', 'sentAt', 'gmailId', 'manual'].includes(key)), 'Coordinator receives identifiers/receipts only');
         if (completeFails && body.action === 'complete') throw new Error('Receipt network failure');
         return coordinator.fetch(new Request('https://coordinator', { method: 'POST', body: JSON.stringify({ ...body, eligible: true }) }));
       },
@@ -77,5 +77,37 @@ assert.equal(savedReceiptFailed.calls(), 1, 'Receipt failure cannot cause a dupl
 const alreadySent = fixture({ existing: true });
 await alreadySent.tab().sendAutomaticFollowUpOnce(app, date, subject, 'Body');
 assert.equal(alreadySent.attempts(), 0, 'Existing Gmail sent mail is checked before any send');
-assert.equal(alreadySent.values.size, 0);
+assert.equal(alreadySent.values.get('delivery').status, 'sent', 'Recovered Gmail delivery is recorded durably');
+alreadySent.history.length = 0;
+await alreadySent.tab().sendAutomaticFollowUpOnce(app, date, 'Changed follow-up subject', 'Body');
+assert.equal(alreadySent.attempts(), 0, 'Missing Gmail history or edited subject cannot bypass a recovered receipt');
+
+const manualRace = fixture();
+const manualTab = manualRace.tab();
+const nodes = new Map();
+const node = selector => {
+  if (!nodes.has(selector)) nodes.set(selector, { value: '', open: false, close() {} });
+  return nodes.get(selector);
+};
+node('#composeTo').value = app.email;
+node('#composeSubject').value = subject;
+node('#composeBody').value = 'Body';
+Object.assign(manualTab, {
+  $: node, data: { applications: [{ ...app, followUpDate: date, automaticFollowUp: true }], emails: [] },
+  composeClientId: app.id, composeContractEmailMode: false, composeDocumentUpdateClientId: null,
+  composeAttachment: null, composeAttachmentFile: null, composeRequiresConfirmation: false,
+  composeInvoiceDraft: null, composeActivationClientId: null, editingId: '', contractEmailSendPending: false,
+  today: () => date, isEmailAddress: () => true, uid: () => 'id',
+  setEmailComposeStatus() {}, setButtonLoading() {}, renderAll() {}, showEmailActionResult() {},
+  isActiveClientDrawerOpen: () => false, persist: async () => {}, reconcileSentFollowUpAlerts() {}
+});
+vm.runInContext(gmailSource.slice(gmailSource.indexOf('  let composeEmailSendPending ='), gmailSource.indexOf('  function gmailConfigured(')), manualTab);
+await Promise.allSettled([
+  manualTab.sendComposedEmail(), manualTab.sendComposedEmail(),
+  manualRace.tab().sendAutomaticFollowUpOnce(app, date, subject, 'Body')
+]);
+assert.equal(manualRace.calls(), 1, 'Composer double-click and automatic sender share one delivery reservation');
+manualTab.composeClientId = app.id; // Reopen the same client's composer.
+await manualTab.sendComposedEmail();
+assert.equal(manualRace.calls(), 1, 'Repeated manual follow-up does not send again');
 console.log('Passed browser/shared-coordinator integration: stale tabs, Gmail recovery, uncertain sends, explicit rejection, failed receipt saves and metadata-only coordination.');

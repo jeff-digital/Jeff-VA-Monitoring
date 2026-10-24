@@ -143,19 +143,20 @@
     if (cachedMatches) return cachedMatches;
     const fromAddress = extractEmailAddress(emailItem.from);
     const senderName = extractSenderName(emailItem.from);
-    const contentLower = `${emailItem.subject || ''} ${emailItem.body || ''}`.toLowerCase();
+    const employerBody = applicationEmployerEvidenceText(emailItem.body);
+    const contentLower = `${emailItem.subject || ''} ${employerBody}`.toLowerCase();
     const senderPlatformKey = platformKeyForName(platformNameForSender(fromAddress));
     const matches = [];
     if (senderPlatformKey) {
       const subjectText = normalizeMatchText(emailItem.subject);
-      const bodySource = String(emailItem.body || '')
-        .replace(/<[^>]*>/g, ' ')
+      const bodySource = employerBody
         .replace(/\bsent\s+via\s+[\w.-]+\s+contact\s+form\b/gi, ' ');
       const bodyText = normalizeMatchText(bodySource);
-      const bodyLinkTokens = applicationLinkTokens(emailItem.body);
+      const bodyLinkTokens = applicationLinkTokens(employerBody);
       const scoredMatches = [];
       const applicationIndex = buildApplicationMatchIndex(data.applications);
       for (const item of applicationIndex) {
+        if (Date.parse(emailItem.date) < item.appliedTime) continue;
         const score = platformApplicationMatchScore(item, senderPlatformKey, subjectText, bodyText, bodyLinkTokens, emailItem.date);
         if (score !== null) scoredMatches.push({ item, score });
       }
@@ -183,6 +184,7 @@
     const applicationIndex = buildApplicationMatchIndex(data.applications);
     const candidateItems = [];
     for (const item of applicationIndex) {
+      if (Date.parse(emailItem.date) < item.appliedTime) continue;
       const { application, email, contact, clientName, role } = item;
       const roleReferenced = role.length >= 3 && contentLower.includes(role);
       const companyReferenced = clientName.length >= 3 && containsWholeWord(contentLower, clientName);
@@ -191,6 +193,7 @@
         candidateItems.push(item);
         continue;
       }
+      if (isDirectClientApplication(application) && isEmailAddress(email)) continue;
       if (!roleReferenced && !companyReferenced) continue;
       if ([contact, clientName].filter(name => name.length >= 3).some(name => containsWholeWord(senderName, name))) {
         matches.push(application);
@@ -199,13 +202,13 @@
     }
     if (candidateItems.length > 1) {
       const subjectText = normalizeApplicationMatchEvidence(emailItem.subject);
-      const bodyText = normalizeApplicationMatchEvidence(emailItem.body);
+      const bodyText = normalizeApplicationMatchEvidence(employerBody);
       matches.splice(0, matches.length, ...disambiguateApplicationMatches(
-        candidateItems, emailItem, subjectText, bodyText, applicationLinkTokens(emailItem.body)
+        candidateItems, emailItem, subjectText, bodyText, applicationLinkTokens(employerBody)
       ));
     } else if (candidateItems.length === 1) {
       const subjectText = normalizeApplicationMatchEvidence(emailItem.subject);
-      const bodyText = normalizeApplicationMatchEvidence(emailItem.body);
+      const bodyText = normalizeApplicationMatchEvidence(employerBody);
       if (emailExplicitlyNamesDifferentRole(candidateItems[0], subjectText, bodyText)) {
         matches.length = 0;
       }

@@ -666,8 +666,42 @@
 
   let followUpProcessing = null;
 
+  function reconcileSentFollowUpAlerts() {
+    let changed = false;
+    for (const item of data.applications) {
+      const sentAt = confirmedApplicationFollowUpSentAt(item);
+      if (!sentAt) continue;
+      const scheduledDate = item.followUpDate;
+      if (scheduledDate && dateKey(sentAt) < scheduledDate) continue;
+      if (item.followUpSentAt !== sentAt || scheduledDate || item.automaticFollowUp) {
+        item.followUpSentAt = sentAt;
+        item.followUpDate = '';
+        item.automaticFollowUp = false;
+        changed = true;
+      }
+      for (const alert of data.alerts || []) {
+        if (!alert.id?.startsWith(`follow-up|${item.id}|`) || alert.deliveryStatus === 'sent') continue;
+        const alertDate = alert.id.slice(`follow-up|${item.id}|`.length);
+        if (alertDate > dateKey(sentAt)) continue;
+        alert.subject = `Follow-up sent: ${buildDocumentEmailTemplate('follow-up', item).subject}`;
+        alert.from = 'Jeff VA';
+        alert.deliveryStatus = 'sent';
+        alert.unread = true;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   async function runDueFollowUps() {
     const userId = currentUser?.id;
+    if (reconcileSentFollowUpAlerts()) {
+      await persist();
+      if (currentUser?.id !== userId) return;
+      if (activeView === 'applications') renderApplications();
+      if (activeView === 'dashboard') renderDashboard();
+      renderAlerts();
+    }
     const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
     if (!due.length) return;
     data.alerts = data.alerts || [];
@@ -676,14 +710,17 @@
     let automaticEmailsFailed = 0;
     let followUpsNeedingReview = 0;
     let lastFailure = '';
-    for (const item of due) {
+    for (const candidate of due) {
       if (currentUser?.id !== userId) return;
-      if (!item.followUpDate || applicationFollowUpState(item) === 'sent') continue;
+      let item = data.applications.find(app => app.id === candidate.id);
+      if (!item) continue;
+      if (!item.followUpDate || item.followUpDate > today() || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
       const body = template.body;
       let sent = false;
+      let deliveryFailed = false;
       let delivery = null;
       if (item.automaticFollowUp && gmailAccessToken && isEmailAddress(item.email)) {
         try {
@@ -691,14 +728,22 @@
           sent = true;
           automaticEmailsSent += 1;
         } catch (error) {
+          deliveryFailed = true;
           console.error('Automatic follow-up failed:', error);
           automaticEmailsFailed += 1;
           lastFailure = error.message || 'Follow-up delivery could not be confirmed.';
         }
       }
       if (currentUser?.id !== userId) return;
+      // Realtime refreshes can replace the workspace while Gmail is awaiting.
+      // Write the receipt to the current record, never an abandoned object.
+      item = data.applications.find(app => app.id === candidate.id);
+      if (!item) continue;
       item.followUpProcessedAt = new Date().toISOString();
-      item.followUpSentAt = sent ? delivery.sentAt : '';
+      if (sent) {
+        item.followUpSentAt = delivery.sentAt;
+        item.followUpGmailId = delivery.gmailId || '';
+      }
       if (sent && item.followUpDate === scheduledFollowUpDate) {
         item.followUpDate = '';
         item.automaticFollowUp = false;
@@ -712,12 +757,18 @@
       const followUpAlert = {
         id: alertId,
         clientName: item.clientName,
-        subject: sent ? `Automatic follow-up sent: ${subject}` : `Follow-up needed: ${subject}`,
+        subject: sent ? `Automatic follow-up sent: ${subject}` : deliveryFailed ? `Follow-up delivery needs review: ${subject}` : `Follow-up needed: ${subject}`,
         from: sent ? 'Jeff VA' : 'Jeff VA reminder',
+        deliveryStatus: sent ? 'sent' : deliveryFailed ? 'review' : 'due',
         date: new Date().toISOString(),
         unread: true
       };
-      if (existingAlert) Object.assign(existingAlert, followUpAlert);
+      if (existingAlert) {
+        if (existingAlert.deliveryStatus !== 'sent') {
+          const statusChanged = existingAlert.subject !== followUpAlert.subject;
+          Object.assign(existingAlert, followUpAlert, { unread: statusChanged || existingAlert.unread });
+        }
+      }
       else {
         data.alerts.unshift(followUpAlert);
         followUpAlertsAdded += 1;

@@ -22,7 +22,8 @@ const context = vm.createContext({ currentUser: { email: 'me@example.com', ident
   isActiveContract: item => item.status === 'Active client' && item.contractStatus !== 'Contract Ended' });
 const core = read('01-core.js');
 const matcher = read('02-email-matching.js');
-for (const name of ['extractEmailAddress', 'isEmailAddress', 'extractSenderName', 'containsWholeWord']) vm.runInContext(fn(matcher, name), context);
+vm.runInContext(fn(read('02a-email-match-rules.js'), 'applicationEmployerEvidenceText'), context);
+for (const name of ['extractEmailAddress', 'isEmailAddress', 'extractSenderName', 'containsWholeWord', 'isDirectClientApplication']) vm.runInContext(fn(matcher, name), context);
 for (const name of ['isSentEmail', 'receivedEmails', 'manualApplicationStatusTimestamp']) vm.runInContext(fn(core, name), context);
 const stageTime = '2026-10-21T12:00:00Z';
 assert.equal(context.manualApplicationStatusTimestamp({ status: 'Applied', notes: 'Edited notes' }, 'Applied', stageTime), '');

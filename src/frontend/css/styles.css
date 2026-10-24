@@ -7662,3 +7662,61 @@ body:has(#subscriptionsView.active) .topbar h1 { margin: 0; font-size: 24px; let
   html:has(dialog[open]) body:not(.sidebar-collapsed) .sidebar { width: 208px; }
   body:not(.sidebar-collapsed) .sidebar .nav-link { gap: 6px; font-size: 11.5px; }
 }
+
+/* Keep email reader controls outside the scrolling message content. */
+#applicationEmailsModal { overflow: hidden; }
+#applicationEmailsModal .application-emails-form {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  box-sizing: border-box;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+}
+#applicationEmailsModal .modal-heading { min-width: 0; align-items: flex-start; }
+#applicationEmailsModal .modal-heading > div { min-width: 0; }
+#applicationEmailsTitle { overflow-wrap: anywhere; }
+#applicationEmailsModal .application-emails-list {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  align-content: start;
+  scrollbar-gutter: stable;
+}
+#applicationEmailsModal .modal-actions {
+  position: static;
+  margin-top: 12px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  background: var(--color-surface, #fff);
+}
+
+#emailDetailModal { overflow: hidden; }
+#emailDetailModal > form {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+  box-sizing: border-box;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow: hidden;
+}
+#emailDetailModal .modal-heading { min-width: 0; align-items: flex-start; }
+#emailDetailModal .modal-heading > div { min-width: 0; }
+#emailDetailTitle { max-height: 22vh; max-height: 22dvh; overflow-y: auto; overflow-wrap: anywhere; }
+#emailDetailModal .email-detail-meta { max-height: 20vh; max-height: 20dvh; overflow-y: auto; }
+#emailDetailModal .email-detail-body {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+#emailDetailModal .modal-actions {
+  position: static;
+  margin-top: 12px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  background: var(--color-surface, #fff);
+}

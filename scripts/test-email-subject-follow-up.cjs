@@ -114,5 +114,25 @@ assert.equal(context.applicationFollowUpState(context.data.applications[1]), 'du
   release();
   await Promise.all([firstRun, secondRun]);
   assert.equal(sends, 1);
+  context.data.applications = [{ ...due }];
+  context.data.emails = [sentFollowUp];
+  context.data.alerts = [{ id: `follow-up|${due.id}|${due.followUpDate}`, subject: 'Follow-up needed', unread: false }];
+  await context.processDueFollowUps();
+  assert.equal(sends, 1, 'A synced manual delivery does not trigger an automatic send');
+  assert.equal(context.data.alerts[0].deliveryStatus, 'sent', 'Stale due alert reconciles with sent history');
+  assert.match(context.data.alerts[0].subject, /Follow-up sent:/);
+  assert.match(context.applicationFollowUpMarkup(context.data.applications[0]), /✓/);
+  context.data.alerts[0].unread = false;
+  await context.processDueFollowUps();
+  assert.equal(context.data.alerts[0].unread, false, 'Repeated checks do not rearm a completed alert');
+
+  context.data.applications = [{ ...due }];
+  context.data.emails = [];
+  context.sendGmailRaw = async () => {
+    context.data.applications = [{ ...due, clientName: 'Refreshed while sending' }];
+  };
+  await context.processDueFollowUps();
+  assert.equal(context.data.applications[0].followUpDate, '', 'Delivery receipt updates the current record after realtime replacement');
+  assert.ok(context.data.applications[0].followUpSentAt);
   console.log('Passed: platform subjects, missing subject, pending/failed/successful follow-ups, and rescheduling.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

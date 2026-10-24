@@ -57,6 +57,7 @@ const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, cur
   persist: async () => saving, renderAll() {}, renderClientTasks() {}, renderAlerts() {},
   dedupeEmails: emails => [...new Map(emails.map(email => [email.id, email])).values()],
   alertPortfolioSubmissionEmails: () => false,
+  reconcileSentFollowUpAlerts: () => false,
   applyAiApplicationOutcomes: async () => ({ changed: closed ? [{ email: { id: 'other-email' } }] : [], review: [], failed: false }),
   showApplicationAiReviewNotice() {},
   showApplicationEmailOutcomeNotice: results => { if (results.length) notices.push({ title: 'Application closed' }); },
