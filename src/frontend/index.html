@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-compact-daily-tasks" />
+    <link rel="stylesheet" href="css/styles.css?v=20261025-career-tools-header" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -120,7 +120,7 @@
           <div class="topbar-title-area">
             <div class="topbar-copy">
               <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
-              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" hidden><span>Active clients <strong id="hiredActiveSummary">0</strong></span><span>Ended contracts <strong id="hiredEndedSummary">0</strong></span></span></div>
+              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" hidden><span>Active clients <strong id="hiredActiveSummary">0</strong></span><span>Ended contracts <strong id="hiredEndedSummary">0</strong></span><button class="client-world-clock-trigger" type="button" id="openClientWorldClock" aria-haspopup="dialog" aria-controls="worldClockModal"><i class="fa-regular fa-clock" aria-hidden="true"></i> World clock</button></span></div>
               <p class="page-context" id="applicationWeekDate" hidden></p>
               <p class="page-context" id="toApplyHeaderContext" hidden>Keep your next opportunities organized and ready for action.</p>
               <p class="page-context" id="emailWeekDate" hidden></p>
@@ -398,6 +398,14 @@
             <div class="application-workspace-count">
               <span class="application-workspace-count-summary"><strong id="applicationListLabel" tabindex="0" aria-describedby="applicationPlatformCounts">0 applications</strong><span id="applicationPlatformCounts" role="tooltip"></span></span>
             </div>
+            <div class="application-filter-footer application-workspace-actions">
+              <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
+              <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
+              <div class="application-view-toggle" role="group" aria-label="Application view">
+                <button class="button button-secondary active" type="button" data-application-view="table" aria-pressed="true"><i class="fa-solid fa-table-list" aria-hidden="true"></i> Table</button>
+                <button class="button button-secondary" type="button" data-application-view="board" aria-pressed="false"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Pipeline</button>
+              </div>
+            </div>
           </section>
           <section class="application-filters" aria-label="Application filters">
             <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="applicationSearch" aria-label="Search applications" placeholder="Search applications" /></label>
@@ -408,15 +416,7 @@
               <label class="application-filter-field"><select id="statusFilter" aria-label="Filter applications by stage"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
               <label class="application-filter-field"><select id="platformFilter" aria-label="Filter applications by source"><option value="">All sources</option></select></label>
             </div>
-            <div class="application-filter-footer">
-              <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
-              <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
-              <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
-              <div class="application-view-toggle" role="group" aria-label="Application view">
-                <button class="button button-secondary active" type="button" data-application-view="table" aria-pressed="true"><i class="fa-solid fa-table-list" aria-hidden="true"></i> Table</button>
-                <button class="button button-secondary" type="button" data-application-view="board" aria-pressed="false"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Pipeline</button>
-              </div>
-            </div>
+            <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
           </section>
           <section class="panel application-panel">
             <div class="application-bulk-bar" id="applicationBulkActions" hidden>
@@ -1748,6 +1748,17 @@
       </div>
     </dialog>
 
+    <dialog class="modal world-clock-modal" id="worldClockModal" aria-labelledby="worldClockTitle" aria-describedby="worldClockHelp">
+      <form method="dialog" class="world-clock-form">
+        <div class="modal-heading"><div><p class="eyebrow">CLIENT TIME ZONES</p><h2 id="worldClockTitle">World clock</h2></div><button class="icon-button" type="submit" value="cancel" aria-label="Close world clock">×</button></div>
+        <p class="world-clock-help" id="worldClockHelp">Countries can have several time zones. Choose the city closest to your client. Times use your device clock and adjust for daylight saving automatically.</p>
+        <div class="world-clock-toolbar"><label><span class="sr-only">Search cities or countries</span><input type="search" id="worldClockSearch" placeholder="Search city or country" /></label><label><span class="sr-only">Filter country</span><select id="worldClockCountry"><option value="">All countries</option><option>Australia</option><option>Canada</option><option>United States</option><option value="other">Other locations</option></select></label></div>
+        <p class="world-clock-local" id="worldClockLocalTime"></p>
+        <div class="world-clock-grid" id="worldClockGrid" aria-live="off"></div>
+        <div class="modal-actions"><button class="button button-secondary" type="submit" value="cancel">Close</button></div>
+      </form>
+    </dialog>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
@@ -1758,6 +1769,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-progress-auto-review"></script>
+    <script src="js/app.js?v=20261025-career-tools-header"></script>
   </body>
 </html>

@@ -6825,19 +6825,19 @@ body:has(#hiredView.active) .hired-card .hired-client-contact-name {
 }
 
 /* Match the Active Clients header on the other record pages. */
-body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .content {
+body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) .content {
   padding-top: 12px;
   padding-inline: 24px;
 }
-body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .topbar {
+body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) .topbar {
   min-height: 56px;
   height: auto;
   margin: 0 0 12px;
   border: 0;
   align-items: center;
 }
-body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .topbar-title-area { gap: 9px; }
-body:has(:is(#inboxView, #applicationsView, #toApplyView).active) #pageTitle {
+body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) .topbar-title-area { gap: 9px; }
+body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) #pageTitle {
   margin: 0;
   color: #111827;
   font-size: 24px;
@@ -6845,15 +6845,15 @@ body:has(:is(#inboxView, #applicationsView, #toApplyView).active) #pageTitle {
   letter-spacing: -.02em;
   line-height: 1.2;
 }
-body:has(:is(#inboxView, #applicationsView, #toApplyView).active) #pageEyebrow { display: none; }
-body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .page-context { margin: 3px 0 0; font-size: 11px; line-height: 1.4; }
+body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) #pageEyebrow { display: none; }
+body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) .page-context { margin: 3px 0 0; font-size: 11px; line-height: 1.4; }
 @media (min-width: 1100px) {
   body:has(#applicationsView.active) .topbar { height: 56px; margin: 0; }
 }
 @media (max-width: 640px) {
-  body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .content { padding-top: 8px; padding-inline: 16px; }
-  body:has(:is(#inboxView, #applicationsView, #toApplyView).active) #pageTitle { font-size: 21px; }
-  body:has(:is(#inboxView, #applicationsView, #toApplyView).active) .topbar-actions { gap: 8px; }
+  body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) .content { padding-top: 8px; padding-inline: 16px; }
+  body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) #pageTitle { font-size: 21px; }
+  body:has(:is(#inboxView, #applicationsView, #toApplyView, #documentsView).active) .topbar-actions { gap: 8px; }
 }
 @media (pointer: coarse) {
   #inboxView .email-summary-item { min-height: 44px; }
@@ -7785,6 +7785,49 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #a
 .application-progress-ai-check ul { margin: 8px 0; }
 .application-progress-ai-check li { font-size: 12px; }
 .application-progress-ai-check .text-button { padding: 4px 0; font-size: 12px; }
+
+/* Client-list world clock, independent of the client details form. */
+body:has(#hiredView.active) .topbar { height: auto; min-height: 56px; }
+body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wrap; }
+.client-world-clock-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid #d9deeb; border-radius: 999px; background: #fff; color: #252d4f; font: inherit; font-size: 11px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.client-world-clock-trigger:hover { background: #f0f2fa; border-color: #aeb9d4; }
+.client-world-clock-trigger:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
+#worldClockModal { width: min(900px, calc(100vw - 32px)); overflow: hidden; }
+#worldClockModal .world-clock-form { display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; gap: 12px; box-sizing: border-box; max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); overflow: hidden; }
+#worldClockModal .modal-heading { margin: 0; align-items: flex-start; }
+.world-clock-help { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.world-clock-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 10px; }
+.world-clock-toolbar label { min-width: 0; }
+.world-clock-toolbar :is(input, select) { box-sizing: border-box; width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--ink); font: inherit; font-size: 12px; }
+.world-clock-local { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.world-clock-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; gap: 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.world-clock-card { display: grid; gap: 6px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: #fafbfd; }
+.world-clock-card-heading { display: grid; gap: 3px; }
+.world-clock-card-heading strong { font-size: 13px; overflow-wrap: anywhere; }
+.world-clock-card small, .world-clock-card > span { color: var(--muted); font-size: 11px; }
+.world-clock-card time { color: var(--navy); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.world-clock-empty { grid-column: 1 / -1; margin: 0; padding: 24px 12px; color: var(--muted); font-size: 13px; text-align: center; }
+#worldClockModal .modal-actions { position: static; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--line); background: #fff; }
+@media (max-width: 720px) {
+  .client-world-clock-trigger { min-height: 30px; padding: 4px 7px; gap: 4px; font-size: 10px; }
+  .world-clock-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .world-clock-card { padding: 10px; }
+  .world-clock-card time { font-size: 18px; }
+  .world-clock-toolbar { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+}
+
+/* Application count and view actions share a toolbar above the filters. */
+#applicationsView .application-workspace-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#applicationsView .application-workspace-actions { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; }
+#applicationsView .application-workspace-actions .application-view-toggle { display: flex; flex-wrap: nowrap; }
+#applicationsView > .application-filters > .application-filter-chips { grid-column: 1 / -1; }
+#applicationsView > .application-filters > .application-filter-chips:empty { display: none; }
+@media (max-width: 720px) {
+  #applicationsView .application-workspace-head { flex-wrap: wrap; }
+  #applicationsView .application-workspace-actions { flex: 1 0 100%; margin-left: 0; }
+  body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #applicationsView .application-workspace-head { padding-right: 0; gap: 8px; }
+  body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #applicationsView .application-workspace-count { flex: 0 0 calc(100% - 120px); margin-right: 120px; }
+}
 
 /* Compact desktop task workspace; mobile keeps its existing touch sizing. */
 @media (min-width: 901px) {

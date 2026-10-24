@@ -23,6 +23,7 @@ pages/07-applications-page.js
 pages/08-to-apply-page.js
 pages/09-daily-task-page.js
 pages/09-active-clients-page.js
+pages/09c-client-world-clock.js
 pages/10-inbox-page.js
 pages/10a-email-client-tasks.js
 pages/11-tools-page.js

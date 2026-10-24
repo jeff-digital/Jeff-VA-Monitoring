@@ -148,7 +148,7 @@
       renderAccountPage();
       refreshAccountStorageUsage();
     }
-    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['', 'News'], 'social-trends': ['', 'Social Trends'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['PRIVATE TOOLS', 'Tools'], account: ['', 'Account'] };
+    const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['', 'News'], 'social-trends': ['', 'Social Trends'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['', 'Career Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
     labels.subscriptions = ['', 'Account subscriptions'];
     $('#pageEyebrow').textContent = labels[view][0];
