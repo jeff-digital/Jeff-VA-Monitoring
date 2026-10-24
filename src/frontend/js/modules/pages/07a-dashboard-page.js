@@ -32,6 +32,7 @@
     renderStatusChart(applications);
     renderInterviewCalendar();
     renderRecentApplications();
+    renderApplicationProgressAi();
   }
 
   let clientDashboardSort = 'name';

@@ -3,6 +3,7 @@
 pages/09a-client-social-links.js
 02b-application-email-match-engine.js
 pages/07a-dashboard-page.js
+pages/07d-application-progress-ai.js
 pages/07b-applications-render.js
 pages/08a-to-apply-render.js
 pages/10b-inbox-render.js

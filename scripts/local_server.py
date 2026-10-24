@@ -29,6 +29,8 @@ GMAIL_REFRESH_PATH = "/api/gmail/refresh"
 GMAIL_REFRESH_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/gmail/refresh"
 EMAIL_AI_PATH = "/api/email/classify"
 EMAIL_AI_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/email/classify"
+PROGRESS_AI_PATH = "/api/application-progress"
+PROGRESS_AI_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/application-progress"
 FOLLOW_UP_PATH = "/api/follow-up/delivery"
 FOLLOW_UP_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/follow-up/delivery"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
@@ -132,7 +134,8 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         except (URLError, TimeoutError, OSError, ValueError):
             status = HTTPStatus.SERVICE_UNAVAILABLE
             body = json.dumps({"error": "Cloudflare AI is unavailable or not deployed yet. Client emails remain queued.", "retryAfter": 120}
-                              if upstream_url == EMAIL_AI_UPSTREAM else {"error": "Follow-up protection is unavailable. No new email was sent."}
+                              if upstream_url == EMAIL_AI_UPSTREAM else {"error": "AI progress review is temporarily unavailable or not deployed yet."}
+                              if upstream_url == PROGRESS_AI_UPSTREAM else {"error": "Follow-up protection is unavailable. No new email was sent."}
                               if upstream_url == FOLLOW_UP_UPSTREAM else {"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -164,6 +167,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        if urlparse(self.path).path == PROGRESS_AI_PATH:
+            self._refresh_gmail(PROGRESS_AI_UPSTREAM, timeout=30)
+            return
         if urlparse(self.path).path == FOLLOW_UP_PATH:
             self._refresh_gmail(FOLLOW_UP_UPSTREAM, timeout=55)
             return

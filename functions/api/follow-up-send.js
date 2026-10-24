@@ -1,6 +1,6 @@
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
 
-function savedFollowUpDelivery(state, app, scheduledDate) {
+export function savedFollowUpDelivery(state, app, scheduledDate) {
   const address = value => String(value || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase() || '';
   const recipient = address(app.email);
   const uniqueRecipient = recipient && state.applications.filter(item => address(item.email) === recipient).length === 1;

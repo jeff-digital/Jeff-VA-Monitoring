@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-email-readers-close" />
+    <link rel="stylesheet" href="css/styles.css?v=20261025-progress-layout" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -309,6 +309,7 @@
             </article>
           </section>
 
+          <div class="application-dashboard-insights">
           <section class="panel interview-calendar-panel">
             <div class="panel-heading">
               <div>
@@ -318,6 +319,17 @@
             </div>
             <div class="interview-calendar" id="interviewCalendar"></div>
           </section>
+
+            <section class="panel application-progress-ai" aria-labelledby="applicationProgressAiTitle">
+              <div class="application-progress-ai-heading">
+                <div><p class="eyebrow">YOUR JOB SEARCH</p><h2 id="applicationProgressAiTitle">AI progress review</h2></div>
+                <button class="button button-secondary" type="button" id="reviewApplicationProgress">Review progress</button>
+              </div>
+              <p class="application-progress-ai-note">Review your saved applications, replies, interviews, and follow-ups. AI suggests next steps; it does not change your tracker.</p>
+              <p id="applicationProgressAiStatus" role="status" aria-live="polite">Run a review to see what is going well and what needs attention.</p>
+              <div id="applicationProgressAiResult" hidden></div>
+            </section>
+          </div>
 
           <section class="panel recent-panel">
             <div class="panel-heading">
@@ -1746,6 +1758,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-employer-email-matching"></script>
+    <script src="js/app.js?v=20261025-application-progress"></script>
   </body>
 </html>

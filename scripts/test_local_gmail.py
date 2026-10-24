@@ -65,6 +65,25 @@ with patch.object(server, 'urlopen', side_effect=HTTPError(server.GMAIL_REFRESH_
 
 print('Local Gmail forwarding checks passed: origin, authentication, fixed upstream, renewal, and temporary failures.')
 
+def progress_fetch(request, timeout):
+    assert request.full_url == server.PROGRESS_AI_UPSTREAM
+    assert timeout == 30
+    assert request.get_header('Authorization') == 'Bearer test-session'
+    return Response()
+
+with patch.object(server, 'urlopen', side_effect=progress_fetch):
+    progress = handler()
+    progress.path = server.PROGRESS_AI_PATH
+    progress.do_POST()
+    assert progress.result_status == 200
+
+with patch.object(server, 'urlopen', side_effect=URLError('offline')):
+    progress = handler()
+    progress.path = server.PROGRESS_AI_PATH
+    progress.do_POST()
+    assert progress.result_status == 503
+    assert 'progress review' in json.loads(progress.wfile.getvalue())['error']
+
 def ai_fetch(request, timeout):
     assert request.full_url == server.EMAIL_AI_UPSTREAM
     assert timeout == 24
