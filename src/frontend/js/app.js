@@ -5300,6 +5300,7 @@
     Promise.resolve(persist()).then(saved => { if (saved === false) restorePending(); }).catch(restorePending);
   }
 
+
   const generatedNotificationTypes = new Set([
     'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
     'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended',
