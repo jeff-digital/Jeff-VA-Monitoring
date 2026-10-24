@@ -1634,6 +1634,7 @@
     return ` <button class="match-badge" type="button" data-application-emails="${escapeHtml(app.id)}" aria-label="View ${plural(matches.length, 'matching email')} for ${escapeHtml(app.clientName)}" title="View matching application emails">${matches.length}</button>`;
   }
 
+
   function renderDashboard() {
     const applications = data.applications;
     const pipelineCount = pipelineApplications().length;
