@@ -2590,6 +2590,7 @@
     select.value = platforms.includes(selected) ? selected : '';
   }
 
+
   function renderEmails() {
     renderGmailSyncStatus();
     renderEmailTaskAiStatus();
