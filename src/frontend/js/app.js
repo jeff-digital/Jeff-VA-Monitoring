@@ -3517,6 +3517,7 @@
     if (view === 'inbox' && currentUser) syncGmail(true);
   }
 
+
   function saveNewClientApplicationDraft() {
     const draft = {};
     $$('#clientForm input[id], #clientForm select[id], #clientForm textarea[id]').forEach(field => {
