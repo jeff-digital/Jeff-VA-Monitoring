@@ -1124,7 +1124,7 @@
       const { error } = await requireSupabase().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/?auth_view=applications`,
+          redirectTo: `${window.location.origin}/?auth_view=dashboard`,
           scopes: GMAIL_SCOPE,
           queryParams: { access_type: 'offline', prompt: 'consent' }
         }

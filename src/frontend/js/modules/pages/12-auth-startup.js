@@ -1,5 +1,4 @@
-  // Authentication stays isolated from page interactions. Its login behavior is
-  // unchanged; this file only owns the login screen and application startup.
+  // Login screen, explicit logout, and application startup.
   const loginForm = $('#loginForm');
   const loginError = $('#loginError');
   const loginUsername = $('#loginUsername');
@@ -187,7 +186,7 @@
   renderAll();
   window.addEventListener('online', renderAccountPage);
   window.addEventListener('offline', renderAccountPage);
-  const initialView = appViewFromLocation() || localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard';
+  const initialView = appViewFromLocation() || 'dashboard';
   showView(initialView, { updateUrl: false });
   const legacyHashView = window.location.hash.slice(1);
   if (APP_VIEW_SET.has(legacyHashView)) {
@@ -196,8 +195,7 @@
   window.addEventListener('popstate', () => {
     showView(appViewFromLocation() || 'dashboard', { updateUrl: false });
   });
-  // Restore only this tab's session (including a Google callback or refresh).
-  // A new tab must not automatically reuse a permanent dashboard login.
+  // Restore the remembered session, including a Google callback or refresh.
   restoreSupabaseSession().finally(() => {
     loginSubmitButton.disabled = Boolean(currentUser);
     initGmail();

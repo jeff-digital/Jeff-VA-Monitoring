@@ -534,46 +534,52 @@
     return Boolean(window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase?.createClient);
   }
 
-  function createTabAuthStorage() {
+  function createRememberedAuthStorage() {
     const memory = new Map();
+    const projectRef = new URL(window.SUPABASE_URL).hostname.split('.')[0];
+    const storageKey = `jeff-va-auth-remembered-${projectRef}-v1`;
     const storage = {
       getItem(key) {
-        try { return window.sessionStorage.getItem(key) ?? memory.get(key) ?? null; }
-        catch { return memory.get(key) ?? null; }
+        try {
+          return window.localStorage.getItem(key);
+        } catch {}
+        return memory.get(key) ?? null;
       },
       setItem(key, value) {
         memory.set(key, value);
-        try { window.sessionStorage.setItem(key, value); } catch {}
+        try { window.localStorage.setItem(key, value); } catch {}
       },
       removeItem(key) {
         memory.delete(key);
-        try { window.sessionStorage.removeItem(key); } catch {}
+        try { window.localStorage.removeItem(key); } catch {}
       }
     };
-    const tabIdKey = 'jeff-va-auth-tab-id-v1';
-    let tabId = storage.getItem(tabIdKey);
-    if (!tabId) {
-      tabId = crypto.randomUUID();
-      storage.setItem(tabIdKey, tabId);
-    }
-    // Retire the old permanent login without touching Gmail grants, app data,
-    // or signing out other devices. Each tab gets its own SDK broadcast key.
+    // Carry the current tab's login forward once. Remove the old copy so logout
+    // cannot restore an obsolete session when the page opens again.
     try {
-      const projectRef = new URL(window.SUPABASE_URL).hostname.split('.')[0];
+      const tabIdKey = 'jeff-va-auth-tab-id-v1';
+      const tabId = window.sessionStorage.getItem(tabIdKey);
+      if (tabId) {
+        const oldKey = `jeff-va-auth-${tabId}`;
+        const previous = window.sessionStorage.getItem(oldKey);
+        if (!storage.getItem(storageKey) && previous) storage.setItem(storageKey, previous);
+        window.sessionStorage.removeItem(oldKey);
+        window.sessionStorage.removeItem(tabIdKey);
+      }
       window.localStorage.removeItem(`sb-${projectRef}-auth-token`);
     } catch {}
-    return { storage, storageKey: `jeff-va-auth-${tabId}` };
+    return { storage, storageKey };
   }
 
   function requireSupabase() {
     if (!supabaseConfigured()) throw new Error('Account sign-in is unavailable. Check the app configuration.');
     if (!supabaseClient) {
-      const tabAuth = createTabAuthStorage();
+      const rememberedAuth = createRememberedAuthStorage();
       supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
         auth: {
           persistSession: true,
-          storage: tabAuth.storage,
-          storageKey: tabAuth.storageKey,
+          storage: rememberedAuth.storage,
+          storageKey: rememberedAuth.storageKey,
           autoRefreshToken: true,
           detectSessionInUrl: true
         }
@@ -918,12 +924,7 @@
       || (callbackParams.has('access_token') && callbackParams.has('refresh_token'));
     const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
     const hasCallbackParams = callbackKeys.some(key => callbackParams.has(key));
-    const callbackView = isAuthenticationCallback
-        && !isPasswordRecovery
-        && (callbackParams.get('auth_view') === 'applications'
-          || sessionStorage.getItem(AUTH_PROVIDER_SESSION_KEY) === 'google')
-        ? 'applications'
-        : 'dashboard';
+    const callbackView = 'dashboard';
     if (hasCallbackParams) {
       window.history.replaceState({ view: callbackView }, document.title, appViewPath(callbackView));
     }
@@ -974,11 +975,17 @@
         await initializeSupabaseForUser(sessionData.session.user, {
           showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
-          showOverview: false
+          showOverview: !isPasswordRecovery
         });
         if (isPasswordRecovery) openPasswordPage({ recovery: true });
       }
       client.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT' && currentUser) {
+          dataReady = false;
+          setAuthenticated(false);
+          window.location.reload();
+          return;
+        }
         if (event !== 'SIGNED_IN' || !session?.user) return;
         // Password sign-in and OAuth callback restoration initialize the session
         // directly. Defer this fallback so those paths cannot start a second load.
@@ -989,7 +996,7 @@
           initializeSupabaseForUser(session.user, {
             showLoading: !isPasswordRecovery && isFirstLoadInTab,
             recordSignIn: !isPasswordRecovery,
-            showOverview: false
+            showOverview: !isPasswordRecovery
           });
         }, 0);
       });
