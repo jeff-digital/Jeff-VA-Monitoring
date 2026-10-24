@@ -2302,6 +2302,7 @@
     `).join('');
   }
 
+
   function applicationWeekOptions() {
     const currentRange = weekRange();
     const applicationDates = pipelineApplications().map(applicationAppliedDate).map(dateKey).filter(Boolean);
