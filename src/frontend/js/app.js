@@ -2337,11 +2337,21 @@
     if (!review) { result.innerHTML = ''; return; }
     const metrics = review.metrics;
     const stat = (label, value, previous) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>${previous === undefined ? '' : `<small>${escapeHtml(previous)} in the comparison period</small>`}</div>`;
+    const list = (title, values, note = '') => values?.length ? `<section class="application-progress-ai-guidance"><h3>${escapeHtml(title)}</h3>${note ? `<p class="application-progress-ai-note">${escapeHtml(note)}</p>` : ''}<ul>${values.map(value => `<li>${escapeHtml(value)}</li>`).join('')}</ul></section>` : '';
+    const response = metrics.responseAnalysis;
+    const responseText = cohort => cohort.applications ? `${cohort.replyRate}% (${cohort.repliedApplications} of ${cohort.applications})` : 'No applications in this period';
+    const responseMarkup = response ? `<section class="application-progress-ai-guidance"><h3>Are replies improving?</h3><dl class="application-progress-ai-stats">${stat('Recent 7-day reply rate', responseText(response.recent))}${stat('Earlier 7-day reply rate', responseText(response.previous))}</dl><p class="application-progress-ai-note">Recent applications: ${escapeHtml(response.recent.start)} – ${escapeHtml(response.recent.end)}. Earlier: ${escapeHtml(response.previous.start)} – ${escapeHtml(response.previous.end)}. Replies are counted in each application's first 7 days. Small samples and missing synced emails can distort rates.</p>
+      ${response.bySource.length ? `<div class="application-progress-ai-sources">${response.bySource.map(source => `<div><strong>${escapeHtml(source.source)}</strong><span>${escapeHtml(responseText(source))}${source.applications < response.minimumSample ? ' · small sample' : ''}</span></div>`).join('')}</div>` : ''}</section>` : '';
+    const checks = (metrics.applicationChecks || []).filter(check => check.applicationId);
     result.innerHTML = `<div class="application-progress-ai-assessment"><span class="application-progress-ai-badge is-${escapeHtml(review.status)}">${escapeHtml(applicationProgressLabels[review.status])}</span><small>Reviewed ${escapeHtml(new Date(review.reviewedAt).toLocaleString())}</small></div>
       <p class="application-progress-ai-period">${escapeHtml(metrics.start)} – ${escapeHtml(metrics.through)} · Philippine time. Compared with ${escapeHtml(metrics.previousStart)} – ${escapeHtml(metrics.previousThrough)}; today may be incomplete.</p>
       <dl class="application-progress-ai-stats">${stat('Applications', metrics.current.applications, metrics.previous.applications)}${stat('Matched replies', metrics.current.matchedReplies, metrics.previous.matchedReplies)}${stat('Scheduled interviews', metrics.current.interviews, metrics.previous.interviews)}${stat('Overdue follow-ups', metrics.overdue)}${stat('Follow-ups sent', metrics.current.followUpsSent, metrics.previous.followUpsSent)}${stat('Weekly goal', metrics.weeklyGoal || 'Not set')}</dl>
       <p class="application-progress-ai-summary">${escapeHtml(review.summary)}</p>
-      <h3>Suggested next steps</h3><ul>${review.nextSteps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ul>
+      ${list('What your records show', review.findings)}
+      ${responseMarkup}
+      ${list('Why replies may be lower', review.possibleReasons, 'Possible explanations to test, not confirmed causes. The AI has not reviewed your resume or application messages.')}
+      ${list('What to improve next', review.nextSteps)}
+      ${checks.length ? `<section class="application-progress-ai-guidance"><h3>Applications to review</h3><p class="application-progress-ai-note">These are tracker checks, not a judgment of application quality.</p>${checks.map(check => `<article class="application-progress-ai-check"><strong>${escapeHtml(check.company)}</strong><small>${escapeHtml(check.role)}</small><ul>${check.issues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}</ul><button class="text-button" type="button" data-progress-application="${escapeHtml(check.applicationId)}">Open application</button></article>`).join('')}</section>` : ''}
       <p class="application-progress-ai-note">Matched replies exclude known automated and no-reply senders. Missing or outdated records can affect this review.</p>`;
   }
 
@@ -2384,6 +2394,14 @@
   }
 
   $('#reviewApplicationProgress')?.addEventListener('click', requestApplicationProgressReview);
+  $('#applicationProgressAiResult')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-progress-application]');
+    if (!button || !currentUser) return;
+    const application = data.applications.find(item => item.id === button.dataset.progressApplication);
+    if (!application) return;
+    showView('applications');
+    openClientModal(application.id);
+  });
 
   function applicationWeekOptions() {
     const currentRange = weekRange();

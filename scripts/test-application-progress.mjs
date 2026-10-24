@@ -30,6 +30,22 @@ assert.equal(empty.start, '2026-10-19', 'Weeks use Philippine midnight, not the 
 assert.equal(progressAssessment(empty), 'insufficient_data');
 assert.equal(progressAssessment({ ...metrics, weeklyGoal: null, overdue: 0 }), 'on_track', 'Recorded interview/reply supplies positive evidence');
 assert.equal(progressAssessment({ ...metrics, overdue: 1 }), 'needs_attention');
+assert.equal(metrics.openWork.followUpNotScheduled, 0, 'An interview-stage application is not treated as an unanswered initial application');
+const guidanceState = { applications: [], emails: [], toApply: [{ dueDate: '2026-10-01' }] };
+for (let i = 0; i < 12; i++) guidanceState.applications.push({ id: `cohort-${i}`, clientName: `Private employer ${i}`, role: 'Editor', email: `employer${i}@example.com`, platform: i < 6 ? 'Direct client' : 'Indeed', status: 'Applied', appliedDate: i < 6 ? '2026-10-10' : '2026-09-26' });
+for (const i of [0, 6, 7, 8]) guidanceState.emails.push({ id: `response-${i}`, from: `employer${i}@example.com`, date: i < 6 ? '2026-10-12' : '2026-09-28' });
+guidanceState.emails.push({ id: 'late-response', from: 'employer1@example.com', date: '2026-10-20' });
+guidanceState.applications.push({ id: 'unfinished', clientName: '', role: '', email: 'N/A', platform: 'Direct client', status: 'Applied', appliedDate: '2026-10-01', followUpDate: '2026-10-04' });
+const guidance = applicationProgressMetrics(guidanceState, user, new Date('2026-10-25T04:00:00Z'));
+assert.equal(guidance.responseAnalysis.recent.applications, 6);
+assert.equal(guidance.responseAnalysis.recent.repliedApplications, 1, 'Late replies do not inflate a fixed first-seven-day response rate');
+assert.equal(guidance.responseAnalysis.previous.repliedApplications, 3);
+assert.equal(guidance.openWork.directClientEmailMissing, 1);
+assert.equal(guidance.openWork.overdueToApplyReminders, 1);
+assert.ok(guidance.openWork.followUpNotScheduled > 0);
+assert.equal(guidance.applicationChecks[0].applicationId, 'unfinished', 'Overdue unfinished records are prioritized');
+assert.ok(guidance.applicationChecks[0].issues.some(issue => issue.includes('email')));
+assert.equal(progressAssessment(guidance), 'needs_attention');
 assert.equal(JSON.stringify(state), frozen, 'Review does not mutate records');
 assert.equal(validateProgressReview('not JSON'), null);
 assert.equal(validateProgressReview({ summary: 'OK', nextSteps: [] }), null);
@@ -45,7 +61,9 @@ const env = { SUPABASE_URL: 'https://saved.test', SUPABASE_PUBLISHABLE_KEY: 'pub
   for (const secret of ['Private Company', 'client@example.com', 'Private message content', 'progress-user']) assert.ok(!prompt.includes(secret), 'Model receives aggregates only');
   assert.ok(model.includes('llama-3.3'));
   await modelGate;
-  return { response: malformed ? '{}' : { summary: 'Review your application pace and follow-ups.', nextSteps: ['Keep application dates up to date.'] } };
+  assert.ok(prompt.includes('openWork') && prompt.includes('responseAnalysis'), 'AI receives response diagnostics and unfinished-work counts');
+  assert.ok(!prompt.includes('applicationChecks'), 'Named application checks stay outside the AI prompt');
+  return { response: malformed ? '{}' : { summary: 'Review your application pace and follow-ups.', findings: ['Your records show unfinished tracking details.'], possibleReasons: ['A possibility to test is whether a more specific opening helps; message quality has not been assessed.'], nextSteps: ['Keep application dates up to date.'] } };
 } } };
 globalThis.fetch = async (url, options) => {
   if (String(url).includes('/auth/v1/user')) return Response.json(user);

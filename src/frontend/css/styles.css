@@ -7773,6 +7773,18 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #a
 .application-dashboard-insights .application-progress-ai-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .application-dashboard-insights .application-progress-ai-stats > div { padding: 9px; }
 .application-dashboard-insights .application-progress-ai-stats dd { font-size: 19px; }
+.application-progress-ai-guidance { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.application-progress-ai-guidance h3 { margin-top: 0; }
+.application-progress-ai-guidance li + li { margin-top: 6px; }
+.application-progress-ai-sources { display: grid; gap: 8px; margin-top: 12px; }
+.application-progress-ai-sources > div { display: grid; gap: 3px; font-size: 12px; }
+.application-progress-ai-sources span { color: var(--muted); overflow-wrap: anywhere; }
+.application-progress-ai-check { margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.application-progress-ai-check > strong, .application-progress-ai-check > small { display: block; overflow-wrap: anywhere; }
+.application-progress-ai-check > small { margin-top: 3px; color: var(--muted); }
+.application-progress-ai-check ul { margin: 8px 0; }
+.application-progress-ai-check li { font-size: 12px; }
+.application-progress-ai-check .text-button { padding: 4px 0; font-size: 12px; }
 @media (max-width: 900px) {
   body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel > .application-dashboard-insights {
     grid-column: 1 / -1;
