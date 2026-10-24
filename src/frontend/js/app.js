@@ -1335,6 +1335,7 @@
     updateClientSocialEditorControls(false);
   });
 
+
   function applicationMatchSignature(applications = data.applications || []) {
     return (applications || []).map(application => [
       application.id || '',
