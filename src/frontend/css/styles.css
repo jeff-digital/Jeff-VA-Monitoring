@@ -2019,7 +2019,7 @@ body.active-client-drawer-open dialog[open]::backdrop { background: linear-gradi
 .active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) .active-client-drawer-back { margin-top: 0; }
 #activeClientDrawerEmailView #emailComposeForm.onboarding-email-compose { height: 100%; min-height: 0; overflow: hidden; }
 #activeClientDrawerEmailView .onboarding-email-compose .compose-template-row { display: none; }
-#activeClientDrawerEmailView .onboarding-email-compose .compose-fields { flex: 1; min-height: 0; grid-template-columns: minmax(170px, .8fr) minmax(0, 1.8fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px 12px; padding: 10px 18px; }
+#activeClientDrawerEmailView .onboarding-email-compose .compose-fields { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 8px 12px; padding: 10px 18px; }
 #activeClientDrawerEmailView .onboarding-email-compose .form-field { min-width: 0; gap: 4px; font-size: 11px; }
 #activeClientDrawerEmailView .onboarding-email-compose .form-field > input { min-width: 0; height: 34px; padding: 6px 8px; font-size: 12px; }
 #activeClientDrawerEmailView .onboarding-email-compose .form-field:has(#composeBody) { display: flex; flex-direction: column; min-height: 0; }
@@ -2030,9 +2030,6 @@ body.active-client-drawer-open dialog[open]::backdrop { background: linear-gradi
 #activeClientDrawerEmailView .onboarding-email-compose .compose-status { flex-shrink: 0; margin: 0 18px 6px; font-size: 10px; }
 #activeClientDrawerEmailView .onboarding-email-compose .modal-actions { flex-shrink: 0; margin: 0; padding: 8px 18px max(8px, env(safe-area-inset-bottom)); }
 #activeClientDrawerEmailView .onboarding-email-compose .modal-actions .button { min-height: 32px; padding: 6px 12px; font-size: 12px; }
-@media (min-width: 901px) {
-  .active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) .active-client-drawer { width: min(1000px, calc(100vw - 40px)); }
-}
 @media (max-width: 600px) {
   #activeClientDrawerEmailView .onboarding-email-compose .compose-fields { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; padding: 8px 12px; }
   #activeClientDrawerEmailView .onboarding-email-compose .form-field > input { font-size: 16px; }
