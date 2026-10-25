@@ -423,6 +423,8 @@
       toast('Add a client email before sending a message.');
       return;
     }
+    $('#emailComposeForm').classList.remove('onboarding-email-compose');
+    $('#composeExtraOptions').open = true;
     composeClientId = application.id;
     composeActivationClientId = null;
     composeAttachment = null;

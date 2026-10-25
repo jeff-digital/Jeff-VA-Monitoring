@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261026-mobile-login" />
+    <link rel="stylesheet" href="css/styles.css?v=20261026-onboarding-fit" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -1699,6 +1699,7 @@
           <label class="form-field">To <input id="composeTo" type="email" required /></label>
           <label class="form-field">Subject <input id="composeSubject" maxlength="200" required /></label>
           <label class="form-field form-field-wide">Message <textarea id="composeBody" rows="10" required placeholder="Write your message..."></textarea></label>
+          <details class="compose-extra-options" id="composeExtraOptions" open><summary>Attachments &amp; templates</summary><div class="compose-extras-body">
           <div class="compose-attachment-row">
             <input id="composeAttachmentInput" type="file" accept=".pdf,.doc,.docx,.rtf,.txt,.odt,.png,.jpg,.jpeg" hidden />
             <button class="button button-secondary" type="button" id="attachFileButton">Attach file</button>
@@ -1709,6 +1710,7 @@
             <input id="emailTemplateName" maxlength="80" placeholder="Template name" aria-label="Template name" />
             <button class="button button-secondary" type="button" id="saveEmailTemplateButton">Save as template</button>
           </div>
+          </div></details>
         </div>
         <p class="compose-status" id="emailComposeStatus" role="status"></p>
         <div class="modal-actions">
@@ -1800,6 +1802,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261026-google-inline"></script>
+    <script src="js/app.js?v=20261026-onboarding-fit"></script>
   </body>
 </html>

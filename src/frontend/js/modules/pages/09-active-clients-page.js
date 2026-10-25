@@ -75,6 +75,10 @@
       form.setAttribute('method', form.dataset.drawerOriginalMethod);
       delete form.dataset.drawerOriginalMethod;
       modal.append(form);
+      if (formId === 'emailComposeForm') {
+        form.classList.remove('onboarding-email-compose');
+        $('#composeExtraOptions').open = true;
+      }
     });
     $('#sendEmailButton').textContent = 'Send email';
     $('#closeClientDetailsButton').textContent = 'Close';
@@ -775,6 +779,8 @@
         return;
       }
       openPlainClientEmailComposer(item);
+      $('#emailComposeForm').classList.add('onboarding-email-compose');
+      $('#composeExtraOptions').open = false;
       $('#composeSubject').value = 'Action Required: Complete or Update Your Onboarding Information';
       const clientName = String(item.clientName || '').trim();
       const greeting = clientName ? (/\bteam$/i.test(clientName) ? clientName : `${clientName} Team`) : 'there';

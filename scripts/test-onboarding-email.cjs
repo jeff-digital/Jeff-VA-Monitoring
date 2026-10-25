@@ -3,7 +3,13 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('src/frontend/js/modules/pages/09-active-clients-page.js', 'utf8');
 const nodes = new Map();
-const $ = key => { if (!nodes.has(key)) nodes.set(key, { value: '', disabled: false }); return nodes.get(key); };
+const $ = key => {
+  if (!nodes.has(key)) {
+    const classes = new Set();
+    nodes.set(key, { value: '', disabled: false, classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name) } });
+  }
+  return nodes.get(key);
+};
 const client = { id: 'client-one', clientName: 'Studio One', email: 'client@example.com' };
 let issued = true, requests = 0, opened = 0, errors = 0, clean = 0;
 const context = vm.createContext({ $, URL, TextEncoder, Uint8Array, crypto: require('node:crypto').webcrypto,
@@ -31,6 +37,8 @@ vm.runInContext('async function selectOnboardingEmail(actionRow) {' + source.sli
   assert.equal(requests, 1);
   assert.equal(opened, 1, 'Selecting onboarding opens an email, not a link-only panel');
   assert.equal($('#composeTo').value, client.email);
+  assert.equal($('#emailComposeForm').classList.contains('onboarding-email-compose'), true);
+  assert.equal($('#composeExtraOptions').open, false, 'Secondary tools are collapsed for the onboarding email');
   assert.equal($('#composeSubject').value, 'Action Required: Complete or Update Your Onboarding Information');
   assert.match($('#composeBody').value, /Hi Studio One/);
   const link = $('#composeBody').value.match(/\]\((https:\/\/[^)]+)\)/)[1];

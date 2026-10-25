@@ -1303,6 +1303,8 @@ code { background: #f0f1ed; padding: 1px 4px; border-radius: 3px; font-size: .9e
 .compose-template-save { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 9px; }
 .compose-template-save input { min-width: 180px; border: 1px solid #deded9; border-radius: 6px; padding: 9px 10px; font: inherit; font-size: 12px; }
 .compose-template-save input:focus { outline: 0; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(26,35,64,.13); }
+.compose-extra-options, .compose-extras-body { display: contents; }
+.compose-extra-options > summary { display: none; }
 .compose-status { min-height: 18px; color: #687269; font-size: 11px; margin: 15px 0 0; display: block; }
 .compose-status.status-info { color: #687269; }
 .compose-status.status-success { padding: 10px 12px; border: 1px solid #cfe7d3; border-radius: 6px; background: #edf9ef; color: #2d6b3d; font-weight: 700; line-height: 1.45; }
@@ -2009,6 +2011,32 @@ body.active-client-drawer-open dialog[open]::backdrop { background: linear-gradi
 .active-client-drawer-view #emailComposeForm .modal-actions { margin: auto 0 0; padding: 14px 20px max(14px, env(safe-area-inset-bottom)); border-top: 1px solid #e6e8f0; background: #fff; }
 .active-client-drawer-view #emailComposeForm .compose-status { margin: 0 20px 14px; }
 .active-client-drawer-view #emailComposeForm .compose-fields textarea { min-height: 190px; }
+.active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) #activeClientDrawerEmailView { overflow: hidden; }
+.active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) #activeClientDrawerEmailSlot { height: 100%; min-height: 0; }
+.active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) .active-client-drawer-header { flex-shrink: 0; min-height: 70px; padding: 12px 18px; }
+.active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) .active-client-drawer-header .eyebrow { display: none; }
+.active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) .active-client-drawer-header h2 { font-size: 20px; }
+.active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) .active-client-drawer-back { margin-top: 0; }
+#activeClientDrawerEmailView #emailComposeForm.onboarding-email-compose { height: 100%; min-height: 0; overflow: hidden; }
+#activeClientDrawerEmailView .onboarding-email-compose .compose-template-row { display: none; }
+#activeClientDrawerEmailView .onboarding-email-compose .compose-fields { flex: 1; min-height: 0; grid-template-columns: minmax(170px, .8fr) minmax(0, 1.8fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px 12px; padding: 10px 18px; }
+#activeClientDrawerEmailView .onboarding-email-compose .form-field { min-width: 0; gap: 4px; font-size: 11px; }
+#activeClientDrawerEmailView .onboarding-email-compose .form-field > input { min-width: 0; height: 34px; padding: 6px 8px; font-size: 12px; }
+#activeClientDrawerEmailView .onboarding-email-compose .form-field:has(#composeBody) { display: flex; flex-direction: column; min-height: 0; }
+#activeClientDrawerEmailView .onboarding-email-compose #composeBody { flex: 1; min-height: 0; height: 100%; padding: 8px 10px; resize: none; font-size: 12px; line-height: 1.3; }
+#activeClientDrawerEmailView .onboarding-email-compose .compose-extra-options { display: block; position: relative; grid-column: 1 / -1; }
+#activeClientDrawerEmailView .onboarding-email-compose .compose-extra-options > summary { display: list-item; width: fit-content; padding: 4px 0; color: var(--muted); font-size: 11px; cursor: pointer; }
+#activeClientDrawerEmailView .onboarding-email-compose .compose-extras-body { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; z-index: 3; display: grid; gap: 10px; max-height: 220px; overflow-y: auto; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: var(--shadow-md); }
+#activeClientDrawerEmailView .onboarding-email-compose .compose-status { flex-shrink: 0; margin: 0 18px 6px; font-size: 10px; }
+#activeClientDrawerEmailView .onboarding-email-compose .modal-actions { flex-shrink: 0; margin: 0; padding: 8px 18px max(8px, env(safe-area-inset-bottom)); }
+#activeClientDrawerEmailView .onboarding-email-compose .modal-actions .button { min-height: 32px; padding: 6px 12px; font-size: 12px; }
+@media (min-width: 901px) {
+  .active-client-drawer-layer[data-view="email"]:has(.onboarding-email-compose) .active-client-drawer { width: min(1000px, calc(100vw - 40px)); }
+}
+@media (max-width: 600px) {
+  #activeClientDrawerEmailView .onboarding-email-compose .compose-fields { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; padding: 8px 12px; }
+  #activeClientDrawerEmailView .onboarding-email-compose .form-field > input { font-size: 16px; }
+}
 .active-client-drawer-view #clientForm .client-form-layout { display: block; flex: 1; padding: 18px 20px; overflow-y: auto; background: #fff; }
 .active-client-drawer-view #clientForm .client-form-column { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .active-client-drawer-view #clientForm .client-form-column + .client-form-column { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e6e8f0; }
