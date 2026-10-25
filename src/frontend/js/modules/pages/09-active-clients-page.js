@@ -776,7 +776,9 @@
       }
       openPlainClientEmailComposer(item);
       $('#composeSubject').value = 'Please review your client onboarding details';
-      $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete or update your onboarding details using this private form:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. Submitting this form will replace any onboarding details previously provided. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
+      const clientName = String(item.clientName || '').trim();
+      const greeting = clientName ? (/\bteam$/i.test(clientName) ? clientName : `${clientName} Team`) : 'there';
+      $('#composeBody').value = `Hi ${greeting},\n\nI hope you're doing well!\n\nTo ensure we have your most up-to-date information, please complete or update your onboarding details using the secure, personalized link below:\n\n**Onboarding Form:**\n[Complete Your Onboarding Form](${onboardingUrl.href})\n\n**Important Reminders:**\n\n- **Private Access:** This link is intended exclusively for your use. Please do not share it with others.\n- **Expiration:** The link will remain valid for 14 days.\n- **One-Time Submission:** The form can only be submitted once.\n- **Information Updates:** Submitting the form will replace any onboarding information you previously provided.\n- **Review Before Submission:** You will have an opportunity to review and confirm your responses before submitting.\n\nFor your security, please do not include passwords or sensitive account credentials in the form.\n\nThank you for your time and cooperation. We appreciate your assistance in keeping our records accurate and up to date.\n\nBest regards,\n**Jeff VA**`;
       markActiveClientDrawerFormClean('email');
       toast('Review the onboarding invitation and send it through Gmail.');
     } catch (error) {

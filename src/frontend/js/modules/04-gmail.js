@@ -171,13 +171,19 @@
   function htmlEmailBodyFromText(value = '') {
     const plain = String(value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
     const escaped = escapeHtmlForEmail(plain)
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\[([^\]\n]+)\]\((https:\/\/[^\s)]+)\)/gi, '<a href="$2" style="color:#245c9c;text-decoration:underline;" rel="noopener noreferrer">$1</a>');
 
     const paragraphs = escaped
       .split(/\n\s*\n/)
-      .map(paragraph => paragraph.replace(/\n/g, '<br>'))
       .filter(Boolean)
-      .map(paragraph => `<p style="margin:0 0 18px; line-height:1.7; font-size:17px; color:#1f2a2d;">${paragraph}</p>`)
+      .map(paragraph => {
+        const lines = paragraph.split('\n');
+        if (lines.every(line => /^-\s+/.test(line))) {
+          return `<ul style="margin:0 0 18px;padding-left:22px;line-height:1.7;font-size:17px;color:#1f2a2d;">${lines.map(line => `<li style="margin-bottom:8px;">${line.replace(/^-\s+/, '')}</li>`).join('')}</ul>`;
+        }
+        return `<p style="margin:0 0 18px; line-height:1.7; font-size:17px; color:#1f2a2d;">${paragraph.replace(/\n/g, '<br>')}</p>`;
+      })
       .join('');
 
     const content = paragraphs || '<p style="margin:0; line-height:1.7; font-size:17px; color:#1f2a2d;">&nbsp;</p>';
