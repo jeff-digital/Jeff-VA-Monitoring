@@ -10798,8 +10798,8 @@
           closeActiveClientActionsDrawer(false, () => openContractEmailUploadModal(clientId));
         }
       } else if (actionRow.dataset.activeClientAction === 'onboarding') {
-        showActiveClientDrawerView('onboarding');
-        $('#generateClientOnboardingLinkButton').focus();
+        const item = data.applications.find(application => application.id === hiredEditingId);
+        if (item) await sendClientOnboardingInvite(item, actionRow);
       } else if (actionRow.dataset.activeClientAction === 'edit') {
         const clientId = hiredEditingId;
         closeActiveClientActionsDrawer(false, () => openClientModal(clientId, false, true, false, true));
@@ -10811,7 +10811,7 @@
 
     if (generateOnboardingLinkButton) {
       const item = data.applications.find(application => application.id === hiredEditingId);
-      if (item) await sendClientOnboardingInvite(item, generateOnboardingLinkButton, true);
+      if (item) await sendClientOnboardingInvite(item, generateOnboardingLinkButton);
       return;
     }
 
@@ -11293,6 +11293,7 @@
       openPlainClientEmailComposer(item);
       $('#composeSubject').value = 'Please review your client onboarding details';
       $('#composeBody').value = `Hi ${item.clientName || 'there'},\n\nPlease complete or update your onboarding details using this private form:\n\n${onboardingUrl.href}\n\nThe link is private to you, expires in 14 days, and can only be submitted once. Submitting this form will replace any onboarding details previously provided. You will be able to review and confirm all your answers before submitting. Please do not enter passwords or sensitive account credentials.\n\nThank you`;
+      markActiveClientDrawerFormClean('email');
       toast('Review the onboarding invitation and send it through Gmail.');
     } catch (error) {
       console.error('Could not create client onboarding invitation:', error);
