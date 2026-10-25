@@ -4,12 +4,13 @@ const vm = require('node:vm');
 const path = require('node:path');
 const { readModules, moduleGroups } = require('./lib/read-modules.cjs');
 const read = file => moduleGroups[file] ? readModules(moduleGroups[file]) : fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules', file), 'utf8');
+const FixtureDate = class extends Date { constructor(...args) { super(...(args.length ? args : ['2026-10-26T04:00:00Z'])); } static now() { return Date.parse('2026-10-26T04:00:00Z'); } };
 const nodes = new Map();
 const $ = key => {
   if (!nodes.has(key)) nodes.set(key, { addEventListener() {}, value: '', dataset: {} });
   return nodes.get(key);
 };
-const client = { id: 'client-1', email: 'owner@example.com', contact: 'Jordan', clientName: 'Acme', role: 'Social Media Manager', status: 'Active client', activeAt: new Date(Date.now() - 86400000).toISOString() };
+const client = { id: 'client-1', email: 'owner@example.com', contact: 'Jordan', clientName: 'Acme', role: 'Social Media Manager', status: 'Active client', activeAt: new FixtureDate(FixtureDate.now() - 86400000).toISOString() };
 const messages = new Map();
 let liveIds = [];
 let historyIds = [];
@@ -20,7 +21,7 @@ const localValues = new Map();
 let classificationCalls = 0;
 let providerStatus = 200;
 let purposeOverride = '';
-const context = vm.createContext({ $, console, URLSearchParams, AbortSignal, currentUser: { id: 'u1' },
+const context = vm.createContext({ Date: FixtureDate, $, console, URLSearchParams, AbortSignal, currentUser: { id: 'u1' },
   setTimeout: () => 1, clearTimeout() {},
   localStorage: { getItem: key => localValues.get(key), setItem: (key, value) => localValues.set(key, value) },
   requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session' } } }) } }),
@@ -86,7 +87,7 @@ const addEmail = (id, body, extra = {}) => {
   liveIds = [id];
   messages.set(id, { payload: { body, headers: [
     { name: 'From', value: extra.from || client.email }, { name: 'To', value: 'me@example.com' },
-    { name: 'Subject', value: 'Campaign update' }, { name: 'Date', value: new Date().toISOString() },
+    { name: 'Subject', value: 'Campaign update' }, { name: 'Date', value: new FixtureDate().toISOString() },
     ...(extra.headers || [])
   ] }, labelIds: extra.labelIds || ['INBOX'] });
 };
@@ -125,8 +126,8 @@ const addEmail = (id, body, extra = {}) => {
   // Recheck older saved mail, including messages rejected by the previous rules.
   const earlierEmail = { id: 'earlier', gmailId: 'earlier', from: client.email,
     subject: 'Upload content', body: 'Upload content in ig and facebook today place',
-    date: new Date(Date.now() - 3600000).toISOString(), direction: 'received', bodyLoaded: true,
-    autoTaskPending: false, autoTaskProcessedAt: new Date().toISOString() };
+    date: new FixtureDate(FixtureDate.now() - 3600000).toISOString(), direction: 'received', bodyLoaded: true,
+    autoTaskPending: false, autoTaskProcessedAt: new FixtureDate().toISOString() };
   context.data.emails.push(earlierEmail);
   await context.syncGmail(true);
   assert.equal(context.data.clientTasks.length, 2, 'previously imported and processed mail must be rescanned under the new rules');
@@ -230,7 +231,7 @@ const addEmail = (id, body, extra = {}) => {
   assert.equal(context.data.clientTasks.length, beforePurposes + 2, 'queued work must resume when AI becomes available');
   for (let index = 0; index < 5; index++) context.data.emails.push({
     id: `queued-${index}`, from: client.email, subject: 'Content request', body: 'New client deliverable',
-    date: new Date().toISOString(), direction: 'received', bodyLoaded: true
+    date: new FixtureDate().toISOString(), direction: 'received', bodyLoaded: true
   });
   const batchCalls = classificationCalls;
   await context.syncGmail(true);
@@ -238,19 +239,19 @@ const addEmail = (id, body, extra = {}) => {
   await context.syncGmail(true);
   assert.equal(classificationCalls - batchCalls, 5);
   const oldWeekEmail = { id: 'last-week', from: client.email, subject: 'Old request', body: 'Please upload content.',
-    date: new Date(context.emailAiWeekRange().start - 1000).toISOString(), bodyLoaded: true, autoTaskPending: true };
+    date: new FixtureDate(context.emailAiWeekRange().start - 1000).toISOString(), bodyLoaded: true, autoTaskPending: true };
   context.data.emails.push(oldWeekEmail);
   const weeklyCalls = classificationCalls, weeklyTasks = context.data.clientTasks.length;
   await context.syncGmail(true);
   assert.equal(classificationCalls, weeklyCalls, 'previous-week pending messages must not use an AI request');
   assert.equal(context.data.clientTasks.length, weeklyTasks);
   assert.equal(oldWeekEmail.autoTaskProcessedAt, undefined, 'older emails stay unchanged and visible');
-  context.data.emailTaskAiUsage = { day: new Date().toISOString().slice(0, 10), requests: 40 };
+  context.data.emailTaskAiUsage = { day: new FixtureDate().toISOString().slice(0, 10), requests: 40 };
   addEmail('daily-cap', 'Please upload new content.');
   const cappedCalls = classificationCalls;
   await context.syncGmail(true);
   assert.equal(classificationCalls, cappedCalls, 'daily app cap must queue additional analysis without contacting the provider');
-  context.data.emailTaskAiUsage = { day: new Date().toISOString().slice(0, 10), requests: 0 };
+  context.data.emailTaskAiUsage = { day: new FixtureDate().toISOString().slice(0, 10), requests: 0 };
   localValues.clear(); providerStatus = 200; purposeOverride = '';
   addEmail('deadline', 'Please upload the campaign content by October 27.');
   await context.syncGmail(true);

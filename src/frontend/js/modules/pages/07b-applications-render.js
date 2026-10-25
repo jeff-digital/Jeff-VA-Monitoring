@@ -49,7 +49,8 @@
         || (uniqueRolePlatform && subject.toLowerCase() === newSubject)
         || (roleOnlyFollowUp && sameRecipient.filter(app => String(app.role || '').trim().toLowerCase() === String(item.role || '').trim().toLowerCase()).length === 1);
     }).map(email => email.date)].filter(value => {
-      const date = dateKey(value);
+      if (!Number.isFinite(new Date(value).getTime())) return false;
+      const date = followUpLocalDate(item, new Date(value)) || dateKey(value);
       return date && (!scheduledDate || date >= scheduledDate)
         && (!item.appliedDate || date >= dateKey(item.appliedDate))
         && Number.isFinite(new Date(value).getTime());
@@ -59,9 +60,8 @@
 
   function applicationFollowUpState(item) {
     const scheduledDate = dateKey(item.followUpDate);
-    const sentDate = dateKey(confirmedApplicationFollowUpSentAt(item));
-    if (sentDate && (!scheduledDate || sentDate >= scheduledDate)) return 'sent';
-    if (scheduledDate === today() && !['Active client', 'Not selected'].includes(item.status)) return 'due';
+    if (confirmedApplicationFollowUpSentAt(item)) return 'sent';
+    if (scheduledDate === (followUpLocalDate(item) || today()) && !['Active client', 'Not selected'].includes(item.status)) return 'due';
     return '';
   }
 

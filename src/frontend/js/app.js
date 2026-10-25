@@ -19,7 +19,7 @@
     const pathView = window.location.pathname.split('/').filter(Boolean).pop() || '';
     return APP_VIEW_SET.has(pathView) ? pathView : '';
   }
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], subscriptions: [], accountSignInHistory: [], weeklyActivityGoal: null });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], clearedNotificationKeys: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], subscriptions: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -629,6 +629,7 @@
       deletedGmailIds,
       accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],
       alerts: Array.isArray(saved.alerts) ? saved.alerts : [],
+      clearedNotificationKeys: Array.isArray(saved.clearedNotificationKeys) ? saved.clearedNotificationKeys.filter(key => typeof key === 'string') : [],
       onboardingSubmissionIds: Array.isArray(saved.onboardingSubmissionIds) ? saved.onboardingSubmissionIds : [],
       emailTemplates: Array.isArray(saved.emailTemplates) ? saved.emailTemplates : [],
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],
@@ -1257,19 +1258,33 @@
   const [country, region = ''] = String(app.location || '').split(',').map(value => value.trim());
   const regions = { Eastern: 'America/New_York', Central: 'America/Chicago', Mountain: 'America/Denver', Pacific: 'America/Los_Angeles',
     Atlantic: 'America/Halifax', Newfoundland: 'America/St_Johns', Alaska: 'America/Anchorage', Hawaii: 'Pacific/Honolulu' };
-  if (['United States', 'Canada'].includes(country) && regions[region]) return regions[region];
-  if (country === 'Australia') return ({ East: 'Australia/Sydney', Central: 'Australia/Adelaide', West: 'Australia/Perth' })[region] || 'Australia/Sydney';
+  if (['United States', 'Canada'].includes(country)) return regions[region] || '';
+  if (country === 'Australia') return ({ East: 'Australia/Sydney', Central: 'Australia/Adelaide', West: 'Australia/Perth' })[region] || '';
   return ({ 'United States': 'America/New_York', Canada: 'America/Toronto', 'United Kingdom': 'Europe/London', Philippines: 'Asia/Manila',
     Brazil: 'America/Sao_Paulo', China: 'Asia/Shanghai', Colombia: 'America/Bogota', France: 'Europe/Paris', Germany: 'Europe/Berlin',
     India: 'Asia/Kolkata', Ireland: 'Europe/Dublin', Israel: 'Asia/Jerusalem', Italy: 'Europe/Rome', Japan: 'Asia/Tokyo',
     Mexico: 'America/Mexico_City', Netherlands: 'Europe/Amsterdam', 'New Zealand': 'Pacific/Auckland', Peru: 'America/Lima',
     'Saudi Arabia': 'Asia/Riyadh', 'South Africa': 'Africa/Johannesburg', 'South Korea': 'Asia/Seoul', Taiwan: 'Asia/Taipei',
-    'United Arab Emirates': 'Asia/Dubai' })[country] || 'Asia/Manila';
+    'United Arab Emirates': 'Asia/Dubai' })[country] || '';
 }
 
   function isFollowUpWeekday(app, now = new Date()) {
+  if (!followUpTimeZone(app)) return false;
   const day = new Intl.DateTimeFormat('en-US', { timeZone: followUpTimeZone(app), weekday: 'short' }).format(now);
   return day !== 'Sat' && day !== 'Sun';
+}
+
+  function followUpLocalDate(app, now = new Date()) {
+  if (!followUpTimeZone(app)) return '';
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: followUpTimeZone(app), year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const get = type => parts.find(part => part.type === type).value;
+  return get('year') + '-' + get('month') + '-' + get('day');
+}
+
+  function isFollowUpSendTime(app, scheduledDate, now = new Date()) {
+  if (!isFollowUpWeekday(app, now) || !scheduledDate || scheduledDate > followUpLocalDate(app, now)) return false;
+  const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: followUpTimeZone(app), hour: '2-digit', hourCycle: 'h23' }).format(now));
+  return hour >= 8 && hour < 17;
 }
 
   function isFollowUpDateWeekday(value) {
@@ -2663,7 +2678,8 @@
         || (uniqueRolePlatform && subject.toLowerCase() === newSubject)
         || (roleOnlyFollowUp && sameRecipient.filter(app => String(app.role || '').trim().toLowerCase() === String(item.role || '').trim().toLowerCase()).length === 1);
     }).map(email => email.date)].filter(value => {
-      const date = dateKey(value);
+      if (!Number.isFinite(new Date(value).getTime())) return false;
+      const date = followUpLocalDate(item, new Date(value)) || dateKey(value);
       return date && (!scheduledDate || date >= scheduledDate)
         && (!item.appliedDate || date >= dateKey(item.appliedDate))
         && Number.isFinite(new Date(value).getTime());
@@ -2673,9 +2689,8 @@
 
   function applicationFollowUpState(item) {
     const scheduledDate = dateKey(item.followUpDate);
-    const sentDate = dateKey(confirmedApplicationFollowUpSentAt(item));
-    if (sentDate && (!scheduledDate || sentDate >= scheduledDate)) return 'sent';
-    if (scheduledDate === today() && !['Active client', 'Not selected'].includes(item.status)) return 'due';
+    if (confirmedApplicationFollowUpSentAt(item)) return 'sent';
+    if (scheduledDate === (followUpLocalDate(item) || today()) && !['Active client', 'Not selected'].includes(item.status)) return 'due';
     return '';
   }
 
@@ -2833,7 +2848,7 @@
     data.toApply.forEach(item => {
       if (item.dueDate !== currentDate) return;
       const alertId = `to-apply|due|${item.id}|${item.dueDate}`;
-      if (data.alerts.some(alert => alert.id === alertId)) return;
+      if (isNotificationCleared({ id: alertId }) || data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({
         id: alertId,
         type: 'to-apply',
@@ -3937,6 +3952,7 @@
         $('#clientCountry').dispatchEvent(new Event('change'));
         const savedRegion = [...$('#clientRegion').options].find(option => savedLocation.includes(option.text));
         if (savedRegion) $('#clientRegion').value = savedRegion.value;
+        updateClientLocation();
       }
       $('#clientStatus').value = ['Ongoing', 'Applied', 'To Proceed', 'Interview', 'Active client', 'Not selected'].includes(item.status) ? item.status : 'Applied';
       $('#nextStep').value = item.nextStep || '';
@@ -4145,6 +4161,10 @@
       $('#followUpDate').value = nextFollowUpWeekday(addDays(today(), 7));
     }
     if (!validateFollowUpDateInput($('#followUpDate'))) return;
+    if ($('#automaticFollowUp').checked && !followUpTimeZone({ location: $('#hiredLocation').value })) {
+      showActionResult({ title: 'Client timezone required', message: 'Choose the client country and region before enabling automatic follow-up.', status: 'error' });
+      return;
+    }
     const platformChoice = $('#clientPlatform').value;
     const existing = editingId ? data.applications.find(item => item.id === editingId) : null;
     const existingIndex = editingId ? data.applications.findIndex(item => item.id === editingId) : -1;
@@ -5643,8 +5663,27 @@
     return generatedNotificationTypes.has(alert.type);
   }
 
+  function notificationDeletionKey(alert) {
+    const id = String(alert.id || '');
+    const parts = id.split('|');
+    if (/^(?:task-|client-task-|wallet-payment-|subscription-)/.test(parts[0])) return 'reminder|' + parts.slice(1).join('|');
+    if (/^contract-(?:ending-\d+|ended)$/.test(parts[0])) return 'contract|' + parts.slice(1).join('|');
+    return id;
+  }
+
+  function rememberClearedNotifications(alerts) {
+    const keys = new Set(data.clearedNotificationKeys || []);
+    for (const alert of alerts) { const key = notificationDeletionKey(alert); if (key) keys.add(key); }
+    data.clearedNotificationKeys = [...keys];
+  }
+
+  function isNotificationCleared(alert) {
+    return (data.clearedNotificationKeys || []).includes(notificationDeletionKey(alert));
+  }
+
   function limitAlertHistory() {
-    const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    rememberClearedNotifications((data.alerts || []).filter(alert => alert.dismissedAt));
+    const alerts = (Array.isArray(data.alerts) ? data.alerts : []).filter(alert => !isNotificationCleared(alert));
     const generated = alerts.filter(isGeneratedNotification);
     const history = alerts.filter(alert => !isGeneratedNotification(alert)).slice(0, Math.max(0, 30 - generated.length));
     data.alerts = [...generated, ...history];
@@ -5669,9 +5708,12 @@
   function refreshGeneratedNotifications() {
     if (!dataReady || !supabaseDataLoaded) return false;
     data.alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    const previousDeletedCount = (data.clearedNotificationKeys || []).length;
+    rememberClearedNotifications(data.alerts.filter(alert => alert.dismissedAt));
     const existingById = new Map(data.alerts.map(alert => [alert.id, alert]));
     const generated = new Map();
     const add = alert => {
+      if (isNotificationCleared(alert)) return;
       const previous = existingById.get(alert.id);
       const wasContractEmailUpdated = alert.type === 'contract-ended' && previous?.emailSent !== undefined;
       generated.set(alert.id, {
@@ -5788,14 +5830,14 @@
     const urgentNewCount = [...generated.values()].filter(alert =>
       !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended', 'wallet-payment-overdue', 'wallet-payment-due-today'].includes(alert.type)
     ).length;
-    const changed = previousGeneratedIds.size !== generatedIds.size
+    const changed = previousDeletedCount !== data.clearedNotificationKeys.length || data.alerts.some(isNotificationCleared) || previousGeneratedIds.size !== generatedIds.size
       || [...previousGeneratedIds].some(id => !generatedIds.has(id))
       || [...generatedIds].some(id => !previousGeneratedIds.has(id))
       || [...generated.values()].some(alert => {
         const existing = existingById.get(alert.id);
         return !existing || Object.keys(alert).some(key => existing[key] !== alert[key]);
       });
-    const retainedAlerts = data.alerts.filter(alert => !isGeneratedNotification(alert));
+    const retainedAlerts = data.alerts.filter(alert => !isGeneratedNotification(alert) && !isNotificationCleared(alert));
     data.alerts = [...generated.values(), ...retainedAlerts];
     if (changed) {
       data.alerts.sort((first, second) => new Date(second.date) - new Date(first.date));
@@ -5810,7 +5852,7 @@
 
   function visibleNotificationAlerts() {
     const now = Date.now();
-    return (data.alerts || []).filter(alert => !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
+    return (data.alerts || []).filter(alert => !isNotificationCleared(alert) && !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
   }
 
   function notificationCategory(alert) {
@@ -5957,7 +5999,7 @@
     const alert = (data.alerts || []).find(item => item.id === alertId);
     if (!alert) return;
     if (action === 'snooze') alert.snoozedUntil = new Date(Date.now() + 86400000).toISOString();
-    else if (action === 'dismiss') alert.dismissedAt = new Date().toISOString();
+    else if (action === 'dismiss') { rememberClearedNotifications([alert]); data.alerts = data.alerts.filter(item => item !== alert); }
     else if (action === 'done') {
       if (alert.type?.startsWith('client-task-')) {
         const task = (data.clientTasks || []).find(item => item.id === alert.taskId);
@@ -5972,6 +6014,8 @@
       } else {
         alert.unread = false;
         alert.dismissedAt = new Date().toISOString();
+        rememberClearedNotifications([alert]);
+        data.alerts = data.alerts.filter(item => item !== alert);
       }
     }
     persist();
@@ -6188,7 +6232,7 @@
     let changed = false;
     ended.forEach(item => {
       const alertId = `contract-ended|${item.id}|${dateKey(item.contractEndDate)}`;
-      if (data.alerts.some(alert => alert.id === alertId)) return;
+      if (isNotificationCleared({ id: alertId }) || data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({
         id: alertId,
         type: 'contract-ended',
@@ -6278,7 +6322,7 @@
       const alertId = `document-email|due|${item.id}|${reminderDate}`;
       item.documentEmailReminderAlertedDate = reminderDate;
       item.documentEmailReminderDate = '';
-      if (data.alerts.some(alert => alert.id === alertId)) return;
+      if (isNotificationCleared({ id: alertId }) || data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({ id: alertId, type: 'document-email-reminder', applicationId: item.id, clientName: item.clientName, subject: 'Send the updated document today', from: 'Jeff VA reminder', date: new Date().toISOString(), unread: true });
     });
     limitAlertHistory();
@@ -6351,7 +6395,7 @@
       if (activeView === 'dashboard') renderDashboard();
       renderAlerts();
     }
-    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && applicationFollowUpState(item) !== 'sent' && followUpGmailAvailable())));
+    const due = data.applications.filter(item => item.followUpDate && isFollowUpSendTime(item, item.followUpDate) && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && applicationFollowUpState(item) !== 'sent' && followUpGmailAvailable())));
     if (!due.length) return;
     data.alerts = data.alerts || [];
     let followUpAlertsAdded = 0;
@@ -6363,8 +6407,7 @@
       if (currentUser?.id !== userId) return;
       let item = data.applications.find(app => app.id === candidate.id);
       if (!item) continue;
-      if (!item.followUpDate || item.followUpDate > today() || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
-      if (!isFollowUpWeekday(item)) continue;
+      if (!item.followUpDate || !isFollowUpSendTime(item, item.followUpDate) || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
@@ -6467,11 +6510,13 @@
   }
 
   async function clearAlerts() {
-    if (!visibleNotificationAlerts().length) return;
-    if (!(await appConfirm('Dismiss all visible notifications? This will not delete your tasks or client records.', { title: 'Clear notifications', confirmLabel: 'Clear all', danger: true }))) return;
-    const dismissedAt = new Date().toISOString();
-    visibleNotificationAlerts().forEach(alert => { alert.dismissedAt = dismissedAt; });
-    persist();
+    if (!(data.alerts || []).length) return;
+    const userId = currentUser?.id;
+    if (!(await appConfirm('Permanently clear all notifications, including snoozed items? These notifications will not reappear. Your tasks and client records are kept.', { title: 'Clear notifications permanently', confirmLabel: 'Clear permanently', danger: true }))) return;
+    if (currentUser?.id !== userId) return;
+    rememberClearedNotifications(data.alerts);
+    data.alerts = [];
+    if ((await persist()) === false) showActionResult({ title: 'Notification clear could not be saved', message: 'Notifications are hidden here, but the cloud save failed. Reconnect and try again before closing the app.', status: 'error' });
     renderAlerts();
   }
 
@@ -7419,7 +7464,9 @@
   }
 
   async function findGmailSentFollowUp(item, scheduledDate, subject) {
-    const after = Math.floor(new Date(`${scheduledDate}T00:00:00+08:00`).getTime() / 1000);
+    // Search from the earliest possible local midnight, then verify each
+    // result against the client's actual local date below.
+    const after = Math.floor(new Date(`${scheduledDate}T00:00:00+14:00`).getTime() / 1000) - 1;
     const recipient = extractEmailAddress(item.email);
     const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
     const q = `in:sent to:${recipient} after:${after} {subject:follow "I wanted to follow up on my application"}`;
@@ -7435,7 +7482,9 @@
         matches = /I wanted to follow up on my application/i.test(gmailMessageBody(full.payload));
       }
       if (extractEmailAddress(header('to')) === recipient && matches
-        && Number.isFinite(sentAt) && sentAt >= after * 1000) {
+        && Number.isFinite(sentAt) && sentAt >= after * 1000
+        && followUpLocalDate(item, new Date(sentAt)) >= scheduledDate
+        && sentAt >= (Date.parse(item.appliedDate || '') || 0)) {
         return { sentAt: new Date(sentAt).toISOString(), gmailId: email.id, recovered: true };
       }
     }
@@ -7444,7 +7493,8 @@
   }
 
   async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body, { manual = false, rawMessage = null } = {}) {
-    if (!isFollowUpWeekday(item)) throw new Error('Follow-ups send Monday–Friday in the client timezone. This follow-up remains scheduled for the next weekday.');
+    if (!followUpTimeZone(item)) throw new Error('Set the client country or timezone before sending a follow-up.');
+    if (!isFollowUpSendTime(item, scheduledDate)) throw new Error('Follow-ups send Monday–Friday, 8:00 AM–5:00 PM in the client timezone. This follow-up remains scheduled for the next sending window.');
     const userId = currentUser?.id;
     await ensureGmailAccessToken();
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
@@ -7471,7 +7521,7 @@
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
     try {
-      if (!isFollowUpWeekday(item)) throw Object.assign(new Error('Weekend sending is paused until the next weekday.'), { gmailNotSent: true });
+      if (!isFollowUpSendTime(item, scheduledDate)) throw Object.assign(new Error('Sending is paused until the next client-local sending window.'), { gmailNotSent: true });
       gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 });
     }
     catch (error) {
@@ -8594,7 +8644,7 @@
       const scripts = workbook.Sheets.Scripts ? XLSX.utils.sheet_to_json(workbook.Sheets.Scripts, { defval: '' }) : data.scripts || [];
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
-      data = { applications: restoredApplications, toApply, dailyTasks, socialTrends, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks, walletEntries: data.walletEntries || [], subscriptions: data.subscriptions || [] };
+      data = { applications: restoredApplications, toApply, dailyTasks, socialTrends, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], clearedNotificationKeys: data.clearedNotificationKeys || [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks, walletEntries: data.walletEntries || [], subscriptions: data.subscriptions || [] };
       persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });
     } catch {
       showActionResult({ title: 'Could not restore backup', message: 'That file is not a valid Jeff VA export.', status: 'error' });
@@ -9487,9 +9537,12 @@
     [...region.options].filter(option => option.value).forEach(option => { option.hidden = !regionalCountries.includes(option); });
     const hasRegions = regionalCountries.length > 0;
     regionField.classList.toggle('hidden', !hasRegions);
-    if (!hasRegions) region.value = '';
+    if (!hasRegions || !regionalCountries.includes(region.options[region.selectedIndex])) region.value = '';
     const selectedRegion = region.options[region.selectedIndex];
     $('#hiredLocation').value = countryName ? `${countryName}${selectedRegion?.value ? `, ${selectedRegion.text}` : ''}` : '';
+    const zone = followUpTimeZone({ location: $('#hiredLocation').value });
+    $('#clientTimeZone').value = zone;
+    $('#clientTimeZoneDisplay').textContent = zone ? 'Client timezone: ' + zone : 'Choose the client country and region so follow-ups use the correct local time.';
   }
 
   function updateSalaryFields() {
@@ -9594,6 +9647,7 @@
     }
     const followUpDate = $('#applicationFollowUpDateInput').value;
     if (!validateFollowUpDateInput($('#applicationFollowUpDateInput'))) return;
+    if (!followUpTimeZone(application)) { toast('Set the client country and region in application details before scheduling a follow-up.'); return; }
     if (application.followUpDate !== followUpDate) {
       application.followUpDate = followUpDate;
       application.followUpProcessedAt = '';

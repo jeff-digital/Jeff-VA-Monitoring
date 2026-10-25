@@ -39,7 +39,7 @@
     data.toApply.forEach(item => {
       if (item.dueDate !== currentDate) return;
       const alertId = `to-apply|due|${item.id}|${item.dueDate}`;
-      if (data.alerts.some(alert => alert.id === alertId)) return;
+      if (isNotificationCleared({ id: alertId }) || data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({
         id: alertId,
         type: 'to-apply',

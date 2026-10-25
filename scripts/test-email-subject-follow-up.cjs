@@ -44,7 +44,7 @@ vm.runInContext(matching.slice(matching.indexOf('  function renderEmails('), mat
 const documents = read('03-documents.js');
 vm.runInContext(documents.slice(documents.indexOf('  async function processDueFollowUps('), documents.indexOf('  function markAlertsRead(')), context);
 
-const due = { id: 'app', followUpDate: '2026-10-23', status: 'Applied', email: 'client@example.com', automaticFollowUp: true };
+const due = { id: 'app', location: 'Philippines', followUpDate: '2026-10-23', status: 'Applied', email: 'client@example.com', automaticFollowUp: true };
 assert.equal(context.applicationFollowUpState(due), 'due');
 assert.match(context.applicationFollowUpMarkup(due), /Due today/);
 assert.equal(context.applicationFollowUpState({ ...due, followUpProcessedAt: '2026-10-23T08:00:00Z' }), 'due', 'A processed reminder does not prove successful sending');
@@ -152,5 +152,12 @@ assert.equal(context.applicationFollowUpState(context.data.applications[1]), 'du
   assert.equal(sends, 1, 'Saved renewable Gmail connection retries a previously processed due follow-up even without an in-memory token');
   await context.processDueFollowUps();
   assert.equal(sends, 1, 'The retry is still sent only once');
-  console.log('Passed: platform subjects, missing subject, pending/failed/successful follow-ups, and rescheduling.');
+  const nzHistory = { ...due, location: 'New Zealand', followUpSentAt: '2026-10-22T19:00:00Z' };
+  context.data.applications = [nzHistory];
+  context.data.emails = [];
+  assert.equal(context.applicationFollowUpState(nzHistory), 'sent', 'The checkmark uses the client date for an 8 AM New Zealand delivery');
+  const usHistory = { ...due, location: 'United States, Eastern', followUpSentAt: '2026-10-23T02:00:00Z' };
+  context.data.applications = [usHistory];
+  assert.equal(context.applicationFollowUpState(usHistory), '', 'Previous-day US delivery cannot complete a new schedule, and the client date is not yet due');
+  console.log('Passed: platform subjects, missing subject, pending/failed/successful follow-ups, client-local indicators, and rescheduling.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

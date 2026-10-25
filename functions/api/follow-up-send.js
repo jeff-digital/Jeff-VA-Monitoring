@@ -1,6 +1,6 @@
 import { coordinateBackup } from './backup-download.js';
 import { coordinateResearchUsage } from './research-usage.js';
-import { isFollowUpWeekday } from './follow-up-calendar.js';
+import { isFollowUpSendTime, followUpLocalDate } from './follow-up-calendar.js';
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
 
 export function savedFollowUpDelivery(state, app, scheduledDate) {
@@ -9,7 +9,7 @@ export function savedFollowUpDelivery(state, app, scheduledDate) {
   const uniqueRecipient = recipient && state.applications.filter(item => address(item.email) === recipient).length === 1;
   const subjectFor = item => ('Follow-up application: ' + (String(item.role || '').trim() || 'position') + (String(item.platform || '').trim() ? ' — ' + item.platform.trim() : '')).toLowerCase();
   const uniqueSubject = state.applications.filter(item => address(item.email) === recipient && subjectFor(item) === subjectFor(app)).length === 1;
-  const after = Math.max(Date.parse(`${scheduledDate}T00:00:00+08:00`), Date.parse(app.appliedDate || '') || 0);
+  const after = Date.parse(app.appliedDate || '') || 0;
   const evidence = [
     { sentAt: app.followUpSentAt, gmailId: app.followUpGmailId || '' },
     ...(state.emails || []).filter(email => {
@@ -24,7 +24,8 @@ export function savedFollowUpDelivery(state, app, scheduledDate) {
         || (uniqueSubject && subject.toLowerCase() === subjectFor(app))
         || (roleOnlyFollowUp && state.applications.filter(item => address(item.email) === recipient && String(item.role || '').trim().toLowerCase() === String(app.role || '').trim().toLowerCase()).length === 1));
     }).map(email => ({ sentAt: email.date, gmailId: email.gmailId || '' }))
-  ].filter(record => Number.isFinite(Date.parse(record.sentAt)) && Date.parse(record.sentAt) >= after);
+  ].filter(record => Number.isFinite(Date.parse(record.sentAt)) && Date.parse(record.sentAt) >= after
+    && (followUpLocalDate(app, new Date(record.sentAt)) || String(record.sentAt).slice(0, 10)) >= scheduledDate);
   return evidence.sort((a, b) => Date.parse(b.sentAt) - Date.parse(a.sentAt))[0] || null;
 }
 
@@ -50,13 +51,13 @@ export async function sendFollowUp(request, env, user) {
   const state = (await saved.json())?.[0]?.data;
   const app = state?.applications?.find(item => item.id === input.applicationId);
   if (!app) return reply({ error: 'The application no longer exists. No email was sent.' }, 409);
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const eligible = isFollowUpWeekday(app) && !['Active client', 'Not selected'].includes(app.status) && (input.manual
+  const today = followUpLocalDate(app);
+  const eligible = isFollowUpSendTime(app, input.scheduledDate) && !['Active client', 'Not selected'].includes(app.status) && (input.manual
     ? input.scheduledDate === (app.followUpDate || today)
     : app.automaticFollowUp === true && app.followUpDate === input.scheduledDate && input.scheduledDate <= today);
   const id = env.FOLLOW_UP_DELIVERIES.idFromName(JSON.stringify([user.id, app.id, input.scheduledDate]));
   return env.FOLLOW_UP_DELIVERIES.get(id).fetch(new Request('https://follow-up.internal/delivery', {
-    method: 'POST', body: JSON.stringify({ ...input, eligible, ineligibleReason: !isFollowUpWeekday(app) ? 'Follow-ups send Monday–Friday in the client timezone. The schedule is kept for the next weekday.' : '', savedDelivery: savedFollowUpDelivery(state, app, input.scheduledDate) })
+    method: 'POST', body: JSON.stringify({ ...input, eligible, ineligibleReason: !isFollowUpSendTime(app, input.scheduledDate) ? 'Follow-ups send Monday–Friday, 8:00 AM–5:00 PM in the client timezone. The schedule is kept for the next available sending window.' : '', savedDelivery: savedFollowUpDelivery(state, app, input.scheduledDate) })
   }));
 }
 

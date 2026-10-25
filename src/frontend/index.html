@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-tavily-search" />
+    <link rel="stylesheet" href="css/styles.css?v=20261026-follow-up-window" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -1135,7 +1135,7 @@
           <label class="form-field interview-field hidden">Interview date <input id="interviewDate" type="date" /></label>
           <label class="form-field interview-field hidden">Interview meeting link <input id="interviewLink" type="url" maxlength="300" placeholder="https://meet.google.com/..." /></label>
           <label class="form-field" for="followUpDate">Follow-up date <span class="follow-up-date-picker"><input id="followUpDate" class="follow-up-date-input" type="date" aria-label="Follow-up date" /><button class="follow-up-calendar-trigger" type="button" data-follow-up-calendar="followUpDate" aria-label="Choose a weekday follow-up date" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Monday–Friday only. Faded weekends are unavailable.</small></label>
-          <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. The app sends on weekdays only. Weekend dates wait until the next weekday in the client timezone.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label>
+          <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. Sends Monday–Friday, 8:00 AM–5:00 PM in the client timezone. Outside this window, it waits until the next opening.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label>
           <label class="form-field form-field-wide">Notes <textarea id="clientNotes" maxlength="1000" rows="4" placeholder="A useful detail, next step, rate, or link…"></textarea></label>
           <section class="client-email-history hidden" id="clientEmailHistory" aria-live="polite">
             <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this application</h3></div><strong id="clientEmailHistoryCount">0 emails</strong></div>
@@ -1188,7 +1188,7 @@
           <div><p class="eyebrow">APPLICATION FOLLOW-UP</p><h2 id="applicationFollowUpTitle">Set follow-up date</h2></div>
         </div>
         <label class="form-field" for="applicationFollowUpDateInput">Follow-up date <span class="follow-up-date-picker"><input id="applicationFollowUpDateInput" class="follow-up-date-input" type="date" aria-label="Follow-up date" required /><button class="follow-up-calendar-trigger" type="button" data-follow-up-calendar="applicationFollowUpDateInput" aria-label="Choose a weekday follow-up date" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Monday–Friday only. Faded weekends are unavailable.</small></label>
-        <p class="settings-copy">Saving a date enables automatic email sending. No approval is needed. Keep the app open with Gmail connected.</p>
+        <div class="follow-up-schedule-note"><span class="follow-up-schedule-note-icon" aria-hidden="true"><i class="fa-regular fa-clock"></i></span><div><strong>Automatic follow-up</strong><p>Sent Monday–Friday, 8 AM–5 PM in the client’s timezone. No approval needed.</p><small>Keep the app open with Gmail connected. Outside these hours, your follow-up waits for the next sending window.</small></div></div>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit">Save date</button></div>
       </form>
     </dialog>
@@ -1806,6 +1806,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-tavily-search"></script>
+    <script src="js/app.js?v=20261026-follow-up-window"></script>
   </body>
 </html>

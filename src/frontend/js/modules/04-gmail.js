@@ -770,7 +770,9 @@
   }
 
   async function findGmailSentFollowUp(item, scheduledDate, subject) {
-    const after = Math.floor(new Date(`${scheduledDate}T00:00:00+08:00`).getTime() / 1000);
+    // Search from the earliest possible local midnight, then verify each
+    // result against the client's actual local date below.
+    const after = Math.floor(new Date(`${scheduledDate}T00:00:00+14:00`).getTime() / 1000) - 1;
     const recipient = extractEmailAddress(item.email);
     const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
     const q = `in:sent to:${recipient} after:${after} {subject:follow "I wanted to follow up on my application"}`;
@@ -786,7 +788,9 @@
         matches = /I wanted to follow up on my application/i.test(gmailMessageBody(full.payload));
       }
       if (extractEmailAddress(header('to')) === recipient && matches
-        && Number.isFinite(sentAt) && sentAt >= after * 1000) {
+        && Number.isFinite(sentAt) && sentAt >= after * 1000
+        && followUpLocalDate(item, new Date(sentAt)) >= scheduledDate
+        && sentAt >= (Date.parse(item.appliedDate || '') || 0)) {
         return { sentAt: new Date(sentAt).toISOString(), gmailId: email.id, recovered: true };
       }
     }
@@ -795,7 +799,8 @@
   }
 
   async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body, { manual = false, rawMessage = null } = {}) {
-    if (!isFollowUpWeekday(item)) throw new Error('Follow-ups send Monday–Friday in the client timezone. This follow-up remains scheduled for the next weekday.');
+    if (!followUpTimeZone(item)) throw new Error('Set the client country or timezone before sending a follow-up.');
+    if (!isFollowUpSendTime(item, scheduledDate)) throw new Error('Follow-ups send Monday–Friday, 8:00 AM–5:00 PM in the client timezone. This follow-up remains scheduled for the next sending window.');
     const userId = currentUser?.id;
     await ensureGmailAccessToken();
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
@@ -822,7 +827,7 @@
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
     try {
-      if (!isFollowUpWeekday(item)) throw Object.assign(new Error('Weekend sending is paused until the next weekday.'), { gmailNotSent: true });
+      if (!isFollowUpSendTime(item, scheduledDate)) throw Object.assign(new Error('Sending is paused until the next client-local sending window.'), { gmailNotSent: true });
       gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 });
     }
     catch (error) {

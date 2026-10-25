@@ -16,7 +16,7 @@
     const pathView = window.location.pathname.split('/').filter(Boolean).pop() || '';
     return APP_VIEW_SET.has(pathView) ? pathView : '';
   }
-  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], subscriptions: [], accountSignInHistory: [], weeklyActivityGoal: null });
+  const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], clearedNotificationKeys: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], subscriptions: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
   let activeAuthProvider = null;
@@ -626,6 +626,7 @@
       deletedGmailIds,
       accountSignInHistory: Array.isArray(saved.accountSignInHistory) ? saved.accountSignInHistory : [],
       alerts: Array.isArray(saved.alerts) ? saved.alerts : [],
+      clearedNotificationKeys: Array.isArray(saved.clearedNotificationKeys) ? saved.clearedNotificationKeys.filter(key => typeof key === 'string') : [],
       onboardingSubmissionIds: Array.isArray(saved.onboardingSubmissionIds) ? saved.onboardingSubmissionIds : [],
       emailTemplates: Array.isArray(saved.emailTemplates) ? saved.emailTemplates : [],
       personalDocuments: Array.isArray(saved.personalDocuments) ? saved.personalDocuments : [],

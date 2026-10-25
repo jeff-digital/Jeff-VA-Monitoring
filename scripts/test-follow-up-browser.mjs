@@ -10,7 +10,7 @@ const gmailSource = fs.readFileSync(new URL('../src/frontend/js/modules/04-gmail
 const code = gmailSource.slice(gmailSource.indexOf('  async function requestFollowUpReservation('), gmailSource.indexOf('  async function sendGmailRaw('));
 assert.equal((gmailSource.match(/async function sendAutomaticFollowUpOnce\(/g) || []).length, 1);
 assert.doesNotMatch(code, /gmailToken|JSON\.stringify\([^\n]*(?:raw|body|subject)/, 'Shared coordinator must not receive Gmail credentials or email contents');
-const app = { id: 'app', email: 'client@example.com' };
+const app = { id: 'app', location: 'Philippines', email: 'client@example.com' };
 const date = '2026-10-23', subject = 'Follow-up: Company';
 function fixture({ uncertain = false, rejected = false, completeFails = false, existing = false, existingSubject = subject, existingBody = 'I wanted to follow up on my application.', notSent = false } = {}) {
   const values = new Map();

@@ -7,19 +7,33 @@
   const [country, region = ''] = String(app.location || '').split(',').map(value => value.trim());
   const regions = { Eastern: 'America/New_York', Central: 'America/Chicago', Mountain: 'America/Denver', Pacific: 'America/Los_Angeles',
     Atlantic: 'America/Halifax', Newfoundland: 'America/St_Johns', Alaska: 'America/Anchorage', Hawaii: 'Pacific/Honolulu' };
-  if (['United States', 'Canada'].includes(country) && regions[region]) return regions[region];
-  if (country === 'Australia') return ({ East: 'Australia/Sydney', Central: 'Australia/Adelaide', West: 'Australia/Perth' })[region] || 'Australia/Sydney';
+  if (['United States', 'Canada'].includes(country)) return regions[region] || '';
+  if (country === 'Australia') return ({ East: 'Australia/Sydney', Central: 'Australia/Adelaide', West: 'Australia/Perth' })[region] || '';
   return ({ 'United States': 'America/New_York', Canada: 'America/Toronto', 'United Kingdom': 'Europe/London', Philippines: 'Asia/Manila',
     Brazil: 'America/Sao_Paulo', China: 'Asia/Shanghai', Colombia: 'America/Bogota', France: 'Europe/Paris', Germany: 'Europe/Berlin',
     India: 'Asia/Kolkata', Ireland: 'Europe/Dublin', Israel: 'Asia/Jerusalem', Italy: 'Europe/Rome', Japan: 'Asia/Tokyo',
     Mexico: 'America/Mexico_City', Netherlands: 'Europe/Amsterdam', 'New Zealand': 'Pacific/Auckland', Peru: 'America/Lima',
     'Saudi Arabia': 'Asia/Riyadh', 'South Africa': 'Africa/Johannesburg', 'South Korea': 'Asia/Seoul', Taiwan: 'Asia/Taipei',
-    'United Arab Emirates': 'Asia/Dubai' })[country] || 'Asia/Manila';
+    'United Arab Emirates': 'Asia/Dubai' })[country] || '';
 }
 
   function isFollowUpWeekday(app, now = new Date()) {
+  if (!followUpTimeZone(app)) return false;
   const day = new Intl.DateTimeFormat('en-US', { timeZone: followUpTimeZone(app), weekday: 'short' }).format(now);
   return day !== 'Sat' && day !== 'Sun';
+}
+
+  function followUpLocalDate(app, now = new Date()) {
+  if (!followUpTimeZone(app)) return '';
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: followUpTimeZone(app), year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const get = type => parts.find(part => part.type === type).value;
+  return get('year') + '-' + get('month') + '-' + get('day');
+}
+
+  function isFollowUpSendTime(app, scheduledDate, now = new Date()) {
+  if (!isFollowUpWeekday(app, now) || !scheduledDate || scheduledDate > followUpLocalDate(app, now)) return false;
+  const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: followUpTimeZone(app), hour: '2-digit', hourCycle: 'h23' }).format(now));
+  return hour >= 8 && hour < 17;
 }
 
   function isFollowUpDateWeekday(value) {

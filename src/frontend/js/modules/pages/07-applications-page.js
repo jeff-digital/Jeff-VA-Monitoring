@@ -52,9 +52,12 @@
     [...region.options].filter(option => option.value).forEach(option => { option.hidden = !regionalCountries.includes(option); });
     const hasRegions = regionalCountries.length > 0;
     regionField.classList.toggle('hidden', !hasRegions);
-    if (!hasRegions) region.value = '';
+    if (!hasRegions || !regionalCountries.includes(region.options[region.selectedIndex])) region.value = '';
     const selectedRegion = region.options[region.selectedIndex];
     $('#hiredLocation').value = countryName ? `${countryName}${selectedRegion?.value ? `, ${selectedRegion.text}` : ''}` : '';
+    const zone = followUpTimeZone({ location: $('#hiredLocation').value });
+    $('#clientTimeZone').value = zone;
+    $('#clientTimeZoneDisplay').textContent = zone ? 'Client timezone: ' + zone : 'Choose the client country and region so follow-ups use the correct local time.';
   }
 
   function updateSalaryFields() {
@@ -159,6 +162,7 @@
     }
     const followUpDate = $('#applicationFollowUpDateInput').value;
     if (!validateFollowUpDateInput($('#applicationFollowUpDateInput'))) return;
+    if (!followUpTimeZone(application)) { toast('Set the client country and region in application details before scheduling a follow-up.'); return; }
     if (application.followUpDate !== followUpDate) {
       application.followUpDate = followUpDate;
       application.followUpProcessedAt = '';

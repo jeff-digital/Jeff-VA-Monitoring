@@ -4,7 +4,7 @@ const vm = require('node:vm');
 (async () => {
 const source=fs.readFileSync('src/frontend/js/modules/pages/07-applications-page.js','utf8');
 let handler, savedResolve, sends=0, closed=0;
-const app={ id:'app', automaticFollowUp:false, followUpDate:'2026-10-24', followUpSentAt:'old', followUpProcessedAt:'old' };
+const app={ id:'app', location:'Philippines', automaticFollowUp:false, followUpDate:'2026-10-24', followUpSentAt:'old', followUpProcessedAt:'old' };
 const nodes={ '#applicationFollowUpForm': { addEventListener: (name,fn)=>{ handler=fn; } }, '#applicationFollowUpModal': { dataset:{ applicationId:'app' }, close(){ closed++; } }, '#applicationFollowUpDateInput': { value:'2026-10-26',focus(){} } };
 const context=vm.createContext({ $: key=>nodes[key], data:{ applications:[app] }, persist:()=>new Promise(resolve=>{savedResolve=resolve;}), renderAll(){}, toast(){}, processDueFollowUps:async()=>{sends++;} });
 vm.runInContext(fs.readFileSync('src/frontend/js/modules/02ac-follow-up-calendar.js','utf8'),context);

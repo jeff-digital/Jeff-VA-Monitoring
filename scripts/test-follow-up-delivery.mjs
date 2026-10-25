@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { FollowUpDelivery, sendFollowUp, savedFollowUpDelivery } from '../functions/api/follow-up-send.js';
 import worker from '../src/backend/worker.mjs';
 const NativeDate = Date;
+const nzApp = { id: 'nz-history', location: 'New Zealand', email: 'client@example.com', appliedDate: '2026-10-01', followUpSentAt: '2026-10-25T19:00:00Z' };
+assert.equal(savedFollowUpDelivery({ applications: [nzApp] }, nzApp, '2026-10-26')?.sentAt, nzApp.followUpSentAt, 'An 8 AM New Zealand delivery counts on the client date, even before Philippine midnight');
+const usApp = { ...nzApp, id: 'us-history', location: 'United States, Eastern', followUpSentAt: '2026-10-26T02:00:00Z' };
+assert.equal(savedFollowUpDelivery({ applications: [usApp] }, usApp, '2026-10-26'), null, 'A delivery on the previous client-local date does not complete the new schedule');
 let clock = '2026-10-23T01:00:00Z';
 globalThis.Date = class extends NativeDate { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return NativeDate.parse(clock); } };
 
@@ -46,7 +50,7 @@ const env = { SUPABASE_URL: 'https://auth.test', SUPABASE_PUBLISHABLE_KEY: 'publ
     return namespaces.get(key);
   }
 } };
-let savedState = { applications: [{ id: 'app', followUpDate: '2026-10-23', automaticFollowUp: true, status: 'Applied' }] };
+let savedState = { applications: [{ id: 'app', followUpDate: '2026-10-23', automaticFollowUp: true, status: 'Applied', location: 'Philippines' }] };
 globalThis.fetch = async url => {
   if (String(url).includes('/auth/v1/user')) return Response.json({ id: 'u1' });
   assert.match(String(url), /user_id=eq\.u[12]/, 'State is scoped to the verified account');
@@ -61,12 +65,12 @@ assert.equal((await (await sendFollowUp(apiRequest({ ...input, scheduledDate: '2
 assert.equal((await sendFollowUp(apiRequest({ ...input, gmailToken: 'not-allowed' }), env, { id: 'u1' })).status, 400, 'Credentials/content are rejected by the coordinator');
 assert.equal((await sendFollowUp(apiRequest(input), {}, { id: 'u1' })).status, 503, 'Missing binding fails closed');
 
-savedState = { applications: [{ id: 'historic', status: 'Applied', email: 'client@example.com', followUpDate: '2026-10-23', automaticFollowUp: true, followUpSentAt: '2026-10-23T00:02:00Z' }] };
+savedState = { applications: [{ id: 'historic', status: 'Applied', location: 'Philippines', email: 'client@example.com', followUpDate: '2026-10-23', automaticFollowUp: true, followUpSentAt: '2026-10-23T00:02:00Z' }] };
 const historic = { ...input, applicationId: 'historic' };
 assert.equal((await (await sendFollowUp(apiRequest(historic), env, { id: 'u1' })).json()).status, 'sent', 'Saved sent timestamp blocks a new reservation even without an old ledger');
 delete savedState.applications[0].followUpSentAt;
 assert.equal((await (await sendFollowUp(apiRequest(historic), env, { id: 'u1' })).json()).status, 'sent', 'Recovered receipt survives a later cloud overwrite');
-savedState = { applications: [{ id: 'manual-app', status: 'Applied', email: 'client@example.com', followUpDate: '2026-10-23', automaticFollowUp: false }], emails: [] };
+savedState = { applications: [{ id: 'manual-app', status: 'Applied', location: 'Philippines', email: 'client@example.com', followUpDate: '2026-10-23', automaticFollowUp: false }], emails: [] };
 const manualInput = { ...input, applicationId: 'manual-app', manual: true };
 assert.equal((await (await sendFollowUp(apiRequest(manualInput), env, { id: 'u1' })).json()).status, 'claimed', 'Manual follow-ups also reserve shared delivery');
 savedState.emails.push({ applicationId: 'manual-app', emailType: 'follow-up', direction: 'sent', date: '2026-10-23T00:03:00Z', gmailId: 'manual-mail' });
@@ -83,6 +87,11 @@ assert.equal((await sendFollowUp(apiRequest(weekendInput),env,{id:'u1'})).status
 assert.equal(savedState.applications[0].followUpDate,'2026-10-24','Weekend hold preserves the original date');
 clock = '2026-10-26T01:00:00Z';
 assert.equal((await (await sendFollowUp(apiRequest(weekendInput),env,{id:'u1'})).json()).status,'claimed','Legacy weekend date becomes eligible Monday');
+savedState = { applications: [{ id:'early',status:'Applied',location:'Philippines',followUpDate:'2026-10-26',automaticFollowUp:true }] };
+const timedInput={...input,applicationId:'early',scheduledDate:'2026-10-26'};
+clock='2026-10-25T23:59:59Z';assert.equal((await sendFollowUp(apiRequest(timedInput),env,{id:'u1'})).status,409,'Server rejects 7:59 AM client time');
+clock='2026-10-26T00:00:00Z';assert.equal((await (await sendFollowUp(apiRequest(timedInput),env,{id:'u1'})).json()).status,'claimed','Server allows 8 AM local date');
+savedState.applications[0].id='late';clock='2026-10-26T09:00:00Z';assert.equal((await sendFollowUp(apiRequest({...timedInput,applicationId:'late'}),env,{id:'u1'})).status,409,'Server rejects 5 PM client time');
 globalThis.fetch = originalFetch;
 globalThis.Date = NativeDate;
 console.log('Passed shared delivery reservations: concurrent tabs, restart, uncertain delivery, receipts, rejection, account/date isolation, Worker routing and fail-closed configuration.');

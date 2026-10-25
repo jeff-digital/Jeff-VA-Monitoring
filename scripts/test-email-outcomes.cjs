@@ -3,15 +3,16 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const source = name => fs.readFileSync(path.join(__dirname, '../src/frontend/js/modules', name), 'utf8');
+const FixtureDate = class extends Date { constructor(...args) { super(...(args.length ? args : ['2026-10-26T04:00:00Z'])); } static now() { return Date.parse('2026-10-26T04:00:00Z'); } };
 const nodes = new Map();
 const $ = key => { if (!nodes.has(key)) nodes.set(key, { dataset: {}, textContent: '', addEventListener() {} }); return nodes.get(key); };
 const app = (extra = {}) => ({ id: 'app-1', clientName: 'Acme', role: 'Content Specialist', email: 'client@acme.example', status: 'Applied',
-  appliedDate: new Date(Date.now() - 172800000).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString(), ...extra });
+  appliedDate: new FixtureDate(FixtureDate.now() - 172800000).toISOString(), updatedAt: new FixtureDate(FixtureDate.now() - 86400000).toISOString(), ...extra });
 const mail = (extra = {}) => ({ id: 'email-1', gmailId: 'gmail-1', from: 'client@acme.example', subject: 'Application update',
-  body: 'We have filled this position.', bodyLoaded: true, date: new Date(Date.now() - 3600000).toISOString(), ...extra });
+  body: 'We have filled this position.', bodyLoaded: true, date: new FixtureDate(FixtureDate.now() - 3600000).toISOString(), ...extra });
 const storage = new Map();
 let saveSucceeds = true, decision, calls = 0, fail = false, duringRequest, notice, openedEmail;
-const context = vm.createContext({ $, console, AbortSignal, currentUser: { id: 'u1' }, navigator: { onLine: true },
+const context = vm.createContext({ Date: FixtureDate, $, console, AbortSignal, currentUser: { id: 'u1' }, navigator: { onLine: true },
   dataReady: true, supabaseDataLoaded: true, data: {}, document: { addEventListener() {} },
   localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
   requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session', user: { id: 'u1' } } } }) } }),
@@ -82,13 +83,13 @@ const run = budget => context.applyAiApplicationOutcomes(context.data.emails, bu
   // The user's Frontline example must remain eligible after unrelated edits.
   record = reset();
   Object.assign(record, { clientName: 'Frontline Accounting', role: 'AU Administrative Assistant (Hybrid) - with 30K Signing Bonus!',
-    email: 'sherilyn@frontlineaccounting.com', updatedAt: new Date().toISOString(), notes: 'Edited after email arrived' });
+    email: 'sherilyn@frontlineaccounting.com', updatedAt: new FixtureDate().toISOString(), notes: 'Edited after email arrived' });
   Object.assign(context.data.emails[0], { from: 'sherilyn@frontlineaccounting.com', subject: 'Your Application at Frontline Accounting',
     body: 'Dear Jeffrey,\nThank you for your application for the position of AU Administrative Assistant (Hybrid) - with 30K Signing Bonus! with Frontline Accounting.\nWe truly appreciate the time and effort you put into your application. At this time, we would like to let you know that the role has been filled.\nWhile this position may not be the right match at the moment, we encourage you to explore other opportunities.' });
   decision = { ...decision, outcome: 'position_filled', evidence: 'At this time, we would like to let you know that the role has been filled.' };
   result = await run(); assert.equal(result.changed.length, 1); assert.equal(record.status, 'Not selected');
   assert.equal(record.emailClosure.reason, 'Position filled');
-  record = reset(); record.manualStatusChangedAt = new Date().toISOString();
+  record = reset(); record.manualStatusChangedAt = new FixtureDate().toISOString();
   result = await run(); assert.equal(calls, 0); assert.equal(record.status, 'Applied', 'a real manual stage change must remain protected');
   assert.match(context.applicationAiSkipReason(context.data.emails[0], record, context.data.emails), /manually changed/);
   record = reset(); decision = { ...decision, outcome: 'no_change', rejectApplication: false };
@@ -107,15 +108,15 @@ const run = budget => context.applyAiApplicationOutcomes(context.data.emails, bu
   }
   record = reset(); context.data.applications.push(app({ id: 'other' })); await run(); assert.equal(calls, 0);
   for (const extra of [{ direction: 'sent' }, { labelIds: ['SENT'] }, { from: 'me@example.com' },
-    { date: new Date(Date.now() - 259200000).toISOString() }, { date: new Date(Date.now() + 3600000).toISOString() }]) {
+    { date: new FixtureDate(FixtureDate.now() - 259200000).toISOString() }, { date: new FixtureDate(FixtureDate.now() + 3600000).toISOString() }]) {
     record = reset(); Object.assign(context.data.emails[0], extra); await run(); assert.equal(calls, 0); assert.equal(record.status, 'Applied');
   }
-  record = reset(); context.data.emails.push(mail({ id: 'new', gmailId: 'new', body: 'You are invited to an interview.', date: new Date().toISOString() }));
+  record = reset(); context.data.emails.push(mail({ id: 'new', gmailId: 'new', body: 'You are invited to an interview.', date: new FixtureDate().toISOString() }));
   decision = { ...decision, outcome: 'no_change', rejectApplication: false }; await run();
   assert.equal(record.status, 'Applied'); assert.equal(context.data.emails[0].applicationAiAnalysis, undefined, 'old closure cannot override latest invitation');
   for (const change of [() => { context.data.applications[0].status = 'Interview'; },
-    () => { context.data.emails[0].body = 'Edited'; }, () => { context.data.emails[0].date = new Date().toISOString(); },
-    () => { context.data.emails.push(mail({ id: 'new', date: new Date().toISOString() })); }]) {
+    () => { context.data.emails[0].body = 'Edited'; }, () => { context.data.emails[0].date = new FixtureDate().toISOString(); },
+    () => { context.data.emails.push(mail({ id: 'new', date: new FixtureDate().toISOString() })); }]) {
     record = reset(); duringRequest = change; result = await run(); assert.equal(result.changed.length, 0, 'in-flight edits invalidate the decision');
   }
   record = reset(); duringRequest = () => { context.currentUser = { id: 'other' }; };
@@ -126,13 +127,13 @@ const run = budget => context.applyAiApplicationOutcomes(context.data.emails, bu
   saveSucceeds = true; result = await run(); assert.equal(result.changed.length, 1); assert.equal(calls, 1, 'failed saves reuse the cached AI response');
   record = reset(); fail = true; await run(); assert.equal(record.status, 'Applied'); assert.equal(context.data.alerts.length, 0);
   record = reset();
-  const previousWeek = new Date(context.emailAiWeekRange().start - 1000).toISOString();
-  record.appliedDate = new Date(Date.parse(previousWeek) - 86400000).toISOString(); record.updatedAt = record.appliedDate;
+  const previousWeek = new FixtureDate(context.emailAiWeekRange().start - 1000).toISOString();
+  record.appliedDate = new FixtureDate(Date.parse(previousWeek) - 86400000).toISOString(); record.updatedAt = record.appliedDate;
   context.data.emails[0].date = previousWeek;
   await run(); assert.equal(calls, 0, 'older matching applications must not be checked even when chronology is otherwise valid');
   assert.equal(record.status, 'Applied'); assert.equal(context.data.emails.length, 1); assert.equal(context.data.alerts.length, 0);
   record = reset(); await run({ remaining: 0 }); assert.equal(calls, 0, 'the per-sync budget is shared');
-  record = reset(); context.data.emailTaskAiUsage = { day: new Date().toISOString().slice(0, 10), requests: 40 };
+  record = reset(); context.data.emailTaskAiUsage = { day: new FixtureDate().toISOString().slice(0, 10), requests: 40 };
   await run(); assert.equal(calls, 0); assert.equal(record.status, 'Applied');
   record = reset(); decision = { broken: true }; await run(); assert.equal(record.status, 'Applied');
   console.log('AI application integration passed: outcomes, review, no tasks, shared limits, cache, chronology, direction, ambiguity, in-flight edits, account isolation, provider failures and save rollback.');

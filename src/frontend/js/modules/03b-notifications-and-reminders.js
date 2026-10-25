@@ -12,8 +12,27 @@
     return generatedNotificationTypes.has(alert.type);
   }
 
+  function notificationDeletionKey(alert) {
+    const id = String(alert.id || '');
+    const parts = id.split('|');
+    if (/^(?:task-|client-task-|wallet-payment-|subscription-)/.test(parts[0])) return 'reminder|' + parts.slice(1).join('|');
+    if (/^contract-(?:ending-\d+|ended)$/.test(parts[0])) return 'contract|' + parts.slice(1).join('|');
+    return id;
+  }
+
+  function rememberClearedNotifications(alerts) {
+    const keys = new Set(data.clearedNotificationKeys || []);
+    for (const alert of alerts) { const key = notificationDeletionKey(alert); if (key) keys.add(key); }
+    data.clearedNotificationKeys = [...keys];
+  }
+
+  function isNotificationCleared(alert) {
+    return (data.clearedNotificationKeys || []).includes(notificationDeletionKey(alert));
+  }
+
   function limitAlertHistory() {
-    const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    rememberClearedNotifications((data.alerts || []).filter(alert => alert.dismissedAt));
+    const alerts = (Array.isArray(data.alerts) ? data.alerts : []).filter(alert => !isNotificationCleared(alert));
     const generated = alerts.filter(isGeneratedNotification);
     const history = alerts.filter(alert => !isGeneratedNotification(alert)).slice(0, Math.max(0, 30 - generated.length));
     data.alerts = [...generated, ...history];
@@ -38,9 +57,12 @@
   function refreshGeneratedNotifications() {
     if (!dataReady || !supabaseDataLoaded) return false;
     data.alerts = Array.isArray(data.alerts) ? data.alerts : [];
+    const previousDeletedCount = (data.clearedNotificationKeys || []).length;
+    rememberClearedNotifications(data.alerts.filter(alert => alert.dismissedAt));
     const existingById = new Map(data.alerts.map(alert => [alert.id, alert]));
     const generated = new Map();
     const add = alert => {
+      if (isNotificationCleared(alert)) return;
       const previous = existingById.get(alert.id);
       const wasContractEmailUpdated = alert.type === 'contract-ended' && previous?.emailSent !== undefined;
       generated.set(alert.id, {
@@ -157,14 +179,14 @@
     const urgentNewCount = [...generated.values()].filter(alert =>
       !previousGeneratedIds.has(alert.id) && ['task-overdue', 'task-due-today', 'client-task-overdue', 'client-task-due-today', 'contract-ending-7', 'contract-ended', 'wallet-payment-overdue', 'wallet-payment-due-today'].includes(alert.type)
     ).length;
-    const changed = previousGeneratedIds.size !== generatedIds.size
+    const changed = previousDeletedCount !== data.clearedNotificationKeys.length || data.alerts.some(isNotificationCleared) || previousGeneratedIds.size !== generatedIds.size
       || [...previousGeneratedIds].some(id => !generatedIds.has(id))
       || [...generatedIds].some(id => !previousGeneratedIds.has(id))
       || [...generated.values()].some(alert => {
         const existing = existingById.get(alert.id);
         return !existing || Object.keys(alert).some(key => existing[key] !== alert[key]);
       });
-    const retainedAlerts = data.alerts.filter(alert => !isGeneratedNotification(alert));
+    const retainedAlerts = data.alerts.filter(alert => !isGeneratedNotification(alert) && !isNotificationCleared(alert));
     data.alerts = [...generated.values(), ...retainedAlerts];
     if (changed) {
       data.alerts.sort((first, second) => new Date(second.date) - new Date(first.date));
@@ -179,7 +201,7 @@
 
   function visibleNotificationAlerts() {
     const now = Date.now();
-    return (data.alerts || []).filter(alert => !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
+    return (data.alerts || []).filter(alert => !isNotificationCleared(alert) && !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
   }
 
   function notificationCategory(alert) {
@@ -326,7 +348,7 @@
     const alert = (data.alerts || []).find(item => item.id === alertId);
     if (!alert) return;
     if (action === 'snooze') alert.snoozedUntil = new Date(Date.now() + 86400000).toISOString();
-    else if (action === 'dismiss') alert.dismissedAt = new Date().toISOString();
+    else if (action === 'dismiss') { rememberClearedNotifications([alert]); data.alerts = data.alerts.filter(item => item !== alert); }
     else if (action === 'done') {
       if (alert.type?.startsWith('client-task-')) {
         const task = (data.clientTasks || []).find(item => item.id === alert.taskId);
@@ -341,6 +363,8 @@
       } else {
         alert.unread = false;
         alert.dismissedAt = new Date().toISOString();
+        rememberClearedNotifications([alert]);
+        data.alerts = data.alerts.filter(item => item !== alert);
       }
     }
     persist();
@@ -557,7 +581,7 @@
     let changed = false;
     ended.forEach(item => {
       const alertId = `contract-ended|${item.id}|${dateKey(item.contractEndDate)}`;
-      if (data.alerts.some(alert => alert.id === alertId)) return;
+      if (isNotificationCleared({ id: alertId }) || data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({
         id: alertId,
         type: 'contract-ended',
@@ -647,7 +671,7 @@
       const alertId = `document-email|due|${item.id}|${reminderDate}`;
       item.documentEmailReminderAlertedDate = reminderDate;
       item.documentEmailReminderDate = '';
-      if (data.alerts.some(alert => alert.id === alertId)) return;
+      if (isNotificationCleared({ id: alertId }) || data.alerts.some(alert => alert.id === alertId)) return;
       data.alerts.unshift({ id: alertId, type: 'document-email-reminder', applicationId: item.id, clientName: item.clientName, subject: 'Send the updated document today', from: 'Jeff VA reminder', date: new Date().toISOString(), unread: true });
     });
     limitAlertHistory();
@@ -720,7 +744,7 @@
       if (activeView === 'dashboard') renderDashboard();
       renderAlerts();
     }
-    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && applicationFollowUpState(item) !== 'sent' && followUpGmailAvailable())));
+    const due = data.applications.filter(item => item.followUpDate && isFollowUpSendTime(item, item.followUpDate) && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && applicationFollowUpState(item) !== 'sent' && followUpGmailAvailable())));
     if (!due.length) return;
     data.alerts = data.alerts || [];
     let followUpAlertsAdded = 0;
@@ -732,8 +756,7 @@
       if (currentUser?.id !== userId) return;
       let item = data.applications.find(app => app.id === candidate.id);
       if (!item) continue;
-      if (!item.followUpDate || item.followUpDate > today() || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
-      if (!isFollowUpWeekday(item)) continue;
+      if (!item.followUpDate || !isFollowUpSendTime(item, item.followUpDate) || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
@@ -836,10 +859,12 @@
   }
 
   async function clearAlerts() {
-    if (!visibleNotificationAlerts().length) return;
-    if (!(await appConfirm('Dismiss all visible notifications? This will not delete your tasks or client records.', { title: 'Clear notifications', confirmLabel: 'Clear all', danger: true }))) return;
-    const dismissedAt = new Date().toISOString();
-    visibleNotificationAlerts().forEach(alert => { alert.dismissedAt = dismissedAt; });
-    persist();
+    if (!(data.alerts || []).length) return;
+    const userId = currentUser?.id;
+    if (!(await appConfirm('Permanently clear all notifications, including snoozed items? These notifications will not reappear. Your tasks and client records are kept.', { title: 'Clear notifications permanently', confirmLabel: 'Clear permanently', danger: true }))) return;
+    if (currentUser?.id !== userId) return;
+    rememberClearedNotifications(data.alerts);
+    data.alerts = [];
+    if ((await persist()) === false) showActionResult({ title: 'Notification clear could not be saved', message: 'Notifications are hidden here, but the cloud save failed. Reconnect and try again before closing the app.', status: 'error' });
     renderAlerts();
   }

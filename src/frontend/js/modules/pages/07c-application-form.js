@@ -91,6 +91,7 @@
         $('#clientCountry').dispatchEvent(new Event('change'));
         const savedRegion = [...$('#clientRegion').options].find(option => savedLocation.includes(option.text));
         if (savedRegion) $('#clientRegion').value = savedRegion.value;
+        updateClientLocation();
       }
       $('#clientStatus').value = ['Ongoing', 'Applied', 'To Proceed', 'Interview', 'Active client', 'Not selected'].includes(item.status) ? item.status : 'Applied';
       $('#nextStep').value = item.nextStep || '';
@@ -299,6 +300,10 @@
       $('#followUpDate').value = nextFollowUpWeekday(addDays(today(), 7));
     }
     if (!validateFollowUpDateInput($('#followUpDate'))) return;
+    if ($('#automaticFollowUp').checked && !followUpTimeZone({ location: $('#hiredLocation').value })) {
+      showActionResult({ title: 'Client timezone required', message: 'Choose the client country and region before enabling automatic follow-up.', status: 'error' });
+      return;
+    }
     const platformChoice = $('#clientPlatform').value;
     const existing = editingId ? data.applications.find(item => item.id === editingId) : null;
     const existingIndex = editingId ? data.applications.findIndex(item => item.id === editingId) : -1;
