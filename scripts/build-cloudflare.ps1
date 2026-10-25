@@ -27,6 +27,7 @@ $copies = @{
   '_headers' = '_headers'
   'css\styles.css' = 'css\styles.css'
   'images\tab.png' = 'images\tab.png'
+  'images\google.svg' = 'images\google.svg'
   'js\gmail-config.js' = 'js\gmail-config.js'
   'js\supabase-config.js' = 'js\supabase-config.js'
   'onboarding\index.html' = 'onboarding\index.html'
