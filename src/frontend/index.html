@@ -830,7 +830,11 @@
               </div>
               <div class="account-connection-row">
                 <dt>Email AI</dt>
-                <dd><strong id="accountEmailAiStatus">Not checked yet</strong><small id="accountEmailAiDetails" aria-live="polite">Checks this week’s matched application outcomes and incoming active-client work requests (Monday–Sunday, Philippine time).</small></dd>
+                <dd><strong>Llama 3.3 · 70B</strong><small>Meta · Instruct FP8 Fast</small></dd>
+              </div>
+              <div class="account-connection-row">
+                <dt>AI assistant</dt>
+                <dd><strong>GPT-OSS · 120B</strong><small>OpenAI · Research &amp; reasoning</small></dd>
               </div>
             </dl>
           </section>
@@ -957,6 +961,23 @@
         <div class="modal-actions">
           <button class="button button-secondary" type="submit" value="cancel" formnovalidate>Cancel</button>
           <button class="button button-primary" type="button" id="appConfirmAccept">Continue</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="modal workspace-unlock-modal" id="clearWorkspaceModal" aria-labelledby="clearWorkspaceTitle" aria-describedby="clearWorkspaceDescription">
+      <form method="dialog" id="clearWorkspaceForm">
+        <span class="workspace-unlock-icon" aria-hidden="true"><i class="fa-solid fa-lock"></i></span>
+        <h2 id="clearWorkspaceTitle">Unlock data controls</h2>
+        <p class="workspace-unlock-description" id="clearWorkspaceDescription">Verify your password to reveal the clear-data button. Verifying does not delete anything.</p>
+        <div class="workspace-unlock-field">
+          <label for="clearWorkspacePassword">App account password</label>
+          <input type="password" id="clearWorkspacePassword" autocomplete="current-password" placeholder="Enter your password" aria-describedby="clearWorkspaceHelp clearWorkspaceError" required />
+          <p id="clearWorkspaceHelp">Enter your app account password to continue.</p>
+          <p id="clearWorkspaceError" role="alert"></p>
+        </div>
+        <div class="modal-actions">
+          <button class="button button-secondary" id="cancelClearWorkspace" type="submit" value="cancel" formnovalidate>Cancel</button>
+          <button class="button button-primary" id="confirmClearWorkspace" type="submit" value="unlock">Verify password</button>
         </div>
       </form>
     </dialog>
@@ -1754,10 +1775,10 @@
               </select>
             </label>
             <div><p class="settings-copy" id="autoBackupNote">An updated Excel copy is saved automatically to Documents\Jeff VA Backup.xlsx while Jeff VA is open. Downloaded backups still use your browser Downloads folder.</p><p class="backup-status" id="documentsBackupStatus" role="status" aria-live="polite">Waiting for the first Documents backup.</p></div>
-            <button class="danger-button" type="button" id="clearDataButton">Clear all cloud data</button>
+            <button class="button button-secondary" type="button" id="unlockDataControlsButton">Unlock data controls</button>
+            <button class="danger-button" type="button" id="clearDataButton" hidden>Clear all cloud data</button>
           </div>
         </section>
-        <div class="settings-modal-actions"><button class="button button-secondary" type="button" id="settingsDoneButton">Done</button></div>
       </section>
       <div class="settings-account-content" id="settingsAccountContent">
         <header class="settings-account-heading"><p class="eyebrow">ACCOUNT ACCESS</p><h3>Google account</h3></header>

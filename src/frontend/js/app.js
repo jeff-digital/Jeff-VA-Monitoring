@@ -451,6 +451,7 @@
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
 
   function openWorkspaceSettings() {
+    lockWorkspaceDataControls();
     const accountView = $('#accountView');
     $('#settingsAccountContent').append(accountView);
     accountView.classList.add('active');
@@ -1010,10 +1011,48 @@
     }
   }
 
+  async function verifyPasswordForDataClear(password) {
+    const userId = currentUser?.id, email = currentUser?.email;
+    if (!userId || !email || !userHasPasswordIdentity() || !password) throw new Error('Enter your app account password.');
+    const verifier = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'workspace-clear-verification' }
+    });
+    try {
+      const result = await verifier.auth.signInWithPassword({ email, password });
+      if (result.error || result.data?.user?.id !== userId) throw new Error('Password could not be verified. Check it and try again.');
+      if (currentUser?.id !== userId) throw new Error('Your account changed. Close this window and try again.');
+    } finally {
+      await verifier.auth.signOut({ scope: 'local' }).catch(() => {});
+    }
+    return userId;
+  }
+
+  let workspaceDataClearGrant = null;
+  let workspaceDataClearTimer;
+  function lockWorkspaceDataControls() {
+    workspaceDataClearGrant = null;
+    clearTimeout(workspaceDataClearTimer);
+    $('#clearDataButton').hidden = true;
+    $('#unlockDataControlsButton').hidden = false;
+  }
+
+  async function unlockWorkspaceDataControls(password) {
+    const userId = await verifyPasswordForDataClear(password);
+    if (!$('#settingsModal').open) return;
+    workspaceDataClearGrant = { userId, expiresAt: Date.now() + 120000 };
+    $('#clearDataButton').hidden = false;
+    $('#unlockDataControlsButton').hidden = true;
+    workspaceDataClearTimer = setTimeout(lockWorkspaceDataControls, 120000);
+  }
+
   async function clearSupabaseData() {
-    if (!currentUser || !supabaseClient) return;
+    const grant = workspaceDataClearGrant;
+    lockWorkspaceDataControls();
+    if (!grant || grant.expiresAt <= Date.now() || grant.userId !== currentUser?.id) throw new Error('Unlock data controls with your password first.');
+    const verifiedUserId = grant.userId;
+    if (!supabaseClient || currentUser?.id !== verifiedUserId) throw new Error('Sign in again before clearing data.');
     const client = supabaseClient;
-    const paths = (data.applications || []).flatMap(application => (application.documents || []).map(doc => doc.storagePath || `${currentUser.id}/${doc.id}`));
+    const paths = (data.applications || []).flatMap(application => (application.documents || []).map(doc => doc.storagePath || `${verifiedUserId}/${doc.id}`));
     if (paths.length) {
       const { error: storageError } = await client.storage.from(SUPABASE_BUCKET).remove(paths);
       if (storageError) throw storageError;
@@ -1023,8 +1062,9 @@
       const { error: personalStorageError } = await client.storage.from(SUPABASE_BUCKET).remove(personalPaths);
       if (personalStorageError) throw personalStorageError;
     }
-    const { error } = await client.from('app_state').delete().eq('user_id', currentUser.id);
+    const { error } = await client.from('app_state').delete().eq('user_id', verifiedUserId);
     if (error) throw error;
+    if (currentUser?.id !== verifiedUserId) throw new Error('Your account changed. Reload to view the current workspace.');
     data = emptyData();
     supabaseDataLoaded = true;
   }
@@ -8800,8 +8840,8 @@
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
   $('#settingsButton').addEventListener('click', openWorkspaceSettings);
   $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
-  $('#settingsDoneButton').addEventListener('click', () => $('#settingsModal').close());
   $('#settingsModal').addEventListener('close', () => {
+    lockWorkspaceDataControls();
     const mobileMenu = $('#mobileMenu');
     const focusTarget = mobileMenu && getComputedStyle(mobileMenu).display !== 'none'
       ? mobileMenu
@@ -8813,19 +8853,59 @@
     localStorage.removeItem('jeff-va-auto-backup-last-run-v1');
     scheduleAutomaticBackup();
   });
+  let clearingWorkspace = false;
+  $('#unlockDataControlsButton').addEventListener('click', () => {
+    $('#clearWorkspaceForm').reset();
+    $('#clearWorkspaceError').textContent = '';
+    const hasPassword = userHasPasswordIdentity();
+    $('#clearWorkspacePassword').disabled = !hasPassword;
+    $('#confirmClearWorkspace').disabled = !hasPassword;
+    $('#clearWorkspaceHelp').textContent = hasPassword
+      ? 'Enter your app account password to continue.'
+      : 'Set an app password in Settings → Password before clearing data. Your Google password cannot be used here.';
+    $('#clearWorkspaceModal').showModal();
+  });
+  $('#clearWorkspaceModal').addEventListener('close', () => $('#clearWorkspaceForm').reset());
+  $('#clearWorkspaceModal').addEventListener('cancel', event => { if (clearingWorkspace) event.preventDefault(); });
+  $('#clearWorkspaceForm').addEventListener('submit', async event => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+    if (clearingWorkspace) return;
+    clearingWorkspace = true;
+    $('#confirmClearWorkspace').disabled = true;
+    $('#cancelClearWorkspace').disabled = true;
+    $('#clearWorkspaceError').textContent = '';
+    const password = $('#clearWorkspacePassword').value;
+    $('#clearWorkspacePassword').value = '';
+    try {
+        await unlockWorkspaceDataControls(password);
+        $('#clearWorkspaceModal').close();
+        $('#clearDataButton').focus();
+    } catch (error) {
+      $('#clearWorkspaceError').textContent = 'Could not unlock data controls. Check your app password and connection, then try again.';
+    } finally {
+      clearingWorkspace = false;
+      $('#confirmClearWorkspace').disabled = false;
+      $('#cancelClearWorkspace').disabled = false;
+    }
+  });
+
   $('#clearDataButton').addEventListener('click', async () => {
-    if (!(await appConfirm('Clear every application, imported email, and attached document from your account? This cannot be undone unless you have exported a backup.', { title: 'Clear workspace data', confirmLabel: 'Clear data', danger: true }))) return;
-    clearSupabaseData()
-      .then(() => {
-        persist();
-        renderAll();
-        $('#settingsModal').close();
-        showActionResult({ title: 'Workspace data cleared', message: 'All applications, imported email, and attached documents were removed from Supabase.' });
-      })
-      .catch(error => {
-        console.error(error);
-        showActionResult({ title: 'Could not clear workspace data', message: 'Your account data could not be cleared. Check your connection and try again.', status: 'error' });
-      });
+    if (clearingWorkspace) return;
+    if (!(await appConfirm('Clear every application, imported email, and attached document from your account? Export a backup first. This cannot be undone.', { title: 'Clear workspace data', confirmLabel: 'Clear all data', danger: true }))) return;
+    if (clearingWorkspace) return;
+    clearingWorkspace = true;
+    try {
+      await clearSupabaseData();
+      persist();
+      renderAll();
+      $('#settingsModal').close();
+      showActionResult({ title: 'Workspace data cleared', message: 'All applications, imported email, and attached documents were removed from Supabase.' });
+    } catch {
+      showActionResult({ title: 'Could not clear workspace data', message: 'Unlock data controls again and check your connection before retrying.', status: 'error' });
+    } finally {
+      clearingWorkspace = false;
+    }
   });
 
   $('#mobileMenu').addEventListener('click', () => {
@@ -12009,12 +12089,6 @@
       usage.title = '';
       usage.ariaLabel = `${emailAiDailyUsage().requests} of 40 email checks today · Resets at 8 AM (Philippines)`;
     }
-    const accountStatus = $('#accountEmailAiStatus');
-    const accountDetails = $('#accountEmailAiDetails');
-    if (accountStatus) accountStatus.textContent = navigator.onLine === false ? 'Offline'
-      : attention ? 'Needs attention' : processing ? 'Checking messages' : queued ? 'Checks queued'
-        : /messages checked/i.test(fullStatus) ? 'Messages checked' : 'Waiting for next check';
-    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Shared by application outcomes and active-client tasks. This week only: ${emailAiWeekLabel()}.`;
   }
 
   async function analyzeClientEmail(email, client, scanKey, application = false) {

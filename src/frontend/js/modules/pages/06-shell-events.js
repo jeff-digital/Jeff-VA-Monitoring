@@ -364,8 +364,8 @@
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
   $('#settingsButton').addEventListener('click', openWorkspaceSettings);
   $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
-  $('#settingsDoneButton').addEventListener('click', () => $('#settingsModal').close());
   $('#settingsModal').addEventListener('close', () => {
+    lockWorkspaceDataControls();
     const mobileMenu = $('#mobileMenu');
     const focusTarget = mobileMenu && getComputedStyle(mobileMenu).display !== 'none'
       ? mobileMenu
@@ -377,19 +377,59 @@
     localStorage.removeItem('jeff-va-auto-backup-last-run-v1');
     scheduleAutomaticBackup();
   });
+  let clearingWorkspace = false;
+  $('#unlockDataControlsButton').addEventListener('click', () => {
+    $('#clearWorkspaceForm').reset();
+    $('#clearWorkspaceError').textContent = '';
+    const hasPassword = userHasPasswordIdentity();
+    $('#clearWorkspacePassword').disabled = !hasPassword;
+    $('#confirmClearWorkspace').disabled = !hasPassword;
+    $('#clearWorkspaceHelp').textContent = hasPassword
+      ? 'Enter your app account password to continue.'
+      : 'Set an app password in Settings → Password before clearing data. Your Google password cannot be used here.';
+    $('#clearWorkspaceModal').showModal();
+  });
+  $('#clearWorkspaceModal').addEventListener('close', () => $('#clearWorkspaceForm').reset());
+  $('#clearWorkspaceModal').addEventListener('cancel', event => { if (clearingWorkspace) event.preventDefault(); });
+  $('#clearWorkspaceForm').addEventListener('submit', async event => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+    if (clearingWorkspace) return;
+    clearingWorkspace = true;
+    $('#confirmClearWorkspace').disabled = true;
+    $('#cancelClearWorkspace').disabled = true;
+    $('#clearWorkspaceError').textContent = '';
+    const password = $('#clearWorkspacePassword').value;
+    $('#clearWorkspacePassword').value = '';
+    try {
+        await unlockWorkspaceDataControls(password);
+        $('#clearWorkspaceModal').close();
+        $('#clearDataButton').focus();
+    } catch (error) {
+      $('#clearWorkspaceError').textContent = 'Could not unlock data controls. Check your app password and connection, then try again.';
+    } finally {
+      clearingWorkspace = false;
+      $('#confirmClearWorkspace').disabled = false;
+      $('#cancelClearWorkspace').disabled = false;
+    }
+  });
+
   $('#clearDataButton').addEventListener('click', async () => {
-    if (!(await appConfirm('Clear every application, imported email, and attached document from your account? This cannot be undone unless you have exported a backup.', { title: 'Clear workspace data', confirmLabel: 'Clear data', danger: true }))) return;
-    clearSupabaseData()
-      .then(() => {
-        persist();
-        renderAll();
-        $('#settingsModal').close();
-        showActionResult({ title: 'Workspace data cleared', message: 'All applications, imported email, and attached documents were removed from Supabase.' });
-      })
-      .catch(error => {
-        console.error(error);
-        showActionResult({ title: 'Could not clear workspace data', message: 'Your account data could not be cleared. Check your connection and try again.', status: 'error' });
-      });
+    if (clearingWorkspace) return;
+    if (!(await appConfirm('Clear every application, imported email, and attached document from your account? Export a backup first. This cannot be undone.', { title: 'Clear workspace data', confirmLabel: 'Clear all data', danger: true }))) return;
+    if (clearingWorkspace) return;
+    clearingWorkspace = true;
+    try {
+      await clearSupabaseData();
+      persist();
+      renderAll();
+      $('#settingsModal').close();
+      showActionResult({ title: 'Workspace data cleared', message: 'All applications, imported email, and attached documents were removed from Supabase.' });
+    } catch {
+      showActionResult({ title: 'Could not clear workspace data', message: 'Unlock data controls again and check your connection before retrying.', status: 'error' });
+    } finally {
+      clearingWorkspace = false;
+    }
   });
 
   $('#mobileMenu').addEventListener('click', () => {

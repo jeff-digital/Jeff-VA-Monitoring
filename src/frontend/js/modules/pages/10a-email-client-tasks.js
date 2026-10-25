@@ -306,12 +306,6 @@
       usage.title = '';
       usage.ariaLabel = `${emailAiDailyUsage().requests} of 40 email checks today · Resets at 8 AM (Philippines)`;
     }
-    const accountStatus = $('#accountEmailAiStatus');
-    const accountDetails = $('#accountEmailAiDetails');
-    if (accountStatus) accountStatus.textContent = navigator.onLine === false ? 'Offline'
-      : attention ? 'Needs attention' : processing ? 'Checking messages' : queued ? 'Checks queued'
-        : /messages checked/i.test(fullStatus) ? 'Messages checked' : 'Waiting for next check';
-    if (accountDetails) accountDetails.textContent = `${navigator.onLine === false ? 'Waiting for an internet connection. ' : ''}${fullStatus} · ${emailAiDailyUsage().requests}/40 checks today (resets 8 AM, Philippines). Shared by application outcomes and active-client tasks. This week only: ${emailAiWeekLabel()}.`;
   }
 
   async function analyzeClientEmail(email, client, scanKey, application = false) {

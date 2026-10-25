@@ -448,6 +448,7 @@
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
 
   function openWorkspaceSettings() {
+    lockWorkspaceDataControls();
     const accountView = $('#accountView');
     $('#settingsAccountContent').append(accountView);
     accountView.classList.add('active');
@@ -1007,10 +1008,48 @@
     }
   }
 
+  async function verifyPasswordForDataClear(password) {
+    const userId = currentUser?.id, email = currentUser?.email;
+    if (!userId || !email || !userHasPasswordIdentity() || !password) throw new Error('Enter your app account password.');
+    const verifier = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'workspace-clear-verification' }
+    });
+    try {
+      const result = await verifier.auth.signInWithPassword({ email, password });
+      if (result.error || result.data?.user?.id !== userId) throw new Error('Password could not be verified. Check it and try again.');
+      if (currentUser?.id !== userId) throw new Error('Your account changed. Close this window and try again.');
+    } finally {
+      await verifier.auth.signOut({ scope: 'local' }).catch(() => {});
+    }
+    return userId;
+  }
+
+  let workspaceDataClearGrant = null;
+  let workspaceDataClearTimer;
+  function lockWorkspaceDataControls() {
+    workspaceDataClearGrant = null;
+    clearTimeout(workspaceDataClearTimer);
+    $('#clearDataButton').hidden = true;
+    $('#unlockDataControlsButton').hidden = false;
+  }
+
+  async function unlockWorkspaceDataControls(password) {
+    const userId = await verifyPasswordForDataClear(password);
+    if (!$('#settingsModal').open) return;
+    workspaceDataClearGrant = { userId, expiresAt: Date.now() + 120000 };
+    $('#clearDataButton').hidden = false;
+    $('#unlockDataControlsButton').hidden = true;
+    workspaceDataClearTimer = setTimeout(lockWorkspaceDataControls, 120000);
+  }
+
   async function clearSupabaseData() {
-    if (!currentUser || !supabaseClient) return;
+    const grant = workspaceDataClearGrant;
+    lockWorkspaceDataControls();
+    if (!grant || grant.expiresAt <= Date.now() || grant.userId !== currentUser?.id) throw new Error('Unlock data controls with your password first.');
+    const verifiedUserId = grant.userId;
+    if (!supabaseClient || currentUser?.id !== verifiedUserId) throw new Error('Sign in again before clearing data.');
     const client = supabaseClient;
-    const paths = (data.applications || []).flatMap(application => (application.documents || []).map(doc => doc.storagePath || `${currentUser.id}/${doc.id}`));
+    const paths = (data.applications || []).flatMap(application => (application.documents || []).map(doc => doc.storagePath || `${verifiedUserId}/${doc.id}`));
     if (paths.length) {
       const { error: storageError } = await client.storage.from(SUPABASE_BUCKET).remove(paths);
       if (storageError) throw storageError;
@@ -1020,8 +1059,9 @@
       const { error: personalStorageError } = await client.storage.from(SUPABASE_BUCKET).remove(personalPaths);
       if (personalStorageError) throw personalStorageError;
     }
-    const { error } = await client.from('app_state').delete().eq('user_id', currentUser.id);
+    const { error } = await client.from('app_state').delete().eq('user_id', verifiedUserId);
     if (error) throw error;
+    if (currentUser?.id !== verifiedUserId) throw new Error('Your account changed. Reload to view the current workspace.');
     data = emptyData();
     supabaseDataLoaded = true;
   }
