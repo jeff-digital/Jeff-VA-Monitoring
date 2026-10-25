@@ -119,8 +119,8 @@
     if (newsLoading && !reset) return;
     const focus = $('#newsTopicFocus');
     const topicFocus = {
-      chatgpt: 'ChatGPT news: new models, releases, features, and capabilities. Stories appear newest first.',
-      claude: 'Claude news: new models, releases, features, and capabilities. Stories appear newest first.',
+      chatgpt: 'What ChatGPT can do: recent capability updates and practical uses in image generation, video editing, design, coding, and automation. Published in the last 30 days, newest first.',
+      claude: 'What Claude can do: recent Claude and Sonnet capability updates and practical uses in animation, motion graphics, video editing, coding, and automation. Published in the last 30 days, newest first.',
       'social-trends': 'Business content inspiration: social media marketing, brand campaigns, product launches, and consumer trends across platforms.',
       'business-markets': 'Business challenges in the UK, US, Canada, and Australia: staffing, workload, customer service, costs, productivity, and growth. Look for opportunities to help owners with VA support.'
     }[$('#newsCategory').value] || '';

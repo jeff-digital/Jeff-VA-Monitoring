@@ -12,12 +12,14 @@ const get = (path, signedIn = true) => worker.fetch(new Request(`https://dashboa
 let newsRequests = 0;
 let providerFails = false;
 const providerQueries = [];
+const providerDates = [];
 globalThis.fetch = async input => {
   const url = new URL(input);
   if (url.hostname === 'auth.example') return Response.json({ id: 'signed-in-user' });
   if (url.hostname === 'gnews.io') {
     newsRequests++;
     providerQueries.push(url.searchParams.get('q'));
+    providerDates.push(url.searchParams.get('from'));
     assert.ok(url.searchParams.get('q').length <= 200, 'GNews queries must stay within the provider limit');
     assert.equal(url.searchParams.get('max'), '10');
     assert.equal(url.searchParams.get('sortby'), 'publishedAt');
@@ -97,11 +99,17 @@ for (const [category, names] of [['chatgpt', ['ChatGPT', 'OpenAI']], ['claude', 
   assert.equal(response.status, 200);
   const result = await response.json();
   assert.ok(names.every(name => providerQueries.at(-1).includes(name)));
-  assert.ok(providerQueries.at(-1).includes('capabilities'));
+  assert.ok(['capabilities', 'video editing', 'animation', 'motion graphics', 'image generation', 'coding', 'automation'].every(term => providerQueries.at(-1).includes(term)), 'AI feeds focus on practical capabilities');
+  const from = Date.parse(providerDates.at(-1));
+  assert.ok(Number.isFinite(from) && Date.now() - from >= 30 * 86400000 && Date.now() - from < 31 * 86400000, 'AI feeds request only the last 30 days');
   assert.ok(result.articles.every(article => article.category === category));
   assert.equal(result.errors.length, 0);
   assert.ok(result.articles[0].publishedAt >= result.articles.at(-1).publishedAt);
   await get('/api/news?category=' + category);
   assert.equal(newsRequests, before + 1, 'AI topics reuse cached results');
+  await get('/api/news?category=' + category + '&q=motion%20graphics');
+  assert.ok(providerQueries.at(-1).includes('motion graphics'), 'Custom capability searches preserve the requested phrase');
+  assert.ok(names.every(name => providerQueries.at(-1).includes(name)));
+  assert.ok(providerDates.at(-1));
 }
 console.log('News routing, authentication, images, partial failures, caching, and secret handling passed.');

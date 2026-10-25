@@ -5,8 +5,8 @@ const CATEGORY_QUERIES = {
   'va-philippines': '("virtual assistant" OR freelancing OR BPO) AND (Philippines OR Filipino)',
   'remote-work': '("remote work" OR "work from home" OR "digital jobs") AND (Philippines OR Filipino)',
   ai: 'artificial intelligence OR ChatGPT OR Claude OR Gemini',
-  chatgpt: '(ChatGPT OR OpenAI) AND (release OR update OR model OR features OR capabilities)',
-  claude: '(Claude OR Anthropic) AND (release OR update OR model OR features OR capabilities)',
+  chatgpt: '(ChatGPT OR OpenAI) AND (capabilities OR features OR "video editing" OR animation OR "motion graphics" OR "image generation" OR coding OR automation)',
+  claude: '(Claude OR Anthropic OR Sonnet) AND (capabilities OR features OR "video editing" OR animation OR "motion graphics" OR "image generation" OR coding OR automation)',
   'ai-tools': 'AI tools productivity writing coding design',
   'virtual-assistants': 'virtual assistant remote work administrative productivity',
   automation: 'n8n OR Zapier OR Make workflow automation',
@@ -18,10 +18,12 @@ const CATEGORY_QUERIES = {
 // Keep room for the user's complete search phrase within GNews's 200-character limit.
 const CATEGORY_SEARCH_QUERIES = {
   'social-trends': '(marketing OR campaign OR product) AND "social media"',
-  'business-markets': 'business AND (UK OR "United States" OR Canada OR Australia)'
+  'business-markets': 'business AND (UK OR "United States" OR Canada OR Australia)',
+  chatgpt: '(ChatGPT OR OpenAI)',
+  claude: '(Claude OR Anthropic OR Sonnet)'
 };
 
-const NEWS_CACHE_VERSION = '5';
+const NEWS_CACHE_VERSION = '6';
 const DEFAULT_GNEWS_DAILY_LIMIT = 100;
 
 function json(body, status = 200, extra = {}) {
@@ -117,9 +119,15 @@ async function fetchWithTimeout(url, options = {}, timeout = 8000) {
   try { return await fetch(url, { ...options, signal: controller.signal }); } finally { clearTimeout(timer); }
 }
 
-async function gnews(env, query, page, pageSize) {
+async function gnews(env, query, page, pageSize, category) {
   if (!env.GNEWS_API_KEY) return { articles: [], error: 'GNews is not configured. Add GNEWS_API_KEY as a Cloudflare secret to enable live news.', requested: false };
   const params = new URLSearchParams({ q: query, lang: 'en', max: String(pageSize), page: String(page), sortby: 'publishedAt', apikey: env.GNEWS_API_KEY });
+  if (category === 'chatgpt' || category === 'claude') {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - 30);
+    since.setUTCHours(0, 0, 0, 0);
+    params.set('from', since.toISOString());
+  }
   const response = await fetchWithTimeout(`https://gnews.io/api/v4/search?${params}`);
   if (!response.ok) return { articles: [], error: `GNews returned ${response.status}.`, requested: true, status: response.status };
   const payload = await response.json();
@@ -169,7 +177,7 @@ export async function onRequestGet({ request, env, caches = globalThis.caches })
   const safeProvider = promise => promise.catch(() => ({ articles: [], error: 'A news provider is temporarily unavailable.' }));
   const skip = () => Promise.resolve({ articles: [], error: null });
   const [gnewsResult, githubResult, youtubeResult, productHuntResult] = await Promise.all([
-    gnews(env, selectedQuery, page, pageSize).catch(() => ({ articles: [], error: 'GNews is temporarily unavailable.', requested: Boolean(env.GNEWS_API_KEY) })),
+    gnews(env, selectedQuery, page, pageSize, category).catch(() => ({ articles: [], error: 'GNews is temporarily unavailable.', requested: Boolean(env.GNEWS_API_KEY) })),
     page === 1 && !query && (category === 'all' || category === 'automation') ? safeProvider(githubReleases(pageSize)) : skip(),
     page === 1 && env.YOUTUBE_API_KEY && (category === 'all' || category === 'virtual-assistants') ? safeProvider(youtubeVideos(env, query || 'virtual assistant tutorial', pageSize)) : skip(),
     page === 1 && !query && env.PRODUCT_HUNT_TOKEN && (category === 'all' || category === 'ai-tools') ? safeProvider(productHunt(env, pageSize)) : skip()
