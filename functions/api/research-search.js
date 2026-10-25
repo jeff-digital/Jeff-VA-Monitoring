@@ -10,12 +10,17 @@ async function tavilyRequest(path, options) {
   const stage = path === 'usage' ? 'usage check' : 'live search';
   let response;
   try {
-    response = await fetch('https://api.tavily.com/' + path, { ...options, redirect: 'error',
+    // Workers rejects redirect: 'error'. Manual mode preserves the same
+    // no-forwarding policy; redirect responses are rejected below.
+    response = await fetch('https://api.tavily.com/' + path, { ...options, redirect: 'manual',
       signal: AbortSignal.timeout(path === 'usage' ? 8000 : 20000) });
   } catch (error) {
     const timeout = ['TimeoutError', 'AbortError'].includes(error.name);
     throw new TavilySearchError('Tavily ' + stage + (timeout ? ' timed out. Please try again.' : ' could not connect. Please try again.'),
       timeout ? 'TAVILY_TIMEOUT' : 'TAVILY_CONNECTION', path);
+  }
+  if (response.status >= 300 && response.status < 400) {
+    throw new TavilySearchError('Tavily ' + stage + ' returned a redirect. It was blocked to protect the API key.', 'TAVILY_REDIRECT_BLOCKED', path, response.status);
   }
   if (!response.ok) {
     const status = response.status;

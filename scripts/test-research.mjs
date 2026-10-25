@@ -28,6 +28,7 @@ globalThis.fetch = async (input, options) => {
   searches++;
   if (sourceFails) throw Error('offline');
   if (url.hostname === 'api.tavily.com') {
+    assert.equal(options.redirect,'manual','Tavily uses the Cloudflare-compatible redirect policy');
     assert.equal(options.headers.authorization,'Bearer fixture-search-key');
     if (url.pathname === '/usage') return Response.json({account:{current_plan:'Researcher',plan_limit:1000,plan_usage:0,paygo_limit:0,paygo_usage:0}});
     assert.equal(url.pathname,'/search');

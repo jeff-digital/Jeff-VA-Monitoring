@@ -3,7 +3,10 @@ import {tavilySources} from '../functions/api/research-search.js';
 const env={TAVILY_API_KEY:'synthetic-secret'};let account,searches=0,status=200,usageStatus=200,networkFailure;
 const original=globalThis.fetch;
 globalThis.fetch=async(url,options)=>{
- assert.equal(options.headers.authorization,'Bearer synthetic-secret');assert.equal(options.redirect,'error');
+ assert.equal(options.headers.authorization,'Bearer synthetic-secret');
+ // workerd throws before making a request for redirect: 'error'.
+ if(options.redirect==='error')throw new TypeError('Invalid redirect value, must be one of follow or manual');
+ assert.equal(options.redirect,'manual');
  if(url.endsWith('/usage'))return Response.json({account,key:{limit:1000,usage:0}},{status:usageStatus});
  assert.equal(url,'https://api.tavily.com/search');searches++;
  const body=JSON.parse(options.body);assert.equal(body.search_depth,'basic');assert.equal(body.auto_parameters,false);assert.equal(body.include_answer,false);assert.equal(body.include_raw_content,false);assert.equal(body.max_results,5);assert.ok(!options.body.includes('synthetic-secret'));
@@ -22,6 +25,9 @@ for(const value of [400,401,403,422,429,432,433,500]) {
  status=value;
  await assert.rejects(tavilySources(env,'news'),error=>error.code==='TAVILY_HTTP_'+value && error.httpStatus===value && error.stage==='search' && !error.message.includes('synthetic-secret'));
 }
+status=302;const beforeRedirect=searches;
+await assert.rejects(tavilySources(env,'news'),error=>error.code==='TAVILY_REDIRECT_BLOCKED' && error.httpStatus===302);
+assert.equal(searches,beforeRedirect+1,'Redirect is returned and rejected; credentials are never forwarded');
 status=200;networkFailure='TimeoutError';await assert.rejects(tavilySources(env,'news'),error=>error.code==='TAVILY_TIMEOUT');
 networkFailure='TypeError';await assert.rejects(tavilySources(env,'news'),error=>error.code==='TAVILY_CONNECTION' && !error.message.includes('synthetic-secret'));
 networkFailure=null;usageStatus=401;await assert.rejects(tavilySources(env,'news'),error=>error.code==='TAVILY_HTTP_401' && error.stage==='usage');
