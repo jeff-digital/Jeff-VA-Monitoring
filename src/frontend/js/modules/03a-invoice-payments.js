@@ -83,6 +83,8 @@
     }
     $('#invoicePaymentForm').dataset.invoiceId = invoice.id;
     $('#invoicePaymentTitle').textContent = invoice.paidAt ? 'Edit payment' : 'Mark invoice as paid';
+    $('#invoicePaymentSubtitle').textContent = [invoice.invoiceNumber || 'Invoice', client?.clientName].filter(Boolean).join(' · ');
+    $('#invoicePaymentOptional').open = Boolean(invoice.paidAt);
     $('#invoicePaymentDate').value = parseInvoiceDate(invoice.paidAt) || today();
     $('#invoiceAmountReceived').value = invoice.amountReceived ?? amountPrefill;
     currencySelect.value = currency;

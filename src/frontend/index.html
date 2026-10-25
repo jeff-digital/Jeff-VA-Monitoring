@@ -1278,9 +1278,9 @@
     <dialog class="modal small-modal" id="invoicePaymentModal" aria-labelledby="invoicePaymentTitle">
       <form method="dialog" id="invoicePaymentForm" class="client-invoice-payment-form">
         <div class="modal-heading">
-          <div><p class="eyebrow">INVOICE PAYMENT</p><h2 id="invoicePaymentTitle">Record payment</h2></div>
+          <div><p class="eyebrow">INVOICE PAYMENT</p><h2 id="invoicePaymentTitle">Record payment</h2></div><button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close payment details">×</button>
         </div>
-        <p class="client-invoice-payment-subtitle">Payment details for the selected invoice.</p>
+        <p class="client-invoice-payment-subtitle" id="invoicePaymentSubtitle">Payment details</p>
         <div class="compose-fields">
           <section class="client-invoice-payment-section">
             <h3>Payment received</h3>
@@ -1288,19 +1288,19 @@
               <label class="form-field">Date received <span class="required">*</span><input id="invoicePaymentDate" type="date" required /></label>
               <label class="form-field">Amount received <span class="required">*</span><input id="invoiceAmountReceived" type="number" min="0" step="any" required /></label>
               <label class="form-field">Currency<select id="invoicePaymentCurrency"><option value="USD">USD</option><option value="PHP">PHP</option></select></label>
-            </div>
-          </section>
-          <section class="client-invoice-payment-section">
-            <h3>More details (optional)</h3>
-            <div class="client-invoice-payment-fields">
-              <label class="form-field">Fees deducted<input id="invoicePaymentFee" type="number" min="0" step="any" /><small>Charged by Wise, PayPal, etc.</small></label>
-              <label class="form-field">Amount received in PHP<input id="invoiceAmountReceivedPhp" type="number" min="0" step="any" /><small>What actually reached your account after conversion.</small></label>
+              <label class="form-field">Net amount in PHP<input id="invoiceAmountReceivedPhp" type="number" min="0" step="any" /><small>PHP credited after conversion.</small></label>
               <label class="form-field">Payment method<select id="invoicePaymentMethod"><option value="">Select method</option><option>Wise</option><option>PayPal</option><option>Payoneer</option><option>GCash</option><option>MariBank</option><option>Bank transfer</option><option>Other</option></select></label>
-              <label class="form-field">Receiving wallet account<select id="invoiceWalletAccount"><option value="">Use payment method</option><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option><option value="unassigned">Other / unassigned</option></select><small>Paid invoices appear in Wallet as salary. Enter the PHP amount for foreign-currency payments.</small></label>
-              <label class="form-field">Amount invoiced<input id="invoiceAmountInvoiced" type="number" min="0" step="any" /><small>The total on the invoice.</small></label>
-              <label class="form-field form-field-wide">Note<textarea id="invoicePaymentNote" maxlength="300" rows="3"></textarea></label>
+              <label class="form-field">Receiving wallet<select id="invoiceWalletAccount"><option value="">Use payment method</option><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option><option value="unassigned">Other / unassigned</option></select><small>Used for Wallet income.</small></label>
             </div>
           </section>
+          <details class="client-invoice-payment-optional" id="invoicePaymentOptional">
+            <summary>Additional details <span>Optional</span></summary>
+            <div class="client-invoice-payment-fields">
+              <label class="form-field">Fees deducted<input id="invoicePaymentFee" type="number" min="0" step="any" /></label>
+              <label class="form-field">Amount invoiced<input id="invoiceAmountInvoiced" type="number" min="0" step="any" /></label>
+              <label class="form-field form-field-wide">Note<textarea id="invoicePaymentNote" maxlength="300" rows="2" placeholder="Optional payment note"></textarea></label>
+            </div>
+          </details>
         </div>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit" id="saveInvoicePaymentButton">Save payment</button></div>
       </form>

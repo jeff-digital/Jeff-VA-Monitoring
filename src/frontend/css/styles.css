@@ -3651,29 +3651,32 @@ body.client-task-drawer-open { overflow: hidden; }
   margin: 0;
 }
 
-#hiredView .client-contract-facts > div { display: grid; align-content: start; gap: 7px; min-width: 0; min-height: 86px; padding: 14px; border: 1px solid var(--workspace-line); border-radius: 9px; background: #f8f9fb; }
+#hiredView .client-contract-facts > div { display: grid; align-content: start; gap: 5px; min-width: 0; min-height: 62px; padding: 10px; border: 1px solid var(--workspace-line); border-radius: 7px; background: #f8f9fb; }
 #hiredView .client-contract-facts dt { color: var(--workspace-muted); font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-#hiredView .client-contract-facts dd { margin: 0; color: var(--workspace-ink); font-size: 14px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+#hiredView .client-contract-facts dd { margin: 0; color: var(--workspace-ink); font-size: 12px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 #hiredView .client-contract-facts .status-pill { margin: 0; }
 
 #hiredView #clientContractsPanel .client-contract-section,
 #hiredView #clientContractsPanel #clientDocumentBox {
-  padding: 18px;
+  padding: 12px;
   border: 1px solid var(--workspace-line);
   border-radius: 11px;
   background: #fff;
   box-shadow: 0 2px 9px rgba(26, 35, 64, .045);
 }
 
-#hiredView #clientContractsPanel #clientDocumentBox { margin-top: 16px; }
-#hiredView #clientContractsPanel .client-contract-section .client-detail-section-heading { margin-bottom: 14px; }
-#hiredView #clientContractsPanel .active-document-box-head { align-items: center; padding-bottom: 13px; }
-#hiredView #clientContractsPanel .document-version-section { margin: 0; padding: 14px 0 0; border: 0; }
-#hiredView #clientContractsPanel .active-document-row { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; padding: 12px; border: 1px solid var(--workspace-line); border-radius: 8px; background: #f8f9fb; }
-#hiredView #clientContractsPanel .active-document-row .doc-type-icon { width: 38px; height: 42px; border-radius: 7px; }
+#hiredView #clientContractsPanel #clientDocumentBox { margin-top: 10px; }
+#hiredView #clientContractsPanel .client-contract-section .client-detail-section-heading { margin-bottom: 9px; }
+#hiredView #clientContractsPanel :is(.client-detail-section-heading, .active-document-box-head) h3 { margin-top: 3px; font-size: 14px; }
+#hiredView #clientContractsPanel .eyebrow { margin-bottom: 3px; font-size: 9px; }
+#hiredView #clientContractsPanel .active-document-box-head { align-items: center; padding-bottom: 9px; }
+#hiredView #clientContractsPanel .document-version-section { margin: 0; padding: 9px 0 0; border: 0; }
+#hiredView #clientContractsPanel .active-document-row { grid-template-columns: 30px minmax(0, 1fr) auto; gap: 9px; padding: 8px 10px; border: 1px solid var(--workspace-line); border-radius: 7px; background: #f8f9fb; }
+#hiredView #clientContractsPanel .active-document-row .doc-type-icon { width: 28px; height: 32px; border-radius: 6px; }
+#hiredView #clientContractsPanel .active-document-row strong { font-size: 12px; }
 #hiredView #clientContractsPanel .document-archive { margin-top: 12px; border: 1px solid var(--workspace-line); border-radius: 9px; background: #fbfcfd; }
-#hiredView #clientContractsPanel .document-archive-head { padding: 11px 13px; }
-#hiredView #clientContractsPanel .document-archive-item { padding: 9px 12px; }
+#hiredView #clientContractsPanel .document-archive-head { padding: 8px 10px; }
+#hiredView #clientContractsPanel .document-archive-item { padding: 7px 10px; }
 #hiredView #clientContractsPanel .upload-empty-state { padding: 15px; border: 1px dashed #cbd3df; border-radius: 8px; background: #f8f9fb; }
 #hiredView #clientContractsPanel .documents-folder-status { margin: 10px 2px 0; }
 
@@ -5755,9 +5758,40 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 }
 
 /* ===== INVOICES TAB UI REFRESH ===== */
+#hiredView .client-invoice-table-wrap { width: 100%; min-width: 0; }
+#hiredView .client-invoice-table { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: left; }
+#hiredView .client-invoice-table th { padding: 8px; border-bottom: 1px solid var(--workspace-line); color: var(--workspace-muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .035em; }
+#hiredView .client-invoice-table td { padding: 9px 8px; border-bottom: 1px solid var(--workspace-line); color: var(--workspace-ink); font-size: 11px; vertical-align: middle; white-space: nowrap; }
+#hiredView .client-invoice-table th:nth-child(1) { width: 30%; }
+#hiredView .client-invoice-table th:nth-child(2) { width: 16%; }
+#hiredView .client-invoice-table th:nth-child(3) { width: 9%; }
+#hiredView .client-invoice-table th:nth-child(4), #hiredView .client-invoice-table th:nth-child(5) { width: 12%; }
+#hiredView .client-invoice-table th:nth-child(6) { width: 21%; text-align: right; }
+#hiredView .client-invoice-reference { display: flex; align-items: center; gap: 7px; min-width: 0; }
+#hiredView .client-invoice-reference > strong { flex-shrink: 0; font-size: 11px; }
+#hiredView .client-invoice-reference .status-pill { flex-shrink: 0; margin: 0; padding: 3px 6px; font-size: 9px; }
+#hiredView .client-invoice-table-file, #hiredView .client-invoice-cell-text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#hiredView .client-invoice-table-file { color: var(--workspace-muted); font-size: 10px; }
+#hiredView .client-invoice-table-payment { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+#hiredView .client-invoice-table-payment .button { flex-shrink: 0; min-height: 28px; padding: 5px 8px; font-size: 10px; }
+#hiredView .client-invoice-table td.client-invoice-overdue-copy { color: var(--workspace-danger); }
+@media (max-width: 900px) {
+  #hiredView .client-invoice-table, #hiredView .client-invoice-table tbody { display: block; }
+  #hiredView .client-invoice-table thead { display: none; }
+  #hiredView .client-invoice-table tr { display: grid; gap: 7px; padding: 12px 0; border-bottom: 1px solid var(--workspace-line); }
+  #hiredView .client-invoice-table td { display: grid; grid-template-columns: 65px minmax(0, 1fr); gap: 8px; padding: 0; border: 0; white-space: normal; }
+  #hiredView .client-invoice-table td::before { content: attr(data-label); color: var(--workspace-muted); font-size: 10px; }
+  #hiredView .client-invoice-reference { flex-wrap: wrap; }
+  #hiredView .client-invoice-table-file { flex-basis: 100%; }
+  #hiredView .client-invoice-table-payment { justify-content: flex-start; flex-wrap: wrap; }
+  #hiredView .client-invoice-table-payment .button { min-height: 32px; }
+}
 #hiredView .client-invoice-panel .invoice-send-heading {
   align-items: center;
+  padding-bottom: 10px;
 }
+#hiredView .client-invoice-panel .invoice-send-heading h3 { font-size: 14px; }
+#hiredView .client-invoice-panel .invoice-send-heading .eyebrow { font-size: 9px; }
 
 #hiredView .client-invoice-heading-actions {
   display: flex;
@@ -5772,19 +5806,19 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 }
 
 #hiredView .client-invoice-heading-actions .invoice-sent-count {
-  font-size: 12px;
+  font-size: 10px;
 }
 
 #hiredView .client-invoice-panel .client-invoice-payment-summary {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding: 14px 0;
+  gap: 9px;
+  padding: 10px 0;
 }
 
 #hiredView .client-invoice-panel .client-invoice-payment-summary > div {
-  gap: 5px;
-  min-height: 75px;
-  padding: 12px 14px;
+  gap: 3px;
+  min-height: 60px;
+  padding: 9px 11px;
   border: 1px solid var(--workspace-line);
   border-radius: 8px;
   background: #f8f9fb;
@@ -5792,7 +5826,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 
 #hiredView .client-invoice-panel .client-invoice-payment-summary strong {
   color: var(--workspace-muted);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 650;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -5800,7 +5834,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 
 #hiredView .client-invoice-panel .client-invoice-payment-summary span {
   color: var(--workspace-ink);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -5808,7 +5842,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 
 #hiredView .client-invoice-panel .client-invoice-payment-summary small {
   color: var(--workspace-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.4;
 }
 
@@ -5833,8 +5867,8 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 #hiredView .client-invoice-panel .client-invoice-item {
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(150px, .8fr);
   align-items: start;
-  gap: 18px;
-  padding: 18px 8px;
+  gap: 12px;
+  padding: 10px 8px;
 }
 
 #hiredView .client-invoice-panel .client-invoice-main,
@@ -5854,7 +5888,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 
 #hiredView .client-invoice-panel .client-invoice-title strong {
   color: var(--workspace-ink);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -5862,14 +5896,14 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 #hiredView .client-invoice-panel .client-invoice-title .status-pill {
   flex: 0 0 auto;
   margin: 0;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 #hiredView .client-invoice-panel .client-invoice-file {
   display: block;
   max-width: 100%;
   color: var(--workspace-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.45;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5878,7 +5912,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 
 #hiredView .client-invoice-panel .client-invoice-meta {
   display: grid;
-  gap: 7px;
+  gap: 5px;
 }
 
 #hiredView .client-invoice-panel .client-invoice-meta-item {
@@ -5891,7 +5925,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 
 #hiredView .client-invoice-panel .client-invoice-meta-item > span {
   color: var(--workspace-muted);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: .035em;
   text-transform: uppercase;
@@ -5900,7 +5934,7 @@ body.client-dashboard-drawer-open { overflow: hidden; }
 #hiredView .client-invoice-panel .client-invoice-meta-item > strong {
   min-width: 0;
   color: var(--workspace-ink);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -5944,8 +5978,8 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   width: auto;
   flex: 0 0 auto;
   min-height: 32px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 5px 9px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
@@ -6183,6 +6217,34 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   #invoicePaymentModal .client-invoice-payment-form > .modal-actions .button {
     min-height: 40px;
   }
+}
+
+/* Compact invoice payment form with a fixed header and action row. */
+#invoicePaymentModal { width: min(600px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 32px); overflow: hidden; }
+#invoicePaymentModal .client-invoice-payment-form { max-height: calc(100dvh - 34px); min-height: 0; padding: 20px; }
+#invoicePaymentModal .modal-heading { flex-shrink: 0; align-items: center; margin-bottom: 6px; }
+#invoicePaymentModal .modal-heading h2 { font-size: 21px; line-height: 1.25; }
+#invoicePaymentModal .modal-heading .eyebrow { margin-bottom: 4px; font-size: 9px; }
+#invoicePaymentModal .client-invoice-payment-subtitle { flex-shrink: 0; margin: 0 0 14px; color: var(--muted); font-size: 12px; }
+#invoicePaymentModal .compose-fields { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr); min-height: 0; gap: 12px; margin: 0; padding: 1px 2px; overflow-y: auto; }
+#invoicePaymentModal .client-invoice-payment-section { gap: 10px; padding: 12px; border: 1px solid #e1e6eb; border-radius: 10px; background: #f8fafb; }
+#invoicePaymentModal .client-invoice-payment-section h3 { padding: 0; border: 0; font-size: 12px; }
+#invoicePaymentModal .client-invoice-payment-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px 12px; }
+#invoicePaymentModal .client-invoice-payment-fields .form-field { display: flex; flex-direction: column; align-items: stretch; gap: 5px; min-width: 0; font-size: 11px; line-height: 1.4; }
+#invoicePaymentModal .client-invoice-payment-fields :is(input, select) { width: 100%; min-width: 0; min-height: 36px; height: 36px; padding: 7px 9px; font-size: 13px; }
+#invoicePaymentModal .client-invoice-payment-fields .form-field small { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+#invoicePaymentModal .client-invoice-payment-optional { border: 1px solid #e1e6eb; border-radius: 10px; }
+#invoicePaymentModal .client-invoice-payment-optional > summary { padding: 11px 12px; color: var(--navy); font-size: 12px; font-weight: 600; cursor: pointer; }
+#invoicePaymentModal .client-invoice-payment-optional > summary span { margin-left: 6px; color: var(--muted); font-size: 10px; font-weight: 400; }
+#invoicePaymentModal .client-invoice-payment-optional > .client-invoice-payment-fields { padding: 0 12px 12px; }
+#invoicePaymentModal .client-invoice-payment-fields textarea { min-height: 54px; height: 54px; padding: 7px 9px; font-size: 13px; }
+#invoicePaymentModal .client-invoice-payment-form > .modal-actions { flex-shrink: 0; justify-content: flex-end; gap: 8px; margin: 0; padding-top: 14px; background: #fff; }
+#invoicePaymentModal .modal-actions .button { min-height: 34px; padding: 7px 12px; font-size: 12px; }
+@media (max-width: 480px) {
+  #invoicePaymentModal .client-invoice-payment-form { padding: 14px; }
+  #invoicePaymentModal .client-invoice-payment-fields { grid-template-columns: minmax(0, 1fr); }
+  #invoicePaymentModal .client-invoice-payment-fields :is(input, select, textarea) { font-size: 16px; }
+  #invoicePaymentModal .client-invoice-payment-fields .form-field-wide { grid-column: auto; }
 }
 
 #contractEmailUploadClientName {
