@@ -3603,6 +3603,7 @@ body.client-task-drawer-open { overflow: hidden; }
 #hiredView #hiredDetailGrid .hired-detail-info-group dl {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 9px;
   margin: 0;
 }
