@@ -1,4 +1,4 @@
-import { tavilySources } from './research-search.js';
+import { tavilySources, TavilySearchError } from './research-search.js';
 import { researchUsage } from './research-usage.js';
 import { validWorkspaceInput, workspaceInstructions, taskDraftResult } from './research-workspace.js';
 
@@ -43,9 +43,15 @@ export async function research(request, env, user) {
     if (input.mode === 'research') {
       const query = text(input.sourceQuery || input.messages.at(-1).content, 200);
       try { sources = await tavilySources(env, query); }
-      catch (error) { notices.push(/^(?:Live search|Tavily)/.test(error.message || '') ? error.message : 'Tavily live search is temporarily unavailable.'); }
+      catch (error) {
+        return reply({ error: error instanceof TavilySearchError ? error.message : 'Tavily live search failed. No current answer was generated.',
+          code: error instanceof TavilySearchError ? error.code : 'TAVILY_SEARCH_FAILED',
+          search: { status: 'failed', provider: 'Tavily', stage: error.stage, httpStatus: error.httpStatus }, usage }, 502);
+      }
       sources = sources.map((source, index) => ({ ...source, id: index + 1 }));
-      if (!sources.length) notices.push('No live sources were found. This answer uses general knowledge and is not a verified current update.');
+      if (!sources.length) return reply({ error: 'Tavily found no usable sources for this question. Try a more specific search. No current answer was generated.',
+        code: 'TAVILY_NO_RESULTS', search: { status: 'empty', provider: 'Tavily' }, usage }, 502);
+      notices.push('Tavily live search completed · ' + sources.length + ' sources retrieved.');
     }
     const instructions = 'You are a research and reasoning assistant for a freelancer. Give clear, practical answers with useful examples and concise explanations. '
       + (['task', 'application'].includes(input.mode) ? workspaceInstructions(input) + ' ' : 'You cannot access the app workspace, emails or files, change records, or send messages. Never claim you did. ')
