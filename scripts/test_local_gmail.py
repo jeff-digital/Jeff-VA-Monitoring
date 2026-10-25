@@ -144,3 +144,26 @@ with patch.object(server, 'urlopen', side_effect=URLError('offline')):
     assert research.result_status == 503
     assert 'research assistant' in json.loads(research.wfile.getvalue())['error']
 print('Local research forwarding checks passed.')
+
+
+def usage_fetch(request, timeout):
+    assert request.full_url == server.RESEARCH_USAGE_UPSTREAM
+    assert request.get_method() == 'GET'
+    assert request.data is None
+    assert request.get_header('Authorization') == 'Bearer test-session'
+    assert timeout == 15
+    return Response()
+
+with patch.object(server, 'urlopen', side_effect=usage_fetch):
+    usage = handler()
+    usage.path = server.RESEARCH_USAGE_PATH
+    usage.do_GET()
+    assert usage.result_status == 200
+
+with patch.object(server, 'urlopen') as fetch:
+    usage = handler(authorization='')
+    usage.path = server.RESEARCH_USAGE_PATH
+    usage.do_GET()
+    assert usage.result_status == 401
+    fetch.assert_not_called()
+print('Local research usage forwarding checks passed.')

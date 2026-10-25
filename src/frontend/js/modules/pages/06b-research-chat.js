@@ -1,6 +1,84 @@
   const researchChats = new Map();
   let researchRenderedUserId = null;
   const RESEARCH_CHAT_KEY = 'jeff-va-research-chat-v1:';
+  const researchUsageByUser = new Map();
+
+  function rememberResearchUsage(userId, usage) {
+    if (!usage || usage.scope !== 'assistant-requests' || !Number.isInteger(usage.used) || usage.used < 0
+      || !Number.isInteger(usage.limit) || usage.limit < 1 || !Number.isFinite(Date.parse(usage.resetsAt))) return;
+    const previous = researchUsageByUser.get(userId);
+    const used = previous?.usage?.day === usage.day ? Math.max(previous.usage.used, usage.used) : usage.used;
+    researchUsageByUser.set(userId, { ...previous, usage: { ...usage, used, remaining: Math.max(0, usage.limit - used) }, at: Date.now(), error: '' });
+  }
+
+  function researchLimitReached() {
+    const usage = researchUsageByUser.get(currentUser?.id)?.usage;
+    return Boolean(usage && Date.parse(usage.resetsAt) > Date.now() && usage.used >= usage.limit);
+  }
+
+  function researchUsageReady() {
+    const usage = researchUsageByUser.get(currentUser?.id)?.usage;
+    return Boolean(usage && Date.parse(usage.resetsAt) > Date.now());
+  }
+
+  function renderResearchUsage() {
+    const entry = researchUsageByUser.get(currentUser?.id);
+    const usage = entry?.usage && Date.parse(entry.usage.resetsAt) > Date.now() ? entry.usage : null;
+    const indicator = $('#researchUsageCount');
+    const bar = $('#researchUsageProgress');
+    if (!indicator || !bar) return;
+    indicator.textContent = !currentUser ? 'Sign in to check usage' : usage ? usage.used + ' / ' + usage.limit + ' requests' : entry?.error ? 'Usage unavailable' : 'Checking usage…';
+    bar.hidden = !usage;
+    if (usage) { bar.max = usage.limit; bar.value = Math.min(usage.used, usage.limit); }
+    const limited = Boolean(usage && usage.remaining === 0);
+    const warning = Boolean(usage && usage.remaining <= Math.ceil(usage.limit * .2));
+    $('#researchUsagePanel').classList.toggle('is-warning', warning);
+    $('#researchUsagePanel').classList.toggle('is-exhausted', limited);
+    const note = $('#researchUsageNote');
+    note.textContent = entry?.error ? (usage ? 'Usage refresh failed. Try again.' : 'Sending paused. Refresh to check usage.')
+      : limited ? 'Daily limit reached. Available again at 8 AM.' : warning ? usage.remaining + ' requests left today.' : '';
+    note.hidden = !note.textContent;
+    $('#researchUsageReset').textContent = 'Resets 8 AM · PH';
+    $('#researchSend').disabled = !currentUser || !dataReady || Boolean(currentResearchChat()?.busy) || !usage || limited;
+    $('#refreshResearchUsage').disabled = !currentUser || Boolean(entry?.pending);
+  }
+
+  async function refreshResearchUsage(force = false) {
+    const userId = currentUser?.id;
+    if (!userId || !dataReady) { renderResearchUsage(); return; }
+    let entry = researchUsageByUser.get(userId) || { at: 0 };
+    if (entry.pending) return entry.promise;
+    if (!force && Date.now() - entry.at < 60000 && Date.parse(entry.usage?.resetsAt) > Date.now()) return;
+    entry.pending = true;
+    researchUsageByUser.set(userId, entry);
+    renderResearchUsage();
+    const run = async () => { try {
+      const auth = requireSupabase().auth;
+      const current = await auth.getSession();
+      let session = current.data?.session;
+      if (current.error || !session?.access_token || (session.expires_at && session.expires_at <= Date.now() / 1000 + 60)) session = await renewEmailAiSession(auth, userId);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (currentUser?.id !== userId || session?.user?.id !== userId) return;
+        const response = await fetch('/api/research/usage', { headers: { authorization: 'Bearer ' + session.access_token }, signal: AbortSignal.timeout(12000) });
+        const result = await response.json().catch(() => ({}));
+        if (currentUser?.id !== userId) return;
+        if (response.status === 401 && attempt === 0) { session = await renewEmailAiSession(auth, userId); continue; }
+        if (!response.ok || result.scope !== 'assistant-requests') throw new Error('Could not check usage. Sending stays paused until the limit can be verified.');
+        rememberResearchUsage(userId, result);
+        break;
+      }
+    } catch (error) {
+      entry = researchUsageByUser.get(userId) || entry;
+      entry.error = error.message || 'Usage could not be checked.';
+      researchUsageByUser.set(userId, entry);
+    } finally {
+      const latest = researchUsageByUser.get(userId);
+      if (latest) latest.pending = false;
+      if (currentUser?.id === userId) renderResearchUsage();
+    } };
+    entry.promise = run();
+    return entry.promise;
+  }
 
   function currentResearchChat() {
     const id = currentUser?.id;
@@ -95,7 +173,8 @@
     $('#researchNewChat').disabled = !chat || chat.busy || !chat.messages.length;
     $('#researchPrompt').disabled = !currentUser || !dataReady || Boolean(chat?.busy);
     $('#researchStatus').textContent = !currentUser ? 'Sign in to use the assistant.' : chat?.busy ? 'You can close this window and return while the answer is prepared.' : 'Conversation stays in this browser tab. Your workspace records are not included.';
-    messages.scrollTop = messages.scrollHeight;
+    messages.scrollTop = chat?.messages.length ? messages.scrollHeight : 0;
+    renderResearchUsage();
   }
 
   function setQuickSearchMode(mode) {
@@ -107,7 +186,7 @@
     $('#researchModelLabel').hidden = !ai;
     $('#researchModeTab').setAttribute('aria-selected', String(ai));
     $('#appSearchModeTab').setAttribute('aria-selected', String(!ai));
-    if (ai) renderResearchChat();
+    if (ai) { renderResearchChat(); refreshResearchUsage(); }
     requestAnimationFrame(() => (ai ? $('#researchPrompt') : $('#quickSearchInput')).focus());
   }
 
@@ -117,6 +196,13 @@
     const chat = currentResearchChat();
     const prompt = $('#researchPrompt').value.trim();
     if (!chat || chat.busy || !dataReady || !prompt) return;
+    if (!researchUsageReady()) {
+      await refreshResearchUsage(true);
+      if (currentUser?.id !== userId) return;
+      if (!researchUsageReady()) { chat.error = 'Usage could not be verified. Your question has not been sent.'; renderResearchChat(); return; }
+      if (chat.busy) return;
+    }
+    if (researchLimitReached()) { chat.error = 'Your daily assistant limit is reached. It resets at 8:00 AM Philippine time.'; renderResearchChat(); return; }
     if (prompt.length > 4000) { chat.error = 'Keep your question under 4,000 characters.'; renderResearchChat(); return; }
     const mode = $('#researchSourceMode').value;
     const effort = $('#researchEffort').value;
@@ -145,6 +231,7 @@
           body: JSON.stringify({ messages: history, mode, effort }), signal: AbortSignal.timeout(65000) });
         const result = await response.json().catch(() => ({}));
         if (currentUser?.id !== userId) return;
+        if (result.usage) rememberResearchUsage(userId, result.usage);
         if (response.status === 401 && attempt === 0) { session = await renewEmailAiSession(auth, userId); continue; }
         if (!response.ok || typeof result.answer !== 'string' || !result.answer.trim()) throw new Error(result.error || 'The assistant could not answer. Please try again.');
         chat.messages.push({ role: 'assistant', content: cleanResearchAnswerText(result.answer), sources: result.sources, notices: result.notices });
@@ -171,9 +258,14 @@
     const button = event.target.closest('[data-research-prompt]');
     if (button) { $('#researchPrompt').value = button.dataset.researchPrompt; $('#researchPrompt').focus(); }
   });
-  $('#researchNewChat')?.addEventListener('click', () => {
+  function startNewResearchChat() {
     const chat = currentResearchChat();
     if (!chat || chat.busy) return;
     chat.messages = []; chat.error = ''; $('#researchPrompt').value = '';
     saveResearchChat(currentUser.id, chat); renderResearchChat(); $('#researchPrompt').focus();
-  });
+  }
+  $('#researchNewChat')?.addEventListener('click', startNewResearchChat);
+  $('#refreshResearchUsage')?.addEventListener('click', () => refreshResearchUsage(true));
+  if (typeof setInterval === 'function') setInterval(() => {
+    if ($('#quickSearchModal')?.open && !$('#researchPanel')?.hidden && !document.hidden) refreshResearchUsage();
+  }, 60000);

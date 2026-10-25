@@ -17,6 +17,7 @@ const context = vm.createContext({ $, URL, AbortSignal, currentUser: { id: 'u1' 
   requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session } }) } }),
   renewEmailAiSession: async () => session,
   fetch: async (url, options) => {
+    if (url === '/api/research/usage') return Response.json({ scope: 'assistant-requests', day: new Date().toISOString().slice(0,10), used: 0, limit: 20, remaining: 20, resetsAt: new Date(Date.now()+86400000).toISOString() });
     requests++;
     assert.equal(url, '/api/research');
     const body = JSON.parse(options.body);
@@ -55,6 +56,7 @@ vm.runInContext(source, context);
   context.setQuickSearchMode('ai');
   assert.equal($('#quickAppSearchPanel').hidden, true);
   assert.equal($('#researchPanel').hidden, false);
+  await context.refreshResearchUsage();
   $('#researchPrompt').value = 'Help me compare options.';
   $('#researchSourceMode').value = 'reasoning'; $('#researchEffort').value = 'medium';
   const event = { preventDefault() {} };
@@ -86,6 +88,21 @@ vm.runInContext(source, context);
   assert.match($('#researchError').textContent, /temporarily unavailable/);
   assert.equal($('#researchPrompt').value, 'Retry this question', 'Failures preserve the question for retry');
   assert.equal($('#researchSend').disabled, false);
+  const day = new Date().toISOString().slice(0,10);
+  const used = { scope: 'assistant-requests', day, used: 20, limit: 20, remaining: 0, resetsAt: new Date(Date.now()+86400000).toISOString() };
+  context.rememberResearchUsage('u1',used); context.renderResearchChat();
+  assert.equal($('#researchSend').disabled,true,'The meter disables Send at the cap');
+  assert.match($('#researchUsageCount').textContent,/20 \/ 20/);
+  const beforeLimit = requests;
+  $('#researchPrompt').value='Keep this unsent question';
+  await context.submitResearchQuestion(event);
+  assert.equal(requests,beforeLimit,'No new request starts after the daily limit');
+  context.rememberResearchUsage('u1',{...used,used:2}); context.renderResearchChat();
+  assert.equal($('#researchSend').disabled,true,'An older response cannot lower the count');
+  context.startNewResearchChat();
+  assert.equal($('#researchSend').disabled,true,'New chat cannot reset the daily limit');
+  context.rememberResearchUsage('u1',{...used,day:'2099-01-01',used:0}); context.renderResearchChat();
+  assert.equal($('#researchSend').disabled,false,'A new usage day enables sending again');
   context.currentUser = null; context.renderResearchChat();
   assert.equal($('#researchSend').disabled, true);
   assert.doesNotMatch($('#researchMessages').innerHTML, /Result/);

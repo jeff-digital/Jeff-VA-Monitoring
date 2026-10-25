@@ -1,4 +1,5 @@
 import { onRequestGet as news } from './news.js';
+import { researchUsage } from './research-usage.js';
 
 const MODEL = '@cf/openai/gpt-oss-120b';
 const pending = new Set();
@@ -59,8 +60,11 @@ export async function research(request, env, user) {
   }
   if (pending.has(user.id)) return reply({ error: 'Your previous answer is still being prepared. Please wait a moment.' }, 429);
   pending.add(user.id);
-  let timer;
+  let timer, usage;
   try {
+    try { usage = await researchUsage(env, user.id, 'reserve'); }
+    catch { return reply({ error: 'Assistant usage could not be checked. No AI request was started.' }, 503); }
+    if (!usage.allowed) return reply({ error: 'Your daily assistant limit is reached. It resets at 8:00 AM Philippine time.', code: 'RESEARCH_DAILY_LIMIT', usage }, 429);
     let sources = [], notices = [];
     if (input.mode === 'research') {
       const query = text(input.sourceQuery || input.messages.at(-1).content, 200);
@@ -88,8 +92,8 @@ export async function research(request, env, user) {
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 55000); })
     ]);
     return reply({ answer: researchAnswer(output), sources: sources.map(({ text: excerpt, ...source }) => source),
-      notices: [...new Set(notices)], model: MODEL, mode: input.mode, answeredAt: new Date().toISOString() });
+      notices: [...new Set(notices)], model: MODEL, mode: input.mode, usage, answeredAt: new Date().toISOString() });
   } catch {
-    return reply({ error: 'GPT-OSS 120B could not finish this answer. Check the Workers AI model access or quota, then try again.' }, 503);
+    return reply({ error: 'GPT-OSS 120B could not finish this answer. Check the Workers AI model access or quota, then try again.', usage }, 503);
   } finally { clearTimeout(timer); pending.delete(user.id); }
 }

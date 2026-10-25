@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import worker from '../src/backend/worker.mjs';
 import { researchAnswer } from '../functions/api/research.js';
+import { FollowUpDelivery } from '../functions/api/follow-up-send.js';
+import { memoryNamespace } from './lib/memory-durable.mjs';
 
 let modelCalls = 0, searches = 0, release, delayed = false, modelFails = false, sourceFails = false;
 const caches = new Map();
 globalThis.caches = { default: { match: async key => caches.get(key.url)?.clone(), put: async (key, value) => caches.set(key.url, value.clone()) } };
-const env = { SUPABASE_URL: 'https://auth.example', SUPABASE_PUBLISHABLE_KEY: 'public', GNEWS_API_KEY: 'test', AI: {
+const env = { SUPABASE_URL: 'https://auth.example', SUPABASE_PUBLISHABLE_KEY: 'public', GNEWS_API_KEY: 'test', FOLLOW_UP_DELIVERIES: memoryNamespace(FollowUpDelivery), AI: {
   run: async (model, input) => {
     modelCalls++;
     assert.equal(model, '@cf/openai/gpt-oss-120b');
@@ -39,6 +41,8 @@ assert.equal((await call({ ...question, messages: [{ role: 'user', content: 'x'.
 assert.equal((await call({ ...question, effort: 'unsupported' })).status, 400);
 const first = await (await call(question)).json();
 assert.equal(first.model, '@cf/openai/gpt-oss-120b');
+assert.equal(first.usage.used, 1);
+assert.equal(first.usage.limit, 20);
 assert.equal(first.answer, 'A useful answer [1].');
 assert.equal(searches, 0, 'Reasoning mode does not transmit questions to search providers');
 assert.deepEqual(first.sources, []);

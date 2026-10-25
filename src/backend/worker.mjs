@@ -1,4 +1,5 @@
 import { research } from '../../functions/api/research.js';
+import { getResearchUsage } from '../../functions/api/research-usage.js';
 import { automaticBackupReceipt } from '../../functions/api/backup-download.js';
 import { onRequestGet as news, onRequestGetUsage as newsUsage } from '../../functions/api/news.js';
 import { onRequestGet as tools } from '../../functions/api/tools.js';
@@ -25,8 +26,9 @@ export default {
     const isFollowUp = path === '/api/follow-up/delivery';
     const isBackupReceipt = path === '/api/backup/download';
     const isResearch = path === '/api/research';
+    const isResearchUsage = path === '/api/research/usage';
     const isProgressReview = path === '/api/application-progress';
-    if (!handler && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isProgressReview && !isBackupReceipt && !isResearch) return reply('Endpoint not found.', 404);
+    if (!handler && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
     if (request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to continue.', 401);
@@ -40,6 +42,7 @@ export default {
       const user = await auth.json();
       if (!user.id) return sessionFailure(true);
       verified = true;
+      if (isResearchUsage) return getResearchUsage(request, env, user);
       if (isResearch) return research(request, env, user);
       if (isBackupReceipt) return automaticBackupReceipt(request, env, user);
       if (isGmailRefresh) return refreshGmail(request, env);
