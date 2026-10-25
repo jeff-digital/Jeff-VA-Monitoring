@@ -42,7 +42,9 @@ export async function tavilySources(env, query) {
   const { account, key } = await tavilyRequest('usage', { headers });
   const free = /^(?:researcher|free)$/i.test(account?.current_plan || '')
     && Number.isFinite(account?.plan_limit) && account.plan_limit > 0 && account.plan_limit <= 1000
-    && account.paygo_limit === 0 && account.paygo_usage === 0;
+    // Researcher accounts report null when no pay-as-you-go limit is configured.
+    // Missing/unknown fields and positive paid limits still fail closed.
+    && (account.paygo_limit === 0 || account.paygo_limit === null) && account.paygo_usage === 0;
   if (!free) throw new TavilySearchError('Live search requires a verified Tavily Free plan with paid usage disabled.', 'TAVILY_FREE_PLAN_REQUIRED', 'usage');
   if (!Number.isFinite(account.plan_usage) || account.plan_usage < 0) throw new TavilySearchError('Tavily free usage could not be verified. Live search is paused.', 'TAVILY_UNKNOWN_USAGE', 'usage');
   if (account.plan_usage >= account.plan_limit || (Number.isFinite(key?.limit) && key.limit > 0 && key.usage >= key.limit)) {

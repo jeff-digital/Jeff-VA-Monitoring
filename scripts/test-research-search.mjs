@@ -17,7 +17,8 @@ globalThis.fetch=async(url,options)=>{
 const free=()=>({current_plan:'Researcher',plan_limit:1000,plan_usage:0,paygo_limit:0,paygo_usage:0});
 await assert.rejects(tavilySources({},'latest news'),/not connected/);assert.equal(searches,0);
 account=free();const sources=await tavilySources(env,'latest AI capabilities');assert.equal(sources.length,1);assert.equal(sources[0].publishedAt,'2026-10-25');assert.ok(!JSON.stringify(sources).includes('synthetic-secret'));
-for(const change of [{current_plan:'Bootstrap'},{paygo_limit:10},{plan_usage:1000},{plan_usage:null},{plan_limit:undefined}]){
+account={...free(),paygo_limit:null};assert.equal((await tavilySources(env,'latest AI capabilities')).length,1,'Real Researcher account with an unconfigured paid limit can use free credits');
+for(const change of [{current_plan:'Bootstrap'},{paygo_limit:10},{paygo_limit:undefined},{paygo_usage:1},{paygo_usage:null},{plan_usage:1000},{plan_usage:null},{plan_limit:undefined}]){
  account={...free(),...change};const before=searches;await assert.rejects(tavilySources(env,'news'));assert.equal(searches,before,'Unsafe billing or exhausted/unknown usage cannot start a search');
 }
 account=free();status=432;await assert.rejects(tavilySources(env,'news'),/No paid fallback/);
