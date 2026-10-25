@@ -236,19 +236,8 @@
     const preview = $('#documentTemplatePreview');
     if (!select || !preview) return;
     const templateId = select.value || 'contract-signing';
-    const rendered = buildDocumentEmailTemplate(templateId, {
-      clientName: 'Acme Studio',
-      contact: 'Jordan Lee',
-      role: 'Social Media Management Services',
-      appliedDate: '2026-10-21',
-      platform: 'OnlineJobs.ph'
-    }, {
-      duration: '3 months',
-      invoiceNumber: 'INV-2026-104',
-      billingPeriod: 'September 2026',
-      issueDate: '2026-09-24',
-      dueDate: '2026-10-08'
-    });
+    const example = documentTemplateExample($('#documentTemplatePlatform')?.value || 'Direct client');
+    const rendered = buildDocumentEmailTemplate(templateId, example.application, example.details);
     const previewBody = htmlEmailBodyFromText(rendered.body);
     preview.innerHTML = `<div class="template-preview-subject"><span>Subject</span><strong>${escapeHtml(rendered.subject || '(No subject)')}</strong></div><div style="font-family:Arial, Helvetica, sans-serif; margin:0;">${previewBody}</div>`;
   }
@@ -258,10 +247,11 @@
     event.target.value = '';
   });
   $('#documentTemplateSelect')?.addEventListener('change', renderTemplateTesterPreview);
+  $('#documentTemplatePlatform')?.addEventListener('change', renderTemplateTesterPreview);
   $('#previewDocumentTemplateButton')?.addEventListener('click', renderTemplateTesterPreview);
   $('#sendDocumentTemplateTestButton')?.addEventListener('click', () => {
     const select = $('#documentTemplateSelect');
-    sendDocumentTemplateTestEmail(select?.value || 'contract-signing');
+    sendDocumentTemplateTestEmail(select?.value || 'contract-signing', $('#documentTemplatePlatform')?.value || 'Direct client');
   });
   function updateSalaryCalculator() {
     const currency = $('#salaryCalculatorCurrency')?.value || 'USD';

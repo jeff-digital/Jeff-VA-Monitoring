@@ -6477,7 +6477,7 @@
     'follow-up': {
       name: 'Follow-up',
       subject: '{{role}}',
-      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would appreciate any update on the progress or next steps.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
+      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would welcome any updates regarding my application status or the next steps in the application process.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     },
     'proceed-application': {
       name: 'Proceed application',
@@ -6712,21 +6712,17 @@
     ].join('\r\n');
   }
 
-  async function sendDocumentTemplateTestEmail(templateType = 'contract-signing') {
+  function documentTemplateExample(platform = 'Direct client') {
+    return {
+      application: { clientName: 'Acme Studio', contact: 'Jordan Lee', role: 'Social Media Management Services', appliedDate: '2026-10-21', platform },
+      details: { duration: '3 months', invoiceNumber: 'INV-2026-104', billingPeriod: 'September 2026', issueDate: '2026-09-24', dueDate: '2026-10-08' }
+    };
+  }
+
+  async function sendDocumentTemplateTestEmail(templateType = 'contract-signing', platform = 'Direct client') {
     const template = DOCUMENT_TEMPLATE_DEFINITIONS[templateType] || DOCUMENT_TEMPLATE_DEFINITIONS['contract-signing'];
-    const rendered = buildDocumentEmailTemplate(templateType, {
-      clientName: 'Acme Studio',
-      contact: 'Jordan Lee',
-      role: 'Social Media Management Services',
-      appliedDate: '2026-10-21',
-      platform: 'OnlineJobs.ph'
-    }, {
-      duration: '3 months',
-      invoiceNumber: 'INV-2026-104',
-      billingPeriod: 'September 2026',
-      issueDate: '2026-09-24',
-      dueDate: '2026-10-08'
-    });
+    const example = documentTemplateExample(platform);
+    const rendered = buildDocumentEmailTemplate(templateType, example.application, example.details);
     const recipient = 'almocerajeffreys@gmail.com';
     const rawMessage = buildRawEmailMessage({
       to: recipient,
@@ -6768,7 +6764,7 @@
       .replace(/{{role}}/g, () => roleName)
       .replace(/{{platform}}/g, () => platform)
       .replace(/{{platformSuffix}}/g, () => platform ? ' — ' + platform : '')
-      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' directly with your company' : ' through ' + platform) : '')
+      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' using the email address provided in the job description' : ' through ' + platform) : '')
       .replace(/{{applicationDate}}/g, () => applicationDate)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)
@@ -6782,7 +6778,7 @@
       .replace(/{{role}}/g, () => roleName)
       .replace(/{{platform}}/g, () => platform)
       .replace(/{{platformSuffix}}/g, () => platform ? ' — ' + platform : '')
-      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' directly with your company' : ' through ' + platform) : '')
+      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' using the email address provided in the job description' : ' through ' + platform) : '')
       .replace(/{{applicationDate}}/g, () => applicationDate)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)
@@ -11754,19 +11750,8 @@
     const preview = $('#documentTemplatePreview');
     if (!select || !preview) return;
     const templateId = select.value || 'contract-signing';
-    const rendered = buildDocumentEmailTemplate(templateId, {
-      clientName: 'Acme Studio',
-      contact: 'Jordan Lee',
-      role: 'Social Media Management Services',
-      appliedDate: '2026-10-21',
-      platform: 'OnlineJobs.ph'
-    }, {
-      duration: '3 months',
-      invoiceNumber: 'INV-2026-104',
-      billingPeriod: 'September 2026',
-      issueDate: '2026-09-24',
-      dueDate: '2026-10-08'
-    });
+    const example = documentTemplateExample($('#documentTemplatePlatform')?.value || 'Direct client');
+    const rendered = buildDocumentEmailTemplate(templateId, example.application, example.details);
     const previewBody = htmlEmailBodyFromText(rendered.body);
     preview.innerHTML = `<div class="template-preview-subject"><span>Subject</span><strong>${escapeHtml(rendered.subject || '(No subject)')}</strong></div><div style="font-family:Arial, Helvetica, sans-serif; margin:0;">${previewBody}</div>`;
   }
@@ -11776,10 +11761,11 @@
     event.target.value = '';
   });
   $('#documentTemplateSelect')?.addEventListener('change', renderTemplateTesterPreview);
+  $('#documentTemplatePlatform')?.addEventListener('change', renderTemplateTesterPreview);
   $('#previewDocumentTemplateButton')?.addEventListener('click', renderTemplateTesterPreview);
   $('#sendDocumentTemplateTestButton')?.addEventListener('click', () => {
     const select = $('#documentTemplateSelect');
-    sendDocumentTemplateTestEmail(select?.value || 'contract-signing');
+    sendDocumentTemplateTestEmail(select?.value || 'contract-signing', $('#documentTemplatePlatform')?.value || 'Direct client');
   });
   function updateSalaryCalculator() {
     const currency = $('#salaryCalculatorCurrency')?.value || 'USD';
