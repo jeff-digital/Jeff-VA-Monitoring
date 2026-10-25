@@ -24,11 +24,48 @@
     try { const url = new URL(value); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; }
   }
 
+  function cleanResearchAnswerText(value) {
+    const lines = String(value || '').replace(/\r\n?/g, '\n').split('\n');
+    const result = [];
+    let inCode = false;
+    const divider = line => /^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line);
+    const cells = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(cell => cell.trim().replace(/\\\|/g, '|'));
+    const plain = line => line
+      .replace(/^\s{0,3}#{1,6}\s+(.+?)(?:\s+#+)?\s*$/, '$1')
+      .replace(/^\s*>\s?/, '')
+      .replace(/^\s*[-*+]\s+/, '')
+      .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+      .replace(/__([^_\n]+)__/g, '$1')
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,!?:;])/g, '$1$2')
+      .replace(/`([^`\n]+)`/g, '$1')
+      .replace(/!?\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1 ($2)');
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
+      if (/^\s*(?:```|~~~)/.test(line)) { inCode = !inCode; continue; }
+      if (inCode) { result.push(line); continue; }
+      if (line.includes('|') && index + 1 < lines.length && divider(lines[index + 1])) {
+        const headers = cells(line).map(plain);
+        index++;
+        while (index + 1 < lines.length && lines[index + 1].includes('|') && cells(lines[index + 1]).length === headers.length) {
+          const row = cells(lines[++index]).map(plain);
+          if (divider(lines[index])) continue;
+          result.push(row[0]);
+          row.slice(1).forEach((cell, column) => { if (cell) result.push((headers[column + 1] ? headers[column + 1] + ': ' : '') + cell); });
+          result.push('');
+        }
+        continue;
+      }
+      if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line) || /^\s*#{1,6}\s*$/.test(line) || /^\s*(?:\|\s*){2,}$/.test(line)) continue;
+      result.push(plain(line));
+    }
+    return result.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   function renderResearchMessage(message) {
     const sources = Array.isArray(message.sources) ? message.sources.filter(source => source && researchSourceUrl(source.url)).slice(0, 6) : [];
-    let content = escapeHtml(message.content);
+    let content = escapeHtml(message.role === 'assistant' ? cleanResearchAnswerText(message.content) : message.content);
     if (message.role === 'assistant') {
-      content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\[(\d+)\]/g, (match, id) => {
+      content = content.replace(/\[(\d+)\]/g, (match, id) => {
         const source = sources.find(item => String(item.id) === id);
         return source ? '<a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">[' + id + ']</a>' : match;
       });
@@ -110,7 +147,7 @@
         if (currentUser?.id !== userId) return;
         if (response.status === 401 && attempt === 0) { session = await renewEmailAiSession(auth, userId); continue; }
         if (!response.ok || typeof result.answer !== 'string' || !result.answer.trim()) throw new Error(result.error || 'The assistant could not answer. Please try again.');
-        chat.messages.push({ role: 'assistant', content: result.answer, sources: result.sources, notices: result.notices });
+        chat.messages.push({ role: 'assistant', content: cleanResearchAnswerText(result.answer), sources: result.sources, notices: result.notices });
         saveResearchChat(userId, chat);
         break;
       }

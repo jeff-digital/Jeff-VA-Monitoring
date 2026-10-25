@@ -14,6 +14,7 @@ const env = { SUPABASE_URL: 'https://auth.example', SUPABASE_PUBLISHABLE_KEY: 'p
     assert.equal(input.max_output_tokens, 4096);
     assert.ok(!JSON.stringify(input).includes('workspace-secret'));
     assert.ok(input.instructions.includes('untrusted'));
+    assert.ok(input.instructions.includes('clean plain text'));
     if (modelFails) throw Error('provider detail with secret');
     if (delayed) await new Promise(resolve => { release = resolve; });
     return { output: [{ type: 'reasoning', content: [{ text: 'private reasoning never shown' }] }, { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'A useful answer [1].' }] }] };
