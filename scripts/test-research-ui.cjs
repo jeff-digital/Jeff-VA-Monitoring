@@ -29,6 +29,7 @@ const context = vm.createContext({ $, URL, AbortSignal, currentUser: { id: 'u1' 
     return Response.json({ answer: '<script>unsafe</script> Result [1]', sources: [{ id: 1, title: '<img>', url: 'https://example.com/source' }, { id: 2, title: 'Bad', url: 'javascript:alert(1)' }] });
   }
 });
+vm.runInContext(fs.readFileSync('src/frontend/js/modules/pages/06c-assistant-workspace.js', 'utf8'), context);
 vm.runInContext(source, context);
 (async () => {
   const shell = fs.readFileSync('src/frontend/js/modules/pages/06-shell-events.js', 'utf8');

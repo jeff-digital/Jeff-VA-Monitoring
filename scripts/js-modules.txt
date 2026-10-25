@@ -19,6 +19,7 @@ pages/07c-application-form.js
 04a-email-outcomes.js
 05-backup.js
 pages/06-shell-events.js
+pages/06c-assistant-workspace.js
 pages/06b-research-chat.js
 pages/07-applications-page.js
 pages/08-to-apply-page.js

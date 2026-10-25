@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-ai-compact-layout" />
+    <link rel="stylesheet" href="css/styles.css?v=20261025-assistant-workspace" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -986,7 +986,8 @@
         <header class="research-header"><div><h2 id="quickSearchTitle">Search your workspace</h2><p id="researchModelLabel" hidden>GPT-OSS 120B</p></div><button class="icon-button" type="button" id="closeQuickSearch" aria-label="Close search and AI assistant">×</button></header>
         <div class="research-tabs" role="tablist" aria-label="Search mode"><button type="button" role="tab" id="appSearchModeTab" aria-selected="true" aria-controls="quickAppSearchPanel">Search app</button><button type="button" role="tab" id="researchModeTab" aria-selected="false" aria-controls="researchPanel">AI assistant</button></div>
         <section class="research-panel" id="researchPanel" role="tabpanel" aria-labelledby="researchModeTab" hidden>
-          <div class="research-toolbar"><label><span class="sr-only">Mode</span><select id="researchSourceMode" title="Reasoning uses model knowledge; research checks available sources."><option value="reasoning">Reasoning</option><option value="research">Research with sources</option></select></label><label><span class="sr-only">Depth</span><select id="researchEffort" title="Response depth"><option value="low">Quick</option><option value="medium" selected>Balanced</option><option value="high">Deeper</option></select></label><button type="button" class="text-button" id="researchNewChat">New chat</button></div>
+          <div class="research-toolbar"><label><span class="sr-only">Mode</span><select id="researchSourceMode" title="Choose what the assistant can help with"><option value="reasoning">Reasoning</option><option value="research">Research with sources</option><option value="task">Create daily task</option><option value="application">Application updates</option></select></label><label><span class="sr-only">Depth</span><select id="researchEffort" title="Response depth"><option value="low">Quick</option><option value="medium" selected>Balanced</option><option value="high">Deeper</option></select></label><button type="button" class="text-button" id="researchNewChat">New chat</button></div>
+          <label class="research-application-picker" id="researchApplicationField" hidden><span>Application to check</span><select id="researchApplicationSelect"><option value="">Choose an application…</option></select></label>
           <section class="research-usage" id="researchUsagePanel" aria-label="Daily assistant usage" aria-live="polite">
             <div class="research-usage-heading"><span>Today</span><strong id="researchUsageCount">Checking usage…</strong><progress id="researchUsageProgress" max="20" value="0" aria-label="Daily assistant requests used" hidden></progress><span class="research-usage-reset" id="researchUsageReset">Resets 8 AM · PH</span><button class="text-button" type="button" id="refreshResearchUsage" aria-label="Refresh assistant usage" title="Refresh usage">↻</button><details><summary aria-label="About the assistant limit" title="About this limit">ⓘ</summary><div class="research-usage-details"><strong>Daily assistant limit</strong><p>20 attempts per account, shared across localhost and live. Resets at 8 AM Philippine time. Failed attempts count.</p><p>This is an app limit, not Cloudflare’s free balance. Other AI features share Cloudflare’s allowance. Use Workers Free to avoid overage charges.</p><a href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare usage ↗</a></div></details></div>
             <p id="researchUsageNote" hidden></p>
@@ -1806,6 +1807,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-ai-compact-layout"></script>
+    <script src="js/app.js?v=20261025-assistant-workspace"></script>
   </body>
 </html>

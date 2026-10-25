@@ -8026,3 +8026,11 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
   .workspace-unlock-modal h2 { font-size: 19px; }
   .workspace-unlock-field input { font-size: 16px; }
 }
+.research-application-picker { display: grid; gap: 6px; margin: 0 22px 10px; color: var(--muted); font-size: 11px; }
+.research-application-picker select { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--navy); font: inherit; }
+.research-task-draft { display: grid; gap: 7px; margin-top: 14px; padding: 14px; border: 1px solid #d7e5dd; border-radius: 9px; background: #f6faf7; font-size: 12px; }
+.research-task-draft > strong, .research-task-draft p { overflow-wrap: anywhere; }
+.research-task-draft > span:not(.research-message-label) { color: var(--muted); }
+.research-task-draft .research-message-label, .research-task-draft p { margin: 0; }
+.research-task-draft .button { justify-self: start; margin-top: 5px; font-size: 12px; }
+@media (max-width: 600px) { .research-application-picker { margin-inline: 12px; } .research-toolbar label { min-width: 0; } }

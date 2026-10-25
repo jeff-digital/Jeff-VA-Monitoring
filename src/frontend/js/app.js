@@ -8949,6 +8949,87 @@
 
   closeMobileSidebar();
 
+  // Workspace access is limited to an explicitly requested task or one application.
+  function refreshAssistantApplicationPicker() {
+    const picker = $('#researchApplicationSelect');
+    const previous = picker.value;
+    picker.innerHTML = '<option value="">Choose an application…</option>' + (data.applications || []).map(app =>
+      '<option value="' + escapeHtml(app.id) + '">' + escapeHtml((app.clientName || 'Unnamed') + ' · ' + (app.role || 'No role')) + '</option>').join('');
+    if ((data.applications || []).some(app => app.id === previous)) picker.value = previous;
+    $('#researchApplicationField').hidden = $('#researchSourceMode').value !== 'application';
+  }
+
+  function assistantWorkspaceRequest(prompt, selectedMode) {
+    const normalized = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}@]+/gu, ' ').trim();
+    const question = ' ' + normalized(prompt) + ' ';
+    let mode = selectedMode;
+    if (mode === 'reasoning' && /\b(task|to.do)\b/i.test(prompt) && /\b(make|create|add|schedule|remind)\b/i.test(prompt)) mode = 'task';
+    if (mode === 'reasoning' && /\b(application|applied|updates?|repl(?:y|ies)|received|receieved)\b/i.test(prompt)) mode = 'application';
+    if (mode === 'task') return { mode, workspace: { today: today() } };
+    if (mode !== 'application') return { mode };
+    const selected = selectedMode === 'application' ? $('#researchApplicationSelect').value : '';
+    let candidates = (data.applications || []).filter(app => selected ? app.id === selected
+      : [app.clientName, app.email].some(value => normalized(value).length >= 3 && question.includes(' ' + normalized(value) + ' ')));
+    if (candidates.length > 1) {
+      const roles = candidates.filter(app => normalized(app.role).length >= 3 && question.includes(' ' + normalized(app.role) + ' '));
+      if (roles.length === 1) candidates = roles;
+    }
+    if (candidates.length !== 1) {
+      $('#researchSourceMode').value = 'application';
+      refreshAssistantApplicationPicker();
+      return { error: candidates.length ? 'More than one application matches. Choose the exact application above, then send again.' : 'Choose an application above so I can check its saved updates.' };
+    }
+    const app = candidates[0];
+    const clip = (value, length) => String(value || '').slice(0, length);
+    const emails = matchingEmailsForApplication(app).filter(email => !isSentEmail(email))
+      .sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+    return { mode, scope: 'application:' + app.id, workspace: { application: { company: clip(app.clientName, 200), role: clip(app.role, 200),
+      status: clip(app.status, 100), applied: clip(app.appliedDate || app.dateApplied, 100), followUp: clip(app.followUpDate, 100) },
+      emails: emails.map(email => ({ subject: clip(email.subject, 300), from: clip(email.from, 300), date: clip(email.date, 100),
+        excerpt: clip(String(email.body || email.snippet || '').replace(/<[^>]*>/g, ' '), 1200) })) },
+      notices: ['Checked ' + app.clientName + ' · ' + (app.role || 'No role') + '. Uses up to 5 latest matched incoming emails saved in the app; no live Gmail check.'] };
+  }
+
+  function validAssistantTaskDraft(draft) {
+    return draft && typeof draft.title === 'string' && draft.title.trim() && draft.title.length <= 200
+      && /^\d{4}-\d{2}-\d{2}$/.test(draft.taskDate) && Number.isFinite(Date.parse(draft.taskDate))
+      && new Date(draft.taskDate).toISOString().slice(0, 10) === draft.taskDate
+      && typeof draft.notes === 'string' && draft.notes.length <= 2000;
+  }
+
+  function renderAssistantTaskAction(message) {
+    if (!validAssistantTaskDraft(message.taskDraft) || !message.actionId) return '';
+    const exists = (data.dailyTasks || []).some(task => task.assistantActionId === message.actionId);
+    return '<div class="research-task-draft"><span class="research-message-label">' + (exists || message.taskAdded ? 'Task added' : 'Daily task draft')
+      + '</span><strong>' + escapeHtml(message.taskDraft.title) + '</strong><span>Due ' + escapeHtml(message.taskDraft.taskDate)
+      + '</span>' + (message.taskDraft.notes ? '<p>' + escapeHtml(message.taskDraft.notes) + '</p>' : '')
+      + '<button type="button" class="button button-primary" data-assistant-add-task="' + escapeHtml(message.actionId) + '"'
+      + (exists || message.taskAdded ? ' disabled>Added ✓' : '>Add task') + '</button></div>';
+  }
+
+  function addAssistantDailyTask(actionId) {
+    const chat = currentResearchChat();
+    if (!currentUser || !dataReady || chat?.busy) return;
+    const message = chat?.messages.find(item => item.role === 'assistant' && item.actionId === actionId);
+    if (!message || message.taskAdded || !validAssistantTaskDraft(message.taskDraft)) return;
+    data.dailyTasks = data.dailyTasks || [];
+    if (data.dailyTasks.some(task => task.assistantActionId === actionId)) return;
+    // Catch the same draft requested again in another conversation.
+    const duplicate = data.dailyTasks.some(task => task.taskDate === message.taskDraft.taskDate
+      && task.title.trim().toLowerCase() === message.taskDraft.title.trim().toLowerCase());
+    if (duplicate) { chat.error = 'A task with this title and date already exists. Check Daily Tasks.'; renderResearchChat(); return; }
+    data.dailyTasks.push({ id: uid(), ...message.taskDraft, type: 'task', relatedType: '', relatedId: '', relatedName: '',
+      destination: '', checklist: [], createdAt: new Date().toISOString(), completedAt: '', assistantActionId: actionId });
+    message.taskAdded = true;
+    persist(); saveResearchChat(currentUser.id, chat); renderAll(); renderResearchChat();
+  }
+
+  $('#researchSourceMode')?.addEventListener('change', refreshAssistantApplicationPicker);
+  $('#researchMessages')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-assistant-add-task]');
+    if (button) addAssistantDailyTask(button.dataset.assistantAddTask);
+  });
+
   const researchChats = new Map();
   let researchRenderedUserId = null;
   const RESEARCH_CHAT_KEY = 'jeff-va-research-chat-v1:';
@@ -9102,7 +9183,8 @@
     return '<article class="research-message is-' + message.role + '"><span class="research-message-label">' + (message.role === 'user' ? 'You' : 'GPT-OSS 120B')
       + '</span><div class="research-message-text">' + content + '</div>'
       + (sources.length ? '<details class="research-sources"><summary>Retrieved sources · ' + sources.length + '</summary><ol>' + sources.map(source => '<li><a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.title) + '</a><small>' + escapeHtml(source.provider || 'Source') + '</small></li>').join('') + '</ol></details>' : '')
-      + (Array.isArray(message.notices) ? message.notices.map(note => '<p class="research-source-note">' + escapeHtml(note) + '</p>').join('') : '') + '</article>';
+      + (Array.isArray(message.notices) ? message.notices.map(note => '<p class="research-source-note">' + escapeHtml(note) + '</p>').join('') : '')
+      + (message.role === 'assistant' ? renderAssistantTaskAction(message) : '') + '</article>';
   }
 
   function refreshResearchChatAccount() {
@@ -9114,7 +9196,7 @@
     const chat = currentResearchChat();
     const messages = $('#researchMessages');
     if (!messages) return;
-    const welcome = '<div class="research-welcome"><span class="research-welcome-icon" aria-hidden="true">✦</span><h3>What would you like to work through?</h3><p>Research a topic, compare options, or think through a problem.</p><div class="research-suggestions"><button type="button" data-research-prompt="Help me plan a social media campaign for a small business.">Plan a campaign</button><button type="button" data-research-prompt="Compare hourly and monthly freelance pricing, with examples.">Compare options</button><button type="button" data-research-prompt="Help me reason through a difficult client request.">Think through a problem</button></div></div>';
+    const welcome = '<div class="research-welcome"><span class="research-welcome-icon" aria-hidden="true">✦</span><h3>What would you like to work through?</h3><p>Plan your work, check an application, or research a topic.</p><div class="research-suggestions"><button type="button" data-research-prompt="Create a daily task for tomorrow: finish the client video.">Create a task</button><button type="button" data-research-prompt="Compare hourly and monthly freelance pricing, with examples.">Compare options</button><button type="button" data-research-prompt="Have I received any updates on my application?">Check an application</button></div></div>';
     messages.innerHTML = chat?.messages.length ? chat.messages.map(renderResearchMessage).join('') : welcome;
     if (chat?.busy) messages.innerHTML += '<div class="research-working" role="status"><span class="news-category-loader-ring" aria-hidden="true"></span> Preparing your answer…</div>';
     $('#researchError').textContent = chat?.error || '';
@@ -9123,7 +9205,7 @@
     $('#researchSend').textContent = chat?.busy ? 'Working…' : 'Send';
     $('#researchNewChat').disabled = !chat || chat.busy || !chat.messages.length;
     $('#researchPrompt').disabled = !currentUser || !dataReady || Boolean(chat?.busy);
-    $('#researchStatus').textContent = !currentUser ? 'Sign in to use the assistant.' : chat?.busy ? 'You can close this window and return while the answer is prepared.' : 'Conversation stays in this browser tab. Your workspace records are not included.';
+    $('#researchStatus').textContent = !currentUser ? 'Sign in to use the assistant.' : chat?.busy ? 'You can close this window and return while the answer is prepared.' : 'Tasks need confirmation. Application checks use only the selected record and saved matched emails.';
     messages.scrollTop = chat?.messages.length ? messages.scrollHeight : 0;
     renderResearchUsage();
   }
@@ -9137,7 +9219,7 @@
     $('#researchModelLabel').hidden = !ai;
     $('#researchModeTab').setAttribute('aria-selected', String(ai));
     $('#appSearchModeTab').setAttribute('aria-selected', String(!ai));
-    if (ai) { renderResearchChat(); refreshResearchUsage(); }
+    if (ai) { refreshAssistantApplicationPicker(); renderResearchChat(); refreshResearchUsage(); }
     requestAnimationFrame(() => (ai ? $('#researchPrompt') : $('#quickSearchInput')).focus());
   }
 
@@ -9147,6 +9229,8 @@
     const chat = currentResearchChat();
     const prompt = $('#researchPrompt').value.trim();
     if (!chat || chat.busy || !dataReady || !prompt) return;
+    const workspaceRequest = assistantWorkspaceRequest(prompt, $('#researchSourceMode').value);
+    if (workspaceRequest.error) { chat.error = workspaceRequest.error; renderResearchChat(); return; }
     if (!researchUsageReady()) {
       await refreshResearchUsage(true);
       if (currentUser?.id !== userId) return;
@@ -9155,10 +9239,11 @@
     }
     if (researchLimitReached()) { chat.error = 'Your daily assistant limit is reached. It resets at 8:00 AM Philippine time.'; renderResearchChat(); return; }
     if (prompt.length > 4000) { chat.error = 'Keep your question under 4,000 characters.'; renderResearchChat(); return; }
-    const mode = $('#researchSourceMode').value;
+    const { mode, workspace } = workspaceRequest;
     const effort = $('#researchEffort').value;
     chat.error = '';
-    chat.messages.push({ role: 'user', content: prompt });
+    const scope = workspaceRequest.scope || (mode === 'task' ? 'task' : 'general');
+    chat.messages.push({ role: 'user', content: prompt, scope });
     chat.messages = chat.messages.slice(-20);
     chat.busy = true;
     $('#researchPrompt').value = '';
@@ -9171,7 +9256,8 @@
       if (sessionResult.error || !session?.access_token || (session.expires_at && session.expires_at <= Date.now() / 1000 + 60)) session = await renewEmailAiSession(auth, userId);
       const history = [];
       let size = 0;
-      for (const message of [...chat.messages].reverse().slice(0, 12)) {
+      const scopedMessages = chat.messages.filter(message => (message.scope || 'general') === scope);
+      for (const message of [...(mode === 'application' ? scopedMessages.slice(-1) : scopedMessages)].reverse().slice(0, 12)) {
         const content = message.content.slice(0, 4000);
         if (size + content.length > 20000) break;
         history.unshift({ role: message.role, content }); size += content.length;
@@ -9179,13 +9265,15 @@
       for (let attempt = 0; attempt < 2; attempt++) {
         if (currentUser?.id !== userId || session?.user?.id !== userId) return;
         const response = await fetch('/api/research', { method: 'POST', headers: { authorization: 'Bearer ' + session.access_token, 'content-type': 'application/json' },
-          body: JSON.stringify({ messages: history, mode, effort }), signal: AbortSignal.timeout(65000) });
+          body: JSON.stringify({ messages: history, mode, effort, ...(workspace ? { workspace } : {}) }), signal: AbortSignal.timeout(65000) });
         const result = await response.json().catch(() => ({}));
         if (currentUser?.id !== userId) return;
         if (result.usage) rememberResearchUsage(userId, result.usage);
         if (response.status === 401 && attempt === 0) { session = await renewEmailAiSession(auth, userId); continue; }
         if (!response.ok || typeof result.answer !== 'string' || !result.answer.trim()) throw new Error(result.error || 'The assistant could not answer. Please try again.');
-        chat.messages.push({ role: 'assistant', content: cleanResearchAnswerText(result.answer), sources: result.sources, notices: result.notices });
+        chat.messages.push({ role: 'assistant', content: cleanResearchAnswerText(result.answer), scope, sources: result.sources,
+          notices: [...(result.notices || []), ...(workspaceRequest.notices || [])],
+          ...(mode === 'task' && validAssistantTaskDraft(result.taskDraft) ? { taskDraft: result.taskDraft, actionId: uid() } : {}) });
         saveResearchChat(userId, chat);
         break;
       }
