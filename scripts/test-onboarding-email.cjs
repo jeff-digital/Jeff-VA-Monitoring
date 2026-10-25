@@ -31,7 +31,7 @@ vm.runInContext('async function selectOnboardingEmail(actionRow) {' + source.sli
   assert.equal(requests, 1);
   assert.equal(opened, 1, 'Selecting onboarding opens an email, not a link-only panel');
   assert.equal($('#composeTo').value, client.email);
-  assert.match($('#composeSubject').value, /onboarding/i);
+  assert.equal($('#composeSubject').value, 'Action Required: Complete or Update Your Onboarding Information');
   assert.match($('#composeBody').value, /Hi Studio One/);
   const link = $('#composeBody').value.match(/\]\((https:\/\/[^)]+)\)/)[1];
   const token = new URL(link).hash.slice(7);
