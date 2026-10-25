@@ -1896,6 +1896,28 @@ body.auth-loading .app-shell { display: none !important; }
 .login-error { min-height: 16px; margin: 0; color: var(--rose); font-size: 11px; }
 .login-error:not(:empty) { padding: 9px 11px; border: 1px solid #efc8c8; border-radius: 6px; background: #fff0f0; }
 .login-note { margin: 21px 0 0; color: #989a94; font-size: 10px; text-align: center; }
+@media (max-width: 600px) {
+  body:not(.authenticated) { min-height: 100dvh; }
+  #loginScreen { min-height: 100dvh; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  #loginScreen .login-card { padding: 24px; }
+  #loginScreen .login-brand { margin-bottom: 18px; }
+  #loginScreen .login-card h1 { font-size: 28px; line-height: 1.2; }
+  #loginScreen .login-system-name { margin-bottom: 16px; font-size: 11px; }
+  #loginScreen .login-form { gap: 11px; }
+  #loginScreen .login-form .form-field { gap: 5px; font-size: 12px; line-height: 1.35; }
+  #loginScreen .login-form input { min-height: 44px; height: 44px; font-size: 16px; }
+  #loginScreen .login-form .button { min-height: 44px; padding: 9px 10px; font-size: 13px; }
+  #loginScreen .login-google-status { min-height: 0; margin: 0; font-size: 11px; line-height: 1.4; }
+  #loginScreen .login-error { min-height: 0; font-size: 11px; line-height: 1.4; }
+}
+@media (max-width: 600px) and (max-height: 650px) {
+  #loginScreen .login-card { padding: 18px; }
+  #loginScreen .login-brand { margin-bottom: 12px; font-size: 14px; }
+  #loginScreen .login-brand .brand-mark { width: 32px; height: 32px; }
+  #loginScreen .login-card h1 { font-size: 25px; }
+  #loginScreen .login-system-name { margin-bottom: 12px; }
+  #loginScreen .login-form { gap: 8px; }
+}
 .welcome-transition { position: fixed; z-index: 2000; inset: 0; display: grid; place-items: center; padding: 24px; background: #f7f7f5; opacity: 0; visibility: hidden; transition: opacity 320ms ease, visibility 320ms ease; }
 .welcome-transition.is-visible { opacity: 1; visibility: visible; }
 .welcome-transition.is-leaving { opacity: 0; }
