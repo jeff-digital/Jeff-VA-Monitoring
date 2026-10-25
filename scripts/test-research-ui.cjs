@@ -55,6 +55,7 @@ vm.runInContext(source, context);
   assert.doesNotMatch(context.renderResearchMessage({ role: 'assistant', content: markdown }), /###|\*\*|\|---/);
   assert.match(context.renderResearchMessage({ role: 'user', content: '### my exact text' }), /### my exact text/, 'User text stays unchanged');
   context.setQuickSearchMode('ai');
+  assert.equal($('#researchUsagePanel').open, false, 'Usage starts collapsed when the assistant opens');
   assert.equal($('#quickAppSearchPanel').hidden, true);
   assert.equal($('#researchPanel').hidden, false);
   await context.refreshResearchUsage();

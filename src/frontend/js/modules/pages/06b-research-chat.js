@@ -180,6 +180,7 @@
 
   function setQuickSearchMode(mode) {
     const ai = mode === 'ai';
+    $('#researchUsagePanel').open = false;
     $('#quickSearchModal').classList.toggle('is-research', ai);
     $('#quickAppSearchPanel').hidden = ai;
     $('#researchPanel').hidden = !ai;

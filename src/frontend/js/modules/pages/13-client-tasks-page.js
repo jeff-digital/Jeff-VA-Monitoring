@@ -141,8 +141,7 @@ function updateClientTaskSchedule() {
     return;
   }
   const overnight = clientTaskClockMinutes(endTime) <= clientTaskClockMinutes(startTime);
-  const selectedLabels = weekdays.map(day => CLIENT_TASK_WEEKDAYS[day].slice(0, 3)).join(', ');
-  summary.innerHTML = `<strong>${workdays} workday${workdays === 1 ? '' : 's'} · ${totalMinutes.toLocaleString()} total minutes</strong><br>${escapeHtml(clientTaskTimeLabel(startTime))}–${escapeHtml(clientTaskTimeLabel(endTime))}${overnight ? ' overnight' : ''} · ${escapeHtml(selectedLabels)}.`;
+  summary.innerHTML = `<strong>${workdays} workday${workdays === 1 ? '' : 's'} · ${totalMinutes.toLocaleString()} total minutes</strong>${overnight ? ' · Overnight' : ''}`;
 }
 
 function clientTaskTimeEntries(task) {

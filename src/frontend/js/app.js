@@ -2073,6 +2073,25 @@
     }).join('')}`;
   }
 
+  function renderClientDashboardTasks(clients) {
+    const groups = clients.map(client => ({ client, tasks: [
+      ...(data.clientTasks || []).filter(task => task.clientId === client.id && task.status !== 'done' && !task.completedAt).map(task => ({ ...task, source: 'client-task', date: dateKey(task.dueDate) })),
+      ...(data.dailyTasks || []).filter(task => task.relatedType === 'client' && task.relatedId === client.id && !task.completedAt).map(task => ({ ...task, source: 'daily-task', date: dateKey(task.taskDate) }))
+    ].sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || String(a.title || '').localeCompare(String(b.title || ''))) }))
+      .filter(group => group.tasks.length)
+      .sort((a, b) => (a.tasks[0].date || '9999').localeCompare(b.tasks[0].date || '9999') || String(a.client.clientName || '').localeCompare(String(b.client.clientName || '')));
+    const count = groups.reduce((sum, group) => sum + group.tasks.length, 0);
+    $('#clientDashboardTasksCount').textContent = count ? plural(count, 'open task') : 'No open tasks';
+    $('#clientDashboardTaskList').innerHTML = count ? groups.map(({ client, tasks }) => `<section class="client-dashboard-task-group" aria-label="${escapeHtml(client.clientName || 'Untitled client')}">
+      <h3>${escapeHtml(client.clientName || 'Untitled client')}<span>${tasks.length}</span></h3>
+      ${tasks.map(task => {
+        const overdue = task.date && task.date < today();
+        const dueToday = task.date === today();
+        const label = task.date ? `${overdue ? 'Overdue · ' : dueToday ? 'Today · ' : ''}${formatDate(task.date)}` : 'No due date';
+        return `<article class="client-dashboard-task-row"><div><strong>${escapeHtml(task.title || 'Untitled task')}</strong><small>${task.status === 'in-progress' ? 'In progress' : 'To do'}</small></div><span class="client-dashboard-task-date${overdue ? ' is-overdue' : dueToday ? ' is-today' : ''}">${task.date ? `<time datetime="${escapeHtml(task.date)}">${escapeHtml(label)}</time>` : label}</span><button class="client-dashboard-task-done" type="button" data-client-dashboard-attention="${task.source}" data-client-id="${escapeHtml(client.id)}" data-item-id="${escapeHtml(task.id)}" aria-label="${escapeHtml(`Mark ${task.title || 'task'} for ${client.clientName || 'client'} done`)}" title="Mark done">✓</button></article>`;
+      }).join('')}</section>`).join('') : '<div class="client-dashboard-task-empty"><strong>All caught up</strong><p>Tasks linked to your clients will appear here.</p></div>';
+  }
+
   function renderClientDashboardAttention(clients) {
     const entries = [];
     clients.forEach(item => {
@@ -2140,11 +2159,8 @@
     $('#clientDashboardIncomeCard').hidden = !income;
     $('#clientDashboardIncome').textContent = income || '—';
     $('#clientDashboardPanel .client-dashboard-stat-grid').classList.toggle('has-income', Boolean(income));
-    $('#clientDashboardActionClient').innerHTML = clients.length
-      ? clients.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.clientName || 'Untitled client')}</option>`).join('')
-      : '<option value="">Add a client to get started</option>';
-    $$('#clientDashboardQuickActions [data-client-dashboard-action]').forEach(button => { button.disabled = !clients.length; });
     renderClientDashboardTable(clients);
+    renderClientDashboardTasks(clients);
     renderClientDashboardAttention(clients);
     renderClientDashboardActivity(clients);
     renderClientDashboardHours();
@@ -2204,7 +2220,7 @@
   }
 
   function openClientDashboardAction(action) {
-    const client = hiredClients().find(item => item.id === $('#clientDashboardActionClient').value);
+    const client = hiredClients().find(item => item.id === clientDashboardSelectedId);
     if (!client) return;
     if (action === 'message') {
       openPlainClientEmailComposer(client);
@@ -2226,7 +2242,7 @@
 
   async function saveClientDashboardAction(event) {
     event.preventDefault();
-    const client = hiredClients().find(item => item.id === $('#clientDashboardActionClient').value);
+    const client = hiredClients().find(item => item.id === clientDashboardSelectedId);
     if (!client) return;
     const formData = new FormData(event.currentTarget);
     const now = new Date().toISOString();
@@ -2266,8 +2282,7 @@
     }
     $('#clientDashboardActionDialog').close();
     renderAll();
-    if (action === 'task') showView('daily-task');
-    else if (clientDashboardSelectedId) openClientDashboardDrawer(client.id, clientDashboardDrawerReturnFocus);
+    if (clientDashboardSelectedId) openClientDashboardDrawer(client.id, clientDashboardDrawerReturnFocus);
     toast(action === 'hours' ? 'Client hours saved.' : action === 'task' ? 'Task added to Daily Tasks.' : 'Client note saved.');
   }
 
@@ -4021,6 +4036,7 @@
     $('#closeClientDetailsButton').hidden = !viewOnly;
     $('#clientForm').classList.toggle('view-details-form', viewOnly);
     const activeClientEdit = Boolean(id && data.applications.find(application => application.id === id)?.status === 'Active client' && !viewOnly);
+    $('#clientForm').classList.toggle('active-client-edit', activeClientEdit);
     $('#appliedDate').disabled = activeClientEdit;
     $('#followUpDate').disabled = activeClientEdit;
     $('#automaticFollowUp').disabled = activeClientEdit;
@@ -4080,11 +4096,22 @@
       : `<p>${emptyMessage}</p>`;
   }
 
+  function renderClientHistoryEmailRows(emails) {
+    return emails.map(email => {
+      const rawRecipient = String(email.to || 'Client').trim();
+      const recipient = rawRecipient.includes('<') ? rawRecipient.slice(0, rawRecipient.indexOf('<')).replace(/["']/g, '').trim() || rawRecipient : rawRecipient;
+      const preview = emailContentText(email.body || '').replace(/\s+/g, ' ').trim().slice(0, 110);
+      const subject = email.subject || '(No subject)';
+      const time = emailTime(email.date);
+      return `<article class="email-row sent" data-email-detail="${escapeHtml(email.id)}"><span class="email-avatar" aria-hidden="true">${escapeHtml(recipient.charAt(0).toUpperCase() || '?')}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(rawRecipient)}">${escapeHtml(recipient)}</h3></div><p class="email-preview" title="${escapeHtml(subject + (preview ? ' - ' + preview : ''))}"><strong class="email-subject">${escapeHtml(subject)}</strong><span class="sent-email-badge">SENT</span><span class="email-snippet">${preview ? ' - ' + escapeHtml(preview) : ''}</span></p></div><time class="email-date" title="Sent"><span>${escapeHtml(emailDate(email.date))}</span>${time ? `<span class="email-time">${escapeHtml(time)}</span>` : ''}</time><div class="email-row-actions"><button class="email-actions-trigger" type="button" data-email-detail="${escapeHtml(email.id)}" aria-label="${escapeHtml('View email: ' + subject)}">View email</button></div></article>`;
+    }).join('');
+  }
+
   function renderHiredEmailHistory(item) {
     const sentEmails = sentEmailsForApplication(item);
     return `<section class="client-email-history hired-email-history" aria-live="polite">
-      <div class="client-email-history-head"><div><p class="eyebrow">CLIENT COMMUNICATION</p><h3>Email History</h3><span>Sent to this client</span></div><strong>${plural(sentEmails.length, 'email')}</strong></div>
-      <div class="client-email-history-list">${renderSentEmailHistoryItems(sentEmails, 'No emails have been sent to this client.')}</div>
+      <header class="client-email-history-head"><h3>Email History</h3><strong>${plural(sentEmails.length, 'email')}</strong></header>
+      <div class="client-email-history-list">${sentEmails.length ? renderClientHistoryEmailRows(sentEmails) : '<p>No emails have been sent to this client.</p>'}</div>
     </section>`;
   }
 
@@ -9386,6 +9413,7 @@
 
   function setQuickSearchMode(mode) {
     const ai = mode === 'ai';
+    $('#researchUsagePanel').open = false;
     $('#quickSearchModal').classList.toggle('is-research', ai);
     $('#quickAppSearchPanel').hidden = ai;
     $('#researchPanel').hidden = !ai;
@@ -14941,8 +14969,7 @@ function updateClientTaskSchedule() {
     return;
   }
   const overnight = clientTaskClockMinutes(endTime) <= clientTaskClockMinutes(startTime);
-  const selectedLabels = weekdays.map(day => CLIENT_TASK_WEEKDAYS[day].slice(0, 3)).join(', ');
-  summary.innerHTML = `<strong>${workdays} workday${workdays === 1 ? '' : 's'} · ${totalMinutes.toLocaleString()} total minutes</strong><br>${escapeHtml(clientTaskTimeLabel(startTime))}–${escapeHtml(clientTaskTimeLabel(endTime))}${overnight ? ' overnight' : ''} · ${escapeHtml(selectedLabels)}.`;
+  summary.innerHTML = `<strong>${workdays} workday${workdays === 1 ? '' : 's'} · ${totalMinutes.toLocaleString()} total minutes</strong>${overnight ? ' · Overnight' : ''}`;
 }
 
 function clientTaskTimeEntries(task) {
