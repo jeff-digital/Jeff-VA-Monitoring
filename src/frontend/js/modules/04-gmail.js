@@ -1079,11 +1079,12 @@
     const button = $('#loginGoogleButton');
     const status = $('#loginGoogleStatus');
     if (button) {
-      button.textContent = connected ? 'Google account connected' : 'Log in with Google';
+      const label = $('#loginGoogleLabel');
+      if (label) label.textContent = connected ? 'Google account connected' : 'Log in with Google';
       button.classList.toggle('button-secondary', !connected);
       button.classList.toggle('button-success', connected);
     }
-    if (status && message) status.textContent = message;
+    if (status && typeof message === 'string') status.textContent = message;
   }
 
   let gmailSyncDisplay = { userId: '', state: 'checking' };
@@ -1153,7 +1154,7 @@
     setGmailSyncDisplay('checking');
     gmailReconnectRequired = sessionStorage.getItem(GMAIL_RECONNECT_REQUIRED_KEY) === '1';
     updateGmailConnectionUI(false);
-    updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
+    updateLoginGoogleUI(false, '');
     const loginGoogleButton = $('#loginGoogleButton');
     loginGoogleButton.disabled = !supabaseConfigured();
     // Supabase sign-in and Worker token renewal do not need the popup SDK.
@@ -1207,7 +1208,7 @@
       $('#loginError').textContent = providerDisabled
         ? 'Google sign-in is not enabled. Check the authentication provider settings, then try again.'
         : 'Google sign-in could not start. Check the authentication provider settings.';
-      $('#loginGoogleStatus').textContent = 'Use your Google account to open the dashboard.';
+      $('#loginGoogleStatus').textContent = '';
       setButtonLoading(loginGoogleButton, false);
     }
   }

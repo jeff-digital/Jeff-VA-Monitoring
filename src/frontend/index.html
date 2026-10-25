@@ -12,19 +12,17 @@
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Jeff VA login">
       <div class="login-card">
-        <div class="login-brand"><span class="brand-mark">J</span><span>Jeff VA</span></div>
-        <p class="eyebrow">PRIVATE WORKSPACE</p>
+        <div class="login-brand"><span class="brand-mark" aria-hidden="true"><img src="images/tab.png" alt="" /></span><span>Jeff VA</span></div>
         <h1>Welcome back</h1>
-        <p class="login-copy">Sign in to continue to your client dashboard.</p>
+        <p class="login-system-name">Management System | Jeff VA</p>
         <form id="loginForm" class="login-form" novalidate>
           <label class="form-field">Email<input id="loginUsername" autocomplete="username" required placeholder="Enter your email" /></label>
           <label class="form-field">Password<input id="loginPassword" type="password" autocomplete="current-password" required placeholder="••••••" /></label>
           <p class="login-error" id="loginError" role="alert"></p>
           <button class="button button-primary login-submit" type="submit">Log in</button>
-          <button class="button button-secondary login-google" type="button" id="loginGoogleButton">Log in with Google</button>
-          <p class="gmail-status login-google-status" id="loginGoogleStatus" aria-live="polite">Use your Google account to open the dashboard.</p>
+          <button class="button button-secondary login-google" type="button" id="loginGoogleButton"><img class="login-google-icon" src="images/google.svg" width="18" height="18" alt="" aria-hidden="true" /><span id="loginGoogleLabel">Log in with Google</span></button>
+          <p class="gmail-status login-google-status" id="loginGoogleStatus" aria-live="polite"></p>
         </form>
-        <p class="login-note">Your sign-in is remembered on this browser. Use Log out when you finish on a shared device.</p>
       </div>
     </section>
     <div class="welcome-transition" id="welcomeTransition" role="status" aria-live="polite" hidden>

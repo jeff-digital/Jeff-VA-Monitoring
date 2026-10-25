@@ -131,7 +131,7 @@
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     sessionStorage.removeItem(GMAIL_CONNECTED_KEY);
     sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
-    updateLoginGoogleUI(false, 'Use your Google account to open the dashboard.');
+    updateLoginGoogleUI(false, '');
     updateGmailConnectionUI(false);
     setGmailStatus('Gmail ready — log in with Google to sync your inbox');
     if (currentUser?.id) sessionStorage.removeItem(`${WORKSPACE_READY_NOTICE_KEY}:${currentUser.id}`);
