@@ -20,12 +20,12 @@
     },
     'follow-up': {
       name: 'Follow-up',
-      subject: '{{role}}',
+      subject: 'Application for {{role}}',
       body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would welcome any updates regarding my application status or the next steps in the application process.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     },
     'proceed-application': {
       name: 'Proceed application',
-      subject: 'Application for - {{role}}',
+      subject: 'Application for {{role}}',
       body: 'Dear Hiring Team,\n\nThank you for the opportunity to move forward with my application for the {{role}} position. I am sharing my contact details below for your reference.\n\nFull name: Jeffrey S. Almocera\nEmail: almocerajeffreys@gmail.com\nPhone: +63 975 683 4839\nWebsite: jeffdigi.com\n\nPlease let me know if you need any additional information. I look forward to hearing from you about the next steps.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     },
     'contract-ended': {
@@ -774,7 +774,7 @@
     const recipient = extractEmailAddress(item.email);
     const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
     const q = `in:sent to:${recipient} after:${after} {subject:follow "I wanted to follow up on my application"}`;
-    const subjects = [subject, ...(item.clientName ? ['Follow-up: ' + item.clientName.trim()] : [])].map(value => value.toLowerCase());
+    const subjects = [subject, ...(String(item.role || '').trim() ? [item.role.trim(), 'Application for ' + item.role.trim()] : []), ...(item.clientName ? ['Follow-up: ' + item.clientName.trim()] : [])].map(value => value.toLowerCase());
     const list = await fetchGmailJson(`${root}?${new URLSearchParams({ q, maxResults: '100' })}`);
     for (const message of list.messages || []) {
       const email = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=To&metadataHeaders=Subject`);

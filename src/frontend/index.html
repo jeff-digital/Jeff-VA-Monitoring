@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-template-preview" />
+    <link rel="stylesheet" href="css/styles.css?v=20261025-search-first" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -132,7 +132,7 @@
             <button class="dashboard-switcher-tab" id="applicationDashboardTab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="applicationDashboardPanel" data-dashboard-tab="application">Application Dashboard</button>
           </div>
           <div class="topbar-actions">
-            <button class="button button-secondary global-search-trigger" type="button" id="openQuickSearch" aria-label="Open quick search" aria-haspopup="dialog" aria-controls="quickSearchModal"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span><kbd>Ctrl K</kbd></button>
+            <button class="button button-secondary global-search-trigger" type="button" id="openQuickSearch" aria-label="Open search and AI assistant" aria-haspopup="dialog" aria-controls="quickSearchModal"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span><kbd>Ctrl K</kbd></button>
             <p class="local-indicator" id="saveIndicator" role="status" aria-live="polite" hidden><span></span><span id="saveIndicatorText"></span></p>
             <div class="notification-menu" id="notificationMenu">
               <button class="notification-button" type="button" id="notificationButton" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notificationPanel">
@@ -962,10 +962,21 @@
     </dialog>
     <dialog class="modal quick-search-modal" id="quickSearchModal" aria-labelledby="quickSearchTitle">
       <div class="quick-search-shell">
-        <label class="quick-search-input"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="quickSearchInput" type="search" autocomplete="off" placeholder="Search applications, emails, or pages…" aria-label="Search applications, emails, or pages" /><kbd>ESC</kbd></label>
-        <h2 id="quickSearchTitle" class="sr-only">Quick search</h2>
-        <div id="quickSearchResults" class="quick-search-results" role="listbox" aria-label="Search results"></div>
-        <div class="quick-search-footer"><span>Jump to pages or open a matching application</span><button class="text-button" type="button" id="showKeyboardShortcuts">Keyboard shortcuts</button></div>
+        <header class="research-header"><div><h2 id="quickSearchTitle">Search your workspace</h2><p id="researchModelLabel" hidden>GPT-OSS 120B</p></div><button class="icon-button" type="button" id="closeQuickSearch" aria-label="Close search and AI assistant">×</button></header>
+        <div class="research-tabs" role="tablist" aria-label="Search mode"><button type="button" role="tab" id="appSearchModeTab" aria-selected="true" aria-controls="quickAppSearchPanel">Search app</button><button type="button" role="tab" id="researchModeTab" aria-selected="false" aria-controls="researchPanel">AI assistant</button></div>
+        <section class="research-panel" id="researchPanel" role="tabpanel" aria-labelledby="researchModeTab" hidden>
+          <div class="research-toolbar"><label>Mode<select id="researchSourceMode"><option value="reasoning">Reasoning</option><option value="research">Research with sources</option></select></label><label>Depth<select id="researchEffort"><option value="low">Quick</option><option value="medium" selected>Balanced</option><option value="high">Deeper</option></select></label><button type="button" class="text-button" id="researchNewChat">New chat</button></div>
+          <p class="research-source-help">Research checks Wikipedia and available news excerpts. Reasoning uses the model's knowledge and what you type.</p>
+          <div class="research-messages" id="researchMessages" role="log" aria-label="AI conversation" aria-live="polite"></div>
+          <p class="research-error" id="researchError" role="alert" hidden></p>
+          <form class="research-form" id="researchForm"><label class="sr-only" for="researchPrompt">Your question</label><textarea id="researchPrompt" maxlength="4000" rows="3" placeholder="Ask a question or paste something to work through…"></textarea><div><small>Enter to send · Shift + Enter for a new line</small><button class="button button-primary" id="researchSend" type="submit">Send</button></div></form>
+          <p class="research-status" id="researchStatus"></p>
+        </section>
+        <section id="quickAppSearchPanel" role="tabpanel" aria-labelledby="appSearchModeTab">
+          <label class="quick-search-input"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="quickSearchInput" type="search" autocomplete="off" placeholder="Search applications, emails, or pages…" aria-label="Search applications, emails, or pages" /><kbd>ESC</kbd></label>
+          <div id="quickSearchResults" class="quick-search-results" role="listbox" aria-label="Search results"></div>
+          <div class="quick-search-footer"><span>Jump to pages or open a matching application</span><button class="text-button" type="button" id="showKeyboardShortcuts">Keyboard shortcuts</button></div>
+        </section>
       </div>
     </dialog>
     <dialog class="modal small-modal shortcuts-modal" id="shortcutsModal" aria-labelledby="shortcutsTitle">
@@ -1753,7 +1764,7 @@
     <dialog class="modal world-clock-modal" id="worldClockModal" aria-labelledby="worldClockTitle" aria-describedby="worldClockHelp">
       <form method="dialog" class="world-clock-form">
         <div class="modal-heading"><div><p class="eyebrow">CLIENT TIME ZONES</p><h2 id="worldClockTitle">World clock</h2></div><button class="icon-button" type="submit" value="cancel" aria-label="Close world clock">×</button></div>
-        <p class="world-clock-help" id="worldClockHelp">Showing New York, Toronto, Sydney, and London. These are city times; other regions in each country may differ. Times use your device clock and adjust for daylight saving automatically.</p>
+        <p class="world-clock-help" id="worldClockHelp">New York, Toronto, Sydney, and London are shown by default. Search a city or country, or choose a country below, to reveal other locations. Times adjust for daylight saving automatically.</p>
         <div class="world-clock-toolbar"><label><span class="sr-only">Search cities or countries</span><input type="search" id="worldClockSearch" placeholder="Search city or country" /></label><label><span class="sr-only">Filter country</span><select id="worldClockCountry"><option value="">All countries</option><option>Australia</option><option>Canada</option><option>United States</option><option>United Kingdom</option></select></label></div>
         <p class="world-clock-local" id="worldClockLocalTime"></p>
         <div class="world-clock-grid" id="worldClockGrid" aria-live="off"></div>
@@ -1771,6 +1782,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-ai-capability-news"></script>
+    <script src="js/app.js?v=20261025-research-modal"></script>
   </body>
 </html>

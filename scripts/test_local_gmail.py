@@ -123,3 +123,24 @@ with patch.object(server, 'urlopen', side_effect=URLError('offline')):
     assert backup.result_status == 503
     assert 'Backup download protection' in json.loads(backup.wfile.getvalue())['error']
 print('Local backup receipt forwarding checks passed.')
+
+
+def research_fetch(request, timeout):
+    assert request.full_url == server.RESEARCH_UPSTREAM
+    assert timeout == 75
+    assert request.get_header('Authorization') == 'Bearer test-session'
+    return Response()
+
+with patch.object(server, 'urlopen', side_effect=research_fetch):
+    research = handler()
+    research.path = server.RESEARCH_PATH
+    research.do_POST()
+    assert research.result_status == 200
+
+with patch.object(server, 'urlopen', side_effect=URLError('offline')):
+    research = handler()
+    research.path = server.RESEARCH_PATH
+    research.do_POST()
+    assert research.result_status == 503
+    assert 'research assistant' in json.loads(research.wfile.getvalue())['error']
+print('Local research forwarding checks passed.')

@@ -37,7 +37,7 @@
     const sentDates = [item.followUpSentAt, ...data.emails.filter(email => {
       if (!isSentEmail(email)) return false;
       const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
-      const roleOnlyFollowUp = subject.toLowerCase() === (String(item.role || '').trim() || 'position').toLowerCase()
+      const roleOnlyFollowUp = [String(item.role || '').trim() || 'position', 'Application for ' + (String(item.role || '').trim() || 'position')].some(value => value.toLowerCase() === subject.toLowerCase())
         && /I wanted to follow up on my application/i.test(email.body || '');
       if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject) && !roleOnlyFollowUp) return false;
       if (email.applicationId) return email.applicationId === item.id;
@@ -148,12 +148,16 @@
       }).join('')}</div>`;
       return;
     }
-    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.map(item => {
+    const salaryAmountWidth = Math.max(5, ...sortedApplications.map(item => {
+      const value = Number(item.salaryAmount);
+      return Number.isFinite(value) && value > 0 ? Math.round(value).toLocaleString().length + 1 : 0;
+    }));
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" style="--salary-amount-width: ${salaryAmountWidth}ch"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.map(item => {
       const salaryAmount = Number(item.salaryAmount);
-      const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
-        ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
+      const salary = Number.isFinite(salaryAmount) && salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
+        ? `<span class="application-salary-value"><span class="application-salary-amount"><span class="application-salary-currency">${escapeHtml(salaryCurrencySymbol(item.salaryCurrency))}</span><span class="application-salary-number">${escapeHtml(Math.round(salaryAmount).toLocaleString())}</span></span><span class="application-salary-period">/ ${item.salaryType === 'hourly' ? 'hour' : 'month'}</span></span>`
         : '—';
-      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
+      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td class="application-salary-cell">${salary}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 

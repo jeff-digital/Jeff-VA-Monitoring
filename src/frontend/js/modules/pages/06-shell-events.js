@@ -76,7 +76,7 @@
     $('#quickSearchModal').showModal();
     $('#quickSearchInput').value = '';
     renderQuickSearchResults();
-    requestAnimationFrame(() => $('#quickSearchInput').focus());
+    setQuickSearchMode('app');
   }
 
   $('#openQuickSearch').addEventListener('click', openQuickSearch);
@@ -146,7 +146,7 @@
       if (!$('#quickSearchModal').open) openQuickSearch();
       return;
     }
-    if ($('#quickSearchModal').open && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
+    if ($('#quickSearchModal').open && !$('#quickAppSearchPanel').hidden && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
       const results = [...$('#quickSearchResults').querySelectorAll('.quick-search-result')];
       if (results.length) {
         event.preventDefault();

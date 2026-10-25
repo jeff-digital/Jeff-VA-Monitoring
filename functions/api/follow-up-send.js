@@ -13,7 +13,7 @@ export function savedFollowUpDelivery(state, app, scheduledDate) {
     ...(state.emails || []).filter(email => {
       if (!(email.direction === 'sent' || email.source === 'sent' || email.labelIds?.includes('SENT'))) return false;
       const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
-      const roleOnlyFollowUp = subject.toLowerCase() === (String(app.role || '').trim() || 'position').toLowerCase()
+      const roleOnlyFollowUp = [String(app.role || '').trim() || 'position', 'Application for ' + (String(app.role || '').trim() || 'position')].some(value => value.toLowerCase() === subject.toLowerCase())
         && /I wanted to follow up on my application/i.test(email.body || '');
       if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject) && !roleOnlyFollowUp) return false;
       if (email.applicationId) return email.applicationId === app.id;

@@ -92,6 +92,9 @@ assert.equal(alreadySent.attempts(), 0, 'Missing Gmail history or edited subject
 
 const roleHistory = fixture({ existing: true, existingSubject: 'Graphic Designer' });
 assert.equal((await roleHistory.tab().findGmailSentFollowUp(app, date, 'Graphic Designer')).gmailId, 'existing', 'Role-only follow-ups are recovered from Gmail using their message content');
+const prefixedHistory = fixture({ existing: true, existingSubject: 'Application for Graphic Designer' });
+assert.equal((await prefixedHistory.tab().findGmailSentFollowUp({ ...app, role: 'Graphic Designer' }, date, 'Application for Graphic Designer')).gmailId, 'existing');
+assert.equal((await roleHistory.tab().findGmailSentFollowUp({ ...app, role: 'Graphic Designer' }, date, 'Application for Graphic Designer')).gmailId, 'existing', 'Earlier role-only subjects remain recognized');
 const originalApplication = fixture({ existing: true, existingSubject: 'Graphic Designer', existingBody: 'Please consider my application for this position.' });
 assert.equal(await originalApplication.tab().findGmailSentFollowUp(app, date, 'Graphic Designer'), null, 'An original application with the same subject is not a completed follow-up');
 const legacyHistory = fixture({ existing: true });

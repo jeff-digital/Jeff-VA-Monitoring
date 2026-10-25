@@ -91,6 +91,7 @@
   }
 
   function renderAll() {
+    if ($('#quickSearchModal')?.open && typeof refreshResearchChatAccount === 'function') refreshResearchChatAccount();
     if (typeof scheduleSavedEmailAiCheck === 'function') scheduleSavedEmailAiCheck();
     // perf: keep match caches until the application snapshot changes, instead of blowing them away on every rerender.
     invalidateApplicationMatchCaches();

@@ -35,6 +35,8 @@ FOLLOW_UP_PATH = "/api/follow-up/delivery"
 FOLLOW_UP_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/follow-up/delivery"
 BACKUP_DOWNLOAD_PATH = "/api/backup/download"
 BACKUP_DOWNLOAD_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/backup/download"
+RESEARCH_PATH = "/api/research"
+RESEARCH_UPSTREAM = "https://jeff-va-monitoring.jeffdigi.workers.dev/api/research"
 MAX_BACKUP_BYTES = 30 * 1024 * 1024
 BACKUP_FILENAME = "Jeff VA Backup.xlsx"
 APP_ROUTES = {
@@ -118,7 +120,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             length = 0
-        if not 0 < length <= 16384:
+        if not 0 < length <= (45000 if upstream_url == RESEARCH_UPSTREAM else 16384):
             self.send_error(HTTPStatus.BAD_REQUEST)
             return
         payload = self.rfile.read(length)
@@ -128,7 +130,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             })
             try:
                 with urlopen(request, timeout=timeout) as upstream:
-                    status, body = upstream.status, upstream.read(16384)
+                    status, body = upstream.status, upstream.read(100000 if upstream_url == RESEARCH_UPSTREAM else 16384)
             except HTTPError as error:
                 status, body = error.code, error.read(16384)
             # Never pass an HTML error page off as a successful token response.
@@ -139,7 +141,8 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
                               if upstream_url == EMAIL_AI_UPSTREAM else {"error": "AI progress review is temporarily unavailable or not deployed yet."}
                               if upstream_url == PROGRESS_AI_UPSTREAM else {"error": "Follow-up protection is unavailable. No new email was sent."}
                               if upstream_url == FOLLOW_UP_UPSTREAM else {"error": "Backup download protection is unavailable. Automatic download was skipped."}
-                              if upstream_url == BACKUP_DOWNLOAD_UPSTREAM else {"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
+                              if upstream_url == BACKUP_DOWNLOAD_UPSTREAM else {"error": "The research assistant is temporarily unavailable. Please try again."}
+                              if upstream_url == RESEARCH_UPSTREAM else {"error": "Gmail renewal is temporarily unavailable. Saved emails remain available."}).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -170,6 +173,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        if urlparse(self.path).path == RESEARCH_PATH:
+            self._refresh_gmail(RESEARCH_UPSTREAM, timeout=75)
+            return
         if urlparse(self.path).path == BACKUP_DOWNLOAD_PATH:
             self._refresh_gmail(BACKUP_DOWNLOAD_UPSTREAM)
             return

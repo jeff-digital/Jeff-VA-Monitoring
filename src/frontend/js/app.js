@@ -2482,7 +2482,7 @@
     const sentDates = [item.followUpSentAt, ...data.emails.filter(email => {
       if (!isSentEmail(email)) return false;
       const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
-      const roleOnlyFollowUp = subject.toLowerCase() === (String(item.role || '').trim() || 'position').toLowerCase()
+      const roleOnlyFollowUp = [String(item.role || '').trim() || 'position', 'Application for ' + (String(item.role || '').trim() || 'position')].some(value => value.toLowerCase() === subject.toLowerCase())
         && /I wanted to follow up on my application/i.test(email.body || '');
       if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject) && !roleOnlyFollowUp) return false;
       if (email.applicationId) return email.applicationId === item.id;
@@ -2593,12 +2593,16 @@
       }).join('')}</div>`;
       return;
     }
-    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.map(item => {
+    const salaryAmountWidth = Math.max(5, ...sortedApplications.map(item => {
+      const value = Number(item.salaryAmount);
+      return Number.isFinite(value) && value > 0 ? Math.round(value).toLocaleString().length + 1 : 0;
+    }));
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" style="--salary-amount-width: ${salaryAmountWidth}ch"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.map(item => {
       const salaryAmount = Number(item.salaryAmount);
-      const salary = salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
-        ? `${salaryCurrencySymbol(item.salaryCurrency)}${Math.round(salaryAmount).toLocaleString()} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}`
+      const salary = Number.isFinite(salaryAmount) && salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
+        ? `<span class="application-salary-value"><span class="application-salary-amount"><span class="application-salary-currency">${escapeHtml(salaryCurrencySymbol(item.salaryCurrency))}</span><span class="application-salary-number">${escapeHtml(Math.round(salaryAmount).toLocaleString())}</span></span><span class="application-salary-period">/ ${item.salaryType === 'hourly' ? 'hour' : 'month'}</span></span>`
         : '—';
-      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${escapeHtml(salary)}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
+      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td class="application-salary-cell">${salary}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
@@ -3580,6 +3584,7 @@
   }
 
   function renderAll() {
+    if ($('#quickSearchModal')?.open && typeof refreshResearchChatAccount === 'function') refreshResearchChatAccount();
     if (typeof scheduleSavedEmailAiCheck === 'function') scheduleSavedEmailAiCheck();
     // perf: keep match caches until the application snapshot changes, instead of blowing them away on every rerender.
     invalidateApplicationMatchCaches();
@@ -6493,12 +6498,12 @@
     },
     'follow-up': {
       name: 'Follow-up',
-      subject: '{{role}}',
+      subject: 'Application for {{role}}',
       body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would welcome any updates regarding my application status or the next steps in the application process.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     },
     'proceed-application': {
       name: 'Proceed application',
-      subject: 'Application for - {{role}}',
+      subject: 'Application for {{role}}',
       body: 'Dear Hiring Team,\n\nThank you for the opportunity to move forward with my application for the {{role}} position. I am sharing my contact details below for your reference.\n\nFull name: Jeffrey S. Almocera\nEmail: almocerajeffreys@gmail.com\nPhone: +63 975 683 4839\nWebsite: jeffdigi.com\n\nPlease let me know if you need any additional information. I look forward to hearing from you about the next steps.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     },
     'contract-ended': {
@@ -7247,7 +7252,7 @@
     const recipient = extractEmailAddress(item.email);
     const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
     const q = `in:sent to:${recipient} after:${after} {subject:follow "I wanted to follow up on my application"}`;
-    const subjects = [subject, ...(item.clientName ? ['Follow-up: ' + item.clientName.trim()] : [])].map(value => value.toLowerCase());
+    const subjects = [subject, ...(String(item.role || '').trim() ? [item.role.trim(), 'Application for ' + item.role.trim()] : []), ...(item.clientName ? ['Follow-up: ' + item.clientName.trim()] : [])].map(value => value.toLowerCase());
     const list = await fetchGmailJson(`${root}?${new URLSearchParams({ q, maxResults: '100' })}`);
     for (const message of list.messages || []) {
       const email = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=To&metadataHeaders=Subject`);
@@ -8507,7 +8512,7 @@
     $('#quickSearchModal').showModal();
     $('#quickSearchInput').value = '';
     renderQuickSearchResults();
-    requestAnimationFrame(() => $('#quickSearchInput').focus());
+    setQuickSearchMode('app');
   }
 
   $('#openQuickSearch').addEventListener('click', openQuickSearch);
@@ -8577,7 +8582,7 @@
       if (!$('#quickSearchModal').open) openQuickSearch();
       return;
     }
-    if ($('#quickSearchModal').open && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
+    if ($('#quickSearchModal').open && !$('#quickAppSearchPanel').hidden && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
       const results = [...$('#quickSearchResults').querySelectorAll('.quick-search-result')];
       if (results.length) {
         event.preventDefault();
@@ -8863,6 +8868,149 @@
   });
 
   closeMobileSidebar();
+
+  const researchChats = new Map();
+  let researchRenderedUserId = null;
+  const RESEARCH_CHAT_KEY = 'jeff-va-research-chat-v1:';
+
+  function currentResearchChat() {
+    const id = currentUser?.id;
+    if (!id) return null;
+    if (!researchChats.has(id)) {
+      let messages = [];
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(RESEARCH_CHAT_KEY + id) || '[]');
+        if (Array.isArray(saved)) messages = saved.filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.content === 'string').slice(-20);
+      } catch {}
+      researchChats.set(id, { messages, busy: false, error: '' });
+    }
+    return researchChats.get(id);
+  }
+
+  function saveResearchChat(userId, chat) {
+    try { sessionStorage.setItem(RESEARCH_CHAT_KEY + userId, JSON.stringify(chat.messages.slice(-20))); } catch {}
+  }
+
+  function researchSourceUrl(value) {
+    try { const url = new URL(value); return url.protocol === 'https:' ? url.href : ''; } catch { return ''; }
+  }
+
+  function renderResearchMessage(message) {
+    const sources = Array.isArray(message.sources) ? message.sources.filter(source => source && researchSourceUrl(source.url)).slice(0, 6) : [];
+    let content = escapeHtml(message.content);
+    if (message.role === 'assistant') {
+      content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\[(\d+)\]/g, (match, id) => {
+        const source = sources.find(item => String(item.id) === id);
+        return source ? '<a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">[' + id + ']</a>' : match;
+      });
+    }
+    return '<article class="research-message is-' + message.role + '"><span class="research-message-label">' + (message.role === 'user' ? 'You' : 'GPT-OSS 120B')
+      + '</span><div class="research-message-text">' + content + '</div>'
+      + (sources.length ? '<details class="research-sources"><summary>Retrieved sources · ' + sources.length + '</summary><ol>' + sources.map(source => '<li><a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.title) + '</a><small>' + escapeHtml(source.provider || 'Source') + '</small></li>').join('') + '</ol></details>' : '')
+      + (Array.isArray(message.notices) ? message.notices.map(note => '<p class="research-source-note">' + escapeHtml(note) + '</p>').join('') : '') + '</article>';
+  }
+
+  function refreshResearchChatAccount() {
+    if (researchRenderedUserId !== (currentUser?.id || null)) renderResearchChat();
+  }
+
+  function renderResearchChat() {
+    if (researchRenderedUserId !== (currentUser?.id || null)) { $('#researchPrompt').value = ''; researchRenderedUserId = currentUser?.id || null; }
+    const chat = currentResearchChat();
+    const messages = $('#researchMessages');
+    if (!messages) return;
+    const welcome = '<div class="research-welcome"><span class="research-welcome-icon" aria-hidden="true">✦</span><h3>What would you like to work through?</h3><p>Research a topic, compare options, or think through a problem.</p><div class="research-suggestions"><button type="button" data-research-prompt="Help me plan a social media campaign for a small business.">Plan a campaign</button><button type="button" data-research-prompt="Compare hourly and monthly freelance pricing, with examples.">Compare options</button><button type="button" data-research-prompt="Help me reason through a difficult client request.">Think through a problem</button></div></div>';
+    messages.innerHTML = chat?.messages.length ? chat.messages.map(renderResearchMessage).join('') : welcome;
+    if (chat?.busy) messages.innerHTML += '<div class="research-working" role="status"><span class="news-category-loader-ring" aria-hidden="true"></span> Preparing your answer…</div>';
+    $('#researchError').textContent = chat?.error || '';
+    $('#researchError').hidden = !chat?.error;
+    $('#researchSend').disabled = !currentUser || !dataReady || Boolean(chat?.busy);
+    $('#researchSend').textContent = chat?.busy ? 'Working…' : 'Send';
+    $('#researchNewChat').disabled = !chat || chat.busy || !chat.messages.length;
+    $('#researchPrompt').disabled = !currentUser || !dataReady || Boolean(chat?.busy);
+    $('#researchStatus').textContent = !currentUser ? 'Sign in to use the assistant.' : chat?.busy ? 'You can close this window and return while the answer is prepared.' : 'Conversation stays in this browser tab. Your workspace records are not included.';
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function setQuickSearchMode(mode) {
+    const ai = mode === 'ai';
+    $('#quickSearchModal').classList.toggle('is-research', ai);
+    $('#quickAppSearchPanel').hidden = ai;
+    $('#researchPanel').hidden = !ai;
+    $('#quickSearchTitle').textContent = ai ? 'Research & reasoning' : 'Search your workspace';
+    $('#researchModelLabel').hidden = !ai;
+    $('#researchModeTab').setAttribute('aria-selected', String(ai));
+    $('#appSearchModeTab').setAttribute('aria-selected', String(!ai));
+    if (ai) renderResearchChat();
+    requestAnimationFrame(() => (ai ? $('#researchPrompt') : $('#quickSearchInput')).focus());
+  }
+
+  async function submitResearchQuestion(event) {
+    event.preventDefault();
+    const userId = currentUser?.id;
+    const chat = currentResearchChat();
+    const prompt = $('#researchPrompt').value.trim();
+    if (!chat || chat.busy || !dataReady || !prompt) return;
+    if (prompt.length > 4000) { chat.error = 'Keep your question under 4,000 characters.'; renderResearchChat(); return; }
+    const mode = $('#researchSourceMode').value;
+    const effort = $('#researchEffort').value;
+    chat.error = '';
+    chat.messages.push({ role: 'user', content: prompt });
+    chat.messages = chat.messages.slice(-20);
+    chat.busy = true;
+    $('#researchPrompt').value = '';
+    saveResearchChat(userId, chat);
+    renderResearchChat();
+    try {
+      const auth = requireSupabase().auth;
+      const sessionResult = await auth.getSession();
+      let session = sessionResult.data?.session;
+      if (sessionResult.error || !session?.access_token || (session.expires_at && session.expires_at <= Date.now() / 1000 + 60)) session = await renewEmailAiSession(auth, userId);
+      const history = [];
+      let size = 0;
+      for (const message of [...chat.messages].reverse().slice(0, 12)) {
+        const content = message.content.slice(0, 4000);
+        if (size + content.length > 20000) break;
+        history.unshift({ role: message.role, content }); size += content.length;
+      }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (currentUser?.id !== userId || session?.user?.id !== userId) return;
+        const response = await fetch('/api/research', { method: 'POST', headers: { authorization: 'Bearer ' + session.access_token, 'content-type': 'application/json' },
+          body: JSON.stringify({ messages: history, mode, effort }), signal: AbortSignal.timeout(65000) });
+        const result = await response.json().catch(() => ({}));
+        if (currentUser?.id !== userId) return;
+        if (response.status === 401 && attempt === 0) { session = await renewEmailAiSession(auth, userId); continue; }
+        if (!response.ok || typeof result.answer !== 'string' || !result.answer.trim()) throw new Error(result.error || 'The assistant could not answer. Please try again.');
+        chat.messages.push({ role: 'assistant', content: result.answer, sources: result.sources, notices: result.notices });
+        saveResearchChat(userId, chat);
+        break;
+      }
+    } catch (error) {
+      chat.messages.pop();
+      chat.error = error.name === 'TimeoutError' || error.name === 'AbortError' ? 'The answer took too long. Your question is still below; try Quick reasoning or send again.' : error.message;
+      if (currentUser?.id === userId) $('#researchPrompt').value = prompt;
+      saveResearchChat(userId, chat);
+    } finally { chat.busy = false; renderResearchChat(); }
+  }
+
+  $('#researchModeTab')?.addEventListener('click', () => setQuickSearchMode('ai'));
+  $('#appSearchModeTab')?.addEventListener('click', () => setQuickSearchMode('app'));
+  $('#closeQuickSearch')?.addEventListener('click', () => $('#quickSearchModal').close());
+  $('#quickSearchModal')?.addEventListener('close', () => $('#openQuickSearch').focus());
+  $('#researchForm')?.addEventListener('submit', submitResearchQuestion);
+  $('#researchPrompt')?.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('#researchForm').requestSubmit(); }
+  });
+  $('#researchMessages')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-research-prompt]');
+    if (button) { $('#researchPrompt').value = button.dataset.researchPrompt; $('#researchPrompt').focus(); }
+  });
+  $('#researchNewChat')?.addEventListener('click', () => {
+    const chat = currentResearchChat();
+    if (!chat || chat.busy) return;
+    chat.messages = []; chat.error = ''; $('#researchPrompt').value = '';
+    saveResearchChat(currentUser.id, chat); renderResearchChat(); $('#researchPrompt').focus();
+  });
 
   // Applications page and its Active Client activation flow are intentionally
   // contained here. Nothing on the inbox, tools, or active-clients page can
@@ -10777,6 +10925,438 @@
     ['Australia', 'Sydney', 'Australia/Sydney'],
     ['United Kingdom', 'London', 'Europe/London']
   ].map(([country, city, zone]) => ({ country, city, zone }));
+  // Country/zone entries from the public-domain IANA tzdb zone.tab, bundled locally.
+  const worldClockCountryNames = new Intl.DisplayNames(['en'], { type: 'region' });
+  const worldClockFeaturedZones = new Set(CLIENT_WORLD_CLOCKS.map(clock => clock.zone));
+  const WORLD_CLOCK_LOCATIONS = [
+    ["AD","Andorra","Europe/Andorra"],
+    ["AE","Dubai","Asia/Dubai"],
+    ["AF","Kabul","Asia/Kabul"],
+    ["AG","Antigua","America/Antigua"],
+    ["AI","Anguilla","America/Anguilla"],
+    ["AL","Tirane","Europe/Tirane"],
+    ["AM","Yerevan","Asia/Yerevan"],
+    ["AO","Luanda","Africa/Luanda"],
+    ["AQ","McMurdo","Antarctica/McMurdo"],
+    ["AQ","Casey","Antarctica/Casey"],
+    ["AQ","Davis","Antarctica/Davis"],
+    ["AQ","DumontDUrville","Antarctica/DumontDUrville"],
+    ["AQ","Mawson","Antarctica/Mawson"],
+    ["AQ","Palmer","Antarctica/Palmer"],
+    ["AQ","Rothera","Antarctica/Rothera"],
+    ["AQ","Syowa","Antarctica/Syowa"],
+    ["AQ","Troll","Antarctica/Troll"],
+    ["AQ","Vostok","Antarctica/Vostok"],
+    ["AR","Argentina / Buenos Aires","America/Argentina/Buenos_Aires"],
+    ["AR","Argentina / Cordoba","America/Argentina/Cordoba"],
+    ["AR","Argentina / Salta","America/Argentina/Salta"],
+    ["AR","Argentina / Jujuy","America/Argentina/Jujuy"],
+    ["AR","Argentina / Tucuman","America/Argentina/Tucuman"],
+    ["AR","Argentina / Catamarca","America/Argentina/Catamarca"],
+    ["AR","Argentina / La Rioja","America/Argentina/La_Rioja"],
+    ["AR","Argentina / San Juan","America/Argentina/San_Juan"],
+    ["AR","Argentina / Mendoza","America/Argentina/Mendoza"],
+    ["AR","Argentina / San Luis","America/Argentina/San_Luis"],
+    ["AR","Argentina / Rio Gallegos","America/Argentina/Rio_Gallegos"],
+    ["AR","Argentina / Ushuaia","America/Argentina/Ushuaia"],
+    ["AS","Pago Pago","Pacific/Pago_Pago"],
+    ["AT","Vienna","Europe/Vienna"],
+    ["AU","Lord Howe","Australia/Lord_Howe"],
+    ["AU","Macquarie","Antarctica/Macquarie"],
+    ["AU","Hobart","Australia/Hobart"],
+    ["AU","Melbourne","Australia/Melbourne"],
+    ["AU","Sydney","Australia/Sydney"],
+    ["AU","Broken Hill","Australia/Broken_Hill"],
+    ["AU","Brisbane","Australia/Brisbane"],
+    ["AU","Lindeman","Australia/Lindeman"],
+    ["AU","Adelaide","Australia/Adelaide"],
+    ["AU","Darwin","Australia/Darwin"],
+    ["AU","Perth","Australia/Perth"],
+    ["AU","Eucla","Australia/Eucla"],
+    ["AW","Aruba","America/Aruba"],
+    ["AX","Mariehamn","Europe/Mariehamn"],
+    ["AZ","Baku","Asia/Baku"],
+    ["BA","Sarajevo","Europe/Sarajevo"],
+    ["BB","Barbados","America/Barbados"],
+    ["BD","Dhaka","Asia/Dhaka"],
+    ["BE","Brussels","Europe/Brussels"],
+    ["BF","Ouagadougou","Africa/Ouagadougou"],
+    ["BG","Sofia","Europe/Sofia"],
+    ["BH","Bahrain","Asia/Bahrain"],
+    ["BI","Bujumbura","Africa/Bujumbura"],
+    ["BJ","Porto-Novo","Africa/Porto-Novo"],
+    ["BL","St Barthelemy","America/St_Barthelemy"],
+    ["BM","Bermuda","Atlantic/Bermuda"],
+    ["BN","Brunei","Asia/Brunei"],
+    ["BO","La Paz","America/La_Paz"],
+    ["BQ","Kralendijk","America/Kralendijk"],
+    ["BR","Noronha","America/Noronha"],
+    ["BR","Belem","America/Belem"],
+    ["BR","Fortaleza","America/Fortaleza"],
+    ["BR","Recife","America/Recife"],
+    ["BR","Araguaina","America/Araguaina"],
+    ["BR","Maceio","America/Maceio"],
+    ["BR","Bahia","America/Bahia"],
+    ["BR","Sao Paulo","America/Sao_Paulo"],
+    ["BR","Campo Grande","America/Campo_Grande"],
+    ["BR","Cuiaba","America/Cuiaba"],
+    ["BR","Santarem","America/Santarem"],
+    ["BR","Porto Velho","America/Porto_Velho"],
+    ["BR","Boa Vista","America/Boa_Vista"],
+    ["BR","Manaus","America/Manaus"],
+    ["BR","Eirunepe","America/Eirunepe"],
+    ["BR","Rio Branco","America/Rio_Branco"],
+    ["BS","Nassau","America/Nassau"],
+    ["BT","Thimphu","Asia/Thimphu"],
+    ["BW","Gaborone","Africa/Gaborone"],
+    ["BY","Minsk","Europe/Minsk"],
+    ["BZ","Belize","America/Belize"],
+    ["CA","St Johns","America/St_Johns"],
+    ["CA","Halifax","America/Halifax"],
+    ["CA","Glace Bay","America/Glace_Bay"],
+    ["CA","Moncton","America/Moncton"],
+    ["CA","Goose Bay","America/Goose_Bay"],
+    ["CA","Blanc-Sablon","America/Blanc-Sablon"],
+    ["CA","Toronto","America/Toronto"],
+    ["CA","Iqaluit","America/Iqaluit"],
+    ["CA","Atikokan","America/Atikokan"],
+    ["CA","Winnipeg","America/Winnipeg"],
+    ["CA","Resolute","America/Resolute"],
+    ["CA","Rankin Inlet","America/Rankin_Inlet"],
+    ["CA","Regina","America/Regina"],
+    ["CA","Swift Current","America/Swift_Current"],
+    ["CA","Edmonton","America/Edmonton"],
+    ["CA","Cambridge Bay","America/Cambridge_Bay"],
+    ["CA","Inuvik","America/Inuvik"],
+    ["CA","Vancouver","America/Vancouver"],
+    ["CA","Creston","America/Creston"],
+    ["CA","Dawson Creek","America/Dawson_Creek"],
+    ["CA","Fort Nelson","America/Fort_Nelson"],
+    ["CA","Whitehorse","America/Whitehorse"],
+    ["CA","Dawson","America/Dawson"],
+    ["CC","Cocos","Indian/Cocos"],
+    ["CD","Kinshasa","Africa/Kinshasa"],
+    ["CD","Lubumbashi","Africa/Lubumbashi"],
+    ["CF","Bangui","Africa/Bangui"],
+    ["CG","Brazzaville","Africa/Brazzaville"],
+    ["CH","Zurich","Europe/Zurich"],
+    ["CI","Abidjan","Africa/Abidjan"],
+    ["CK","Rarotonga","Pacific/Rarotonga"],
+    ["CL","Santiago","America/Santiago"],
+    ["CL","Coyhaique","America/Coyhaique"],
+    ["CL","Punta Arenas","America/Punta_Arenas"],
+    ["CL","Easter","Pacific/Easter"],
+    ["CM","Douala","Africa/Douala"],
+    ["CN","Shanghai","Asia/Shanghai"],
+    ["CN","Urumqi","Asia/Urumqi"],
+    ["CO","Bogota","America/Bogota"],
+    ["CR","Costa Rica","America/Costa_Rica"],
+    ["CU","Havana","America/Havana"],
+    ["CV","Cape Verde","Atlantic/Cape_Verde"],
+    ["CW","Curacao","America/Curacao"],
+    ["CX","Christmas","Indian/Christmas"],
+    ["CY","Nicosia","Asia/Nicosia"],
+    ["CY","Famagusta","Asia/Famagusta"],
+    ["CZ","Prague","Europe/Prague"],
+    ["DE","Berlin","Europe/Berlin"],
+    ["DE","Busingen","Europe/Busingen"],
+    ["DJ","Djibouti","Africa/Djibouti"],
+    ["DK","Copenhagen","Europe/Copenhagen"],
+    ["DM","Dominica","America/Dominica"],
+    ["DO","Santo Domingo","America/Santo_Domingo"],
+    ["DZ","Algiers","Africa/Algiers"],
+    ["EC","Guayaquil","America/Guayaquil"],
+    ["EC","Galapagos","Pacific/Galapagos"],
+    ["EE","Tallinn","Europe/Tallinn"],
+    ["EG","Cairo","Africa/Cairo"],
+    ["EH","El Aaiun","Africa/El_Aaiun"],
+    ["ER","Asmara","Africa/Asmara"],
+    ["ES","Madrid","Europe/Madrid"],
+    ["ES","Ceuta","Africa/Ceuta"],
+    ["ES","Canary","Atlantic/Canary"],
+    ["ET","Addis Ababa","Africa/Addis_Ababa"],
+    ["FI","Helsinki","Europe/Helsinki"],
+    ["FJ","Fiji","Pacific/Fiji"],
+    ["FK","Stanley","Atlantic/Stanley"],
+    ["FM","Chuuk","Pacific/Chuuk"],
+    ["FM","Pohnpei","Pacific/Pohnpei"],
+    ["FM","Kosrae","Pacific/Kosrae"],
+    ["FO","Faroe","Atlantic/Faroe"],
+    ["FR","Paris","Europe/Paris"],
+    ["GA","Libreville","Africa/Libreville"],
+    ["GB","London","Europe/London"],
+    ["GD","Grenada","America/Grenada"],
+    ["GE","Tbilisi","Asia/Tbilisi"],
+    ["GF","Cayenne","America/Cayenne"],
+    ["GG","Guernsey","Europe/Guernsey"],
+    ["GH","Accra","Africa/Accra"],
+    ["GI","Gibraltar","Europe/Gibraltar"],
+    ["GL","Nuuk","America/Nuuk"],
+    ["GL","Danmarkshavn","America/Danmarkshavn"],
+    ["GL","Scoresbysund","America/Scoresbysund"],
+    ["GL","Thule","America/Thule"],
+    ["GM","Banjul","Africa/Banjul"],
+    ["GN","Conakry","Africa/Conakry"],
+    ["GP","Guadeloupe","America/Guadeloupe"],
+    ["GQ","Malabo","Africa/Malabo"],
+    ["GR","Athens","Europe/Athens"],
+    ["GS","South Georgia","Atlantic/South_Georgia"],
+    ["GT","Guatemala","America/Guatemala"],
+    ["GU","Guam","Pacific/Guam"],
+    ["GW","Bissau","Africa/Bissau"],
+    ["GY","Guyana","America/Guyana"],
+    ["HK","Hong Kong","Asia/Hong_Kong"],
+    ["HN","Tegucigalpa","America/Tegucigalpa"],
+    ["HR","Zagreb","Europe/Zagreb"],
+    ["HT","Port-au-Prince","America/Port-au-Prince"],
+    ["HU","Budapest","Europe/Budapest"],
+    ["ID","Jakarta","Asia/Jakarta"],
+    ["ID","Pontianak","Asia/Pontianak"],
+    ["ID","Makassar","Asia/Makassar"],
+    ["ID","Jayapura","Asia/Jayapura"],
+    ["IE","Dublin","Europe/Dublin"],
+    ["IL","Jerusalem","Asia/Jerusalem"],
+    ["IM","Isle of Man","Europe/Isle_of_Man"],
+    ["IN","Kolkata","Asia/Kolkata"],
+    ["IO","Chagos","Indian/Chagos"],
+    ["IQ","Baghdad","Asia/Baghdad"],
+    ["IR","Tehran","Asia/Tehran"],
+    ["IS","Reykjavik","Atlantic/Reykjavik"],
+    ["IT","Rome","Europe/Rome"],
+    ["JE","Jersey","Europe/Jersey"],
+    ["JM","Jamaica","America/Jamaica"],
+    ["JO","Amman","Asia/Amman"],
+    ["JP","Tokyo","Asia/Tokyo"],
+    ["KE","Nairobi","Africa/Nairobi"],
+    ["KG","Bishkek","Asia/Bishkek"],
+    ["KH","Phnom Penh","Asia/Phnom_Penh"],
+    ["KI","Tarawa","Pacific/Tarawa"],
+    ["KI","Kanton","Pacific/Kanton"],
+    ["KI","Kiritimati","Pacific/Kiritimati"],
+    ["KM","Comoro","Indian/Comoro"],
+    ["KN","St Kitts","America/St_Kitts"],
+    ["KP","Pyongyang","Asia/Pyongyang"],
+    ["KR","Seoul","Asia/Seoul"],
+    ["KW","Kuwait","Asia/Kuwait"],
+    ["KY","Cayman","America/Cayman"],
+    ["KZ","Almaty","Asia/Almaty"],
+    ["KZ","Qyzylorda","Asia/Qyzylorda"],
+    ["KZ","Qostanay","Asia/Qostanay"],
+    ["KZ","Aqtobe","Asia/Aqtobe"],
+    ["KZ","Aqtau","Asia/Aqtau"],
+    ["KZ","Atyrau","Asia/Atyrau"],
+    ["KZ","Oral","Asia/Oral"],
+    ["LA","Vientiane","Asia/Vientiane"],
+    ["LB","Beirut","Asia/Beirut"],
+    ["LC","St Lucia","America/St_Lucia"],
+    ["LI","Vaduz","Europe/Vaduz"],
+    ["LK","Colombo","Asia/Colombo"],
+    ["LR","Monrovia","Africa/Monrovia"],
+    ["LS","Maseru","Africa/Maseru"],
+    ["LT","Vilnius","Europe/Vilnius"],
+    ["LU","Luxembourg","Europe/Luxembourg"],
+    ["LV","Riga","Europe/Riga"],
+    ["LY","Tripoli","Africa/Tripoli"],
+    ["MA","Casablanca","Africa/Casablanca"],
+    ["MC","Monaco","Europe/Monaco"],
+    ["MD","Chisinau","Europe/Chisinau"],
+    ["ME","Podgorica","Europe/Podgorica"],
+    ["MF","Marigot","America/Marigot"],
+    ["MG","Antananarivo","Indian/Antananarivo"],
+    ["MH","Majuro","Pacific/Majuro"],
+    ["MH","Kwajalein","Pacific/Kwajalein"],
+    ["MK","Skopje","Europe/Skopje"],
+    ["ML","Bamako","Africa/Bamako"],
+    ["MM","Yangon","Asia/Yangon"],
+    ["MN","Ulaanbaatar","Asia/Ulaanbaatar"],
+    ["MN","Hovd","Asia/Hovd"],
+    ["MO","Macau","Asia/Macau"],
+    ["MP","Saipan","Pacific/Saipan"],
+    ["MQ","Martinique","America/Martinique"],
+    ["MR","Nouakchott","Africa/Nouakchott"],
+    ["MS","Montserrat","America/Montserrat"],
+    ["MT","Malta","Europe/Malta"],
+    ["MU","Mauritius","Indian/Mauritius"],
+    ["MV","Maldives","Indian/Maldives"],
+    ["MW","Blantyre","Africa/Blantyre"],
+    ["MX","Mexico City","America/Mexico_City"],
+    ["MX","Cancun","America/Cancun"],
+    ["MX","Merida","America/Merida"],
+    ["MX","Monterrey","America/Monterrey"],
+    ["MX","Matamoros","America/Matamoros"],
+    ["MX","Chihuahua","America/Chihuahua"],
+    ["MX","Ciudad Juarez","America/Ciudad_Juarez"],
+    ["MX","Ojinaga","America/Ojinaga"],
+    ["MX","Mazatlan","America/Mazatlan"],
+    ["MX","Bahia Banderas","America/Bahia_Banderas"],
+    ["MX","Hermosillo","America/Hermosillo"],
+    ["MX","Tijuana","America/Tijuana"],
+    ["MY","Kuala Lumpur","Asia/Kuala_Lumpur"],
+    ["MY","Kuching","Asia/Kuching"],
+    ["MZ","Maputo","Africa/Maputo"],
+    ["NA","Windhoek","Africa/Windhoek"],
+    ["NC","Noumea","Pacific/Noumea"],
+    ["NE","Niamey","Africa/Niamey"],
+    ["NF","Norfolk","Pacific/Norfolk"],
+    ["NG","Lagos","Africa/Lagos"],
+    ["NI","Managua","America/Managua"],
+    ["NL","Amsterdam","Europe/Amsterdam"],
+    ["NO","Oslo","Europe/Oslo"],
+    ["NP","Kathmandu","Asia/Kathmandu"],
+    ["NR","Nauru","Pacific/Nauru"],
+    ["NU","Niue","Pacific/Niue"],
+    ["NZ","Auckland","Pacific/Auckland"],
+    ["NZ","Chatham","Pacific/Chatham"],
+    ["OM","Muscat","Asia/Muscat"],
+    ["PA","Panama","America/Panama"],
+    ["PE","Lima","America/Lima"],
+    ["PF","Tahiti","Pacific/Tahiti"],
+    ["PF","Marquesas","Pacific/Marquesas"],
+    ["PF","Gambier","Pacific/Gambier"],
+    ["PG","Port Moresby","Pacific/Port_Moresby"],
+    ["PG","Bougainville","Pacific/Bougainville"],
+    ["PH","Manila","Asia/Manila"],
+    ["PK","Karachi","Asia/Karachi"],
+    ["PL","Warsaw","Europe/Warsaw"],
+    ["PM","Miquelon","America/Miquelon"],
+    ["PN","Pitcairn","Pacific/Pitcairn"],
+    ["PR","Puerto Rico","America/Puerto_Rico"],
+    ["PS","Gaza","Asia/Gaza"],
+    ["PS","Hebron","Asia/Hebron"],
+    ["PT","Lisbon","Europe/Lisbon"],
+    ["PT","Madeira","Atlantic/Madeira"],
+    ["PT","Azores","Atlantic/Azores"],
+    ["PW","Palau","Pacific/Palau"],
+    ["PY","Asuncion","America/Asuncion"],
+    ["QA","Qatar","Asia/Qatar"],
+    ["RE","Reunion","Indian/Reunion"],
+    ["RO","Bucharest","Europe/Bucharest"],
+    ["RS","Belgrade","Europe/Belgrade"],
+    ["RU","Kaliningrad","Europe/Kaliningrad"],
+    ["RU","Moscow","Europe/Moscow"],
+    ["UA","Simferopol","Europe/Simferopol"],
+    ["RU","Kirov","Europe/Kirov"],
+    ["RU","Volgograd","Europe/Volgograd"],
+    ["RU","Astrakhan","Europe/Astrakhan"],
+    ["RU","Saratov","Europe/Saratov"],
+    ["RU","Ulyanovsk","Europe/Ulyanovsk"],
+    ["RU","Samara","Europe/Samara"],
+    ["RU","Yekaterinburg","Asia/Yekaterinburg"],
+    ["RU","Omsk","Asia/Omsk"],
+    ["RU","Novosibirsk","Asia/Novosibirsk"],
+    ["RU","Barnaul","Asia/Barnaul"],
+    ["RU","Tomsk","Asia/Tomsk"],
+    ["RU","Novokuznetsk","Asia/Novokuznetsk"],
+    ["RU","Krasnoyarsk","Asia/Krasnoyarsk"],
+    ["RU","Irkutsk","Asia/Irkutsk"],
+    ["RU","Chita","Asia/Chita"],
+    ["RU","Yakutsk","Asia/Yakutsk"],
+    ["RU","Khandyga","Asia/Khandyga"],
+    ["RU","Vladivostok","Asia/Vladivostok"],
+    ["RU","Ust-Nera","Asia/Ust-Nera"],
+    ["RU","Magadan","Asia/Magadan"],
+    ["RU","Sakhalin","Asia/Sakhalin"],
+    ["RU","Srednekolymsk","Asia/Srednekolymsk"],
+    ["RU","Kamchatka","Asia/Kamchatka"],
+    ["RU","Anadyr","Asia/Anadyr"],
+    ["RW","Kigali","Africa/Kigali"],
+    ["SA","Riyadh","Asia/Riyadh"],
+    ["SB","Guadalcanal","Pacific/Guadalcanal"],
+    ["SC","Mahe","Indian/Mahe"],
+    ["SD","Khartoum","Africa/Khartoum"],
+    ["SE","Stockholm","Europe/Stockholm"],
+    ["SG","Singapore","Asia/Singapore"],
+    ["SH","St Helena","Atlantic/St_Helena"],
+    ["SI","Ljubljana","Europe/Ljubljana"],
+    ["SJ","Longyearbyen","Arctic/Longyearbyen"],
+    ["SK","Bratislava","Europe/Bratislava"],
+    ["SL","Freetown","Africa/Freetown"],
+    ["SM","San Marino","Europe/San_Marino"],
+    ["SN","Dakar","Africa/Dakar"],
+    ["SO","Mogadishu","Africa/Mogadishu"],
+    ["SR","Paramaribo","America/Paramaribo"],
+    ["SS","Juba","Africa/Juba"],
+    ["ST","Sao Tome","Africa/Sao_Tome"],
+    ["SV","El Salvador","America/El_Salvador"],
+    ["SX","Lower Princes","America/Lower_Princes"],
+    ["SY","Damascus","Asia/Damascus"],
+    ["SZ","Mbabane","Africa/Mbabane"],
+    ["TC","Grand Turk","America/Grand_Turk"],
+    ["TD","Ndjamena","Africa/Ndjamena"],
+    ["TF","Kerguelen","Indian/Kerguelen"],
+    ["TG","Lome","Africa/Lome"],
+    ["TH","Bangkok","Asia/Bangkok"],
+    ["TJ","Dushanbe","Asia/Dushanbe"],
+    ["TK","Fakaofo","Pacific/Fakaofo"],
+    ["TL","Dili","Asia/Dili"],
+    ["TM","Ashgabat","Asia/Ashgabat"],
+    ["TN","Tunis","Africa/Tunis"],
+    ["TO","Tongatapu","Pacific/Tongatapu"],
+    ["TR","Istanbul","Europe/Istanbul"],
+    ["TT","Port of Spain","America/Port_of_Spain"],
+    ["TV","Funafuti","Pacific/Funafuti"],
+    ["TW","Taipei","Asia/Taipei"],
+    ["TZ","Dar es Salaam","Africa/Dar_es_Salaam"],
+    ["UA","Kyiv","Europe/Kyiv"],
+    ["UG","Kampala","Africa/Kampala"],
+    ["UM","Midway","Pacific/Midway"],
+    ["UM","Wake","Pacific/Wake"],
+    ["US","New York","America/New_York"],
+    ["US","Detroit","America/Detroit"],
+    ["US","Kentucky / Louisville","America/Kentucky/Louisville"],
+    ["US","Kentucky / Monticello","America/Kentucky/Monticello"],
+    ["US","Indiana / Indianapolis","America/Indiana/Indianapolis"],
+    ["US","Indiana / Vincennes","America/Indiana/Vincennes"],
+    ["US","Indiana / Winamac","America/Indiana/Winamac"],
+    ["US","Indiana / Marengo","America/Indiana/Marengo"],
+    ["US","Indiana / Petersburg","America/Indiana/Petersburg"],
+    ["US","Indiana / Vevay","America/Indiana/Vevay"],
+    ["US","Chicago","America/Chicago"],
+    ["US","Indiana / Tell City","America/Indiana/Tell_City"],
+    ["US","Indiana / Knox","America/Indiana/Knox"],
+    ["US","Menominee","America/Menominee"],
+    ["US","North Dakota / Center","America/North_Dakota/Center"],
+    ["US","North Dakota / New Salem","America/North_Dakota/New_Salem"],
+    ["US","North Dakota / Beulah","America/North_Dakota/Beulah"],
+    ["US","Denver","America/Denver"],
+    ["US","Boise","America/Boise"],
+    ["US","Phoenix","America/Phoenix"],
+    ["US","Los Angeles","America/Los_Angeles"],
+    ["US","Anchorage","America/Anchorage"],
+    ["US","Juneau","America/Juneau"],
+    ["US","Sitka","America/Sitka"],
+    ["US","Metlakatla","America/Metlakatla"],
+    ["US","Yakutat","America/Yakutat"],
+    ["US","Nome","America/Nome"],
+    ["US","Adak","America/Adak"],
+    ["US","Honolulu","Pacific/Honolulu"],
+    ["UY","Montevideo","America/Montevideo"],
+    ["UZ","Samarkand","Asia/Samarkand"],
+    ["UZ","Tashkent","Asia/Tashkent"],
+    ["VA","Vatican","Europe/Vatican"],
+    ["VC","St Vincent","America/St_Vincent"],
+    ["VE","Caracas","America/Caracas"],
+    ["VG","Tortola","America/Tortola"],
+    ["VI","St Thomas","America/St_Thomas"],
+    ["VN","Ho Chi Minh","Asia/Ho_Chi_Minh"],
+    ["VU","Efate","Pacific/Efate"],
+    ["WF","Wallis","Pacific/Wallis"],
+    ["WS","Apia","Pacific/Apia"],
+    ["YE","Aden","Asia/Aden"],
+    ["YT","Mayotte","Indian/Mayotte"],
+    ["ZA","Johannesburg","Africa/Johannesburg"],
+    ["ZM","Lusaka","Africa/Lusaka"],
+    ["ZW","Harare","Africa/Harare"]
+  ].map(([code, city, zone]) => ({ country: worldClockCountryNames.of(code), code, city, zone }))
+    .filter(clock => {
+      if (worldClockFeaturedZones.has(clock.zone)) return false;
+      try { new Intl.DateTimeFormat('en', { timeZone: clock.zone }); return true; }
+      catch { return false; } // Older browsers can lack the newest IANA zones.
+    });
+  const ALL_CLIENT_WORLD_CLOCKS = [...CLIENT_WORLD_CLOCKS, ...WORLD_CLOCK_LOCATIONS];
+  const worldClockCountries = [...new Set(ALL_CLIENT_WORLD_CLOCKS.map(clock => clock.country))].sort();
+  const countrySelect = $('#worldClockCountry');
+  if (countrySelect) countrySelect.innerHTML = '<option value="">Featured clocks</option>' + worldClockCountries.map(country => `<option>${escapeHtml(country)}</option>`).join('');
   const worldClockFormatters = new Map();
   let worldClockTimer = null;
 
@@ -10792,8 +11372,9 @@
 
   function filterClientWorldClocks(query = '', country = '') {
     const search = String(query).trim().toLowerCase();
-    return CLIENT_WORLD_CLOCKS.filter(clock => (!country || clock.country === country)
-      && `${clock.country} ${clock.city} ${clock.zone}`.toLowerCase().includes(search));
+    if (!search && !country) return CLIENT_WORLD_CLOCKS;
+    return ALL_CLIENT_WORLD_CLOCKS.filter(clock => (!country || clock.country === country)
+      && `${clock.country} ${clock.city} ${clock.zone} ${clock.code || ''}`.toLowerCase().includes(search));
   }
 
   function updateClientWorldClocks() {

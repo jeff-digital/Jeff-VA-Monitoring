@@ -77,5 +77,7 @@ const roleApp = { id: 'role-app', role: 'Graphic Designer', email: 'shared@examp
 const roleState = { applications: [roleApp, { id: 'other-role', role: 'Editor', email: roleApp.email }], emails: [{ direction: 'sent', to: roleApp.email, subject: 'Graphic Designer', body: 'I wanted to follow up on my application, which I submitted on Oct 1, 2026 through OnlineJobs.ph.', date: '2026-10-23T01:00:00Z' }] };
 assert.ok(savedFollowUpDelivery(roleState, roleApp, '2026-10-23'), 'Role-only follow-ups are recognized for shared recipients');
 assert.equal(savedFollowUpDelivery(roleState, roleState.applications[1], '2026-10-23'), null, 'Other roles cannot inherit this follow-up');
+roleState.emails[0].subject = 'Application for Graphic Designer';
+assert.ok(savedFollowUpDelivery(roleState, roleApp, '2026-10-23'), 'Application-for subjects are recognized as follow-ups from their body');
 roleState.emails[0].body = 'I am applying for this role.';
 assert.equal(savedFollowUpDelivery(roleState, roleApp, '2026-10-23'), null, 'An ordinary application is not treated as sent follow-up');

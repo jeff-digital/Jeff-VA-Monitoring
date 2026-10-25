@@ -7896,3 +7896,79 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
 .template-preview-subject { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: #fff; }
 .template-preview-subject span { color: var(--muted); font-size: 12px; }
 .template-preview-subject strong { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+
+/* Keep currency, amounts, and pay periods aligned across application rows. */
+.application-salary-value { display: inline-grid; grid-template-columns: minmax(0, var(--salary-amount-width, 8ch)) max-content; align-items: baseline; column-gap: .55em; width: max-content; max-width: 100%; vertical-align: baseline; }
+.application-salary-amount { min-width: 0; text-align: left; font-variant-numeric: tabular-nums; }
+.application-salary-currency { display: inline; }
+.application-salary-number { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.application-salary-period { text-align: left; white-space: nowrap; color: var(--color-text-secondary); }
+@media (max-width: 900px) {
+  #applicationsView .application-data-table td.application-salary-cell { display: flex; align-items: baseline; gap: 6px; }
+  #applicationsView .application-salary-value { flex: 0 1 auto; min-width: 0; }
+}
+
+/* Search and the research assistant share one global, responsive dialog. */
+.quick-search-modal { padding: 0; }
+.quick-search-modal.is-research { width: min(860px, calc(100vw - 32px)); height: min(780px, calc(100dvh - 40px)); max-height: calc(100dvh - 40px); padding: 0; }
+.quick-search-modal .quick-search-shell { display: flex; flex-direction: column; min-height: 0; max-height: inherit; }
+.quick-search-modal.is-research .quick-search-shell { height: 100%; }
+.research-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px 12px; flex-shrink: 0; }
+.research-header h2 { margin: 0; font-size: 20px; }
+.research-header p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+.research-header .icon-button { width: 34px; height: 34px; font-size: 24px; }
+.research-tabs { display: flex; gap: 5px; padding: 0 22px 12px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.research-tabs button { border: 0; border-radius: 7px; padding: 8px 14px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 650; }
+.research-tabs button[aria-selected="true"] { background: var(--navy); color: white; }
+.research-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.research-panel[hidden], #quickAppSearchPanel[hidden] { display: none; }
+#quickAppSearchPanel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; overflow: hidden; }
+.research-toolbar { display: flex; align-items: end; gap: 12px; padding: 12px 22px 5px; flex-shrink: 0; }
+.research-toolbar label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; }
+.research-toolbar select { min-height: 32px; max-width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; background: #fff; color: var(--navy); font-size: 12px; }
+.research-toolbar .text-button { margin-left: auto; white-space: nowrap; font-size: 11px; padding-bottom: 8px; }
+.research-source-help { margin: 4px 22px 8px; color: var(--muted); font-size: 10px; line-height: 1.5; flex-shrink: 0; }
+.research-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 22px; }
+.research-welcome { min-height: 200px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 15px 0; }
+.research-welcome-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #eeeef6; color: var(--navy); font-size: 24px; }
+.research-welcome h3 { margin: 14px 0 5px; font-size: 19px; }
+.research-welcome p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.research-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-top: 20px; }
+.research-suggestions button { border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; background: #fff; color: var(--navy); font-size: 11px; }
+.research-message { margin: 0 0 14px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.research-message.is-user { margin-left: 10%; background: #f2f3f8; border-color: transparent; }
+.research-message-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.research-message-text { font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.research-message a { color: #345e9e; }
+.research-sources { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; font-size: 11px; }
+.research-sources summary { cursor: pointer; color: var(--muted); }
+.research-sources ol { padding-left: 20px; }
+.research-sources li { margin-bottom: 8px; overflow-wrap: anywhere; }
+.research-sources small { display: block; margin-top: 2px; color: var(--muted); }
+.research-source-note { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.research-working { display: flex; align-items: center; gap: 10px; padding: 12px; color: var(--muted); font-size: 12px; }
+.research-working .news-category-loader-ring { width: 17px; height: 17px; border-width: 2px; margin: 0; }
+.quick-search-modal .research-form { margin: 8px 22px 0; padding: 10px; border: 1px solid #cdd3df; border-radius: 10px; background: #fff; flex-shrink: 0; }
+.research-form:focus-within { border-color: #777f9a; box-shadow: 0 0 0 2px #1e27400b; }
+.quick-search-modal .research-form textarea { display: block; width: 100%; min-height: 54px; max-height: 140px; resize: vertical; border: 0; outline: 0; box-shadow: none; padding: 3px; background: transparent; color: var(--navy); font-family: inherit; font-size: 13px; line-height: 1.6; }
+.research-form > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.research-form small { color: var(--muted); font-size: 9px; }
+.research-form .button { min-height: 32px; padding: 7px 17px; font-size: 12px; }
+.research-error { margin: 0 22px; color: #a62d3a; font-size: 12px; line-height: 1.5; flex-shrink: 0; }
+.research-status { margin: 8px 22px 14px; color: var(--muted); font-size: 10px; line-height: 1.5; flex-shrink: 0; }
+@media (max-width: 600px) {
+  .quick-search-modal.is-research { width: calc(100vw - 20px); height: calc(100dvh - 28px); max-height: calc(100dvh - 28px); margin: auto; border-radius: 12px; }
+  .research-header { padding: 12px 12px 9px; }
+  .research-header h2 { font-size: 17px; }
+  .research-tabs { padding: 0 12px 9px; }
+  .research-toolbar { padding: 9px 12px 4px; gap: 7px; }
+  .research-toolbar select { font-size: 11px; padding-inline: 6px; }
+  .research-source-help { margin-inline: 12px; }
+  .research-messages { padding: 8px 12px; }
+  .research-form { margin-inline: 12px; }
+  .research-form textarea { font-size: 16px; min-height: 48px; }
+  .research-form small { max-width: 170px; }
+  .research-status, .research-error { margin-inline: 12px; }
+  .research-welcome h3 { font-size: 16px; }
+  .research-message-text { font-size: 12px; }
+}
