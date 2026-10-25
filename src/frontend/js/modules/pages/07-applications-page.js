@@ -145,7 +145,7 @@
     }
   });
 
-  $('#applicationFollowUpForm').addEventListener('submit', event => {
+  $('#applicationFollowUpForm').addEventListener('submit', async event => {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault();
     const form = event.currentTarget;
@@ -163,11 +163,13 @@
       application.followUpProcessedAt = '';
       application.followUpSentAt = '';
     }
+    application.automaticFollowUp = true;
     application.updatedAt = new Date().toISOString();
-    persist();
+    if ((await persist()) === false) { toast('Could not save the automatic follow-up. Please try again.'); return; }
     renderAll();
     modal.close();
-    toast('Follow-up date saved.');
+    toast('Automatic follow-up scheduled.');
+    await processDueFollowUps();
   });
 
   $('#clientPlatform').addEventListener('change', event => {
@@ -201,6 +203,9 @@
     });
   });
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
+  $('#followUpDate').addEventListener('change', event => {
+    if (!$('#automaticFollowUp').disabled) $('#automaticFollowUp').checked = Boolean(event.target.value);
+  });
   $('#automaticFollowUp').addEventListener('change', event => {
     if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);
   });

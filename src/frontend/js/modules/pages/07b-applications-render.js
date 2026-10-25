@@ -31,16 +31,23 @@
     const recipient = extractEmailAddress(item.email || '');
     const sameRecipient = recipient ? data.applications.filter(app => extractEmailAddress(app.email || '') === recipient) : [];
     const expectedSubject = `follow-up: ${String(item.clientName || '').trim()}`.toLowerCase();
+    const newSubject = ('Follow-up application: ' + (String(item.role || '').trim() || 'position') + (String(item.platform || '').trim() ? ' — ' + item.platform.trim() : '')).toLowerCase();
+    const uniqueRolePlatform = sameRecipient.filter(app => String(app.role || '').trim().toLowerCase() === String(item.role || '').trim().toLowerCase()
+      && String(app.platform || '').trim().toLowerCase() === String(item.platform || '').trim().toLowerCase()).length === 1;
     const sentDates = [item.followUpSentAt, ...data.emails.filter(email => {
       if (!isSentEmail(email)) return false;
       const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
-      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject)) return false;
+      const roleOnlyFollowUp = subject.toLowerCase() === (String(item.role || '').trim() || 'position').toLowerCase()
+        && /I wanted to follow up on my application/i.test(email.body || '');
+      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject) && !roleOnlyFollowUp) return false;
       if (email.applicationId) return email.applicationId === item.id;
       if (!recipient || extractEmailAddress(email.to || '') !== recipient) return false;
       // Shared recruiter addresses need a company-specific subject; a generic
       // follow-up to that address must not complete every application.
       return (sameRecipient.length === 1 && sameRecipient[0].id === item.id)
-        || (String(item.clientName || '').trim() && subject.toLowerCase() === expectedSubject);
+        || (String(item.clientName || '').trim() && subject.toLowerCase() === expectedSubject)
+        || (uniqueRolePlatform && subject.toLowerCase() === newSubject)
+        || (roleOnlyFollowUp && sameRecipient.filter(app => String(app.role || '').trim().toLowerCase() === String(item.role || '').trim().toLowerCase()).length === 1);
     }).map(email => email.date)].filter(value => {
       const date = dateKey(value);
       return date && (!scheduledDate || date >= scheduledDate)

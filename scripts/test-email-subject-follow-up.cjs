@@ -95,6 +95,8 @@ assert.equal(context.applicationFollowUpState(context.data.applications[1]), 'du
   await context.processDueFollowUps();
   const item = context.data.applications[0];
   assert.equal(context.applicationFollowUpState(item), 'due', 'Failed Gmail send retains due highlight');
+  assert.equal(context.data.alerts.find(alert => alert.id === 'follow-up|app|2026-10-23').deliveryStatus, 'retry', 'A pre-send failure automatically retries rather than requiring approval');
+  assert.match(context.data.alerts.find(alert => alert.id === 'follow-up|app|2026-10-23').deliveryReason, /Network failed/);
   context.sendGmailRaw = async () => {};
   await context.processDueFollowUps();
   assert.equal(item.followUpDate, '', 'Existing successful-send cleanup is preserved');
@@ -134,5 +136,19 @@ assert.equal(context.applicationFollowUpState(context.data.applications[1]), 'du
   await context.processDueFollowUps();
   assert.equal(context.data.applications[0].followUpDate, '', 'Delivery receipt updates the current record after realtime replacement');
   assert.ok(context.data.applications[0].followUpSentAt);
+  context.data.applications = [{ ...due, followUpProcessedAt: '2026-10-23T01:00:00Z', followUpSentAt: '2026-10-22T01:00:00Z' }];
+  context.data.emails = [];
+  context.gmailAccessToken = null;
+  context.readGmailCredentials = () => ({ refreshToken: 'saved-connection' });
+  context.gmailReconnectRequired = true;
+  sends = 0;
+  context.sendGmailRaw = async () => { sends++; };
+  await context.processDueFollowUps();
+  assert.equal(sends, 0, 'A connection requiring user authorization cannot trigger background consent');
+  context.gmailReconnectRequired = false;
+  await context.processDueFollowUps();
+  assert.equal(sends, 1, 'Saved renewable Gmail connection retries a previously processed due follow-up even without an in-memory token');
+  await context.processDueFollowUps();
+  assert.equal(sends, 1, 'The retry is still sent only once');
   console.log('Passed: platform subjects, missing subject, pending/failed/successful follow-ups, and rescheduling.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

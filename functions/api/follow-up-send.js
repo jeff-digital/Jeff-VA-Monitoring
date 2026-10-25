@@ -5,16 +5,22 @@ export function savedFollowUpDelivery(state, app, scheduledDate) {
   const address = value => String(value || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase() || '';
   const recipient = address(app.email);
   const uniqueRecipient = recipient && state.applications.filter(item => address(item.email) === recipient).length === 1;
+  const subjectFor = item => ('Follow-up application: ' + (String(item.role || '').trim() || 'position') + (String(item.platform || '').trim() ? ' — ' + item.platform.trim() : '')).toLowerCase();
+  const uniqueSubject = state.applications.filter(item => address(item.email) === recipient && subjectFor(item) === subjectFor(app)).length === 1;
   const after = Math.max(Date.parse(`${scheduledDate}T00:00:00+08:00`), Date.parse(app.appliedDate || '') || 0);
   const evidence = [
     { sentAt: app.followUpSentAt, gmailId: app.followUpGmailId || '' },
     ...(state.emails || []).filter(email => {
       if (!(email.direction === 'sent' || email.source === 'sent' || email.labelIds?.includes('SENT'))) return false;
       const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
-      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject)) return false;
+      const roleOnlyFollowUp = subject.toLowerCase() === (String(app.role || '').trim() || 'position').toLowerCase()
+        && /I wanted to follow up on my application/i.test(email.body || '');
+      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject) && !roleOnlyFollowUp) return false;
       if (email.applicationId) return email.applicationId === app.id;
       return recipient && address(email.to) === recipient && (uniqueRecipient
-        || (app.clientName && subject.toLowerCase() === `follow-up: ${app.clientName.trim()}`.toLowerCase()));
+        || (app.clientName && subject.toLowerCase() === `follow-up: ${app.clientName.trim()}`.toLowerCase())
+        || (uniqueSubject && subject.toLowerCase() === subjectFor(app))
+        || (roleOnlyFollowUp && state.applications.filter(item => address(item.email) === recipient && String(item.role || '').trim().toLowerCase() === String(app.role || '').trim().toLowerCase()).length === 1));
     }).map(email => ({ sentAt: email.date, gmailId: email.gmailId || '' }))
   ].filter(record => Number.isFinite(Date.parse(record.sentAt)) && Date.parse(record.sentAt) >= after);
   return evidence.sort((a, b) => Date.parse(b.sentAt) - Date.parse(a.sentAt))[0] || null;
@@ -71,7 +77,7 @@ export class FollowUpDelivery {
         return reply(result);
       }
       if (input.action === 'claim') {
-        if (existing) return reply({ status: 'pending', error: 'This follow-up is already sending or needs delivery review. Automatic resending is blocked.' });
+        if (existing) return reply({ status: 'pending', startedAt: existing.startedAt, error: 'This follow-up is already sending or needs delivery review. Automatic resending is blocked.' });
         if (!input.eligible) return reply({ error: 'This follow-up is no longer scheduled for automatic sending.' }, 409);
         const record = { status: 'pending', claimToken: crypto.randomUUID(), startedAt: new Date().toISOString() };
         await txn.put('delivery', record);

@@ -20,8 +20,8 @@
     },
     'follow-up': {
       name: 'Follow-up',
-      subject: 'Follow-up: {{clientName}}',
-      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}. I would appreciate any update on the progress or next steps.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
+      subject: '{{role}}',
+      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would appreciate any update on the progress or next steps.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     },
     'proceed-application': {
       name: 'Proceed application',
@@ -184,7 +184,6 @@
     return `
       <div style="background:#f3efe9; padding:32px 16px; font-family:Arial, Helvetica, sans-serif;">
         <div style="max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e6dfd7; border-radius:18px; box-shadow:0 8px 22px rgba(27,24,20,0.06); overflow:hidden;">
-          <div style="height:5px; background:#0f1720; border-radius:18px 18px 0 0;"></div>
           <div style="padding:28px 32px 20px;">
             ${content}
           </div>
@@ -262,7 +261,9 @@
     const rendered = buildDocumentEmailTemplate(templateType, {
       clientName: 'Acme Studio',
       contact: 'Jordan Lee',
-      role: 'Social Media Management Services'
+      role: 'Social Media Management Services',
+      appliedDate: '2026-10-21',
+      platform: 'OnlineJobs.ph'
     }, {
       duration: '3 months',
       invoiceNumber: 'INV-2026-104',
@@ -295,7 +296,10 @@
     const clientName = application.clientName || 'Client';
     const contactName = application.contact || clientName;
     const contactPerson = application.contact || 'Client';
-    const roleName = application.role || 'your project';
+    const roleName = String(application.role || '').trim() || (templateType === 'follow-up' ? 'position' : 'your project');
+    const platform = String(application.platform || '').trim();
+    const applied = new Date(String(application.appliedDate || '').slice(0, 10) + 'T12:00:00');
+    const applicationDate = Number.isFinite(applied.getTime()) ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(applied) : 'an earlier date';
     const duration = additional.duration || contractDuration(application) || 'the project period';
     const invoiceNumber = additional.invoiceNumber || 'INV-000';
     const billingPeriod = additional.billingPeriod || 'this period';
@@ -305,7 +309,11 @@
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)
-      .replace(/{{role}}/g, roleName)
+      .replace(/{{role}}/g, () => roleName)
+      .replace(/{{platform}}/g, () => platform)
+      .replace(/{{platformSuffix}}/g, () => platform ? ' — ' + platform : '')
+      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' directly with your company' : ' through ' + platform) : '')
+      .replace(/{{applicationDate}}/g, () => applicationDate)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)
       .replace(/{{billingPeriod}}/g, billingPeriod)
@@ -315,7 +323,11 @@
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)
-      .replace(/{{role}}/g, roleName)
+      .replace(/{{role}}/g, () => roleName)
+      .replace(/{{platform}}/g, () => platform)
+      .replace(/{{platformSuffix}}/g, () => platform ? ' — ' + platform : '')
+      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' directly with your company' : ' through ' + platform) : '')
+      .replace(/{{applicationDate}}/g, () => applicationDate)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)
       .replace(/{{billingPeriod}}/g, billingPeriod)
@@ -765,13 +777,19 @@
     const after = Math.floor(new Date(`${scheduledDate}T00:00:00+08:00`).getTime() / 1000);
     const recipient = extractEmailAddress(item.email);
     const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
-    const q = `in:sent to:${recipient} after:${after} subject:"${subject.replace(/["\\]/g, ' ')}"`;
+    const q = `in:sent to:${recipient} after:${after} {subject:follow "I wanted to follow up on my application"}`;
+    const subjects = [subject, ...(item.clientName ? ['Follow-up: ' + item.clientName.trim()] : [])].map(value => value.toLowerCase());
     const list = await fetchGmailJson(`${root}?${new URLSearchParams({ q, maxResults: '100' })}`);
     for (const message of list.messages || []) {
       const email = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=To&metadataHeaders=Subject`);
       const header = name => email.payload?.headers?.find(value => value.name.toLowerCase() === name)?.value || '';
       const sentAt = Number(email.internalDate);
-      if (extractEmailAddress(header('to')) === recipient && header('subject').trim() === subject
+      let matches = subjects.includes(header('subject').trim().toLowerCase());
+      if (matches && !/^follow(?:ing)?[\s-]*up\b/i.test(header('subject'))) {
+        const full = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=full`);
+        matches = /I wanted to follow up on my application/i.test(gmailMessageBody(full.payload));
+      }
+      if (extractEmailAddress(header('to')) === recipient && matches
         && Number.isFinite(sentAt) && sentAt >= after * 1000) {
         return { sentAt: new Date(sentAt).toISOString(), gmailId: email.id, recovered: true };
       }
@@ -786,6 +804,7 @@
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
     const existing = await findGmailSentFollowUp(item, scheduledDate, subject);
     if (currentUser?.id !== userId) throw new Error('Account changed. No follow-up was sent.');
+    const preparedMessage = rawMessage || buildRawEmailMessage({ to: item.email, subject, body });
     const claim = await requestFollowUpReservation(item, scheduledDate, 'claim', manual ? { manual: true } : {});
     if (claim.status === 'sent') return claim;
     if (existing) {
@@ -798,15 +817,23 @@
       }
       return existing;
     }
-    if (claim.status !== 'claimed' || !claim.claimToken) throw new Error(claim.error || 'This follow-up is already sending. Check Gmail Sent; automatic resending is blocked.');
+    if (claim.status !== 'claimed' || !claim.claimToken) {
+      const error = new Error(claim.error || 'The app is checking whether this follow-up was already sent.');
+      error.followUpDeliveryState = claim.startedAt && Date.now() - Date.parse(claim.startedAt) < 120000 ? 'sending' : 'uncertain';
+      throw error;
+    }
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
-    try { gmail = await sendGmailRaw(rawMessage || buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
+    try { gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 }); }
     catch (error) {
-      if (error.gmailRejected && currentUser?.id === userId) {
+      if ((error.gmailRejected || error.gmailNotSent) && currentUser?.id === userId) {
         await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});
       }
-      throw new Error(error.gmailRejected ? 'Gmail rejected the follow-up. It can retry later.' : 'Delivery is uncertain. Check Gmail Sent; automatic resending is blocked.');
+      const failure = new Error(error.gmailRejected || error.gmailNotSent
+        ? (error.gmailRejected ? 'Gmail rejected the follow-up; it will retry automatically. ' : 'The follow-up was not sent and will retry automatically. ') + error.message
+        : 'Delivery is uncertain. The app will check Gmail Sent before allowing another send.');
+      failure.followUpDeliveryState = error.gmailRejected || error.gmailNotSent ? 'retry' : 'uncertain';
+      throw failure;
     }
     const delivery = { sentAt: new Date().toISOString(), gmailId: gmail?.id || '' };
     if (currentUser?.id !== userId) throw new Error('Account changed. Check Gmail Sent to confirm delivery.');
@@ -820,7 +847,7 @@
 
   async function sendGmailRaw(rawMessage, { timeoutMs = 0 } = {}) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      await ensureGmailAccessToken();
+      try { await ensureGmailAccessToken(); } catch (error) { error.gmailNotSent = true; throw error; }
       const response = await fetch(GMAIL_SEND_ENDPOINT, {
         method: 'POST',
         ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
@@ -829,7 +856,7 @@
       });
       if (response.ok) return response.json();
       if (response.status === 401 && attempt === 0) {
-        await refreshGmailAuthorization();
+        try { await refreshGmailAuthorization(); } catch (error) { error.gmailNotSent = true; throw error; }
         continue;
       }
       if (response.status === 401) handleGmailAuthorizationFailure();
@@ -853,7 +880,7 @@
     const to = $('#composeTo').value.trim();
     const subject = $('#composeSubject').value.trim().replace(/[\r\n]+/g, ' ');
     const body = $('#composeBody').value.trim();
-    const followUpApplication = /^follow(?:ing)?[\s-]*up\b/i.test(subject)
+    const followUpApplication = (/^follow(?:ing)?[\s-]*up\b/i.test(subject) || /I wanted to follow up on my application/i.test(body))
       ? data.applications.find(item => item.id === composeClientId && extractEmailAddress(item.email) === extractEmailAddress(to))
       : null;
     const followUpSchedule = followUpApplication?.followUpDate || today();

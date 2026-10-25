@@ -657,7 +657,7 @@ td:first-child { color: #242522; font-weight: 650; }
 .work-link-list { display: grid; gap: 8px; }
 .template-tester { display: grid; gap: 16px; margin-top: 18px; }
 .template-tester-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.template-preview { white-space: pre-wrap; border: 1px solid var(--line); border-radius: 8px; background: #fbfaf8; color: #2d312d; padding: 16px; font-size: 12px; line-height: 1.7; min-height: 210px; }
+.template-preview { white-space: normal; border: 1px solid var(--line); border-radius: 8px; background: #fbfaf8; color: #2d312d; padding: 16px; font-size: 12px; line-height: 1.7; min-height: 210px; }
 .template-preview strong { color: #1d2438; }
 .work-link-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .work-link-copy { min-width: 0; display: grid; gap: 2px; }
@@ -7867,3 +7867,32 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
   }
   .application-dashboard-insights > .interview-calendar-panel { flex-basis: auto; }
 }
+
+/* Fit the desktop letter workspace to the available screen; export stays A4. */
+@media (min-width: 901px) {
+  body:has(#documentsView.active #coverLetterPanel:not(.hidden)) .content {
+    height: 100dvh; display: flex; flex-direction: column; padding-bottom: 16px; overflow: hidden;
+  }
+  #documentsView.active:has(#coverLetterPanel:not(.hidden)) { flex: 1; min-height: 0; }
+  #documentsView:has(#coverLetterPanel:not(.hidden)) .documents-page-panel { height: 100%; display: flex; flex-direction: column; }
+  #documentsView .documents-tabs { flex-shrink: 0; }
+  #coverLetterPanel:not(.hidden) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px; }
+  #coverLetterPanel .cover-letter-heading { flex-shrink: 0; padding-bottom: 10px; }
+  #coverLetterPanel .cover-letter-workspace { flex: 1; min-height: 0; padding-top: 12px; gap: 18px; grid-template-columns: minmax(250px, 340px) minmax(0, 1fr); align-items: stretch; }
+  #coverLetterPanel .cover-letter-editor { display: flex; flex-direction: column; min-height: 0; }
+  #coverLetterPanel .cover-letter-editor-heading { margin-bottom: 8px; flex-shrink: 0; }
+  #coverLetterPanel .cover-letter-editor-fields { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
+  #coverLetterPanel .cover-letter-editor-fields input { padding: 6px 9px; min-height: 32px; }
+  #coverLetterPanel .cover-letter-fixed-contact { padding: 6px 8px; }
+  #coverLetterPanel .cover-letter-body-field { flex: 1; min-height: 70px; grid-template-rows: auto minmax(0, 1fr); }
+  #coverLetterPanel .cover-letter-body-field textarea { min-height: 0; height: 100%; resize: none; }
+  #coverLetterPanel .cover-letter-preview-area { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding-bottom: 0; }
+  #coverLetterPanel .cover-letter-preview-label { flex-shrink: 0; }
+  .cover-letter-preview-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  #coverLetterPreview { position: absolute; top: 50%; left: 50%; width: 794px; max-width: none; margin: 0; transform-origin: center; transform: translate(-50%, -50%) scale(var(--letter-preview-scale, .4)); }
+}
+
+.template-preview-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.template-preview-subject { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: #fff; }
+.template-preview-subject span { color: var(--muted); font-size: 12px; }
+.template-preview-subject strong { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }

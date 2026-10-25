@@ -9,20 +9,21 @@ assert.equal((gmailSource.match(/async function sendAutomaticFollowUpOnce\(/g) |
 assert.doesNotMatch(code, /gmailToken|JSON\.stringify\([^\n]*(?:raw|body|subject)/, 'Shared coordinator must not receive Gmail credentials or email contents');
 const app = { id: 'app', email: 'client@example.com' };
 const date = '2026-10-23', subject = 'Follow-up: Company';
-function fixture({ uncertain = false, rejected = false, completeFails = false, existing = false } = {}) {
+function fixture({ uncertain = false, rejected = false, completeFails = false, existing = false, existingSubject = subject, existingBody = 'I wanted to follow up on my application.', notSent = false } = {}) {
   const values = new Map();
   let chain = Promise.resolve();
   const storage = { get: async key => values.get(key), put: async (key, value) => values.set(key, value), delete: async key => values.delete(key),
     transaction: callback => { const run = chain.then(() => callback(storage)); chain = run.catch(() => {}); return run; } };
   const coordinator = new FollowUpDelivery({ storage });
   let calls = 0, attempts = 0;
-  const history = existing ? [{ id: 'existing', internalDate: String(Date.parse('2026-10-23T00:02:00Z')), payload: { headers: [{ name: 'To', value: app.email }, { name: 'Subject', value: subject }] } }] : [];
+  const history = existing ? [{ id: 'existing', internalDate: String(Date.parse('2026-10-23T00:02:00Z')), payload: { headers: [{ name: 'To', value: app.email }, { name: 'Subject', value: existingSubject }], text: existingBody } }] : [];
   const tab = () => {
     const context = vm.createContext({ URLSearchParams, AbortSignal, console: { error() {} },
       currentUser: { id: 'u1' }, ensureGmailAccessToken: async () => {},
       requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'dashboard-session', user: { id: 'u1' } } } }) } }),
       extractEmailAddress: value => value.toLowerCase(), encodeBase64Url: value => value,
       buildRawEmailMessage: value => value,
+      gmailMessageBody: payload => payload.text || '',
       fetchGmailJson: async url => {
         if (new URL(url).searchParams.has('q')) return { messages: history.map(email => ({ id: email.id })) };
         return history.find(email => url.includes(`/${email.id}?`));
@@ -38,6 +39,7 @@ function fixture({ uncertain = false, rejected = false, completeFails = false, e
       sendGmailRaw: async () => {
         attempts++;
         if (uncertain) throw new Error('Connection lost after POST');
+        if (notSent && attempts === 1) throw Object.assign(new Error('Gmail renewal failed before send'), { gmailNotSent: true });
         if (rejected && attempts === 1) throw Object.assign(new Error('Rejected'), { gmailRejected: true });
         calls++;
         history.push({ id: 'sent-1', internalDate: String(Date.now()), payload: { headers: [{ name: 'To', value: app.email }, { name: 'Subject', value: subject }] } });
@@ -68,6 +70,12 @@ await refusal.tab().sendAutomaticFollowUpOnce(app, date, subject, 'Body');
 assert.equal(refusal.attempts(), 2);
 assert.equal(refusal.calls(), 1, 'Explicit Gmail rejection is safely retryable');
 
+const beforePostFailure = fixture({ notSent: true });
+await assert.rejects(beforePostFailure.tab().sendAutomaticFollowUpOnce(app, date, subject, 'Body'), error => error.followUpDeliveryState === 'retry');
+assert.equal(beforePostFailure.values.has('delivery'), false, 'A confirmed pre-send failure releases the reservation');
+await beforePostFailure.tab().sendAutomaticFollowUpOnce(app, date, subject, 'Body');
+assert.equal(beforePostFailure.calls(), 1, 'Automatic retry after a confirmed pre-send failure sends exactly once');
+
 const savedReceiptFailed = fixture({ completeFails: true });
 await savedReceiptFailed.tab().sendAutomaticFollowUpOnce(app, date, subject, 'Body');
 assert.equal(savedReceiptFailed.values.get('delivery').status, 'pending');
@@ -82,6 +90,13 @@ alreadySent.history.length = 0;
 await alreadySent.tab().sendAutomaticFollowUpOnce(app, date, 'Changed follow-up subject', 'Body');
 assert.equal(alreadySent.attempts(), 0, 'Missing Gmail history or edited subject cannot bypass a recovered receipt');
 
+const roleHistory = fixture({ existing: true, existingSubject: 'Graphic Designer' });
+assert.equal((await roleHistory.tab().findGmailSentFollowUp(app, date, 'Graphic Designer')).gmailId, 'existing', 'Role-only follow-ups are recovered from Gmail using their message content');
+const originalApplication = fixture({ existing: true, existingSubject: 'Graphic Designer', existingBody: 'Please consider my application for this position.' });
+assert.equal(await originalApplication.tab().findGmailSentFollowUp(app, date, 'Graphic Designer'), null, 'An original application with the same subject is not a completed follow-up');
+const legacyHistory = fixture({ existing: true });
+assert.equal((await legacyHistory.tab().findGmailSentFollowUp({ ...app, clientName: 'Company' }, date, 'Graphic Designer')).gmailId, 'existing', 'Legacy company subjects remain protected after the subject change');
+
 const manualRace = fixture();
 const manualTab = manualRace.tab();
 const nodes = new Map();
@@ -90,8 +105,8 @@ const node = selector => {
   return nodes.get(selector);
 };
 node('#composeTo').value = app.email;
-node('#composeSubject').value = subject;
-node('#composeBody').value = 'Body';
+node('#composeSubject').value = 'Graphic Designer';
+node('#composeBody').value = 'I wanted to follow up on my application.';
 Object.assign(manualTab, {
   $: node, data: { applications: [{ ...app, followUpDate: date, automaticFollowUp: true }], emails: [] },
   composeClientId: app.id, composeContractEmailMode: false, composeDocumentUpdateClientId: null,

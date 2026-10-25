@@ -12,6 +12,20 @@
   };
   const coverLetterFields = [...document.querySelectorAll('[data-cover-letter-field]')];
 
+  function fitCoverLetterPreview() {
+    const stage = $('#coverLetterPreviewStage');
+    const page = $('#coverLetterPreview');
+    if (!stage || !page || !stage.clientWidth || !stage.clientHeight) return;
+    const scale = Math.min(1, (stage.clientWidth - 16) / 794, (stage.clientHeight - 16) / page.offsetHeight);
+    stage.style.setProperty('--letter-preview-scale', String(Math.max(.05, scale)));
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    const letterResize = new ResizeObserver(fitCoverLetterPreview);
+    ['#coverLetterPreviewStage', '#coverLetterPreview'].forEach(selector => {
+      if ($(selector)) letterResize.observe($(selector));
+    });
+  }
+
   function coverLetterValues() {
     return { ...COVER_LETTER_DEFAULTS, ...Object.fromEntries(coverLetterFields.map(field => [field.dataset.coverLetterField, field.value.trim()])) };
   }
@@ -39,6 +53,7 @@
       <p class="cover-letter-greeting">Dear ${escapeHtml(salutationRecipient)},</p>
       <div class="cover-letter-copy">${bodyHtml}</div>
       <p class="cover-letter-signoff">Best regards,<br><strong>Jeffrey S. Almocera</strong></p>`;
+    fitCoverLetterPreview();
   }
 
   function initializeCoverLetter() {
@@ -84,7 +99,13 @@
   async function renderCoverLetterCanvas() {
     if (!window.html2canvas) throw new Error('The cover letter renderer is unavailable.');
     if (document.fonts?.ready) await document.fonts.ready;
-    return window.html2canvas($('#coverLetterPreview'), { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    // Render a full-size copy so the on-screen fit never shrinks the PDF.
+    const page = $('#coverLetterPreview').cloneNode(true);
+    page.removeAttribute('id');
+    Object.assign(page.style, { position: 'absolute', left: '-10000px', top: '0', width: '794px', minHeight: '1123px', maxWidth: 'none', transform: 'none', margin: '0' });
+    document.body.append(page);
+    try { return await window.html2canvas(page, { scale: 2, backgroundColor: '#ffffff', useCORS: true }); }
+    finally { page.remove(); }
   }
 
   async function downloadCoverLetterPdf() {
@@ -218,7 +239,9 @@
     const rendered = buildDocumentEmailTemplate(templateId, {
       clientName: 'Acme Studio',
       contact: 'Jordan Lee',
-      role: 'Social Media Management Services'
+      role: 'Social Media Management Services',
+      appliedDate: '2026-10-21',
+      platform: 'OnlineJobs.ph'
     }, {
       duration: '3 months',
       invoiceNumber: 'INV-2026-104',
@@ -227,7 +250,7 @@
       dueDate: '2026-10-08'
     });
     const previewBody = htmlEmailBodyFromText(rendered.body);
-    preview.innerHTML = `<div style="font-family:Arial, Helvetica, sans-serif; margin:0;">${previewBody}</div>`;
+    preview.innerHTML = `<div class="template-preview-subject"><span>Subject</span><strong>${escapeHtml(rendered.subject || '(No subject)')}</strong></div><div style="font-family:Arial, Helvetica, sans-serif; margin:0;">${previewBody}</div>`;
   }
 
   $('#personalDocumentInput').addEventListener('change', event => {

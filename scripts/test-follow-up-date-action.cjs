@@ -1,0 +1,22 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+(async () => {
+const source=fs.readFileSync('src/frontend/js/modules/pages/07-applications-page.js','utf8');
+let handler, savedResolve, sends=0, closed=0;
+const app={ id:'app', automaticFollowUp:false, followUpDate:'2026-10-24', followUpSentAt:'old', followUpProcessedAt:'old' };
+const nodes={ '#applicationFollowUpForm': { addEventListener: (name,fn)=>{ handler=fn; } }, '#applicationFollowUpModal': { dataset:{ applicationId:'app' }, close(){ closed++; } }, '#applicationFollowUpDateInput': { value:'2026-10-25' } };
+const context=vm.createContext({ $: key=>nodes[key], data:{ applications:[app] }, persist:()=>new Promise(resolve=>{savedResolve=resolve;}), renderAll(){}, toast(){}, processDueFollowUps:async()=>{sends++;} });
+vm.runInContext(source.slice(source.indexOf("  $('#applicationFollowUpForm').addEventListener"),source.indexOf("  $('#clientPlatform').addEventListener")),context);
+const event={ preventDefault(){}, currentTarget:{ reportValidity:()=>true } };
+const saving=handler(event);
+assert.equal(app.automaticFollowUp,true,'Saving the date enables automatic sending');
+assert.equal(app.followUpSentAt,'');
+assert.equal(sends,0,'Sending waits for the cloud save');
+savedResolve(true); await saving;
+assert.equal(sends,1); assert.equal(closed,1);
+const failure=handler(event); savedResolve(false); await failure;
+assert.equal(sends,1,'Failed cloud save cannot start a send');
+assert.equal(closed,1,'Failed save keeps the form open');
+console.log('Follow-up date action passed: automatic sending enabled, save awaited, due check triggered, save failures retained.');
+})().catch(error=>{ console.error(error); process.exitCode=1; });

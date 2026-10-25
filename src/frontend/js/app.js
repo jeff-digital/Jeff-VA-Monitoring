@@ -2459,16 +2459,23 @@
     const recipient = extractEmailAddress(item.email || '');
     const sameRecipient = recipient ? data.applications.filter(app => extractEmailAddress(app.email || '') === recipient) : [];
     const expectedSubject = `follow-up: ${String(item.clientName || '').trim()}`.toLowerCase();
+    const newSubject = ('Follow-up application: ' + (String(item.role || '').trim() || 'position') + (String(item.platform || '').trim() ? ' — ' + item.platform.trim() : '')).toLowerCase();
+    const uniqueRolePlatform = sameRecipient.filter(app => String(app.role || '').trim().toLowerCase() === String(item.role || '').trim().toLowerCase()
+      && String(app.platform || '').trim().toLowerCase() === String(item.platform || '').trim().toLowerCase()).length === 1;
     const sentDates = [item.followUpSentAt, ...data.emails.filter(email => {
       if (!isSentEmail(email)) return false;
       const subject = String(email.subject || '').trim().replace(/^(?:(?:re|fw|fwd):\s*)+/i, '');
-      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject)) return false;
+      const roleOnlyFollowUp = subject.toLowerCase() === (String(item.role || '').trim() || 'position').toLowerCase()
+        && /I wanted to follow up on my application/i.test(email.body || '');
+      if (email.emailType !== 'follow-up' && !/^follow(?:ing)?[\s-]*up\b/i.test(subject) && !roleOnlyFollowUp) return false;
       if (email.applicationId) return email.applicationId === item.id;
       if (!recipient || extractEmailAddress(email.to || '') !== recipient) return false;
       // Shared recruiter addresses need a company-specific subject; a generic
       // follow-up to that address must not complete every application.
       return (sameRecipient.length === 1 && sameRecipient[0].id === item.id)
-        || (String(item.clientName || '').trim() && subject.toLowerCase() === expectedSubject);
+        || (String(item.clientName || '').trim() && subject.toLowerCase() === expectedSubject)
+        || (uniqueRolePlatform && subject.toLowerCase() === newSubject)
+        || (roleOnlyFollowUp && sameRecipient.filter(app => String(app.role || '').trim().toLowerCase() === String(item.role || '').trim().toLowerCase()).length === 1);
     }).map(email => email.date)].filter(value => {
       const date = dateKey(value);
       return date && (!scheduledDate || date >= scheduledDate)
@@ -3830,7 +3837,7 @@
     if (!target || !viewOnly) return;
     const clientEmail = String(item.email || '').trim().toLowerCase();
     const followUps = data.emails.filter(email => isSentEmail(email)
-      && (email.applicationId === item.id || (clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail && /^follow-up:/i.test(email.subject || ''))))
+      && (email.applicationId === item.id || (clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail && (/^follow(?:ing)?[\s-]*up\b/i.test(email.subject || '') || /I wanted to follow up on my application/i.test(email.body || '')))))
       .sort((first, second) => new Date(second.date) - new Date(first.date));
     const historicalFollowUp = !followUps.length && item.followUpSentAt
       ? [{ date: item.followUpSentAt, subject: `Follow-up: ${item.clientName}`, historical: true }]
@@ -5699,6 +5706,7 @@
               <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName || 'Notification')}</strong><time datetime="${escapeHtml(alert.date || '')}">${escapeHtml(notificationRelativeTime(alert.date))}</time></span>
               <button type="button" class="notification-item-subject" data-alert-open="${escapeHtml(alert.id)}">${escapeHtml(alert.subject || '(No subject)')}</button>
               ${alert.from ? `<small>${escapeHtml(alert.from)}</small>` : ''}
+              ${alert.id?.startsWith('follow-up|') && alert.deliveryReason ? `<small>${escapeHtml(alert.deliveryReason)}</small>` : ''}
               ${['application-email-closed', 'application-email-review'].includes(alert.type) && alert.evidence ? `<small>From the email: ${escapeHtml(alert.evidence)}</small>` : ''}
               ${['application-email-closed', 'application-email-review'].includes(alert.type) && alert.reason ? `<small>AI assessment: ${escapeHtml(alert.reason)}</small>` : ''}
               <div class="notification-item-actions">
@@ -5820,12 +5828,22 @@
 
   document.addEventListener('keydown', handleNotificationKeydown);
   window.addEventListener('focus', renderAlerts);
+  function checkAutomaticFollowUps() {
+    if (!currentUser || !dataReady || !supabaseDataLoaded || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+    processDueFollowUps().catch(error => console.error('Scheduled follow-up check failed:', error));
+  }
+  window.addEventListener('focus', checkAutomaticFollowUps);
+  window.addEventListener('online', checkAutomaticFollowUps);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkAutomaticFollowUps();
+  });
 
   function startNotificationRefreshTimer() {
     if (!notificationRefreshTimer) {
       notificationRefreshTimer = setInterval(() => {
         if (dataReady && supabaseDataLoaded) {
           renderAlerts();
+          checkAutomaticFollowUps();
           if (activeView === 'subscriptions') renderSubscriptions();
         }
       }, 60000);
@@ -6098,6 +6116,12 @@
 
   let followUpProcessing = null;
 
+  function followUpGmailAvailable() {
+    if (typeof gmailReconnectRequired !== 'undefined' && gmailReconnectRequired) return false;
+    if (gmailAccessToken) return true;
+    return typeof readGmailCredentials === 'function' && Boolean(readGmailCredentials()?.refreshToken);
+  }
+
   function reconcileSentFollowUpAlerts() {
     let changed = false;
     for (const item of data.applications) {
@@ -6118,6 +6142,7 @@
         alert.subject = `Follow-up sent: ${buildDocumentEmailTemplate('follow-up', item).subject}`;
         alert.from = 'Jeff VA';
         alert.deliveryStatus = 'sent';
+        alert.deliveryReason = '';
         alert.unread = true;
         changed = true;
       }
@@ -6134,7 +6159,7 @@
       if (activeView === 'dashboard') renderDashboard();
       renderAlerts();
     }
-    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
+    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && applicationFollowUpState(item) !== 'sent' && followUpGmailAvailable())));
     if (!due.length) return;
     data.alerts = data.alerts || [];
     let followUpAlertsAdded = 0;
@@ -6153,14 +6178,19 @@
       const body = template.body;
       let sent = false;
       let deliveryFailed = false;
+      let deliveryState = '';
+      let deliveryReason = '';
       let delivery = null;
-      if (item.automaticFollowUp && gmailAccessToken && isEmailAddress(item.email)) {
+      if (item.automaticFollowUp && followUpGmailAvailable() && isEmailAddress(item.email)) {
         try {
+          if ((await persist()) === false) throw new Error('Waiting for the follow-up schedule to save to your account. The app will retry automatically.');
           delivery = await sendAutomaticFollowUpOnce(item, scheduledFollowUpDate, subject, body);
           sent = true;
           automaticEmailsSent += 1;
         } catch (error) {
           deliveryFailed = true;
+          deliveryState = error.followUpDeliveryState || 'retry';
+          deliveryReason = error.message || 'The app will retry automatically.';
           console.error('Automatic follow-up failed:', error);
           automaticEmailsFailed += 1;
           lastFailure = error.message || 'Follow-up delivery could not be confirmed.';
@@ -6189,9 +6219,10 @@
       const followUpAlert = {
         id: alertId,
         clientName: item.clientName,
-        subject: sent ? `Automatic follow-up sent: ${subject}` : deliveryFailed ? `Follow-up delivery needs review: ${subject}` : `Follow-up needed: ${subject}`,
+        subject: sent ? `Automatic follow-up sent: ${subject}` : deliveryFailed ? (deliveryState === 'uncertain' ? `Follow-up delivery unconfirmed: ${subject}` : deliveryState === 'sending' ? `Follow-up sending: ${subject}` : `Automatic follow-up waiting to retry: ${subject}`) : `Follow-up needed: ${subject}`,
         from: sent ? 'Jeff VA' : 'Jeff VA reminder',
-        deliveryStatus: sent ? 'sent' : deliveryFailed ? 'review' : 'due',
+        deliveryStatus: sent ? 'sent' : deliveryFailed ? (deliveryState === 'uncertain' ? 'review' : deliveryState) : 'due',
+        deliveryReason: sent ? '' : deliveryReason,
         date: new Date().toISOString(),
         unread: true
       };
@@ -6210,7 +6241,7 @@
           data.emails.unshift({ id: delivery.gmailId ? `gmail-${delivery.gmailId}` : uid(), gmailId: delivery.gmailId || '', applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: delivery.sentAt, importedAt: new Date().toISOString(), source: delivery.gmailId ? 'gmail' : 'sent', direction: 'sent' });
         }
         await persist();
-      } else if (!item.automaticFollowUp || !gmailAccessToken || !isEmailAddress(item.email)) {
+      } else if (!item.automaticFollowUp || !followUpGmailAvailable() || !isEmailAddress(item.email)) {
         followUpsNeedingReview += 1;
       }
     }
@@ -6445,8 +6476,8 @@
     },
     'follow-up': {
       name: 'Follow-up',
-      subject: 'Follow-up: {{clientName}}',
-      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}. I would appreciate any update on the progress or next steps.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
+      subject: '{{role}}',
+      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would appreciate any update on the progress or next steps.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
     },
     'proceed-application': {
       name: 'Proceed application',
@@ -6609,7 +6640,6 @@
     return `
       <div style="background:#f3efe9; padding:32px 16px; font-family:Arial, Helvetica, sans-serif;">
         <div style="max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e6dfd7; border-radius:18px; box-shadow:0 8px 22px rgba(27,24,20,0.06); overflow:hidden;">
-          <div style="height:5px; background:#0f1720; border-radius:18px 18px 0 0;"></div>
           <div style="padding:28px 32px 20px;">
             ${content}
           </div>
@@ -6687,7 +6717,9 @@
     const rendered = buildDocumentEmailTemplate(templateType, {
       clientName: 'Acme Studio',
       contact: 'Jordan Lee',
-      role: 'Social Media Management Services'
+      role: 'Social Media Management Services',
+      appliedDate: '2026-10-21',
+      platform: 'OnlineJobs.ph'
     }, {
       duration: '3 months',
       invoiceNumber: 'INV-2026-104',
@@ -6720,7 +6752,10 @@
     const clientName = application.clientName || 'Client';
     const contactName = application.contact || clientName;
     const contactPerson = application.contact || 'Client';
-    const roleName = application.role || 'your project';
+    const roleName = String(application.role || '').trim() || (templateType === 'follow-up' ? 'position' : 'your project');
+    const platform = String(application.platform || '').trim();
+    const applied = new Date(String(application.appliedDate || '').slice(0, 10) + 'T12:00:00');
+    const applicationDate = Number.isFinite(applied.getTime()) ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(applied) : 'an earlier date';
     const duration = additional.duration || contractDuration(application) || 'the project period';
     const invoiceNumber = additional.invoiceNumber || 'INV-000';
     const billingPeriod = additional.billingPeriod || 'this period';
@@ -6730,7 +6765,11 @@
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)
-      .replace(/{{role}}/g, roleName)
+      .replace(/{{role}}/g, () => roleName)
+      .replace(/{{platform}}/g, () => platform)
+      .replace(/{{platformSuffix}}/g, () => platform ? ' — ' + platform : '')
+      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' directly with your company' : ' through ' + platform) : '')
+      .replace(/{{applicationDate}}/g, () => applicationDate)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)
       .replace(/{{billingPeriod}}/g, billingPeriod)
@@ -6740,7 +6779,11 @@
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)
-      .replace(/{{role}}/g, roleName)
+      .replace(/{{role}}/g, () => roleName)
+      .replace(/{{platform}}/g, () => platform)
+      .replace(/{{platformSuffix}}/g, () => platform ? ' — ' + platform : '')
+      .replace(/{{applicationPlatform}}/g, () => platform ? (platform.toLowerCase() === 'direct client' ? ' directly with your company' : ' through ' + platform) : '')
+      .replace(/{{applicationDate}}/g, () => applicationDate)
       .replace(/{{duration}}/g, duration)
       .replace(/{{invoiceNumber}}/g, invoiceNumber)
       .replace(/{{billingPeriod}}/g, billingPeriod)
@@ -7190,13 +7233,19 @@
     const after = Math.floor(new Date(`${scheduledDate}T00:00:00+08:00`).getTime() / 1000);
     const recipient = extractEmailAddress(item.email);
     const root = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
-    const q = `in:sent to:${recipient} after:${after} subject:"${subject.replace(/["\\]/g, ' ')}"`;
+    const q = `in:sent to:${recipient} after:${after} {subject:follow "I wanted to follow up on my application"}`;
+    const subjects = [subject, ...(item.clientName ? ['Follow-up: ' + item.clientName.trim()] : [])].map(value => value.toLowerCase());
     const list = await fetchGmailJson(`${root}?${new URLSearchParams({ q, maxResults: '100' })}`);
     for (const message of list.messages || []) {
       const email = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=metadata&metadataHeaders=To&metadataHeaders=Subject`);
       const header = name => email.payload?.headers?.find(value => value.name.toLowerCase() === name)?.value || '';
       const sentAt = Number(email.internalDate);
-      if (extractEmailAddress(header('to')) === recipient && header('subject').trim() === subject
+      let matches = subjects.includes(header('subject').trim().toLowerCase());
+      if (matches && !/^follow(?:ing)?[\s-]*up\b/i.test(header('subject'))) {
+        const full = await fetchGmailJson(`${root}/${encodeURIComponent(message.id)}?format=full`);
+        matches = /I wanted to follow up on my application/i.test(gmailMessageBody(full.payload));
+      }
+      if (extractEmailAddress(header('to')) === recipient && matches
         && Number.isFinite(sentAt) && sentAt >= after * 1000) {
         return { sentAt: new Date(sentAt).toISOString(), gmailId: email.id, recovered: true };
       }
@@ -7211,6 +7260,7 @@
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
     const existing = await findGmailSentFollowUp(item, scheduledDate, subject);
     if (currentUser?.id !== userId) throw new Error('Account changed. No follow-up was sent.');
+    const preparedMessage = rawMessage || buildRawEmailMessage({ to: item.email, subject, body });
     const claim = await requestFollowUpReservation(item, scheduledDate, 'claim', manual ? { manual: true } : {});
     if (claim.status === 'sent') return claim;
     if (existing) {
@@ -7223,15 +7273,23 @@
       }
       return existing;
     }
-    if (claim.status !== 'claimed' || !claim.claimToken) throw new Error(claim.error || 'This follow-up is already sending. Check Gmail Sent; automatic resending is blocked.');
+    if (claim.status !== 'claimed' || !claim.claimToken) {
+      const error = new Error(claim.error || 'The app is checking whether this follow-up was already sent.');
+      error.followUpDeliveryState = claim.startedAt && Date.now() - Date.parse(claim.startedAt) < 120000 ? 'sending' : 'uncertain';
+      throw error;
+    }
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
-    try { gmail = await sendGmailRaw(rawMessage || buildRawEmailMessage({ to: item.email, subject, body }), { timeoutMs: 15000 }); }
+    try { gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 }); }
     catch (error) {
-      if (error.gmailRejected && currentUser?.id === userId) {
+      if ((error.gmailRejected || error.gmailNotSent) && currentUser?.id === userId) {
         await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});
       }
-      throw new Error(error.gmailRejected ? 'Gmail rejected the follow-up. It can retry later.' : 'Delivery is uncertain. Check Gmail Sent; automatic resending is blocked.');
+      const failure = new Error(error.gmailRejected || error.gmailNotSent
+        ? (error.gmailRejected ? 'Gmail rejected the follow-up; it will retry automatically. ' : 'The follow-up was not sent and will retry automatically. ') + error.message
+        : 'Delivery is uncertain. The app will check Gmail Sent before allowing another send.');
+      failure.followUpDeliveryState = error.gmailRejected || error.gmailNotSent ? 'retry' : 'uncertain';
+      throw failure;
     }
     const delivery = { sentAt: new Date().toISOString(), gmailId: gmail?.id || '' };
     if (currentUser?.id !== userId) throw new Error('Account changed. Check Gmail Sent to confirm delivery.');
@@ -7245,7 +7303,7 @@
 
   async function sendGmailRaw(rawMessage, { timeoutMs = 0 } = {}) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      await ensureGmailAccessToken();
+      try { await ensureGmailAccessToken(); } catch (error) { error.gmailNotSent = true; throw error; }
       const response = await fetch(GMAIL_SEND_ENDPOINT, {
         method: 'POST',
         ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
@@ -7254,7 +7312,7 @@
       });
       if (response.ok) return response.json();
       if (response.status === 401 && attempt === 0) {
-        await refreshGmailAuthorization();
+        try { await refreshGmailAuthorization(); } catch (error) { error.gmailNotSent = true; throw error; }
         continue;
       }
       if (response.status === 401) handleGmailAuthorizationFailure();
@@ -7278,7 +7336,7 @@
     const to = $('#composeTo').value.trim();
     const subject = $('#composeSubject').value.trim().replace(/[\r\n]+/g, ' ');
     const body = $('#composeBody').value.trim();
-    const followUpApplication = /^follow(?:ing)?[\s-]*up\b/i.test(subject)
+    const followUpApplication = (/^follow(?:ing)?[\s-]*up\b/i.test(subject) || /I wanted to follow up on my application/i.test(body))
       ? data.applications.find(item => item.id === composeClientId && extractEmailAddress(item.email) === extractEmailAddress(to))
       : null;
     const followUpSchedule = followUpApplication?.followUpDate || today();
@@ -8940,7 +8998,7 @@
     }
   });
 
-  $('#applicationFollowUpForm').addEventListener('submit', event => {
+  $('#applicationFollowUpForm').addEventListener('submit', async event => {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault();
     const form = event.currentTarget;
@@ -8958,11 +9016,13 @@
       application.followUpProcessedAt = '';
       application.followUpSentAt = '';
     }
+    application.automaticFollowUp = true;
     application.updatedAt = new Date().toISOString();
-    persist();
+    if ((await persist()) === false) { toast('Could not save the automatic follow-up. Please try again.'); return; }
     renderAll();
     modal.close();
-    toast('Follow-up date saved.');
+    toast('Automatic follow-up scheduled.');
+    await processDueFollowUps();
   });
 
   $('#clientPlatform').addEventListener('change', event => {
@@ -8996,6 +9056,9 @@
     });
   });
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
+  $('#followUpDate').addEventListener('change', event => {
+    if (!$('#automaticFollowUp').disabled) $('#automaticFollowUp').checked = Boolean(event.target.value);
+  });
   $('#automaticFollowUp').addEventListener('change', event => {
     if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);
   });
@@ -11467,6 +11530,20 @@
   };
   const coverLetterFields = [...document.querySelectorAll('[data-cover-letter-field]')];
 
+  function fitCoverLetterPreview() {
+    const stage = $('#coverLetterPreviewStage');
+    const page = $('#coverLetterPreview');
+    if (!stage || !page || !stage.clientWidth || !stage.clientHeight) return;
+    const scale = Math.min(1, (stage.clientWidth - 16) / 794, (stage.clientHeight - 16) / page.offsetHeight);
+    stage.style.setProperty('--letter-preview-scale', String(Math.max(.05, scale)));
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    const letterResize = new ResizeObserver(fitCoverLetterPreview);
+    ['#coverLetterPreviewStage', '#coverLetterPreview'].forEach(selector => {
+      if ($(selector)) letterResize.observe($(selector));
+    });
+  }
+
   function coverLetterValues() {
     return { ...COVER_LETTER_DEFAULTS, ...Object.fromEntries(coverLetterFields.map(field => [field.dataset.coverLetterField, field.value.trim()])) };
   }
@@ -11494,6 +11571,7 @@
       <p class="cover-letter-greeting">Dear ${escapeHtml(salutationRecipient)},</p>
       <div class="cover-letter-copy">${bodyHtml}</div>
       <p class="cover-letter-signoff">Best regards,<br><strong>Jeffrey S. Almocera</strong></p>`;
+    fitCoverLetterPreview();
   }
 
   function initializeCoverLetter() {
@@ -11539,7 +11617,13 @@
   async function renderCoverLetterCanvas() {
     if (!window.html2canvas) throw new Error('The cover letter renderer is unavailable.');
     if (document.fonts?.ready) await document.fonts.ready;
-    return window.html2canvas($('#coverLetterPreview'), { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    // Render a full-size copy so the on-screen fit never shrinks the PDF.
+    const page = $('#coverLetterPreview').cloneNode(true);
+    page.removeAttribute('id');
+    Object.assign(page.style, { position: 'absolute', left: '-10000px', top: '0', width: '794px', minHeight: '1123px', maxWidth: 'none', transform: 'none', margin: '0' });
+    document.body.append(page);
+    try { return await window.html2canvas(page, { scale: 2, backgroundColor: '#ffffff', useCORS: true }); }
+    finally { page.remove(); }
   }
 
   async function downloadCoverLetterPdf() {
@@ -11673,7 +11757,9 @@
     const rendered = buildDocumentEmailTemplate(templateId, {
       clientName: 'Acme Studio',
       contact: 'Jordan Lee',
-      role: 'Social Media Management Services'
+      role: 'Social Media Management Services',
+      appliedDate: '2026-10-21',
+      platform: 'OnlineJobs.ph'
     }, {
       duration: '3 months',
       invoiceNumber: 'INV-2026-104',
@@ -11682,7 +11768,7 @@
       dueDate: '2026-10-08'
     });
     const previewBody = htmlEmailBodyFromText(rendered.body);
-    preview.innerHTML = `<div style="font-family:Arial, Helvetica, sans-serif; margin:0;">${previewBody}</div>`;
+    preview.innerHTML = `<div class="template-preview-subject"><span>Subject</span><strong>${escapeHtml(rendered.subject || '(No subject)')}</strong></div><div style="font-family:Arial, Helvetica, sans-serif; margin:0;">${previewBody}</div>`;
   }
 
   $('#personalDocumentInput').addEventListener('change', event => {
@@ -11892,7 +11978,7 @@
   function weeklyEmailType(email) {
     const subject = String(email.subject || '');
     if (/^invoice\b/i.test(subject)) return 'Invoice';
-    if (/^follow-up:/i.test(subject)) return 'Follow-up';
+    if (email.emailType === 'follow-up' || /^follow(?:ing)?[\s-]*up\b/i.test(subject) || /I wanted to follow up on my application/i.test(email.body || '')) return 'Follow-up';
     if (/updated (contract|document)/i.test(subject)) return 'Updated contract';
     if (/contract/i.test(subject)) return 'Contract';
     return 'Other';

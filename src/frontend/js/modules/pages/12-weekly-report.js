@@ -61,7 +61,7 @@
   function weeklyEmailType(email) {
     const subject = String(email.subject || '');
     if (/^invoice\b/i.test(subject)) return 'Invoice';
-    if (/^follow-up:/i.test(subject)) return 'Follow-up';
+    if (email.emailType === 'follow-up' || /^follow(?:ing)?[\s-]*up\b/i.test(subject) || /I wanted to follow up on my application/i.test(email.body || '')) return 'Follow-up';
     if (/updated (contract|document)/i.test(subject)) return 'Updated contract';
     if (/contract/i.test(subject)) return 'Contract';
     return 'Other';

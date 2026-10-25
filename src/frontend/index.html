@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-clocks-ai-news" />
+    <link rel="stylesheet" href="css/styles.css?v=20261025-template-preview" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -668,7 +668,7 @@
                 </section>
                 <section class="cover-letter-preview-area" aria-label="Cover letter preview">
                   <div class="cover-letter-preview-label"><span>PREVIEW</span><span>A4 · Portrait</span></div>
-                  <article class="cover-letter-page" id="coverLetterPreview"></article>
+                  <div class="cover-letter-preview-stage" id="coverLetterPreviewStage"><article class="cover-letter-page" id="coverLetterPreview"></article></div>
                 </section>
               </div>
             </div>
@@ -711,6 +711,7 @@
                   <button class="button button-secondary" type="button" id="previewDocumentTemplateButton">Preview</button>
                   <button class="button button-primary" type="button" id="sendDocumentTemplateTestButton">Send test to me</button>
                 </div>
+                <p class="template-preview-note">Sample preview. Actual emails use the details saved in your application.</p>
                 <div class="template-preview" id="documentTemplatePreview"></div>
               </div>
             </div>
@@ -1151,7 +1152,7 @@
           <div><p class="eyebrow">APPLICATION FOLLOW-UP</p><h2 id="applicationFollowUpTitle">Set follow-up date</h2></div>
         </div>
         <label class="form-field">Follow-up date <input id="applicationFollowUpDateInput" type="date" required /></label>
-        <p class="settings-copy">The application's automatic follow-up setting will remain unchanged.</p>
+        <p class="settings-copy">Saving a date enables automatic email sending. No approval is needed. Keep the app open with Gmail connected.</p>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit">Save date</button></div>
       </form>
     </dialog>
@@ -1769,6 +1770,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-backup-download-protection"></script>
+    <script src="js/app.js?v=20261025-follow-up-auto-retry"></script>
   </body>
 </html>

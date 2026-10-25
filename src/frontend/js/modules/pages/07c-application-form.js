@@ -182,7 +182,7 @@
     if (!target || !viewOnly) return;
     const clientEmail = String(item.email || '').trim().toLowerCase();
     const followUps = data.emails.filter(email => isSentEmail(email)
-      && (email.applicationId === item.id || (clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail && /^follow-up:/i.test(email.subject || ''))))
+      && (email.applicationId === item.id || (clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail && (/^follow(?:ing)?[\s-]*up\b/i.test(email.subject || '') || /I wanted to follow up on my application/i.test(email.body || '')))))
       .sort((first, second) => new Date(second.date) - new Date(first.date));
     const historicalFollowUp = !followUps.length && item.followUpSentAt
       ? [{ date: item.followUpSentAt, subject: `Follow-up: ${item.clientName}`, historical: true }]

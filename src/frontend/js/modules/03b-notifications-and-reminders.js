@@ -267,6 +267,7 @@
               <span class="notification-item-heading"><strong>${escapeHtml(alert.clientName || 'Notification')}</strong><time datetime="${escapeHtml(alert.date || '')}">${escapeHtml(notificationRelativeTime(alert.date))}</time></span>
               <button type="button" class="notification-item-subject" data-alert-open="${escapeHtml(alert.id)}">${escapeHtml(alert.subject || '(No subject)')}</button>
               ${alert.from ? `<small>${escapeHtml(alert.from)}</small>` : ''}
+              ${alert.id?.startsWith('follow-up|') && alert.deliveryReason ? `<small>${escapeHtml(alert.deliveryReason)}</small>` : ''}
               ${['application-email-closed', 'application-email-review'].includes(alert.type) && alert.evidence ? `<small>From the email: ${escapeHtml(alert.evidence)}</small>` : ''}
               ${['application-email-closed', 'application-email-review'].includes(alert.type) && alert.reason ? `<small>AI assessment: ${escapeHtml(alert.reason)}</small>` : ''}
               <div class="notification-item-actions">
@@ -388,12 +389,22 @@
 
   document.addEventListener('keydown', handleNotificationKeydown);
   window.addEventListener('focus', renderAlerts);
+  function checkAutomaticFollowUps() {
+    if (!currentUser || !dataReady || !supabaseDataLoaded || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+    processDueFollowUps().catch(error => console.error('Scheduled follow-up check failed:', error));
+  }
+  window.addEventListener('focus', checkAutomaticFollowUps);
+  window.addEventListener('online', checkAutomaticFollowUps);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkAutomaticFollowUps();
+  });
 
   function startNotificationRefreshTimer() {
     if (!notificationRefreshTimer) {
       notificationRefreshTimer = setInterval(() => {
         if (dataReady && supabaseDataLoaded) {
           renderAlerts();
+          checkAutomaticFollowUps();
           if (activeView === 'subscriptions') renderSubscriptions();
         }
       }, 60000);
@@ -666,6 +677,12 @@
 
   let followUpProcessing = null;
 
+  function followUpGmailAvailable() {
+    if (typeof gmailReconnectRequired !== 'undefined' && gmailReconnectRequired) return false;
+    if (gmailAccessToken) return true;
+    return typeof readGmailCredentials === 'function' && Boolean(readGmailCredentials()?.refreshToken);
+  }
+
   function reconcileSentFollowUpAlerts() {
     let changed = false;
     for (const item of data.applications) {
@@ -686,6 +703,7 @@
         alert.subject = `Follow-up sent: ${buildDocumentEmailTemplate('follow-up', item).subject}`;
         alert.from = 'Jeff VA';
         alert.deliveryStatus = 'sent';
+        alert.deliveryReason = '';
         alert.unread = true;
         changed = true;
       }
@@ -702,7 +720,7 @@
       if (activeView === 'dashboard') renderDashboard();
       renderAlerts();
     }
-    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && !item.followUpSentAt && gmailAccessToken)));
+    const due = data.applications.filter(item => item.followUpDate && item.followUpDate <= today() && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && applicationFollowUpState(item) !== 'sent' && followUpGmailAvailable())));
     if (!due.length) return;
     data.alerts = data.alerts || [];
     let followUpAlertsAdded = 0;
@@ -721,14 +739,19 @@
       const body = template.body;
       let sent = false;
       let deliveryFailed = false;
+      let deliveryState = '';
+      let deliveryReason = '';
       let delivery = null;
-      if (item.automaticFollowUp && gmailAccessToken && isEmailAddress(item.email)) {
+      if (item.automaticFollowUp && followUpGmailAvailable() && isEmailAddress(item.email)) {
         try {
+          if ((await persist()) === false) throw new Error('Waiting for the follow-up schedule to save to your account. The app will retry automatically.');
           delivery = await sendAutomaticFollowUpOnce(item, scheduledFollowUpDate, subject, body);
           sent = true;
           automaticEmailsSent += 1;
         } catch (error) {
           deliveryFailed = true;
+          deliveryState = error.followUpDeliveryState || 'retry';
+          deliveryReason = error.message || 'The app will retry automatically.';
           console.error('Automatic follow-up failed:', error);
           automaticEmailsFailed += 1;
           lastFailure = error.message || 'Follow-up delivery could not be confirmed.';
@@ -757,9 +780,10 @@
       const followUpAlert = {
         id: alertId,
         clientName: item.clientName,
-        subject: sent ? `Automatic follow-up sent: ${subject}` : deliveryFailed ? `Follow-up delivery needs review: ${subject}` : `Follow-up needed: ${subject}`,
+        subject: sent ? `Automatic follow-up sent: ${subject}` : deliveryFailed ? (deliveryState === 'uncertain' ? `Follow-up delivery unconfirmed: ${subject}` : deliveryState === 'sending' ? `Follow-up sending: ${subject}` : `Automatic follow-up waiting to retry: ${subject}`) : `Follow-up needed: ${subject}`,
         from: sent ? 'Jeff VA' : 'Jeff VA reminder',
-        deliveryStatus: sent ? 'sent' : deliveryFailed ? 'review' : 'due',
+        deliveryStatus: sent ? 'sent' : deliveryFailed ? (deliveryState === 'uncertain' ? 'review' : deliveryState) : 'due',
+        deliveryReason: sent ? '' : deliveryReason,
         date: new Date().toISOString(),
         unread: true
       };
@@ -778,7 +802,7 @@
           data.emails.unshift({ id: delivery.gmailId ? `gmail-${delivery.gmailId}` : uid(), gmailId: delivery.gmailId || '', applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: delivery.sentAt, importedAt: new Date().toISOString(), source: delivery.gmailId ? 'gmail' : 'sent', direction: 'sent' });
         }
         await persist();
-      } else if (!item.automaticFollowUp || !gmailAccessToken || !isEmailAddress(item.email)) {
+      } else if (!item.automaticFollowUp || !followUpGmailAvailable() || !isEmailAddress(item.email)) {
         followUpsNeedingReview += 1;
       }
     }

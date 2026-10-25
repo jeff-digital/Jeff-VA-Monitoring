@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { FollowUpDelivery, sendFollowUp } from '../functions/api/follow-up-send.js';
+import { FollowUpDelivery, sendFollowUp, savedFollowUpDelivery } from '../functions/api/follow-up-send.js';
 import worker from '../src/backend/worker.mjs';
 
 class MemoryStorage {
@@ -72,3 +72,10 @@ savedState.applications[0] = { ...savedState.applications[0], id: 'new-schedule'
 assert.equal((await (await sendFollowUp(apiRequest({ ...input, applicationId: 'new-schedule' }), env, { id: 'u1' })).json()).status, 'claimed', 'Older and unrelated follow-ups do not block a new schedule');
 globalThis.fetch = originalFetch;
 console.log('Passed shared delivery reservations: concurrent tabs, restart, uncertain delivery, receipts, rejection, account/date isolation, Worker routing and fail-closed configuration.');
+
+const roleApp = { id: 'role-app', role: 'Graphic Designer', email: 'shared@example.com', appliedDate: '2026-10-01' };
+const roleState = { applications: [roleApp, { id: 'other-role', role: 'Editor', email: roleApp.email }], emails: [{ direction: 'sent', to: roleApp.email, subject: 'Graphic Designer', body: 'I wanted to follow up on my application, which I submitted on Oct 1, 2026 through OnlineJobs.ph.', date: '2026-10-23T01:00:00Z' }] };
+assert.ok(savedFollowUpDelivery(roleState, roleApp, '2026-10-23'), 'Role-only follow-ups are recognized for shared recipients');
+assert.equal(savedFollowUpDelivery(roleState, roleState.applications[1], '2026-10-23'), null, 'Other roles cannot inherit this follow-up');
+roleState.emails[0].body = 'I am applying for this role.';
+assert.equal(savedFollowUpDelivery(roleState, roleApp, '2026-10-23'), null, 'An ordinary application is not treated as sent follow-up');
