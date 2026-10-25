@@ -2321,27 +2321,42 @@
   let applicationProgressReview = null;
   let applicationProgressRequest = null;
   let applicationProgressLastAttempt = null;
-  const applicationProgressLabels = { on_track: 'On track', needs_attention: 'Needs attention', insufficient_data: 'Not enough data' };
+  const APPLICATION_PROGRESS_CACHE_KEY = 'jeff-va-application-progress-v1:';
+  const APPLICATION_PROGRESS_CACHE_MS = 24 * 60 * 60 * 1000;
 
-  function applicationProgressSnapshot() {
-    return JSON.stringify({ day: today(), goal: data.weeklyActivityGoal,
-      applications: (data.applications || []).map(app => [app.id, app.updatedAt, app.clientName, app.role, app.email, app.platform, app.status, app.appliedDate, app.interviewDate, app.followUpDate, app.followUpSentAt, app.website]),
-      emails: (data.emails || []).map(email => [email.id, email.gmailId, email.importedAt, email.date, email.subject, email.from, email.to, email.applicationId, email.direction, email.source, email.emailType, email.automatedMessage, email.labelIds, String(email.body || '').length]),
-      reminders: (data.toApply || []).map(item => [item.id, item.dueDate, item.completed]) });
+  function restoreApplicationProgressReview() {
+    const userId = currentUser?.id;
+    if (!userId || applicationProgressReview?.userId === userId) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(APPLICATION_PROGRESS_CACHE_KEY + userId) || 'null');
+      if (saved?.userId !== userId || !Number.isFinite(saved.savedAt) || saved.savedAt > Date.now()) return;
+      const review = saved.result;
+      if (!applicationProgressLabels[review?.status] || !review.metrics?.current || !review.metrics?.previous
+        || typeof review.summary !== 'string' || !Array.isArray(review.nextSteps)) return;
+      applicationProgressReview = saved;
+    } catch { /* Storage may be blocked or contain an older invalid entry. */ }
   }
+
+  function saveApplicationProgressReview(review) {
+    try { localStorage.setItem(APPLICATION_PROGRESS_CACHE_KEY + review.userId, JSON.stringify(review)); }
+    catch { /* Keep the in-memory review even when browser storage is full. */ }
+  }
+
+  const applicationProgressLabels = { on_track: 'On track', needs_attention: 'Needs attention', insufficient_data: 'Not enough data' };
 
   function maybeReviewApplicationProgress() {
     const userId = currentUser?.id;
     if (!userId || !dataReady || document.hidden || activeView !== 'dashboard' || activeDashboardTab !== 'application'
       || applicationProgressRequest?.userId === userId) return;
+    restoreApplicationProgressReview();
     const previous = applicationProgressReview?.userId === userId ? applicationProgressReview : null;
     if (applicationProgressLastAttempt?.userId === userId && Date.now() - applicationProgressLastAttempt.at < (previous?.error ? 300000 : 60000)) return;
-    if (previous?.result && !previous.error && previous.snapshot === applicationProgressSnapshot()
-      && Date.now() - Date.parse(previous.result.reviewedAt) < 600000) return;
+    if (previous?.result && Date.now() - previous.savedAt < APPLICATION_PROGRESS_CACHE_MS) return;
     return requestApplicationProgressReview();
   }
 
   function renderApplicationProgressAi() {
+    restoreApplicationProgressReview();
     const status = $('#applicationProgressAiStatus');
     const result = $('#applicationProgressAiResult');
     const button = $('#reviewApplicationProgress');
@@ -2351,7 +2366,7 @@
     button.disabled = loading || !currentUser || !dataReady;
     button.textContent = loading ? 'Reviewing…' : review ? 'Review again' : 'Review progress';
     status.textContent = loading ? 'Reviewing your saved activity…' : applicationProgressReview?.userId === currentUser?.id && applicationProgressReview?.error
-      ? applicationProgressReview.error : review ? 'Activity guidance, not a prediction of hiring success. Reviews update automatically when you open this dashboard.'
+      ? applicationProgressReview.error : review ? 'Showing your saved review. It is kept for 24 hours on this browser; choose Review again to include newer activity.'
         : 'Your review starts automatically when you open the Application Dashboard.';
     result.hidden = !review;
     if (!review) { result.innerHTML = ''; return; }
@@ -2379,7 +2394,6 @@
     const userId = currentUser?.id;
     if (!userId || !dataReady || applicationProgressRequest?.userId === userId) return;
     const request = { userId };
-    request.snapshot = applicationProgressSnapshot();
     applicationProgressLastAttempt = { userId, at: Date.now() };
     applicationProgressRequest = request;
     if (applicationProgressReview?.userId === userId) applicationProgressReview.error = '';
@@ -2404,9 +2418,12 @@
         review = result;
         break;
       }
-      if (currentUser?.id === userId && review) applicationProgressReview = { userId, result: review, snapshot: request.snapshot };
+      if (currentUser?.id === userId && review) {
+        applicationProgressReview = { userId, result: review, savedAt: Date.now() };
+        saveApplicationProgressReview(applicationProgressReview);
+      }
     } catch (error) {
-      if (currentUser?.id === userId) applicationProgressReview = { userId,
+      if (currentUser?.id === userId) applicationProgressReview = { ...(applicationProgressReview?.userId === userId ? applicationProgressReview : {}), userId,
         result: applicationProgressReview?.userId === userId ? applicationProgressReview.result : null,
         error: error.name === 'TimeoutError' || error.name === 'AbortError' ? 'The review took too long. Please try again later.' : error.message || 'Progress review is temporarily unavailable.' };
     } finally {

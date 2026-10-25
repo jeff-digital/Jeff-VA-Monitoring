@@ -11,12 +11,14 @@ const metrics = { start: '2026-10-19', through: '2026-10-25', previousStart: '20
 metrics.responseAnalysis = { recent: { start: '2026-10-04', end: '2026-10-17', applications: 6, repliedApplications: 1, replyRate: 17 }, previous: { start: '2026-09-20', end: '2026-10-03', applications: 6, repliedApplications: 3, replyRate: 50 }, minimumSample: 5, bySource: [{ source: 'Direct client', applications: 3, repliedApplications: 1, replyRate: 33 }] };
 metrics.applicationChecks = [{ applicationId: 'review-app', company: '<img src=x>', role: 'Editor', issues: ['Record the role or missing posting details.'] }];
 const opened = [];
+const savedReviews = new Map();
+const localStorage = { getItem: key => savedReviews.get(key) || null, setItem: (key, value) => savedReviews.set(key, value) };
 let clockNow = Date.now();
 class ClockDate extends Date { constructor(...args) { super(...(args.length ? args : [clockNow])); } static now() { return clockNow; } }
 let requests = 0, renewals = 0, respond = () => Response.json({ status: 'on_track', summary: '<script>unsafe</script>', nextSteps: ['<img src=x onerror=bad>'], metrics, reviewedAt: new Date().toISOString() });
 const session = { access_token: 'session', user: { id: 'u1' } };
 const context = vm.createContext({ $, currentUser: null, dataReady: false, AbortSignal,
-  Date: ClockDate,
+  Date: ClockDate, localStorage,
   document: { hidden: false, addEventListener() {} }, today: () => '2026-10-25', activeView: 'dashboard', activeDashboardTab: 'application',
   data: { applications: [{ id: 'review-app' }] }, showView: view => opened.push(view), openClientModal: id => opened.push(id),
   escapeHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'),
@@ -81,16 +83,21 @@ assert.equal(requests, 0);
   assert.equal(requests, beforeAuto + 1, 'Re-entering with unchanged fresh data reuses the result');
   context.data.applications[0].role = 'Updated role';
   await context.maybeReviewApplicationProgress();
-  assert.equal(requests, beforeAuto + 2, 'Changed application data refreshes the review');
+  assert.equal(requests, beforeAuto + 1, 'New activity does not discard a saved review on navigation');
   context.data.weeklyActivityGoal = 20;
-  await context.maybeReviewApplicationProgress();
-  assert.equal(requests, beforeAuto + 2, 'Rapid updates respect the request cooldown');
-  clockNow += 61000;
-  await context.maybeReviewApplicationProgress();
-  assert.equal(requests, beforeAuto + 3);
   clockNow += 601000;
   await context.maybeReviewApplicationProgress();
-  assert.equal(requests, beforeAuto + 4, 'Old review refreshes on a later dashboard visit');
+  assert.equal(requests, beforeAuto + 1, 'Review is retained beyond the old ten-minute expiry');
+  const reloaded = vm.createContext({ ...context });
+  vm.runInContext(source, reloaded);
+  reloaded.renderApplicationProgressAi();
+  assert.match($('#applicationProgressAiResult').innerHTML, /Automatic review/);
+  await reloaded.maybeReviewApplicationProgress();
+  assert.equal(requests, beforeAuto + 1, 'Reload restores the account cache without requesting AI');
+  await context.requestApplicationProgressReview();
+  assert.equal(requests, beforeAuto + 2, 'Review again explicitly refreshes cached guidance');
+  assert.ok(savedReviews.has('jeff-va-application-progress-v1:auto-user'));
+  clockNow += 24 * 60 * 60 * 1000 + 1;
   respond = () => Response.json({ error: 'Provider temporarily unavailable' }, { status: 503 });
   clockNow += 601000;
   await context.maybeReviewApplicationProgress();
@@ -101,5 +108,13 @@ assert.equal(requests, 0);
   clockNow += 300000;
   await context.maybeReviewApplicationProgress();
   assert.equal(requests, afterFailure + 1, 'A later visit can retry a failed review');
+  const isolated = vm.createContext({ ...context, currentUser: { id: 'another-user' } });
+  vm.runInContext(source, isolated);
+  isolated.renderApplicationProgressAi();
+  assert.equal($('#applicationProgressAiResult').hidden, true, 'Another account cannot see the cached review');
+  savedReviews.set('jeff-va-application-progress-v1:another-user', 'invalid-json');
+  const corrupt = vm.createContext({ ...context, currentUser: { id: 'another-user' } });
+  vm.runInContext(source, corrupt);
+  assert.doesNotThrow(() => corrupt.renderApplicationProgressAi(), 'Malformed cache does not break the dashboard');
   console.log('Progress UI checks passed: automatic entry, fresh-result reuse, changed activity, cooldown/backoff, visibility, authentication, escaped output and account changes.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
