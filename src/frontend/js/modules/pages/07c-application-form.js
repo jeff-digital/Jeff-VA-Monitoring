@@ -296,8 +296,9 @@
     const form = $('#clientForm');
     if (!form.reportValidity()) return;
     if ($('#automaticFollowUp').checked && !$('#followUpDate').value) {
-      $('#followUpDate').value = addDays(today(), 7);
+      $('#followUpDate').value = nextFollowUpWeekday(addDays(today(), 7));
     }
+    if (!validateFollowUpDateInput($('#followUpDate'))) return;
     const platformChoice = $('#clientPlatform').value;
     const existing = editingId ? data.applications.find(item => item.id === editingId) : null;
     const existingIndex = editingId ? data.applications.findIndex(item => item.id === editingId) : -1;

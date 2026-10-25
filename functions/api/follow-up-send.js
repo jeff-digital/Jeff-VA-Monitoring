@@ -1,5 +1,6 @@
 import { coordinateBackup } from './backup-download.js';
 import { coordinateResearchUsage } from './research-usage.js';
+import { isFollowUpWeekday } from './follow-up-calendar.js';
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
 
 export function savedFollowUpDelivery(state, app, scheduledDate) {
@@ -50,12 +51,12 @@ export async function sendFollowUp(request, env, user) {
   const app = state?.applications?.find(item => item.id === input.applicationId);
   if (!app) return reply({ error: 'The application no longer exists. No email was sent.' }, 409);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const eligible = !['Active client', 'Not selected'].includes(app.status) && (input.manual
+  const eligible = isFollowUpWeekday(app) && !['Active client', 'Not selected'].includes(app.status) && (input.manual
     ? input.scheduledDate === (app.followUpDate || today)
     : app.automaticFollowUp === true && app.followUpDate === input.scheduledDate && input.scheduledDate <= today);
   const id = env.FOLLOW_UP_DELIVERIES.idFromName(JSON.stringify([user.id, app.id, input.scheduledDate]));
   return env.FOLLOW_UP_DELIVERIES.get(id).fetch(new Request('https://follow-up.internal/delivery', {
-    method: 'POST', body: JSON.stringify({ ...input, eligible, savedDelivery: savedFollowUpDelivery(state, app, input.scheduledDate) })
+    method: 'POST', body: JSON.stringify({ ...input, eligible, ineligibleReason: !isFollowUpWeekday(app) ? 'Follow-ups send Monday–Friday in the client timezone. The schedule is kept for the next weekday.' : '', savedDelivery: savedFollowUpDelivery(state, app, input.scheduledDate) })
   }));
 }
 
@@ -80,7 +81,7 @@ export class FollowUpDelivery {
       }
       if (input.action === 'claim') {
         if (existing) return reply({ status: 'pending', startedAt: existing.startedAt, error: 'This follow-up is already sending or needs delivery review. Automatic resending is blocked.' });
-        if (!input.eligible) return reply({ error: 'This follow-up is no longer scheduled for automatic sending.' }, 409);
+        if (!input.eligible) return reply({ error: input.ineligibleReason || 'This follow-up is no longer scheduled for automatic sending.' }, 409);
         const record = { status: 'pending', claimToken: crypto.randomUUID(), startedAt: new Date().toISOString() };
         await txn.put('delivery', record);
         return reply({ status: 'claimed', claimToken: record.claimToken });

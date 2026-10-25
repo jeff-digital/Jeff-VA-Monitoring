@@ -150,7 +150,7 @@
     }
     return '<article class="research-message is-' + message.role + '"><span class="research-message-label">' + (message.role === 'user' ? 'You' : 'GPT-OSS 120B')
       + '</span><div class="research-message-text">' + content + '</div>'
-      + (sources.length ? '<details class="research-sources"><summary>Retrieved sources · ' + sources.length + '</summary><ol>' + sources.map(source => '<li><a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.title) + '</a><small>' + escapeHtml(source.provider || 'Source') + '</small></li>').join('') + '</ol></details>' : '')
+      + (sources.length ? '<details class="research-sources"><summary>Retrieved sources · ' + sources.length + '</summary><ol>' + sources.map(source => '<li><a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.title) + '</a><small>' + (escapeHtml(source.provider || 'Source') + (source.publishedAt ? ' · Published ' + escapeHtml(source.publishedAt) : '')) + '</small></li>').join('') + '</ol></details>' : '')
       + (Array.isArray(message.notices) ? message.notices.map(note => '<p class="research-source-note">' + escapeHtml(note) + '</p>').join('') : '')
       + (message.role === 'assistant' ? renderAssistantTaskAction(message) : '') + '</article>';
   }
@@ -187,7 +187,7 @@
     $('#researchModelLabel').hidden = !ai;
     $('#researchModeTab').setAttribute('aria-selected', String(ai));
     $('#appSearchModeTab').setAttribute('aria-selected', String(!ai));
-    if (ai) { refreshAssistantApplicationPicker(); renderResearchChat(); refreshResearchUsage(); }
+    if (ai) { renderResearchChat(); refreshResearchUsage(); }
     requestAnimationFrame(() => (ai ? $('#researchPrompt') : $('#quickSearchInput')).focus());
   }
 

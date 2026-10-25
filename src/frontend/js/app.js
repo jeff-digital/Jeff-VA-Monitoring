@@ -1248,6 +1248,135 @@
   let applicationMatchIndex = [];
   let applicationMatchIndexSignature = '';
 
+// Keep in sync with functions/api/follow-up-calendar.js; parity is tested.
+  function followUpTimeZone(app) {
+  for (const zone of [app.clientTimeZone, app.timeZone, app.timezone]) {
+    if (!zone) continue;
+    try { new Intl.DateTimeFormat('en', { timeZone: zone }); return zone; } catch {}
+  }
+  const [country, region = ''] = String(app.location || '').split(',').map(value => value.trim());
+  const regions = { Eastern: 'America/New_York', Central: 'America/Chicago', Mountain: 'America/Denver', Pacific: 'America/Los_Angeles',
+    Atlantic: 'America/Halifax', Newfoundland: 'America/St_Johns', Alaska: 'America/Anchorage', Hawaii: 'Pacific/Honolulu' };
+  if (['United States', 'Canada'].includes(country) && regions[region]) return regions[region];
+  if (country === 'Australia') return ({ East: 'Australia/Sydney', Central: 'Australia/Adelaide', West: 'Australia/Perth' })[region] || 'Australia/Sydney';
+  return ({ 'United States': 'America/New_York', Canada: 'America/Toronto', 'United Kingdom': 'Europe/London', Philippines: 'Asia/Manila',
+    Brazil: 'America/Sao_Paulo', China: 'Asia/Shanghai', Colombia: 'America/Bogota', France: 'Europe/Paris', Germany: 'Europe/Berlin',
+    India: 'Asia/Kolkata', Ireland: 'Europe/Dublin', Israel: 'Asia/Jerusalem', Italy: 'Europe/Rome', Japan: 'Asia/Tokyo',
+    Mexico: 'America/Mexico_City', Netherlands: 'Europe/Amsterdam', 'New Zealand': 'Pacific/Auckland', Peru: 'America/Lima',
+    'Saudi Arabia': 'Asia/Riyadh', 'South Africa': 'Africa/Johannesburg', 'South Korea': 'Asia/Seoul', Taiwan: 'Asia/Taipei',
+    'United Arab Emirates': 'Asia/Dubai' })[country] || 'Asia/Manila';
+}
+
+  function isFollowUpWeekday(app, now = new Date()) {
+  const day = new Intl.DateTimeFormat('en-US', { timeZone: followUpTimeZone(app), weekday: 'short' }).format(now);
+  return day !== 'Sat' && day !== 'Sun';
+}
+
+  function isFollowUpDateWeekday(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false;
+  const date = new Date(value + 'T12:00:00Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && ![0, 6].includes(date.getUTCDay());
+}
+
+  function nextFollowUpWeekday(value) {
+  const date = new Date(value + 'T12:00:00Z');
+  if (!Number.isFinite(date.getTime())) return '';
+  while ([0, 6].includes(date.getUTCDay())) date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+  function validateFollowUpDateInput(input) {
+    if (!input.value || isFollowUpDateWeekday(input.value)) return true;
+    input.value = '';
+    toast('Follow-ups are weekdays only. Choose a Monday–Friday date.');
+    input.focus();
+    return false;
+  }
+
+  function followUpCalendarDays(year, month) {
+    const count = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    return Array.from({ length: count }, (_, index) => {
+      const value = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(index + 1).padStart(2, '0');
+      return { day: index + 1, value, available: isFollowUpDateWeekday(value) };
+    });
+  }
+
+  document.querySelectorAll('[data-follow-up-calendar]').forEach(trigger => {
+    const input = document.getElementById(trigger.dataset.followUpCalendar);
+    const panel = document.createElement('div');
+    panel.className = 'follow-up-calendar';
+    panel.id = input.id + 'Calendar';
+    panel.setAttribute('popover', 'auto');
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Choose a weekday follow-up date');
+    trigger.setAttribute('aria-controls', panel.id);
+    panel.innerHTML = '<div class="follow-up-calendar-heading"><button type="button" data-calendar-month="-1" aria-label="Previous month">‹</button><strong aria-live="polite"></strong><button type="button" data-calendar-month="1" aria-label="Next month">›</button></div>'
+      + '<div class="follow-up-calendar-week" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span class="is-weekend">Sat</span><span class="is-weekend">Sun</span></div>'
+      + '<div class="follow-up-calendar-days" role="group" aria-label="Dates"></div><p>Faded weekends are unavailable</p>';
+    (input.closest('dialog') || trigger.parentElement).append(panel);
+    let year, month;
+    const isOpen = () => panel.matches(':popover-open');
+    function renderCalendar(focusDate) {
+      panel.querySelector('strong').textContent = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month, 1)));
+      const days = followUpCalendarDays(year, month);
+      const defaultDate = input.value || nextFollowUpWeekday(today());
+      const preferred = focusDate || (days.some(day => day.value === defaultDate && day.available) ? defaultDate : days.find(day => day.available)?.value);
+      const offset = (new Date(Date.UTC(year, month, 1)).getUTCDay() + 6) % 7;
+      panel.querySelector('.follow-up-calendar-days').innerHTML = '<span aria-hidden="true"></span>'.repeat(offset) + days.map(day => {
+        const disabled = !day.available || (input.min && day.value < input.min) || (input.max && day.value > input.max);
+        return '<button type="button" data-calendar-date="' + day.value + '" class="' + (!day.available ? 'is-weekend ' : '')
+          + (day.value === input.value ? 'is-selected ' : '') + (day.value === today() ? 'is-today' : '') + '"'
+          + ' aria-label="' + day.value + (!day.available ? ', weekend unavailable' : '') + '" aria-pressed="' + (day.value === input.value) + '"'
+          + ' tabindex="' + (!disabled && day.value === preferred ? '0' : '-1') + '"' + (disabled ? ' disabled' : '') + '>' + day.day + '</button>';
+      }).join('');
+    }
+    function positionCalendar() {
+      if (!isOpen()) return;
+      const rect = input.getBoundingClientRect(), height = panel.getBoundingClientRect().height;
+      panel.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 12)) + 'px';
+      const below = rect.bottom + 7;
+      panel.style.top = Math.max(12, Math.min(below + height <= window.innerHeight - 12 ? below : rect.top - height - 7, window.innerHeight - height - 12)) + 'px';
+    }
+    function openCalendar() {
+      if (input.disabled || input.readOnly) return;
+      if (isOpen()) { panel.hidePopover(); return; }
+      const value = /^\d{4}-\d{2}-\d{2}$/.test(input.value) ? input.value : today();
+      [year, month] = value.split('-').map(Number); month--;
+      renderCalendar(); panel.showPopover(); positionCalendar();
+      panel.querySelector('[data-calendar-date][tabindex="0"]')?.focus();
+    }
+    trigger.addEventListener('click', event => { event.preventDefault(); openCalendar(); });
+    input.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown' && event.altKey) { event.preventDefault(); openCalendar(); }
+    });
+    panel.addEventListener('toggle', () => trigger.setAttribute('aria-expanded', String(isOpen())));
+    panel.addEventListener('click', event => {
+      const nav = event.target.closest('[data-calendar-month]');
+      if (nav) { const date = new Date(Date.UTC(year, month + Number(nav.dataset.calendarMonth), 1)); year = date.getUTCFullYear(); month = date.getUTCMonth(); renderCalendar(); positionCalendar(); return; }
+      const button = event.target.closest('[data-calendar-date]');
+      if (!button || button.disabled || !isFollowUpDateWeekday(button.dataset.calendarDate)) return;
+      input.value = button.dataset.calendarDate;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      panel.hidePopover(); trigger.focus();
+    });
+    panel.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); panel.hidePopover(); trigger.focus(); return; }
+      const button = event.target.closest('[data-calendar-date]');
+      const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 })[event.key];
+      if (!button || !step) return;
+      event.preventDefault();
+      const date = new Date(button.dataset.calendarDate + 'T12:00:00Z');
+      do { date.setUTCDate(date.getUTCDate() + step); } while (!isFollowUpDateWeekday(date.toISOString().slice(0, 10)));
+      year = date.getUTCFullYear(); month = date.getUTCMonth();
+      const value = date.toISOString().slice(0, 10);
+      renderCalendar(value); panel.querySelector('[data-calendar-date="' + value + '"]')?.focus(); positionCalendar();
+    });
+    input.closest('dialog')?.addEventListener('close', () => { if (isOpen()) panel.hidePopover(); });
+    window.addEventListener('resize', () => { if (isOpen()) panel.hidePopover(); });
+    window.addEventListener('scroll', event => { if (isOpen() && !panel.contains(event.target)) panel.hidePopover(); }, true);
+  });
+
   let activeClientDetailsModalEdit = false;
   const CLIENT_SOCIAL_PLATFORM_LABELS = Object.freeze({
     facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter',
@@ -4013,8 +4142,9 @@
     const form = $('#clientForm');
     if (!form.reportValidity()) return;
     if ($('#automaticFollowUp').checked && !$('#followUpDate').value) {
-      $('#followUpDate').value = addDays(today(), 7);
+      $('#followUpDate').value = nextFollowUpWeekday(addDays(today(), 7));
     }
+    if (!validateFollowUpDateInput($('#followUpDate'))) return;
     const platformChoice = $('#clientPlatform').value;
     const existing = editingId ? data.applications.find(item => item.id === editingId) : null;
     const existingIndex = editingId ? data.applications.findIndex(item => item.id === editingId) : -1;
@@ -6234,6 +6364,7 @@
       let item = data.applications.find(app => app.id === candidate.id);
       if (!item) continue;
       if (!item.followUpDate || item.followUpDate > today() || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
+      if (!isFollowUpWeekday(item)) continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;
@@ -7313,6 +7444,7 @@
   }
 
   async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body, { manual = false, rawMessage = null } = {}) {
+    if (!isFollowUpWeekday(item)) throw new Error('Follow-ups send Monday–Friday in the client timezone. This follow-up remains scheduled for the next weekday.');
     const userId = currentUser?.id;
     await ensureGmailAccessToken();
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
@@ -7338,7 +7470,10 @@
     }
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
-    try { gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 }); }
+    try {
+      if (!isFollowUpWeekday(item)) throw Object.assign(new Error('Weekend sending is paused until the next weekday.'), { gmailNotSent: true });
+      gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 });
+    }
     catch (error) {
       if ((error.gmailRejected || error.gmailNotSent) && currentUser?.id === userId) {
         await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});
@@ -8950,15 +9085,6 @@
   closeMobileSidebar();
 
   // Workspace access is limited to an explicitly requested task or one application.
-  function refreshAssistantApplicationPicker() {
-    const picker = $('#researchApplicationSelect');
-    const previous = picker.value;
-    picker.innerHTML = '<option value="">Choose an application…</option>' + (data.applications || []).map(app =>
-      '<option value="' + escapeHtml(app.id) + '">' + escapeHtml((app.clientName || 'Unnamed') + ' · ' + (app.role || 'No role')) + '</option>').join('');
-    if ((data.applications || []).some(app => app.id === previous)) picker.value = previous;
-    $('#researchApplicationField').hidden = $('#researchSourceMode').value !== 'application';
-  }
-
   function assistantWorkspaceRequest(prompt, selectedMode) {
     const normalized = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}@]+/gu, ' ').trim();
     const question = ' ' + normalized(prompt) + ' ';
@@ -8967,17 +9093,16 @@
     if (mode === 'reasoning' && /\b(application|applied|updates?|repl(?:y|ies)|received|receieved)\b/i.test(prompt)) mode = 'application';
     if (mode === 'task') return { mode, workspace: { today: today() } };
     if (mode !== 'application') return { mode };
-    const selected = selectedMode === 'application' ? $('#researchApplicationSelect').value : '';
-    let candidates = (data.applications || []).filter(app => selected ? app.id === selected
-      : [app.clientName, app.email].some(value => normalized(value).length >= 3 && question.includes(' ' + normalized(value) + ' ')));
+    let candidates = (data.applications || []).filter(app =>
+      [app.clientName, app.email].some(value => normalized(value).length >= 3 && question.includes(' ' + normalized(value) + ' ')));
     if (candidates.length > 1) {
       const roles = candidates.filter(app => normalized(app.role).length >= 3 && question.includes(' ' + normalized(app.role) + ' '));
       if (roles.length === 1) candidates = roles;
     }
     if (candidates.length !== 1) {
-      $('#researchSourceMode').value = 'application';
-      refreshAssistantApplicationPicker();
-      return { error: candidates.length ? 'More than one application matches. Choose the exact application above, then send again.' : 'Choose an application above so I can check its saved updates.' };
+      return { error: candidates.length
+        ? 'More than one application matches. Include the company and exact role in your question: ' + candidates.slice(0, 5).map(app => (app.clientName || 'Unnamed') + ' — ' + (app.role || 'No role')).join('; ') + '.'
+        : 'Include the company name or application email in your question so I can check the right application.' };
     }
     const app = candidates[0];
     const clip = (value, length) => String(value || '').slice(0, length);
@@ -9024,7 +9149,6 @@
     persist(); saveResearchChat(currentUser.id, chat); renderAll(); renderResearchChat();
   }
 
-  $('#researchSourceMode')?.addEventListener('change', refreshAssistantApplicationPicker);
   $('#researchMessages')?.addEventListener('click', event => {
     const button = event.target.closest('[data-assistant-add-task]');
     if (button) addAssistantDailyTask(button.dataset.assistantAddTask);
@@ -9182,7 +9306,7 @@
     }
     return '<article class="research-message is-' + message.role + '"><span class="research-message-label">' + (message.role === 'user' ? 'You' : 'GPT-OSS 120B')
       + '</span><div class="research-message-text">' + content + '</div>'
-      + (sources.length ? '<details class="research-sources"><summary>Retrieved sources · ' + sources.length + '</summary><ol>' + sources.map(source => '<li><a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.title) + '</a><small>' + escapeHtml(source.provider || 'Source') + '</small></li>').join('') + '</ol></details>' : '')
+      + (sources.length ? '<details class="research-sources"><summary>Retrieved sources · ' + sources.length + '</summary><ol>' + sources.map(source => '<li><a href="' + escapeHtml(researchSourceUrl(source.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source.title) + '</a><small>' + (escapeHtml(source.provider || 'Source') + (source.publishedAt ? ' · Published ' + escapeHtml(source.publishedAt) : '')) + '</small></li>').join('') + '</ol></details>' : '')
       + (Array.isArray(message.notices) ? message.notices.map(note => '<p class="research-source-note">' + escapeHtml(note) + '</p>').join('') : '')
       + (message.role === 'assistant' ? renderAssistantTaskAction(message) : '') + '</article>';
   }
@@ -9219,7 +9343,7 @@
     $('#researchModelLabel').hidden = !ai;
     $('#researchModeTab').setAttribute('aria-selected', String(ai));
     $('#appSearchModeTab').setAttribute('aria-selected', String(!ai));
-    if (ai) { refreshAssistantApplicationPicker(); renderResearchChat(); refreshResearchUsage(); }
+    if (ai) { renderResearchChat(); refreshResearchUsage(); }
     requestAnimationFrame(() => (ai ? $('#researchPrompt') : $('#quickSearchInput')).focus());
   }
 
@@ -9469,6 +9593,7 @@
       return;
     }
     const followUpDate = $('#applicationFollowUpDateInput').value;
+    if (!validateFollowUpDateInput($('#applicationFollowUpDateInput'))) return;
     if (application.followUpDate !== followUpDate) {
       application.followUpDate = followUpDate;
       application.followUpProcessedAt = '';
@@ -9515,11 +9640,13 @@
   });
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
   $('#followUpDate').addEventListener('change', event => {
+    validateFollowUpDateInput(event.target);
     if (!$('#automaticFollowUp').disabled) $('#automaticFollowUp').checked = Boolean(event.target.value);
   });
   $('#automaticFollowUp').addEventListener('change', event => {
-    if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);
+    if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = nextFollowUpWeekday(addDays(today(), 7));
   });
+  $('#applicationFollowUpDateInput').addEventListener('change', event => validateFollowUpDateInput(event.target));
   $('#applicationSearch').addEventListener('input', renderApplications);
   $('#applicationOrderSort').addEventListener('change', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {

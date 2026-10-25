@@ -158,6 +158,7 @@
       return;
     }
     const followUpDate = $('#applicationFollowUpDateInput').value;
+    if (!validateFollowUpDateInput($('#applicationFollowUpDateInput'))) return;
     if (application.followUpDate !== followUpDate) {
       application.followUpDate = followUpDate;
       application.followUpProcessedAt = '';
@@ -204,11 +205,13 @@
   });
   $('#clientStatus').addEventListener('change', updateClientActionLabel);
   $('#followUpDate').addEventListener('change', event => {
+    validateFollowUpDateInput(event.target);
     if (!$('#automaticFollowUp').disabled) $('#automaticFollowUp').checked = Boolean(event.target.value);
   });
   $('#automaticFollowUp').addEventListener('change', event => {
-    if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = addDays(today(), 7);
+    if (event.target.checked && !$('#followUpDate').value) $('#followUpDate').value = nextFollowUpWeekday(addDays(today(), 7));
   });
+  $('#applicationFollowUpDateInput').addEventListener('change', event => validateFollowUpDateInput(event.target));
   $('#applicationSearch').addEventListener('input', renderApplications);
   $('#applicationOrderSort').addEventListener('change', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {

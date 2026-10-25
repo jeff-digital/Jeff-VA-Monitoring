@@ -5,7 +5,7 @@ const path = require('node:path');
 const { readModules, moduleGroups } = require('./lib/read-modules.cjs');
 const source = readModules(moduleGroups['02-email-matching.js']);
 const nodes = {
-  '#clientForm': { reportValidity: () => true }, '#automaticFollowUp': { checked: false },
+  '#clientForm': { reportValidity: () => true }, '#automaticFollowUp': { checked: false }, '#followUpDate': { value: '' },
   '#clientPlatform': { value: 'OnlineJobs.ph' }, '#clientName': { value: '  ACME   Studio ' },
   '#contactName': { value: ' Jordan Smith ' }, '#hiredEmail': { value: 'JORDAN@example.com' },
   '#clientRole': { value: 'Social Media Manager' }, '#hiredWebsite': { value: 'N/A' },
@@ -16,6 +16,7 @@ const context = vm.createContext({ data: { applications: [] }, editingId: null,
   $: selector => nodes[selector], isActiveClientDrawerView: () => false,
   STATUS_LABELS: { 'Not selected': 'Rejected' }, formatDate: value => value,
   viewingClientDetails: false, showActionResult: result => { notice = result; } });
+vm.runInContext(fs.readFileSync('src/frontend/js/modules/02ac-follow-up-calendar.js','utf8'),context);
 vm.runInContext(source.slice(source.indexOf('  function normalizeApplicationIdentity('), source.indexOf('  async function saveClient(')), context);
 const existing = { id: 'existing', clientName: 'Acme Studio', contact: 'Jordan Smith', email: 'jordan@example.com', role: 'Social Media Manager', website: 'N/A', status: 'Applied' };
 const candidate = { clientName: ' ACME   Studio ', contact: ' jordan smith ', email: 'JORDAN@example.com', role: ' social media manager ', website: 'https://different.example/job/1' };

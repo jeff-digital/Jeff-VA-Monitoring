@@ -10,8 +10,9 @@ vm.runInContext(fs.readFileSync('src/frontend/js/modules/pages/06b-research-chat
 assert.equal(context.assistantWorkspaceRequest('Make a task for tomorrow: finish video','reasoning').mode,'task');
 assert.ok(context.assistantWorkspaceRequest('Any updates on Acme?','reasoning').error,'Same-company roles require selection');
 const check=context.assistantWorkspaceRequest('Any reply for Acme Editor application?','reasoning');assert.equal(check.workspace.application.role,'Editor');assert.equal(check.workspace.emails.length,1);assert.equal(check.workspace.emails[0].subject,'Received a1');assert.ok(!JSON.stringify(check).includes('Other company'));
-$('#researchApplicationSelect').value='a2';assert.equal(context.assistantWorkspaceRequest('Any update?','application').scope,'application:a2');
-$('#researchApplicationSelect').value='missing';assert.ok(context.assistantWorkspaceRequest('Update?','application').error);
+assert.equal(context.assistantWorkspaceRequest('Any update for Acme Designer?','application').scope,'application:a2');
+assert.ok(context.assistantWorkspaceRequest('Update for an unknown company?','application').error);
+assert.match(context.assistantWorkspaceRequest('Any update for Acme?','application').error,/exact role/);
 const chat=context.currentResearchChat();chat.messages.push({role:'assistant',content:'Draft',actionId:'action-1',taskDraft:{title:'Finish video',taskDate:'2026-10-26',notes:'Check audio'}});
 assert.equal(context.data.dailyTasks.length,0,'Generating a draft never saves');
 context.addAssistantDailyTask('action-1');assert.equal(context.data.dailyTasks.length,1);assert.equal(saves,1);assert.equal(context.data.dailyTasks[0].taskDate,'2026-10-26');

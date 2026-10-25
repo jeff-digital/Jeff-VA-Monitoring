@@ -8,6 +8,7 @@ const matching = read('02-email-matching.js');
 const nodes = new Map();
 const noop = () => {};
 const context = vm.createContext({
+  Date: class extends Date { constructor(...args) { super(...(args.length ? args : ['2026-10-23T01:00:00Z'])); } },
   console: { error: noop },
   $: selector => {
     if (!nodes.has(selector)) nodes.set(selector, { value: '', innerHTML: '', textContent: '' });
@@ -37,6 +38,7 @@ const context = vm.createContext({
   limitAlertHistory: noop, persist: noop, renderApplications: noop, renderAlerts: noop,
   showActionResult: noop, plural: (count, word) => `${count} ${word}`
 });
+vm.runInContext(read('02ac-follow-up-calendar.js'),context);
 vm.runInContext(matching.slice(matching.indexOf('  function confirmedApplicationFollowUpSentAt('), matching.indexOf('  function renderApplications(')), context);
 vm.runInContext(matching.slice(matching.indexOf('  function renderEmails('), matching.indexOf('  function hiredClients(')), context);
 const documents = read('03-documents.js');

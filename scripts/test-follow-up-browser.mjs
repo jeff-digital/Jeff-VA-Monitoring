@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { FollowUpDelivery } from '../functions/api/follow-up-send.js';
+const NativeDate = Date;
+let clock = '2026-10-23T01:00:00Z';
+globalThis.Date = class extends NativeDate { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return NativeDate.parse(clock); } };
 
 const gmailSource = fs.readFileSync(new URL('../src/frontend/js/modules/04-gmail.js', import.meta.url), 'utf8');
 const code = gmailSource.slice(gmailSource.indexOf('  async function requestFollowUpReservation('), gmailSource.indexOf('  async function sendGmailRaw('));
@@ -18,7 +21,7 @@ function fixture({ uncertain = false, rejected = false, completeFails = false, e
   let calls = 0, attempts = 0;
   const history = existing ? [{ id: 'existing', internalDate: String(Date.parse('2026-10-23T00:02:00Z')), payload: { headers: [{ name: 'To', value: app.email }, { name: 'Subject', value: existingSubject }], text: existingBody } }] : [];
   const tab = () => {
-    const context = vm.createContext({ URLSearchParams, AbortSignal, console: { error() {} },
+    const context = vm.createContext({ Date: globalThis.Date, URLSearchParams, AbortSignal, console: { error() {} },
       currentUser: { id: 'u1' }, ensureGmailAccessToken: async () => {},
       requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'dashboard-session', user: { id: 'u1' } } } }) } }),
       extractEmailAddress: value => value.toLowerCase(), encodeBase64Url: value => value,
@@ -46,6 +49,7 @@ function fixture({ uncertain = false, rejected = false, completeFails = false, e
         return { id: 'sent-1' };
       }
     });
+    vm.runInContext(fs.readFileSync('src/frontend/js/modules/02ac-follow-up-calendar.js','utf8'), context);
     vm.runInContext(code, context);
     return context;
   };
@@ -129,3 +133,12 @@ manualTab.composeClientId = app.id; // Reopen the same client's composer.
 await manualTab.sendComposedEmail();
 assert.equal(manualRace.calls(), 1, 'Repeated manual follow-up does not send again');
 console.log('Passed browser/shared-coordinator integration: stale tabs, Gmail recovery, uncertain sends, explicit rejection, failed receipt saves and metadata-only coordination.');
+const weekend = fixture();
+clock = '2026-10-24T01:00:00Z';
+await assert.rejects(weekend.tab().sendAutomaticFollowUpOnce(app, date, subject, 'Body'), /Monday–Friday/);
+assert.equal(weekend.attempts(),0,'Weekend does not contact Gmail to send');
+assert.equal(weekend.values.size,0,'Weekend does not claim a delivery');
+clock = '2026-10-26T01:00:00Z';
+await weekend.tab().sendAutomaticFollowUpOnce(app,date,subject,'Body');
+assert.equal(weekend.calls(),1,'Original schedule can send on Monday');
+globalThis.Date = NativeDate;

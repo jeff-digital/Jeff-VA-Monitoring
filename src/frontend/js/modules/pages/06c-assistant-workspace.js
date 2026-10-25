@@ -1,13 +1,4 @@
   // Workspace access is limited to an explicitly requested task or one application.
-  function refreshAssistantApplicationPicker() {
-    const picker = $('#researchApplicationSelect');
-    const previous = picker.value;
-    picker.innerHTML = '<option value="">Choose an application…</option>' + (data.applications || []).map(app =>
-      '<option value="' + escapeHtml(app.id) + '">' + escapeHtml((app.clientName || 'Unnamed') + ' · ' + (app.role || 'No role')) + '</option>').join('');
-    if ((data.applications || []).some(app => app.id === previous)) picker.value = previous;
-    $('#researchApplicationField').hidden = $('#researchSourceMode').value !== 'application';
-  }
-
   function assistantWorkspaceRequest(prompt, selectedMode) {
     const normalized = value => String(value || '').toLowerCase().replace(/[^\p{L}\p{N}@]+/gu, ' ').trim();
     const question = ' ' + normalized(prompt) + ' ';
@@ -16,17 +7,16 @@
     if (mode === 'reasoning' && /\b(application|applied|updates?|repl(?:y|ies)|received|receieved)\b/i.test(prompt)) mode = 'application';
     if (mode === 'task') return { mode, workspace: { today: today() } };
     if (mode !== 'application') return { mode };
-    const selected = selectedMode === 'application' ? $('#researchApplicationSelect').value : '';
-    let candidates = (data.applications || []).filter(app => selected ? app.id === selected
-      : [app.clientName, app.email].some(value => normalized(value).length >= 3 && question.includes(' ' + normalized(value) + ' ')));
+    let candidates = (data.applications || []).filter(app =>
+      [app.clientName, app.email].some(value => normalized(value).length >= 3 && question.includes(' ' + normalized(value) + ' ')));
     if (candidates.length > 1) {
       const roles = candidates.filter(app => normalized(app.role).length >= 3 && question.includes(' ' + normalized(app.role) + ' '));
       if (roles.length === 1) candidates = roles;
     }
     if (candidates.length !== 1) {
-      $('#researchSourceMode').value = 'application';
-      refreshAssistantApplicationPicker();
-      return { error: candidates.length ? 'More than one application matches. Choose the exact application above, then send again.' : 'Choose an application above so I can check its saved updates.' };
+      return { error: candidates.length
+        ? 'More than one application matches. Include the company and exact role in your question: ' + candidates.slice(0, 5).map(app => (app.clientName || 'Unnamed') + ' — ' + (app.role || 'No role')).join('; ') + '.'
+        : 'Include the company name or application email in your question so I can check the right application.' };
     }
     const app = candidates[0];
     const clip = (value, length) => String(value || '').slice(0, length);
@@ -73,7 +63,6 @@
     persist(); saveResearchChat(currentUser.id, chat); renderAll(); renderResearchChat();
   }
 
-  $('#researchSourceMode')?.addEventListener('change', refreshAssistantApplicationPicker);
   $('#researchMessages')?.addEventListener('click', event => {
     const button = event.target.closest('[data-assistant-add-task]');
     if (button) addAssistantDailyTask(button.dataset.assistantAddTask);

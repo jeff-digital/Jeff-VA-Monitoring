@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261025-assistant-workspace" />
+    <link rel="stylesheet" href="css/styles.css?v=20261025-tavily-search" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -986,8 +986,7 @@
         <header class="research-header"><div><h2 id="quickSearchTitle">Search your workspace</h2><p id="researchModelLabel" hidden>GPT-OSS 120B</p></div><button class="icon-button" type="button" id="closeQuickSearch" aria-label="Close search and AI assistant">×</button></header>
         <div class="research-tabs" role="tablist" aria-label="Search mode"><button type="button" role="tab" id="appSearchModeTab" aria-selected="true" aria-controls="quickAppSearchPanel">Search app</button><button type="button" role="tab" id="researchModeTab" aria-selected="false" aria-controls="researchPanel">AI assistant</button></div>
         <section class="research-panel" id="researchPanel" role="tabpanel" aria-labelledby="researchModeTab" hidden>
-          <div class="research-toolbar"><label><span class="sr-only">Mode</span><select id="researchSourceMode" title="Choose what the assistant can help with"><option value="reasoning">Reasoning</option><option value="research">Research with sources</option><option value="task">Create daily task</option><option value="application">Application updates</option></select></label><label><span class="sr-only">Depth</span><select id="researchEffort" title="Response depth"><option value="low">Quick</option><option value="medium" selected>Balanced</option><option value="high">Deeper</option></select></label><button type="button" class="text-button" id="researchNewChat">New chat</button></div>
-          <label class="research-application-picker" id="researchApplicationField" hidden><span>Application to check</span><select id="researchApplicationSelect"><option value="">Choose an application…</option></select></label>
+          <div class="research-toolbar"><label><span class="sr-only">Mode</span><select id="researchSourceMode" title="Choose what the assistant can help with"><option value="reasoning">Reasoning</option><option value="research">Live search · Tavily</option><option value="task">Create daily task</option><option value="application">Application updates</option></select></label><label><span class="sr-only">Depth</span><select id="researchEffort" title="Response depth"><option value="low">Quick</option><option value="medium" selected>Balanced</option><option value="high">Deeper</option></select></label><button type="button" class="text-button" id="researchNewChat">New chat</button></div>
           <section class="research-usage" id="researchUsagePanel" aria-label="Daily assistant usage" aria-live="polite">
             <div class="research-usage-heading"><span>Today</span><strong id="researchUsageCount">Checking usage…</strong><progress id="researchUsageProgress" max="20" value="0" aria-label="Daily assistant requests used" hidden></progress><span class="research-usage-reset" id="researchUsageReset">Resets 8 AM · PH</span><button class="text-button" type="button" id="refreshResearchUsage" aria-label="Refresh assistant usage" title="Refresh usage">↻</button><details><summary aria-label="About the assistant limit" title="About this limit">ⓘ</summary><div class="research-usage-details"><strong>Daily assistant limit</strong><p>20 attempts per account, shared across localhost and live. Resets at 8 AM Philippine time. Failed attempts count.</p><p>This is an app limit, not Cloudflare’s free balance. Other AI features share Cloudflare’s allowance. Use Workers Free to avoid overage charges.</p><a href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare usage ↗</a></div></details></div>
             <p id="researchUsageNote" hidden></p>
@@ -1135,8 +1134,8 @@
           <label class="form-field">Date applied <span class="required">*</span><input id="appliedDate" type="date" required /></label>
           <label class="form-field interview-field hidden">Interview date <input id="interviewDate" type="date" /></label>
           <label class="form-field interview-field hidden">Interview meeting link <input id="interviewLink" type="url" maxlength="300" placeholder="https://meet.google.com/..." /></label>
-          <label class="form-field">Follow-up date <input id="followUpDate" type="date" /><small class="field-help">Choose a date, or enable automatic follow-up for one week from today.</small></label>
-          <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. On the selected date, the app sends one email between 8:00 AM and 5:00 PM in the client timezone.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label>
+          <label class="form-field" for="followUpDate">Follow-up date <span class="follow-up-date-picker"><input id="followUpDate" class="follow-up-date-input" type="date" aria-label="Follow-up date" /><button class="follow-up-calendar-trigger" type="button" data-follow-up-calendar="followUpDate" aria-label="Choose a weekday follow-up date" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Monday–Friday only. Faded weekends are unavailable.</small></label>
+          <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. The app sends on weekdays only. Weekend dates wait until the next weekday in the client timezone.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label>
           <label class="form-field form-field-wide">Notes <textarea id="clientNotes" maxlength="1000" rows="4" placeholder="A useful detail, next step, rate, or link…"></textarea></label>
           <section class="client-email-history hidden" id="clientEmailHistory" aria-live="polite">
             <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this application</h3></div><strong id="clientEmailHistoryCount">0 emails</strong></div>
@@ -1188,7 +1187,7 @@
         <div class="modal-heading">
           <div><p class="eyebrow">APPLICATION FOLLOW-UP</p><h2 id="applicationFollowUpTitle">Set follow-up date</h2></div>
         </div>
-        <label class="form-field">Follow-up date <input id="applicationFollowUpDateInput" type="date" required /></label>
+        <label class="form-field" for="applicationFollowUpDateInput">Follow-up date <span class="follow-up-date-picker"><input id="applicationFollowUpDateInput" class="follow-up-date-input" type="date" aria-label="Follow-up date" required /><button class="follow-up-calendar-trigger" type="button" data-follow-up-calendar="applicationFollowUpDateInput" aria-label="Choose a weekday follow-up date" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Monday–Friday only. Faded weekends are unavailable.</small></label>
         <p class="settings-copy">Saving a date enables automatic email sending. No approval is needed. Keep the app open with Gmail connected.</p>
         <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="submit">Save date</button></div>
       </form>
@@ -1807,6 +1806,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261025-assistant-workspace"></script>
+    <script src="js/app.js?v=20261025-tavily-search"></script>
   </body>
 </html>

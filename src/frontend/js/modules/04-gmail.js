@@ -795,6 +795,7 @@
   }
 
   async function sendAutomaticFollowUpOnce(item, scheduledDate, subject, body, { manual = false, rawMessage = null } = {}) {
+    if (!isFollowUpWeekday(item)) throw new Error('Follow-ups send Monday–Friday in the client timezone. This follow-up remains scheduled for the next weekday.');
     const userId = currentUser?.id;
     await ensureGmailAccessToken();
     // Read Gmail directly before claiming; do not depend on an old tab's cache.
@@ -820,7 +821,10 @@
     }
     if (currentUser?.id !== userId) throw new Error('Account changed. Automatic sending was paused.');
     let gmail;
-    try { gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 }); }
+    try {
+      if (!isFollowUpWeekday(item)) throw Object.assign(new Error('Weekend sending is paused until the next weekday.'), { gmailNotSent: true });
+      gmail = await sendGmailRaw(preparedMessage, { timeoutMs: 15000 });
+    }
     catch (error) {
       if ((error.gmailRejected || error.gmailNotSent) && currentUser?.id === userId) {
         await requestFollowUpReservation(item, scheduledDate, 'release', { claimToken: claim.claimToken }).catch(() => {});

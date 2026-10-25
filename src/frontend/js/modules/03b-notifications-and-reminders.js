@@ -733,6 +733,7 @@
       let item = data.applications.find(app => app.id === candidate.id);
       if (!item) continue;
       if (!item.followUpDate || item.followUpDate > today() || ['Active client', 'Not selected'].includes(item.status) || applicationFollowUpState(item) === 'sent') continue;
+      if (!isFollowUpWeekday(item)) continue;
       const scheduledFollowUpDate = item.followUpDate;
       const template = buildDocumentEmailTemplate('follow-up', item);
       const subject = template.subject;

@@ -1,5 +1,7 @@
 01-core.js
 02-email-matching.js
+02ac-follow-up-calendar.js
+02ad-follow-up-date-picker.js
 pages/09a-client-social-links.js
 02b-application-email-match-engine.js
 pages/07a-dashboard-page.js

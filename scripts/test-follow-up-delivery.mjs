@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { FollowUpDelivery, sendFollowUp, savedFollowUpDelivery } from '../functions/api/follow-up-send.js';
 import worker from '../src/backend/worker.mjs';
+const NativeDate = Date;
+let clock = '2026-10-23T01:00:00Z';
+globalThis.Date = class extends NativeDate { constructor(...args) { super(...(args.length ? args : [clock])); } static now() { return NativeDate.parse(clock); } };
 
 class MemoryStorage {
   values = new Map();
@@ -70,7 +73,18 @@ savedState.emails.push({ applicationId: 'manual-app', emailType: 'follow-up', di
 assert.equal((await (await sendFollowUp(apiRequest(manualInput), env, { id: 'u1' })).json()).gmailId, 'manual-mail', 'Saved manual send reconciles a pending reservation');
 savedState.applications[0] = { ...savedState.applications[0], id: 'new-schedule', automaticFollowUp: true, followUpSentAt: '2026-10-22T00:00:00Z' };
 assert.equal((await (await sendFollowUp(apiRequest({ ...input, applicationId: 'new-schedule' }), env, { id: 'u1' })).json()).status, 'claimed', 'Older and unrelated follow-ups do not block a new schedule');
+savedState = { applications: [{ id: 'weekend-app', status: 'Applied', email: 'client@example.com', followUpDate: '2026-10-24', automaticFollowUp: true, location: 'Philippines' }] };
+const weekendInput = { ...input, applicationId: 'weekend-app', scheduledDate: '2026-10-24' };
+clock = '2026-10-24T01:00:00Z';
+assert.equal((await sendFollowUp(apiRequest(weekendInput),env,{id:'u1'})).status,409,'Saturday cannot claim automatic delivery');
+assert.equal((await sendFollowUp(apiRequest({...weekendInput,manual:true}),env,{id:'u1'})).status,409,'Manual follow-up cannot bypass weekends');
+clock = '2026-10-25T01:00:00Z';
+assert.equal((await sendFollowUp(apiRequest(weekendInput),env,{id:'u1'})).status,409,'Sunday cannot claim delivery');
+assert.equal(savedState.applications[0].followUpDate,'2026-10-24','Weekend hold preserves the original date');
+clock = '2026-10-26T01:00:00Z';
+assert.equal((await (await sendFollowUp(apiRequest(weekendInput),env,{id:'u1'})).json()).status,'claimed','Legacy weekend date becomes eligible Monday');
 globalThis.fetch = originalFetch;
+globalThis.Date = NativeDate;
 console.log('Passed shared delivery reservations: concurrent tabs, restart, uncertain delivery, receipts, rejection, account/date isolation, Worker routing and fail-closed configuration.');
 
 const roleApp = { id: 'role-app', role: 'Graphic Designer', email: 'shared@example.com', appliedDate: '2026-10-01' };

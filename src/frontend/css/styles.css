@@ -8026,11 +8026,31 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
   .workspace-unlock-modal h2 { font-size: 19px; }
   .workspace-unlock-field input { font-size: 16px; }
 }
-.research-application-picker { display: grid; gap: 6px; margin: 0 22px 10px; color: var(--muted); font-size: 11px; }
-.research-application-picker select { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--navy); font: inherit; }
 .research-task-draft { display: grid; gap: 7px; margin-top: 14px; padding: 14px; border: 1px solid #d7e5dd; border-radius: 9px; background: #f6faf7; font-size: 12px; }
 .research-task-draft > strong, .research-task-draft p { overflow-wrap: anywhere; }
 .research-task-draft > span:not(.research-message-label) { color: var(--muted); }
 .research-task-draft .research-message-label, .research-task-draft p { margin: 0; }
 .research-task-draft .button { justify-self: start; margin-top: 5px; font-size: 12px; }
-@media (max-width: 600px) { .research-application-picker { margin-inline: 12px; } .research-toolbar label { min-width: 0; } }
+@media (max-width: 600px) { .research-toolbar label { min-width: 0; } }
+/* Follow-up calendar: weekends stay visible, faded, and disabled. */
+.follow-up-date-picker { position: relative; display: block; min-width: 0; }
+.follow-up-date-picker > input { width: 100%; padding-right: 40px; box-sizing: border-box; }
+.follow-up-date-input::-webkit-calendar-picker-indicator { display: none; }
+.follow-up-calendar-trigger { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--navy); cursor: pointer; }
+.follow-up-calendar-trigger:hover, .follow-up-calendar-trigger[aria-expanded="true"] { background: #eeeef6; }
+.follow-up-date-picker:has(input:disabled) > .follow-up-calendar-trigger { opacity: .4; pointer-events: none; }
+.follow-up-calendar { position: fixed; inset: auto; margin: 0; box-sizing: border-box; width: min(300px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-y: auto; padding: 13px; border: 1px solid #dce1e8; border-radius: 12px; background: #fff; color: var(--navy); box-shadow: 0 12px 38px #18213d24; }
+.follow-up-calendar-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+.follow-up-calendar-heading strong { font-size: 13px; }
+.follow-up-calendar-heading button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 7px; background: #f4f5f9; color: var(--navy); font-size: 21px; cursor: pointer; }
+.follow-up-calendar-week, .follow-up-calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; text-align: center; }
+.follow-up-calendar-week { margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 600; }
+.follow-up-calendar-week .is-weekend { opacity: .55; }
+.follow-up-calendar-days button { display: grid; place-items: center; min-width: 0; width: 100%; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--navy); font: inherit; font-size: 12px; cursor: pointer; }
+.follow-up-calendar-days button:hover:not(:disabled) { background: #eeeef6; }
+.follow-up-calendar-days button.is-today { border-color: #c6cddd; }
+.follow-up-calendar-days button.is-selected:not(:disabled) { background: var(--navy); color: #fff; }
+.follow-up-calendar-days button:focus-visible, .follow-up-calendar-heading button:focus-visible { outline: 2px solid #64759b; outline-offset: 1px; }
+.follow-up-calendar-days button:disabled { opacity: .35; background: #f3f4f6; cursor: not-allowed; }
+.follow-up-calendar-days button.is-weekend { filter: blur(.35px); }
+.follow-up-calendar > p { margin: 11px 0 0; padding-top: 9px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; text-align: center; line-height: 1.5; }
