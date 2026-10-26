@@ -4074,6 +4074,10 @@
     const list = $('#clientEmailHistoryList');
     const count = $('#clientEmailHistoryCount');
     if (!target || !list || !count) return;
+    if (activeView === 'applications' && !viewingClientDetails) {
+      target.classList.add('hidden');
+      return;
+    }
     const sentEmails = sentEmailsForApplication(item);
     target.classList.remove('hidden');
     count.textContent = `${sentEmails.length} ${sentEmails.length === 1 ? 'email' : 'emails'}`;
