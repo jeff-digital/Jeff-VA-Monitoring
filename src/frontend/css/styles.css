@@ -557,6 +557,7 @@ td:first-child { color: #242522; font-weight: 650; }
 }
 .application-history-grid { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 13px; min-width: 0; }
 .application-history-grid:not(:has(> :not(.hidden))) { display: none; }
+#clientForm:not(.view-details-form) .application-history-grid { display: none; }
 .application-history-grid > section { grid-column: auto; min-width: 0; }
 .application-history-grid > section:only-child,
 .application-history-grid > section:first-child.hidden + section { grid-column: 1 / -1; }

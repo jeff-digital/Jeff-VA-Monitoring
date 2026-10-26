@@ -200,7 +200,7 @@
     const list = $('#clientEmailHistoryList');
     const count = $('#clientEmailHistoryCount');
     if (!target || !list || !count) return;
-    if (activeView === 'applications' && !viewingClientDetails) {
+    if (!viewingClientDetails) {
       target.classList.add('hidden');
       return;
     }
