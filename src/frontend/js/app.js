@@ -9597,7 +9597,7 @@
     const mainCurrencySymbol = salaryCurrency === 'PHP' ? '₱' : '$';
     const conversionCurrencySymbol = salaryCurrency === 'PHP' ? '$' : '₱';
     amountField?.classList.toggle('hidden', !needsSalary);
-    hoursField?.classList.toggle('hidden', salaryType !== 'hourly');
+    hoursField?.classList.toggle('hidden', !needsSalary);
     estimateField?.classList.toggle('hidden', !needsSalary);
     if (!needsSalary) {
       estimate.textContent = `${mainCurrencySymbol}0`;
@@ -9716,6 +9716,13 @@
       }
     }
   });
+  function updateEmploymentHours() {
+    const defaultHours = { 'Part time': 20, 'Full time': 40 }[$('#employmentType').value];
+    if (defaultHours) $('#salaryHoursPerWeek').value = String(defaultHours);
+    updateSalaryFields();
+  }
+
+  $('#employmentType').addEventListener('change', updateEmploymentHours);
   $('#salaryType').addEventListener('change', updateSalaryFields);
   $('#salaryCurrency').addEventListener('change', updateSalaryFields);
   $('#salaryAmount').addEventListener('input', updateSalaryFields);
