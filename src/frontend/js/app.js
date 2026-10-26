@@ -1865,9 +1865,89 @@
     renderStatusChart(applications);
     renderInterviewCalendar();
     renderRecentApplications();
+    renderApplicationWeeklyTrend();
     renderApplicationProgressAi();
     maybeReviewApplicationProgress();
   }
+
+  function applicationWeeklyTrend(applications, currentDate = today()) {
+    const weekStart = value => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').slice(0, 10));
+      if (!match) return null;
+      const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+      if (date.toISOString().slice(0, 10) !== match[0]) return null;
+      date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+      return date.getTime();
+    };
+    const currentWeek = weekStart(currentDate);
+    if (currentWeek === null) return [];
+    const counts = new Map();
+    for (const application of applications) {
+      const date = String(application.appliedDate || '').slice(0, 10);
+      if (date > currentDate) continue;
+      const week = weekStart(date);
+      if (week !== null) counts.set(week, (counts.get(week) || 0) + 1);
+    }
+    if (!counts.size) return [];
+    const result = [];
+    for (let week = Math.min(...counts.keys()); week <= currentWeek; week += 7 * 86400000) {
+      result.push({ week: new Date(week).toISOString().slice(0, 10), count: counts.get(week) || 0 });
+    }
+    return result;
+  }
+
+  function renderApplicationWeeklyTrend() {
+    const target = $('#applicationWeeklyTrendChart');
+    if (!target) return;
+    const weeks = applicationWeeklyTrend(data.applications);
+    const total = weeks.reduce((sum, week) => sum + week.count, 0);
+    $('#applicationWeeklyTrendSummary').textContent = weeks.length ? `All ${plural(weeks.length, 'week')} · ${plural(total, 'application')}` : 'All weeks';
+    if (!weeks.length) {
+      target.innerHTML = '<p class="application-weekly-trend-empty">Your weekly trend will appear after you add an application date.</p>';
+      return;
+    }
+    const max = Math.max(1, ...weeks.map(week => week.count));
+    const width = Math.max(280, target.clientWidth || 760);
+    const right = width - 16;
+    const x = index => weeks.length === 1 ? width / 2 : 32 + index * (right - 32) / (weeks.length - 1);
+    const y = count => 71 - count * 58 / max;
+    const points = weeks.map((week, index) => `${x(index)},${y(week.count)}`).join(' ');
+    const label = week => new Date(`${week}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const labelIndexes = [...new Set([0, Math.floor((weeks.length - 1) / 2), weeks.length - 1])];
+    target.innerHTML = `<svg viewBox="0 0 ${width} 96" role="img" aria-label="Applications submitted each week, Monday to Sunday. ${escapeHtml(weeks.map(week => `${week.week}: ${week.count}`).join('; '))}">
+      ${[0, Math.ceil(max / 2), max].filter((value, index, all) => all.indexOf(value) === index).map(value => `<line x1="32" x2="${right}" y1="${y(value)}" y2="${y(value)}" class="weekly-trend-grid"/><text x="23" y="${y(value) + 3}" text-anchor="end">${value}</text>`).join('')}
+      <polyline points="32,71 ${points} ${right},71" class="weekly-trend-area"/>
+      <polyline points="${points}" class="weekly-trend-line"/>
+      ${weeks.map((week, index) => `<circle cx="${x(index)}" cy="${y(week.count)}" r="${weeks.length > 52 ? 2 : 3}" class="weekly-trend-point"><title>Week of ${escapeHtml(week.week)}: ${plural(week.count, 'application')}</title></circle>`).join('')}
+      ${labelIndexes.map(index => `<text x="${x(index)}" y="91" text-anchor="${index === 0 && weeks.length > 1 ? 'start' : index === weeks.length - 1 && weeks.length > 1 ? 'end' : 'middle'}">${escapeHtml(label(weeks[index].week))}</text>`).join('')}
+      </svg>`;
+  }
+
+  window.addEventListener('resize', () => {
+    if (activeView === 'dashboard' && !$('#applicationDashboardPanel').hidden) renderApplicationWeeklyTrend();
+  });
+
+  function setApplicationOverviewSection(index) {
+    const carousel = $('#applicationOverviewCarousel');
+    const selected = ((index % 2) + 2) % 2;
+    carousel.dataset.section = String(selected);
+    carousel.querySelectorAll('[data-overview-section]').forEach(button => {
+      button.setAttribute('aria-pressed', String(Number(button.dataset.overviewSection) === selected));
+    });
+    carousel.querySelectorAll('[data-overview-page]').forEach(page => {
+      const inactive = Number(page.dataset.overviewPage) !== selected;
+      page.inert = inactive;
+      page.setAttribute('aria-hidden', String(inactive));
+    });
+    if (selected === 1) renderApplicationWeeklyTrend();
+  }
+
+  $('#applicationOverviewCarousel').addEventListener('click', event => {
+    const tab = event.target.closest('[data-overview-section]');
+    const step = event.target.closest('[data-overview-step]');
+    if (tab) setApplicationOverviewSection(Number(tab.dataset.overviewSection));
+    else if (step) setApplicationOverviewSection(Number($('#applicationOverviewCarousel').dataset.section) + Number(step.dataset.overviewStep));
+  });
 
   let clientDashboardSort = 'name';
   let clientDashboardSortDirection = 'asc';
@@ -4064,7 +4144,7 @@
       ? [{ date: item.followUpSentAt, subject: `Follow-up: ${item.clientName}`, historical: true }]
       : followUps;
     target.classList.remove('hidden');
-    target.innerHTML = `<div class="client-follow-up-history-head"><span>FOLLOW-UPS SENT</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
+    target.innerHTML = `<div class="client-follow-up-history-head"><span>Follow Up</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
       ? `<div class="client-follow-up-history-list">${historicalFollowUp.map(email => `<div><span title="${escapeHtml(email.subject || 'Follow-up')}">${escapeHtml(email.subject || 'Follow-up')}</span><small>${escapeHtml(emailDate(email.date))}</small></div>`).join('')}</div>`
       : '<p>No follow-up emails have been sent to this application.</p>'}`;
   }

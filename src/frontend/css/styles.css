@@ -202,6 +202,61 @@ button { cursor: pointer; }
 .stat-card p { color: #868782; font-size: 11px; margin: 0; line-height: 1.4; }
 .stat-card-primary p { color: #aeb3d0; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(290px,.65fr); gap: 16px; margin-bottom: 16px; }
+.application-weekly-trend { flex: 0 0 auto; min-width: 0; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #e6e8f0; }
+.application-weekly-trend > header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.application-weekly-trend h3 { margin: 0; color: var(--navy); font-size: 13px; font-weight: 650; }
+.application-weekly-trend header > span { color: #748096; font-size: 10px; }
+.application-weekly-trend-chart { min-width: 0; height: 96px; margin-top: 4px; }
+.application-weekly-trend-chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.application-weekly-trend-chart text { fill: #748096; font: 11px var(--font-ui); }
+.weekly-trend-grid { stroke: #edf0f5; stroke-width: 1; }
+.weekly-trend-area { fill: #edf1fa; stroke: none; }
+.weekly-trend-line { fill: none; stroke: #405887; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.weekly-trend-point { fill: #405887; stroke: #fff; stroke-width: 1; }
+.application-weekly-trend-empty { display: grid; place-content: center; height: 100%; margin: 0; color: #748096; text-align: center; font-size: 11px; }
+body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel > .dashboard-grid.dashboard-overview-carousel { display: flex; flex-direction: column; gap: 7px; min-width: 0; min-height: 0; margin: 0; }
+.dashboard-overview-navigation { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: 0 0 28px; }
+.dashboard-overview-tabs, .dashboard-overview-arrows { display: flex; align-items: center; gap: 4px; }
+.dashboard-overview-tabs button { border: 0; border-radius: 6px; padding: 5px 9px; background: transparent; color: #748096; font-size: 11px; font-weight: 600; cursor: pointer; }
+.dashboard-overview-tabs button[aria-pressed="true"] { background: #e8ecf5; color: var(--navy); }
+.dashboard-overview-arrows button { width: 28px; height: 28px; padding: 0; border: 1px solid #dfe4ee; border-radius: 6px; background: #fff; color: var(--navy); font-size: 20px; line-height: 1; cursor: pointer; }
+.dashboard-overview-navigation button:focus-visible { outline: 2px solid #6c7fa8; outline-offset: 2px; }
+.dashboard-overview-viewport { flex: 1; min-height: 0; min-width: 0; overflow: hidden; border-radius: 12px; }
+.dashboard-overview-track { display: flex; width: 100%; height: 100%; transition: transform 260ms ease; }
+#applicationOverviewCarousel[data-section="1"] .dashboard-overview-track { transform: translateX(-100%); }
+.dashboard-overview-track > .dashboard-overview-page { flex: 0 0 100%; width: 100%; min-width: 0; min-height: 0; margin: 0; box-sizing: border-box; }
+.dashboard-overview-sources { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .85fr); gap: 12px; }
+#applicationOverviewCarousel .platform-panel, #applicationOverviewCarousel .status-panel { min-height: 0; overflow: hidden; }
+#applicationOverviewCarousel .application-weekly-trend { display: flex; flex-direction: column; padding: 12px 16px; border: 1px solid #e6e8f0; border-radius: 12px; background: #fff; }
+#applicationOverviewCarousel .application-weekly-trend-chart { flex: 1; min-height: 0; height: auto; }
+@media (min-width: 1100px) {
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .platform-panel,
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .status-panel { padding: 10px 14px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .platform-list { gap: 6px; margin-top: 7px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .platform-row { font-size: 11px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .donut { width: 88px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .status-donut-row { gap: 10px; margin-top: 7px; }
+}
+@media (max-width: 1099px) {
+  #applicationOverviewCarousel .dashboard-overview-viewport { flex: none; height: 210px; transition: height 260ms ease; }
+}
+@media (max-width: 720px) {
+  #applicationOverviewCarousel .dashboard-overview-sources { grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr 1fr; gap: 10px; }
+  #applicationOverviewCarousel .dashboard-overview-viewport { height: 440px; }
+  #applicationOverviewCarousel[data-section="1"] .dashboard-overview-viewport { height: 210px; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .platform-panel,
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationOverviewCarousel .status-panel { min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #applicationOverviewCarousel .dashboard-overview-track, #applicationOverviewCarousel .dashboard-overview-viewport { transition: none; }
+}
+@media (min-width: 1100px) {
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .recent-panel > .table-wrap { flex: 1 1 0; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .recent-panel > .table-wrap table { height: auto; }
+}
+@media (max-width: 600px) {
+  .application-weekly-trend-chart { height: 96px; }
+}
 .interview-calendar-panel { padding: 22px 24px; margin-bottom: 16px; }
 .calendar-controls { display: flex; align-items: center; gap: 8px; }
 .calendar-controls strong { min-width: 116px; color: #454742; font-size: 12px; text-align: center; }
@@ -594,6 +649,27 @@ td:first-child { color: #242522; font-weight: 650; }
 .client-email-history-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
 .client-email-history-item time { flex: 0 0 auto; color: var(--muted); font-size: 10px; }
 .client-email-history-list > p { margin: 0; padding: 14px; color: var(--muted); font-size: 11px; }
+#clientEmailHistory { border-color: #dce2ec; box-shadow: 0 2px 5px rgba(26, 35, 64, .04); }
+#clientEmailHistory .client-email-history-head { background: #f2f5fa; border-bottom-color: #e0e5ef; }
+#clientEmailHistory .client-email-history-head .eyebrow { color: #62708a; font-weight: 700; letter-spacing: .08em; }
+#clientEmailHistory .client-email-history-head h3 { color: var(--navy); font-weight: 650; line-height: 1.4; }
+#clientEmailHistoryCount { padding: 3px 6px; border-radius: 12px; background: #e4eaf5; color: #495a7a; white-space: nowrap; }
+#clientEmailHistoryList { overscroll-behavior: contain; scrollbar-width: thin; scrollbar-gutter: stable; }
+#clientEmailHistory .client-email-history-item { flex-direction: column; align-items: stretch; gap: 7px; padding: 10px; border-bottom-color: #edf0f5; }
+#clientEmailHistory .client-email-history-copy { flex: none; gap: 4px; }
+#clientEmailHistory .client-email-history-copy strong { color: var(--navy); font-size: 11px; font-weight: 600; line-height: 1.45; }
+#clientEmailHistory .client-email-history-copy small { color: #748096; font-size: 10px; line-height: 1.4; }
+#clientEmailHistory .client-email-history-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#clientEmailHistory .client-email-direction { display: inline-flex; padding: 2px 6px; border-radius: 4px; background: #edf5ef; color: #48715a; font-size: 9px; font-weight: 600; line-height: 1.4; }
+#clientEmailHistory time { font-size: 9px; color: #7b8596; }
+#clientEmailHistory .client-email-history-item:hover { background: #f7f9fc; }
+#clientEmailHistory .client-email-history-item:focus-visible { outline: 2px solid #6c7fa8; outline-offset: -2px; background: #f7f9fc; }
+#clientForm .client-notes-field { margin-bottom: 18px; }
+#closeClientDetailsButton { background: var(--navy); border-color: var(--navy); color: #fff; }
+#closeClientDetailsButton:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); color: #fff; }
+#closeClientDetailsButton:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
+.application-history-grid .client-follow-up-history-head > span { font-size: 11px; font-weight: 650; letter-spacing: 0; line-height: 1.4; }
+#clientEmailHistory .client-email-history-head h3 { margin: 0; }
 .status-pill.responded, .status-pill.interview { color: #6e5d9d; background: #f1eff8; }
 .status-pill.on-hold { color: #a3733d; background: #faf2e6; }
 .status-pill.not-selected { color: #a75d61; background: #faeeee; }

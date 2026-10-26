@@ -190,7 +190,7 @@
       ? [{ date: item.followUpSentAt, subject: `Follow-up: ${item.clientName}`, historical: true }]
       : followUps;
     target.classList.remove('hidden');
-    target.innerHTML = `<div class="client-follow-up-history-head"><span>FOLLOW-UPS SENT</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
+    target.innerHTML = `<div class="client-follow-up-history-head"><span>Follow Up</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
       ? `<div class="client-follow-up-history-list">${historicalFollowUp.map(email => `<div><span title="${escapeHtml(email.subject || 'Follow-up')}">${escapeHtml(email.subject || 'Follow-up')}</span><small>${escapeHtml(emailDate(email.date))}</small></div>`).join('')}</div>`
       : '<p>No follow-up emails have been sent to this application.</p>'}`;
   }
