@@ -247,7 +247,7 @@ td:first-child { color: #242522; font-weight: 650; }
 /* Wallet: scoped layout keeps account balances and the ledger readable at every width. */
 #walletView { color: #20283f; }
 .wallet-intro, .wallet-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.wallet-intro { margin-bottom: 22px; }
+.wallet-intro { margin-bottom: 22px; justify-content: flex-end; }
 .wallet-intro h2 { margin: 0 0 7px; font-size: 20px; }
 .wallet-intro p, .wallet-section-heading > span, .wallet-hint { color: #737b8d; font-size: 12px; line-height: 1.6; }
 .wallet-intro p { margin: 0; }
