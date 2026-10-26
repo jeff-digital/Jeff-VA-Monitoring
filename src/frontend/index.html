@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#171717" />
     <title>Jeff VA</title>
     <link id="tabFavicon" rel="icon" type="image/png" href="images/tab.png" />
-    <link rel="stylesheet" href="css/styles.css?v=20261026-onboarding-fit" />
+    <link rel="stylesheet" href="css/styles.css?v=20261027-application-history" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -1107,7 +1107,13 @@
             <div class="client-social-links-list" id="clientSocialLinksList"></div>
           </section>
           <label class="form-field form-field-wide">Client location <select id="clientCountry"><option value="" selected>Select client country</option><option value="AU">Australia</option><option value="BR">Brazil</option><option value="CA">Canada</option><option value="CN">China</option><option value="CO">Colombia</option><option value="FR">France</option><option value="DE">Germany</option><option value="IN">India</option><option value="IE">Ireland</option><option value="IL">Israel</option><option value="IT">Italy</option><option value="JP">Japan</option><option value="MX">Mexico</option><option value="NL">Netherlands</option><option value="NZ">New Zealand</option><option value="PE">Peru</option><option value="PH">Philippines</option><option value="SA">Saudi Arabia</option><option value="ZA">South Africa</option><option value="KR">South Korea</option><option value="TW">Taiwan</option><option value="AE">United Arab Emirates</option><option value="GB">United Kingdom</option><option value="US">United States</option><option value="OTHER">Other country</option></select><span id="clientRegionField" class="hidden"><select id="clientRegion"><option value="" selected disabled>Select client region</option><option data-countries="US,CA" value="America/New_York">Eastern</option><option data-countries="US,CA" value="America/Chicago">Central</option><option data-countries="US,CA" value="America/Denver">Mountain</option><option data-countries="US,CA" value="America/Los_Angeles">Pacific</option><option data-countries="CA" value="America/Halifax">Atlantic</option><option data-countries="CA" value="America/St_Johns">Newfoundland</option><option data-countries="US" value="America/Anchorage">Alaska</option><option data-countries="US" value="Pacific/Honolulu">Hawaii</option><option data-countries="AU" value="Australia/Sydney">East</option><option data-countries="AU" value="Australia/Adelaide">Central</option><option data-countries="AU" value="Australia/Perth">West</option></select></span><input id="hiredLocation" type="hidden" /><input id="clientTimeZone" type="hidden" /><small id="clientTimeZoneDisplay" class="field-help">Select the client country to determine the client timezone.</small></label>
-          <section class="client-follow-up-history hidden" id="clientFollowUpHistory" aria-live="polite"></section>
+          <div class="application-history-grid">
+            <section class="client-follow-up-history hidden" id="clientFollowUpHistory" aria-live="polite"></section>
+            <section class="client-email-history hidden" id="clientEmailHistory" aria-live="polite">
+              <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this application</h3></div><strong id="clientEmailHistoryCount">0 emails</strong></div>
+              <div class="client-email-history-list" id="clientEmailHistoryList"></div>
+            </section>
+          </div>
           </section>
           <section class="client-form-column">
             <p class="form-column-label">APPLICATION DETAILS</p>
@@ -1131,10 +1137,6 @@
           <label class="form-field" for="followUpDate">Follow-up date <span class="follow-up-date-picker"><input id="followUpDate" class="follow-up-date-input" type="date" aria-label="Follow-up date" /><button class="follow-up-calendar-trigger" type="button" data-follow-up-calendar="followUpDate" aria-label="Choose a weekday follow-up date" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Monday–Friday only. Faded weekends are unavailable.</small></label>
           <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. Sends Monday–Friday, 8:00 AM–5:00 PM in the client timezone. Outside this window, it waits until the next opening.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label>
           <label class="form-field form-field-wide">Notes <textarea id="clientNotes" maxlength="1000" rows="4" placeholder="A useful detail, next step, rate, or link…"></textarea></label>
-          <section class="client-email-history hidden" id="clientEmailHistory" aria-live="polite">
-            <div class="client-email-history-head"><div><p class="eyebrow">EMAIL HISTORY</p><h3>Sent to this application</h3></div><strong id="clientEmailHistoryCount">0 emails</strong></div>
-            <div class="client-email-history-list" id="clientEmailHistoryList"></div>
-          </section>
           </section>
         </div>
         <div class="modal-actions modal-actions-split">
