@@ -1,6 +1,6 @@
 .toast.toast-alert { background: #fff0f0; border: 1px solid #efc8c8; color: #a33f48; font-weight: 650; }
 :root {
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --color-primary: #1a2340;
   --color-primary-hover: #283463;
   --color-primary-soft: #e7e9f2;
@@ -366,7 +366,7 @@ td:first-child { color: #242522; font-weight: 650; }
   background: #ffffff;
   color: #1e2d39;
   box-sizing: border-box;
-  font-family: "Segoe UI", Arial, sans-serif;
+  font-family: var(--font-ui);
   box-shadow: none;
 }
 .weekly-report-export-document * { box-sizing: border-box; }
@@ -719,7 +719,7 @@ td:first-child { color: #242522; font-weight: 650; }
 .cover-letter-editor-fields textarea[data-cover-letter-field="body"] { text-align: justify; text-justify: inter-word; }
 .cover-letter-preview-area { min-width: 0; overflow: auto; padding: 0 4px 8px; background: #f0f2ef; }
 .cover-letter-preview-label { display: flex; justify-content: space-between; padding: 10px 12px; color: #747d76; font-size: 9px; font-weight: 750; letter-spacing: .08em; }
-.cover-letter-page { width: min(100%, 794px); min-height: 1123px; margin: 0 auto; padding: 48px 52px; background: #fff; color: #252925; box-shadow: 0 2px 12px rgba(27, 35, 29, .12); font: 13px/1.55 Arial, Helvetica, sans-serif; }
+.cover-letter-page { width: min(100%, 794px); min-height: 1123px; margin: 0 auto; padding: 48px 52px; background: #fff; color: #252925; box-shadow: 0 2px 12px rgba(27, 35, 29, .12); font: 13px/1.55 var(--font-ui); }
 .cover-letter-page-header { display: flex; align-items: center; gap: 15px; padding-bottom: 17px; border-bottom: 1px solid #dce3dd; }
 .cover-letter-page-header img { width: 56px; height: 56px; object-fit: contain; flex: 0 0 56px; }
 .cover-letter-page-header h1 { margin: 0 0 4px; color: #1f3525; font-size: 20px; line-height: 1.2; }
@@ -8125,7 +8125,7 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
 .application-salary-currency { display: inline; }
 .application-salary-number { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .application-salary-period { text-align: left; white-space: nowrap; color: var(--color-text-secondary); }
-.application-salary, .application-salary-value, #salaryAmount { font-family: "Segoe UI", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Noto Sans", Arial, sans-serif; font-variant-numeric: lining-nums tabular-nums; }
+.application-salary, .application-salary-value, #salaryAmount { font-family: var(--font-ui); font-variant-numeric: lining-nums tabular-nums; }
 @media (max-width: 900px) {
   #applicationsView .application-data-table td.application-salary-cell { display: flex; align-items: baseline; gap: 6px; }
   #applicationsView .application-salary-value { flex: 0 1 auto; min-width: 0; }

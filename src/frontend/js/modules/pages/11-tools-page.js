@@ -238,8 +238,8 @@
     const templateId = select.value || 'contract-signing';
     const example = documentTemplateExample($('#documentTemplatePlatform')?.value || 'Direct client');
     const rendered = buildDocumentEmailTemplate(templateId, example.application, example.details);
-    const previewBody = htmlEmailBodyFromText(rendered.body);
-    preview.innerHTML = `<div class="template-preview-subject"><span>Subject</span><strong>${escapeHtml(rendered.subject || '(No subject)')}</strong></div><div style="font-family:Arial, Helvetica, sans-serif; margin:0;">${previewBody}</div>`;
+    const previewBody = htmlEmailBodyFromText(rendered.body).replaceAll('font-family:Arial, Helvetica, sans-serif;', 'font-family:var(--font-ui);');
+    preview.innerHTML = `<div class="template-preview-subject"><span>Subject</span><strong>${escapeHtml(rendered.subject || '(No subject)')}</strong></div><div style="font-family:var(--font-ui); margin:0;">${previewBody}</div>`;
   }
 
   $('#personalDocumentInput').addEventListener('change', event => {
