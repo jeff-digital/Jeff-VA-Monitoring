@@ -29,6 +29,7 @@ $copies = @{
   'images\tab.png' = 'images\tab.png'
   'images\google.svg' = 'images\google.svg'
   'js\gmail-config.js' = 'js\gmail-config.js'
+  'js\theme.js' = 'js\theme.js'
   'js\supabase-config.js' = 'js\supabase-config.js'
   'onboarding\index.html' = 'onboarding\index.html'
   'onboarding\change-test.html' = 'onboarding\change-test.html'

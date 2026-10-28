@@ -9,7 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
-    <link rel="stylesheet" href="css/styles.css?v=20261027-history-card" />
+    <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
+    <link rel="stylesheet" href="css/styles.css?v=20261029-dark-mode-white-text" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -1776,6 +1777,16 @@
         <button class="icon-button" type="button" id="closeSettingsModal" aria-label="Close settings">×</button>
       </header>
       <section class="settings-device-pane" aria-labelledby="settingsDeviceTitle">
+        <section class="settings-device-section" aria-labelledby="settingsAppearanceTitle">
+          <div class="settings-device-heading"><div><p class="eyebrow">APPEARANCE</p><h3 id="settingsAppearanceTitle">Workspace theme</h3></div></div>
+          <label class="form-field">Color mode
+            <select id="workspaceTheme" aria-describedby="workspaceThemeNote">
+              <option value="light">Light</option>
+              <option value="dark">Dark mode</option>
+            </select>
+          </label>
+          <p class="settings-copy" id="workspaceThemeNote">Choose a light or dark workspace. Your choice is saved in this browser.</p>
+        </section>
         <section class="settings-device-section" aria-labelledby="settingsDeviceTitle">
           <div class="settings-device-heading"><div><p class="eyebrow">BACKUP &amp; DEVICE</p><h3 id="settingsDeviceTitle">Local data and backups</h3></div><div class="settings-stats"><span><strong id="settingsAppCount">0</strong> applications</span><span><strong id="settingsEmailCount">0</strong> email headers</span></div></div>
           <p class="settings-copy">Your applications, email headers, alerts, and attached documents are stored securely online. Export to Excel when you want a separate backup; attached document files are not included in the Excel backup.</p>
