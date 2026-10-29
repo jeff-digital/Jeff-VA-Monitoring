@@ -1,0 +1,40 @@
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+plugins { id 'com.android.application' }
+def configFile = file('../../app-config.json')
+if (!configFile.exists()) throw new GradleException('Copy android/app-config.example.json to android/app-config.json and configure your backend before building.')
+def config = new JsonSlurper().parse(configFile)
+android {
+    namespace config.packageId
+    compileSdkVersion 36
+    buildToolsVersion '36.0.0'
+    defaultConfig {
+        applicationId config.packageId
+        minSdkVersion 24
+        targetSdkVersion 36
+        versionCode config.versionCode
+        versionName config.versionName
+        resValue 'string', 'app_name', config.name
+        buildConfigField 'String', 'SUPABASE_URL', JsonOutput.toJson(config.supabaseUrl)
+        buildConfigField 'String', 'PUBLISHABLE_KEY', JsonOutput.toJson(config.publishableKey)
+        buildConfigField 'String', 'API_ORIGIN', JsonOutput.toJson(config.apiOrigin)
+        buildConfigField 'String', 'AUTH_REDIRECT', JsonOutput.toJson(config.authRedirect)
+    }
+    buildFeatures { buildConfig true }
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+dependencies {
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20250517'
+}

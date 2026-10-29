@@ -1,0 +1,4 @@
+# Keep mobile source and the preview's integrity-locked runtime consistent
+# across Windows, macOS and Linux checkouts. Binary assets stay binary.
+/android/** text=auto eol=lf
+/android/project/gradlew.bat text eol=crlf

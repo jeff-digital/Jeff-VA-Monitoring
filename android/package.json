@@ -1,0 +1,9 @@
+{
+  "name": "jeff-va-android",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Native Android interface for the Jeff VA workspace",
+  "devDependencies": {
+    "jimp": "0.22.12"
+  }
+}
