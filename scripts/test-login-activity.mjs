@@ -134,7 +134,7 @@ try {
   });
   vm.runInContext(fs.readFileSync(new URL('../src/frontend/js/modules/01a-login-activity.js', import.meta.url), 'utf8'), ui);
   await vm.runInContext('loadLoginActivity(true)', ui);
-  assert.equal(elements.get('#accountLoginActivity').children[0].children[5].textContent, '<script>unsafe</script>', 'Device metadata must be rendered as plain text');
+  assert.equal(elements.get('#accountLoginActivity').children[0].children[0].children[1].children[3].textContent, '<script>unsafe</script>', 'Device metadata must be rendered as plain text');
   ui.currentUser = { id: 'other' };
   let rejectRequest;
   ui.fetch = () => new Promise((_, reject) => { rejectRequest = reject; });

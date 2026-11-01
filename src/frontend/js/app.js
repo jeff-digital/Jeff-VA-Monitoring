@@ -1240,13 +1240,25 @@
     list.replaceChildren();
     const labels = { successful: 'Successful', failed: 'Unrecognized credentials', invalid_input: 'Invalid or empty input', interrupted: 'Interrupted', not_completed: 'Not completed', rate_limited: 'Blocked (rate limit)' };
     for (const event of events) {
-      const row = document.createElement('tr');
-      for (const value of [formatAccountTimestamp(event.at), labels[event.result] || 'Unknown', event.provider,
-        event.accountRef || 'This account', event.ip || 'Unavailable', event.device || 'Unknown device']) {
-        const cell = document.createElement('td');
-        cell.textContent = value;
-        row.append(cell);
+      const row = document.createElement('li');
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      const method = document.createElement('span');
+      method.textContent = `${event.provider || 'Sign-in'} · ${labels[event.result] || 'Unknown'}`;
+      const timestamp = document.createElement('time');
+      timestamp.dateTime = event.at || '';
+      timestamp.textContent = formatAccountTimestamp(event.at);
+      summary.append(method, timestamp);
+      const metadata = document.createElement('dl');
+      for (const [label, value] of [['IP address', event.ip || 'Unavailable'], ['Browser / device', event.device || 'Unknown device'], ['Account reference', event.accountRef || 'This account']]) {
+        const term = document.createElement('dt');
+        term.textContent = label;
+        const description = document.createElement('dd');
+        description.textContent = value;
+        metadata.append(term, description);
       }
+      details.append(summary, metadata);
+      row.append(details);
       list.append(row);
     }
     $('#accountLoginActivityStatus').textContent = events.length ? `${events.length} recent attempts · Times shown in your local timezone.` : 'No tracked login attempts yet.';

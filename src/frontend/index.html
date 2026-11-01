@@ -886,15 +886,17 @@
             </dl>
             <p class="settings-copy account-storage-note">Shows this project's current file total, not the billing-cycle average. Other projects in your organization may share the allowance; use Project usage &amp; quota for the organization-wide total.</p>
           </section>
-          <section class="account-section account-history-section" aria-labelledby="accountSignInHistoryTitle">
+          <section class="account-section account-history-section" aria-labelledby="accountLoginActivityTitle">
             <div class="account-section-heading account-history-heading">
-              <h2>Security · Login activity</h2>
+              <h2 id="accountLoginActivityTitle">Login attempts</h2>
               <label>View <select id="accountLoginActivityScope"><option value="account">My account</option value="all" id="accountLoginActivityAll" hidden>All submitted attempts (admin)</option></select></label>
               <button class="button button-secondary" id="accountLoginActivityRefresh" type="button">Refresh</button>
             </div>
-            <p class="settings-copy">Submitted attempts are recorded even for invalid details or nonexistent accounts. Five wrong-password attempts from one IP block further password checks for five minutes. Latest 100 records per view, kept for up to 30 days. All-attempts access requires administrator permission; references hide the entered account text. Direct Supabase attempts remain in Supabase Auth logs.</p>
-            <p id="accountLoginActivityStatus" role="status" aria-live="polite">Open your account to load login activity.</p>
-            <div style="overflow-x:auto"><table class="login-activity-table"><thead><tr><th scope="col">Time</th><th scope="col">Result</th><th scope="col">Method</th><th scope="col">Account reference</th><th scope="col">IP address</th><th scope="col">Browser / device</th></tr></thead><tbody id="accountLoginActivity"></tbody></table></div>
+            <p class="settings-copy">Latest 100 attempts · 30-day history. Expand an entry to see its IP address and device details.</p>
+            <p class="account-empty-state" id="accountLoginActivityStatus" role="status" aria-live="polite">Open your account to load login activity.</p>
+            <ol class="account-sign-in-history account-login-activity" id="accountLoginActivity" aria-label="Login attempt history"></ol>
+          </section>
+          <section class="account-section account-history-section" aria-labelledby="accountSignInHistoryTitle">
             <div class="account-section-heading account-history-heading">
               <h2 id="accountSignInHistoryTitle">Sign-in history</h2>
               <span>Latest 20 on this app</span>

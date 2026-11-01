@@ -8451,7 +8451,16 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
 :root[data-theme="light"] { color-scheme: light; }
 #workspaceTheme { max-width: 280px; }
 #workspaceThemeNote { margin-top: 10px; }
-.login-activity-table { width:100%; border-collapse:collapse; margin:14px 0 24px; text-align:left; font-size:12px; }
-.login-activity-table th,.login-activity-table td { padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
-.login-activity-table th { font-weight:600; white-space:nowrap; }
-.login-activity-table td:last-child { max-width:350px; overflow-wrap:anywhere; }
+#accountView .account-login-activity li { display:block; height:auto; padding:0; overflow:visible; }
+#accountView .account-login-activity details { width:100%; min-width:0; }
+#accountView .account-login-activity summary { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:42px; padding:8px 0; cursor:pointer; list-style:none; }
+#accountView .account-login-activity summary::-webkit-details-marker { display:none; }
+#accountView .account-login-activity summary > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#accountView .account-login-activity summary > span::before { content:'›'; display:inline-block; margin-right:8px; transition:transform .15s; }
+#accountView .account-login-activity details[open] summary > span::before { transform:rotate(90deg); }
+#accountView .account-login-activity summary:focus-visible { outline:2px solid var(--navy); outline-offset:-2px; border-radius:4px; }
+#accountView .account-login-activity dl { display:grid; grid-template-columns:110px minmax(0,1fr); gap:9px 14px; padding:2px 0 16px 16px; margin:0; font-size:10px; line-height:1.6; }
+#accountView .account-login-activity dt { color:var(--workspace-muted); }
+#accountView .account-login-activity dd { margin:0; overflow-wrap:anywhere; }
+@media(max-width:600px) { #accountView .account-login-activity summary { flex-wrap:wrap; gap:5px; } #accountView .account-login-activity summary time { flex:0 0 100%; text-align:left; padding-left:16px; } #accountView .account-login-activity dl { grid-template-columns:90px minmax(0,1fr); gap:7px 10px; } }
+@media(prefers-reduced-motion:reduce) { #accountView .account-login-activity summary > span::before { transition:none; } }
