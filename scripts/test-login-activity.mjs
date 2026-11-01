@@ -143,6 +143,42 @@ try {
   assert.equal(elements.get('#accountLoginActivity').children.length, 0, 'Changing accounts clears the previous account before fetching');
   rejectRequest(new Error('Unavailable'));
   await switching;
-  assert.match(elements.get('#accountLoginActivityStatus').textContent, /unavailable/);
+  assert.match(elements.get('#accountLoginActivityStatus').textContent, /unavailable/i);
+  ui.currentUser = { id: 'owner' };
+  let renewals = 0, requests = 0;
+  ui.requireSupabase = () => ({ auth: {
+    getSession: async () => ({ data: { session: { access_token: 'stale', user: { id: 'owner' } } } }),
+    refreshSession: async () => { renewals++; return { data: { session: { access_token: 'renewed', user: { id: 'owner' } } } }; }
+  } });
+  ui.fetch = async (_url, options) => {
+    requests++;
+    return options.headers.authorization === 'Bearer stale'
+      ? Response.json({ code: 'SESSION_REFRESH_REQUIRED' }, { status: 401 })
+      : Response.json({ events: [], canViewAll: false });
+  };
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  assert.equal(renewals, 1, 'An expired server session is renewed once');
+  assert.equal(requests, 2, 'Activity is retried with the renewed token');
+  assert.match(elements.get('#accountLoginActivityStatus').textContent, /No tracked/);
+  let oldTokenSent = false;
+  ui.requireSupabase = () => ({ auth: {
+    getSession: async () => ({ data: { session: { access_token: 'expired', expires_at: 1 } } }),
+    refreshSession: async () => ({ data: { session: { access_token: 'renewed', user: { id: 'owner' } } } })
+  } });
+  ui.fetch = async (_url, options) => { oldTokenSent = options.headers.authorization === 'Bearer expired'; return Response.json({ events: [] }); };
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  assert.equal(oldTokenSent, false, 'Known expired sessions are refreshed before making requests');
+  ui.fetch = async () => Response.json({ error: 'Administrator access is required.' }, { status: 403 });
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  assert.equal(elements.get('#accountLoginActivityStatus').textContent, 'Administrator access is required.');
+  ui.fetch = async () => new Response('blocked', { status: 403 });
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  assert.match(elements.get('#accountLoginActivityStatus').textContent, /Cloudflare blocked/);
+  ui.fetch = async () => new Response('<html>not an API</html>', { headers: { 'content-type': 'text/html' } });
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  assert.match(elements.get('#accountLoginActivityStatus').textContent, /not serving the login-activity API/);
+  ui.fetch = async () => Response.json({ error: 'Login activity storage is not configured.' }, { status: 503 });
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  assert.equal(elements.get('#accountLoginActivityStatus').textContent, 'Login activity storage is not configured.');
   console.log('PASS login activity: authenticated account isolation, real outcomes, deduplication, IP metadata, credential exclusion, rate limits, fail-closed behavior, and retention.');
 } finally { globalThis.fetch = realFetch; }

@@ -99,6 +99,7 @@ export async function passwordLogin(request, env) {
 }
 export async function loginActivity(request, env, user) {
   if (!user.email || !user.email_confirmed_at) return json({ error: 'A verified account email is required.' }, 403);
+  if (!env.FOLLOW_UP_DELIVERIES) return json({ error: 'Login activity storage is not configured on the server.', code: 'LOGIN_ACTIVITY_STORAGE_MISSING' }, 503);
   try {
     const key = 'email:' + normalize(user.email);
     const admin = canViewAll(user, env);

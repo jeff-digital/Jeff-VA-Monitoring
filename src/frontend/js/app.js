@@ -1223,17 +1223,33 @@
 
   const loginActivityCache = new Map();
   let loginActivityOwner = null;
+  async function renewLoginActivitySession(auth, userId) {
+    if (typeof renewEmailAiSession === 'function') return renewEmailAiSession(auth, userId);
+    const renewed = await auth.refreshSession();
+    if (renewed.error || !renewed.data?.session?.access_token) throw new Error('Your session has expired. Sign in again to view login attempts.');
+    return renewed.data.session;
+  }
   async function requestLoginActivity(method = 'GET', scope = 'account') {
     const userId = currentUser?.id;
     if (!userId) return;
-    const { data: sessionData } = await requireSupabase().auth.getSession();
-    const token = sessionData?.session?.access_token;
-    if (!token) throw new Error('Sign in to view login activity.');
-    const response = await fetch('/api/auth/activity' + (scope === 'all' ? '?scope=all' : ''), { method, headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || 'Login activity is unavailable.');
-    if (currentUser?.id !== userId) return;
-    return payload;
+    const auth = requireSupabase().auth;
+    const current = await auth.getSession();
+    let session = current.data?.session;
+    if (current.error || !session?.access_token || (session.expires_at && session.expires_at <= Date.now() / 1000 + 60)) session = await renewLoginActivitySession(auth, userId);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (currentUser?.id !== userId || (session.user?.id && session.user.id !== userId)) return;
+      const response = await fetch('/api/auth/activity' + (scope === 'all' ? '?scope=all' : ''), { method, headers: { authorization: `Bearer ${session.access_token}` }, signal: AbortSignal.timeout(15000) });
+      const payload = await response.json().catch(() => null);
+      if (currentUser?.id !== userId) return;
+      if (response.status === 401 && attempt === 0) { session = await renewLoginActivitySession(auth, userId); continue; }
+      if (response.status === 401) throw new Error('Your session has expired. Sign in again to view login attempts.');
+      if (response.status === 403) throw new Error(payload?.error || 'Cloudflare blocked the login-activity request. Refresh the page and retry.');
+      if (!payload && response.status >= 500) throw new Error(`The login-activity server is temporarily unavailable (HTTP ${response.status}). Use Refresh to retry.`);
+      if (!payload || response.status === 404) throw new Error('This server is not serving the login-activity API. Open the published app or start the local app server.');
+      if (!response.ok) throw new Error(payload.error || 'Login activity is temporarily unavailable. Use Refresh to retry.');
+      if (!Array.isArray(payload.events) && method === 'GET') throw new Error('The server returned an invalid login-activity response. Use Refresh to retry.');
+      return payload;
+    }
   }
   function renderLoginActivity(events) {
     const list = $('#accountLoginActivity');
@@ -1290,8 +1306,11 @@
       const events = Array.isArray(payload.events) ? payload.events : [];
       loginActivityCache.set(cacheKey, { events, at: Date.now(), pending: false });
       renderLoginActivity(events);
-    } catch {
-      if (currentUser?.id === userId) $('#accountLoginActivityStatus').textContent = 'Login activity is unavailable. The updated server must be deployed; use Refresh to retry.';
+    } catch (error) {
+      if (currentUser?.id === userId) $('#accountLoginActivityStatus').textContent = error.name === 'AbortError' || error.name === 'TimeoutError'
+        ? 'Loading login attempts timed out. Use Refresh to retry.'
+        : error instanceof TypeError ? 'Login activity could not connect to the server. Check your connection and use Refresh.'
+          : error.message || 'Login activity is temporarily unavailable. Use Refresh to retry.';
     } finally {
       const entry = loginActivityCache.get(cacheKey);
       if (entry) entry.pending = false;
