@@ -18,15 +18,20 @@ if (Test-Path -LiteralPath $resolvedOutput) {
   Remove-Item -LiteralPath $resolvedOutput -Recurse -Force
 }
 
-@('css', 'images', 'js', 'onboarding') | ForEach-Object {
+@('css', 'images', 'js', 'onboarding', 'home') | ForEach-Object {
   New-Item -ItemType Directory -Path (Join-Path $resolvedOutput $_) -Force | Out-Null
 }
 
 $copies = @{
   'index.html' = 'index.html'
+  'homepage.html' = 'homepage.html'
   '_headers' = '_headers'
   'css\styles.css' = 'css\styles.css'
+  'css\login-layout.css' = 'css\login-layout.css'
   'images\tab.png' = 'images\tab.png'
+  'images\news-business.jpg' = 'images\news-business.jpg'
+  'images\news-remote-work.jpg' = 'images\news-remote-work.jpg'
+  'images\news-technology.jpg' = 'images\news-technology.jpg'
   'images\google.svg' = 'images\google.svg'
   'js\gmail-config.js' = 'js\gmail-config.js'
   'js\theme.js' = 'js\theme.js'
@@ -42,6 +47,9 @@ $copies = @{
 foreach ($entry in $copies.GetEnumerator()) {
   Copy-Item -LiteralPath (Join-Path $sourceDirectory $entry.Key) -Destination (Join-Path $resolvedOutput $entry.Value)
 }
+
+$homeHtml = (Get-Content -Raw -Encoding UTF8 (Join-Path $sourceDirectory 'homepage.html')).Replace('<head>', '<head><base href="../">').Replace('href="#', 'href="home/#')
+[System.IO.File]::WriteAllText((Join-Path $resolvedOutput 'home\index.html'), $homeHtml, [System.Text.UTF8Encoding]::new($false))
 
 $moduleNames = Get-Content -Encoding UTF8 (Join-Path $scriptDirectory 'js-modules.txt') | Where-Object { $_.Trim() }
 $moduleContents = $moduleNames | ForEach-Object {

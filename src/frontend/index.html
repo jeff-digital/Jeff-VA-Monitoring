@@ -11,10 +11,12 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
     <link rel="stylesheet" href="css/styles.css?v=20261029-dark-mode-white-text" />
+    <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Jeff VA login">
+      <div class="login-form-panel">
       <div class="login-card">
         <div class="login-brand"><span class="brand-mark" aria-hidden="true"><img src="images/tab.png" alt="" /></span><span>Jeff VA</span></div>
         <h1>Welcome back</h1>
@@ -28,6 +30,15 @@
           <p class="gmail-status login-google-status" id="loginGoogleStatus" aria-live="polite"></p>
         </form>
       </div>
+      </div>
+      <aside class="login-identity-panel" aria-label="Jeff VA Monitoring">
+        <div class="login-identity">
+          <img class="login-identity-logo" src="images/tab.png" width="280" height="280" alt="JA logo" />
+          <p class="login-identity-name">Jeff VA Monitoring</p>
+          <p class="login-identity-description">Your job search and client work.<br />One workspace.</p>
+        </div>
+        <a class="login-home-link" href="home/">Explore the system <span aria-hidden="true">↗</span></a>
+      </aside>
     </section>
     <div class="welcome-transition" id="welcomeTransition" role="status" aria-live="polite" hidden>
       <div class="welcome-transition-card">

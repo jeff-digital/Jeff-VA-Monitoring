@@ -1,0 +1,91 @@
+/* Public sign-in uses the same white/navy identity in either workspace theme. */
+#loginScreen {
+  --ink: #171717;
+  --muted: #62645f;
+  --navy: #1a2340;
+  --line: #e8e7e4;
+  --theme-action: #1a2340;
+  --theme-surface: #fff;
+  --theme-border: #e8e7e4;
+  --theme-muted: #62645f;
+  --theme-raised: #f5f4f1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  place-items: stretch;
+  min-height: 100svh;
+  padding: 0;
+  color: #171717;
+  background: #fff !important;
+  color-scheme: light;
+}
+body.authenticated #loginScreen,
+body.auth-loading #loginScreen { display: none; }
+#loginScreen .login-form-panel {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  min-width: 0;
+  padding: 60px 35px;
+  background: #fff;
+}
+#loginScreen .login-card {
+  width: min(390px, 100%);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #fff;
+}
+#loginScreen .login-brand { margin-bottom: 48px; }
+#loginScreen .login-brand .brand-mark { width: 40px; height: 40px; }
+#loginScreen .login-card h1 { margin: 0 0 10px; font-size: 34px; line-height: 1.2; }
+#loginScreen .login-system-name { margin-bottom: 30px; font-size: 13px; }
+#loginScreen .login-form { gap: 18px; }
+#loginScreen .login-form .form-field { gap: 8px; font-size: 12px; }
+#loginScreen .login-form input { min-height: 48px; height: 48px; font-size: 14px; color-scheme: light; }
+#loginScreen .login-form input::placeholder { color: #8a8c86; opacity: 1; }
+#loginScreen .login-form .button { min-height: 48px; font-size: 13px; }
+#loginScreen .login-submit { background: #1a2340; border-color: #1a2340; }
+#loginScreen .login-submit:hover { background: #283463; }
+#loginScreen .login-google { background: #fff; border-color: #e8e7e4; }
+#loginScreen .login-google:hover { background: #f5f4f1; }
+#loginScreen .login-identity-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  align-self: stretch;
+  position: relative;
+  min-width: 0;
+  padding: 65px 40px 100px;
+  background: #1a2340;
+  text-align: center;
+}
+#loginScreen .login-identity-logo {
+  display: block;
+  width: clamp(180px, 23vw, 330px);
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto 16px;
+}
+#loginScreen .login-identity-name { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.6px; color: #fff; }
+#loginScreen .login-identity-description { margin: 16px 0 0; font-size: 14px; line-height: 1.8; color: #c9cedc; }
+#loginScreen .login-home-link { position: absolute; bottom: 35px; color: #d2d7e4; font-size: 12px; text-decoration: none; }
+#loginScreen .login-home-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+/* Override the workspace's dark-mode text rules only within public sign-in. */
+:root[data-theme="dark"] #loginScreen .login-card,
+:root[data-theme="dark"] #loginScreen .login-card :is(h1, .login-brand, .login-brand span, input, .login-google, .login-google span) { color: #171717 !important; }
+:root[data-theme="dark"] #loginScreen .login-card :is(.form-field, .login-system-name, .login-google-status) { color: #62645f !important; }
+:root[data-theme="dark"] #loginScreen .login-card .login-error { color: #ad343d !important; }
+:root[data-theme="dark"] #loginScreen .login-identity-description { color: #c9cedc !important; }
+:root[data-theme="dark"] #loginScreen input::placeholder { color: #8a8c86; }
+@media(max-width:700px) {
+  #loginScreen { grid-template-columns: 1fr; }
+  #loginScreen .login-form-panel { min-height: 100svh; padding: 42px 26px; }
+  #loginScreen .login-card { padding: 0; }
+  #loginScreen .login-brand { margin-bottom: 35px; }
+  #loginScreen .login-card h1 { font-size: 30px; }
+  #loginScreen .login-identity-panel { min-height: 390px; padding: 35px 25px 85px; }
+  #loginScreen .login-identity-logo { width: 180px; margin-bottom: 5px; }
+  #loginScreen .login-identity-name { font-size: 20px; }
+}

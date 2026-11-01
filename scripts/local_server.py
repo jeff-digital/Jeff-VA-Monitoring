@@ -152,7 +152,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _serve_app_route(self) -> None:
-        if urlparse(self.path).path.rstrip("/") in APP_ROUTES:
+        if urlparse(self.path).path.rstrip("/") == "/home":
+            self.path = "/home/index.html"
+        elif urlparse(self.path).path.rstrip("/") in APP_ROUTES:
             self.path = "/index.html"
 
     def do_GET(self) -> None:  # noqa: N802 - inherited HTTP handler name
