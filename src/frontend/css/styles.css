@@ -8451,3 +8451,7 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
 :root[data-theme="light"] { color-scheme: light; }
 #workspaceTheme { max-width: 280px; }
 #workspaceThemeNote { margin-top: 10px; }
+.login-activity-table { width:100%; border-collapse:collapse; margin:14px 0 24px; text-align:left; font-size:12px; }
+.login-activity-table th,.login-activity-table td { padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+.login-activity-table th { font-weight:600; white-space:nowrap; }
+.login-activity-table td:last-child { max-width:350px; overflow-wrap:anywhere; }

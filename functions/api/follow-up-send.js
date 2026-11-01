@@ -1,4 +1,5 @@
 import { coordinateBackup } from './backup-download.js';
+import { coordinateLoginActivity, expireLoginActivity } from './login-activity.js';
 import { coordinateResearchUsage } from './research-usage.js';
 import { isFollowUpSendTime, followUpLocalDate } from './follow-up-calendar.js';
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
@@ -66,8 +67,10 @@ export async function sendFollowUp(request, env, user) {
 // automatically: expiring a reservation could send a second accepted email.
 export class FollowUpDelivery {
   constructor(ctx) { this.storage = ctx.storage; }
+  async alarm() { await expireLoginActivity(this.storage); }
   async fetch(request) {
     const input = await request.json();
+    if (new URL(request.url).pathname === '/login-activity') return coordinateLoginActivity(this.storage, input);
     if (new URL(request.url).pathname === '/backup') return coordinateBackup(this.storage, input);
     if (new URL(request.url).pathname === '/research-usage') return coordinateResearchUsage(this.storage, input);
     return this.storage.transaction(async txn => {

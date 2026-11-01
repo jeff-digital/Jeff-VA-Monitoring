@@ -1,4 +1,5 @@
 import { research } from '../../functions/api/research.js';
+import { passwordLogin, loginActivity } from '../../functions/api/login-activity.js';
 import { getResearchUsage } from '../../functions/api/research-usage.js';
 import { automaticBackupReceipt } from '../../functions/api/backup-download.js';
 import { onRequestGet as news, onRequestGetUsage as newsUsage } from '../../functions/api/news.js';
@@ -20,6 +21,8 @@ export default {
   async fetch(request, env, ctx) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if (path === '/api/auth/login') return passwordLogin(request, env);
+    const isLoginActivity = path === '/api/auth/activity';
     const handler = path === '/api/news' ? news : path === '/api/news/usage' ? newsUsage : path === '/api/tools' ? tools : null;
     const isGmailRefresh = path === '/api/gmail/refresh';
     const isEmailClassification = path === '/api/email/classify';
@@ -28,8 +31,8 @@ export default {
     const isResearch = path === '/api/research';
     const isResearchUsage = path === '/api/research/usage';
     const isProgressReview = path === '/api/application-progress';
-    if (!handler && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
-    if (request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
+    if (!handler && !isLoginActivity && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
+    if (isLoginActivity ? !['GET', 'POST'].includes(request.method) : request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to continue.', 401);
     let verified = false;
@@ -42,6 +45,7 @@ export default {
       const user = await auth.json();
       if (!user.id) return sessionFailure(true);
       verified = true;
+      if (isLoginActivity) return loginActivity(request, env, user);
       if (isResearchUsage) return getResearchUsage(request, env, user);
       if (isResearch) return research(request, env, user);
       if (isBackupReceipt) return automaticBackupReceipt(request, env, user);

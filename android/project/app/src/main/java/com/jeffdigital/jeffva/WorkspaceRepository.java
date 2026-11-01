@@ -46,7 +46,8 @@ final class WorkspaceRepository {
         return status == 401 ? "Please sign in again." : "Could not complete the request (HTTP " + status + ").";
     }
     private String request(String method, String url, byte[] body, String type, String token, String prefer) throws Exception {
-        Request.Builder request = new Request.Builder().url(url).header("Accept", "application/json");
+        Request.Builder request = new Request.Builder().url(url).header("Accept", "application/json")
+                .header("User-Agent", "JeffVA-Android/" + BuildConfig.VERSION_NAME + " (Android " + android.os.Build.VERSION.RELEASE + ")");
         if (url.startsWith(BuildConfig.SUPABASE_URL + "/")) request.header("apikey", BuildConfig.PUBLISHABLE_KEY);
         if (token != null && !token.isEmpty()) request.header("Authorization", "Bearer " + token);
         if (prefer != null) request.header("Prefer", prefer);
@@ -102,7 +103,7 @@ final class WorkspaceRepository {
     }
     void login(String email, String password) throws Exception {
         JSONObject body = new JSONObject().put("email", email).put("password", password);
-        JSONObject response = new JSONObject(json("POST", BuildConfig.SUPABASE_URL + "/auth/v1/token?grant_type=password", body, null, null));
+        JSONObject response = new JSONObject(json("POST", BuildConfig.API_ORIGIN + "/api/auth/login", body, null, null));
         session = null;
         acceptSession(response);
     }
@@ -129,6 +130,7 @@ final class WorkspaceRepository {
         session = null;
         acceptSession(response);
         vault.remove("pkce");
+        try { api("POST", "/api/auth/activity", new JSONObject()); } catch (Exception ignored) { }
     }
     private String accessToken() throws Exception {
         if (session == null) throw new Exception("Sign in to open your workspace.");

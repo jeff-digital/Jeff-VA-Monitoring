@@ -256,6 +256,7 @@
 
   function renderAccountPage() {
     if (!currentUser) return;
+    loadLoginActivity();
     const provider = activeAuthProvider === 'google' ? 'Google' : activeAuthProvider === 'email' ? 'Email and password' : 'Supabase Auth';
     const projectHost = (() => {
       try { return new URL(window.SUPABASE_URL).host; } catch { return 'Not configured'; }
@@ -842,6 +843,7 @@
       startNotificationRefreshTimer();
       startSavedEmailAiChecks();
       if (recordSignIn) recordAccountSignIn(user, activeAuthProvider);
+      if (recordSignIn) void recordVerifiedLoginActivity();
       autoRejectedApplications = processStaleApplications();
       renderAll();
       renderAccountPage();

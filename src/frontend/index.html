@@ -888,6 +888,13 @@
           </section>
           <section class="account-section account-history-section" aria-labelledby="accountSignInHistoryTitle">
             <div class="account-section-heading account-history-heading">
+              <h2>Security · Login activity</h2>
+              <button class="button button-secondary" id="accountLoginActivityRefresh" type="button">Refresh</button>
+            </div>
+            <p class="settings-copy">Successful and failed attempts through the website and updated Android app. Latest 100 records, kept for up to 30 days. Direct Supabase attempts are available in Supabase Auth logs.</p>
+            <p id="accountLoginActivityStatus" role="status" aria-live="polite">Open your account to load login activity.</p>
+            <div style="overflow-x:auto"><table class="login-activity-table"><thead><tr><th scope="col">Time</th><th scope="col">Result</th><th scope="col">Method</th><th scope="col">IP address</th><th scope="col">Browser / device</th></tr></thead><tbody id="accountLoginActivity"></tbody></table></div>
+            <div class="account-section-heading account-history-heading">
               <h2 id="accountSignInHistoryTitle">Sign-in history</h2>
               <span>Latest 20 on this app</span>
             </div>

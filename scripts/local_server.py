@@ -129,6 +129,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         try:
             request = Request(upstream_url, data=payload, method=method, headers={
                 "Authorization": authorization, "Content-Type": "application/json",
+                "User-Agent": self.headers.get("User-Agent", ""),
             })
             try:
                 with urlopen(request, timeout=timeout) as upstream:
@@ -158,6 +159,9 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             self.path = "/index.html"
 
     def do_GET(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        if urlparse(self.path).path == "/api/auth/activity":
+            self._refresh_gmail("https://jeff-va-monitoring.jeffdigi.workers.dev/api/auth/activity", method="GET")
+            return
         if urlparse(self.path).path == RESEARCH_USAGE_PATH:
             self._refresh_gmail(RESEARCH_USAGE_UPSTREAM, timeout=15, method="GET")
             return
@@ -180,6 +184,35 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self) -> None:  # noqa: N802 - inherited HTTP handler name
+        if urlparse(self.path).path == "/api/auth/login":
+            if not is_allowed_backup_request(self.headers.get("Origin", ""), self.headers.get("Host", ""), self.client_address[0]):
+                self.send_error(HTTPStatus.FORBIDDEN)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 8000:
+                    self.send_error(HTTPStatus.BAD_REQUEST)
+                    return
+                payload = self.rfile.read(length)
+                request = Request("https://jeff-va-monitoring.jeffdigi.workers.dev/api/auth/login", data=payload,
+                                  headers={"Content-Type": "application/json", "User-Agent": self.headers.get("User-Agent", "")}, method="POST")
+                try:
+                    with urlopen(request, timeout=25) as upstream:
+                        status, body = upstream.status, upstream.read(65536)
+                except HTTPError as error:
+                    status, body = error.code, error.read(65536)
+                json.loads(body)
+            except (ValueError, URLError, TimeoutError, OSError):
+                status, body = 503, b'{"error":"Secure sign-in is unavailable. Deploy the updated server and retry."}'
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if urlparse(self.path).path == "/api/auth/activity":
+            self._refresh_gmail("https://jeff-va-monitoring.jeffdigi.workers.dev/api/auth/activity", method="POST")
+            return
         if urlparse(self.path).path == RESEARCH_PATH:
             self._refresh_gmail(RESEARCH_UPSTREAM, timeout=75)
             return

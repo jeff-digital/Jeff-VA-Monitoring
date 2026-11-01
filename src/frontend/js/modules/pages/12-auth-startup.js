@@ -30,7 +30,11 @@
     setButtonLoading(loginSubmitButton, true);
     try {
       const client = requireSupabase();
-      const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
+      const loginResponse = await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }), signal: AbortSignal.timeout(25000) });
+      const loginSession = await loginResponse.json();
+      if (!loginResponse.ok) throw new Error(loginSession.error || 'Sign-in is temporarily unavailable.');
+      const { data: authData, error } = await client.auth.setSession({ access_token: loginSession.access_token, refresh_token: loginSession.refresh_token });
       if (error) throw error;
       loginForm.reset();
       await initializeSupabaseForUser(authData.user, { recordSignIn: true, showOverview: true });
