@@ -13,7 +13,8 @@ query parameter. Browsers cannot submit arbitrary failed/successful outcomes.
 
 Activity uses the existing `FOLLOW_UP_DELIVERIES` Durable Object binding, in a
 separate hashed namespace. No SQL migration or service-role key is needed. Stored
-events contain no passwords, tokens, email addresses, or request bodies. IP comes
+events contain no passwords, tokens, or request bodies. Submitted email addresses
+are stored only in the admin feed, never in account-specific records. IP comes
 only from Cloudflare's `CF-Connecting-IP`. User-Agent is descriptive, not proof of
 device identity. Five wrong-password responses from one IP block further password
 checks for five minutes. Pending requests reserve slots, preventing concurrent
@@ -22,8 +23,13 @@ bounds malformed and empty submissions. Successful checks do not count as failur
 Interrupted requests remain distinguishable from rejected credentials.
 
 All password-form submissions, including invalid input and nonexistent account
-details, are also recorded in a site-wide feed. Only a hashed account reference
-is stored, never the submitted identifier text. Supabase deliberately does not
+details, are also recorded in a site-wide feed. Email-shaped identifiers up to 320
+characters are stored as submitted emails (trimmed and lowercased), alongside a
+hashed account reference. Arbitrary non-email text is not retained. These emails
+are unverified input, not evidence of who made the attempt. They are available
+only in the admin all-attempts response and expire with the records after 30 days.
+Older records have only the hashed reference; their email cannot be recovered.
+Supabase deliberately does not
 distinguish nonexistent accounts from wrong passwords in the public response.
 Typing alone is not logged: the visitor must submit the form.
 

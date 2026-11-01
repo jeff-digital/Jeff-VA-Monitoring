@@ -19,8 +19,9 @@ function canViewAll(user, env) {
     || String(env.LOGIN_ACTIVITY_ADMIN_IDS || '').split(',').map(id => id.trim()).filter(Boolean).includes(user.id);
 }
 async function recordAttempt(env, email, event) {
-  // A non-reversible reference groups attempts without keeping arbitrary typed text.
-  const publicEvent = { ...event, accountRef: email ? (await digest(email)).slice(0, 12) : 'empty-input' };
+  // Keep submitted emails only in the admin feed; arbitrary non-email text is not retained.
+  const submittedEmail = email.length <= 320 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : undefined;
+  const publicEvent = { ...event, accountRef: email ? (await digest(email)).slice(0, 12) : 'empty-input', ...(submittedEmail ? { submittedEmail } : {}) };
   if (!(await coordinator(env, 'site-attempts', { action: 'record', event: publicEvent })).ok) throw new Error('Activity storage unavailable');
   if (email && email.length <= 320 && email.includes('@') && !(await coordinator(env, 'email:' + email, { action: 'record', event })).ok) throw new Error('Activity storage unavailable');
 }
@@ -117,7 +118,10 @@ export async function loginActivity(request, env, user) {
     }
     const response = await coordinator(env, all ? 'site-attempts' : key, { action: 'list' });
     if (!response.ok) throw new Error('Activity storage unavailable');
-    return json({ ...await response.json(), canViewAll: admin, scope: all ? 'all' : 'account' });
+    const payload = await response.json();
+    // Protect submitted identifiers even if a future storage change copies them to account records.
+    const events = all ? payload.events : payload.events.map(({ submittedEmail, ...event }) => event);
+    return json({ ...payload, events, canViewAll: admin, scope: all ? 'all' : 'account' });
   } catch { return json({ error: 'Login activity is temporarily unavailable.' }, 503); }
 }
 export async function coordinateLoginActivity(storage, input) {

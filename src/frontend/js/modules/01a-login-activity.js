@@ -58,6 +58,13 @@
       timestamp.textContent = formatAccountTimestamp(event.at);
       summary.append(method, timestamp);
       const metadata = document.createElement('dl');
+      if (event.submittedEmail) {
+        const term = document.createElement('dt');
+        term.textContent = 'Submitted email (unverified)';
+        const description = document.createElement('dd');
+        description.textContent = event.submittedEmail;
+        metadata.append(term, description);
+      }
       for (const [label, value] of [['IP address', event.ip || 'Unavailable'], ['Browser / device', event.device || 'Unknown device'], ['Account reference', event.accountRef || 'This account']]) {
         const term = document.createElement('dt');
         term.textContent = label;

@@ -57,7 +57,8 @@ try {
   result = await (await activity('owner')).json();
   assert.equal(result.events.filter(e => e.result === 'successful').length, 1, 'Verified callback deduplicates gateway success');
   const privateState = JSON.stringify([...stores.values()].flatMap(s => [...s.values.entries()]));
-  for (const secret of ['test-password', 'test-access', 'test-refresh', 'owner@example.com']) assert.ok(!privateState.includes(secret), 'Storage must not retain credentials or raw account email');
+  for (const secret of ['test-password', 'test-access', 'test-refresh']) assert.ok(!privateState.includes(secret), 'Storage must not retain passwords or tokens');
+  assert.ok(result.events.every(e => !('submittedEmail' in e)), 'Account responses never expose submitted identifiers');
   mode = 'network';
   assert.equal((await login()).status, 503);
   result = await (await activity('owner')).json();
@@ -91,7 +92,10 @@ try {
   assert.equal(all.canViewAll, true);
   assert.ok(all.events.some(e => e.result === 'invalid_input'));
   assert.ok(all.events.every(e => e.accountRef));
+  assert.ok(all.events.some(e => e.submittedEmail === 'nonexistent@example.com'), 'Admins can see submitted email addresses for nonexistent accounts');
+  assert.ok(all.events.some(e => e.submittedEmail === 'owner@example.com'), 'Submitted emails are normalized');
   assert.ok(!JSON.stringify(all).includes('random text with no account'));
+  assert.ok((await (await activity('owner')).json()).events.every(e => !('submittedEmail' in e)), 'Even admins only receive email identifiers in the all-attempts view');
   delete user.app_metadata.login_activity_admin;
   for (let i = 0; i < 20; i++) assert.equal((await login('203.0.113.7', { email: 'nonsense' })).status, 400);
   assert.equal((await login('203.0.113.7', { email: 'nonsense' })).status, 429);
@@ -194,5 +198,10 @@ try {
   ui.fetch = async () => Response.json({ error: 'Login activity storage is not configured.' }, { status: 503 });
   await vm.runInContext('loadLoginActivity(true)', ui);
   assert.equal(elements.get('#accountLoginActivityStatus').textContent, 'Login activity storage is not configured.');
+  ui.fetch = async () => Response.json({ events: [{ submittedEmail: '<img>@example.com', result: 'failed' }], canViewAll: true });
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  const emailMetadata = elements.get('#accountLoginActivity').children[0].children[0].children[1];
+  assert.equal(emailMetadata.children[0].textContent, 'Submitted email (unverified)');
+  assert.equal(emailMetadata.children[1].textContent, '<img>@example.com', 'Submitted emails must be rendered as text, never HTML');
   console.log('PASS login activity: authenticated account isolation, real outcomes, deduplication, IP metadata, credential exclusion, rate limits, fail-closed behavior, and retention.');
 } finally { globalThis.fetch = realFetch; }
