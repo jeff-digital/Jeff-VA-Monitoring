@@ -124,9 +124,13 @@ try {
     addEventListener() {}
   }
   const elements = new Map();
+  let missingAdminOption = false;
   const ui = vm.createContext({ Map, Date, AbortSignal,
     currentUser: { id: 'owner' },
-    $: id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); },
+    $: id => {
+      if (missingAdminOption && id === '#accountLoginActivityAll') return null;
+      if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id);
+    },
     document: { createElement: () => new Element() },
     formatAccountTimestamp: at => at,
     requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'owner' } } }) } }),
@@ -135,6 +139,16 @@ try {
   vm.runInContext(fs.readFileSync(new URL('../src/frontend/js/modules/01a-login-activity.js', import.meta.url), 'utf8'), ui);
   await vm.runInContext('loadLoginActivity(true)', ui);
   assert.equal(elements.get('#accountLoginActivity').children[0].children[0].children[1].children[3].textContent, '<script>unsafe</script>', 'Device metadata must be rendered as plain text');
+  missingAdminOption = true;
+  ui.currentUser = { id: 'older-page' };
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  assert.equal(elements.get('#accountLoginActivity').children.length, 1, 'A missing admin option must not stop account history from loading');
+  ui.fetch = async () => Response.json({ events: [], canViewAll: true });
+  await vm.runInContext('loadLoginActivity(true)', ui);
+  const restoredOption = elements.get('#accountLoginActivityScope').children.at(-1);
+  assert.equal(restoredOption.value, 'all', 'Authorized admins get a restored scope option on older pages');
+  assert.equal(restoredOption.hidden, false);
+  missingAdminOption = false;
   ui.currentUser = { id: 'other' };
   let rejectRequest;
   ui.fetch = () => new Promise((_, reject) => { rejectRequest = reject; });

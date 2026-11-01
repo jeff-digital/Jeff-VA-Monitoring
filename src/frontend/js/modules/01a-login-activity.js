@@ -1,5 +1,20 @@
   const loginActivityCache = new Map();
   let loginActivityOwner = null;
+  function setLoginActivityAdminOption(allowed) {
+    // Older open pages can have the scope selector without the admin option.
+    // Recreate it when needed instead of stopping account activity loading.
+    const scope = $('#accountLoginActivityScope');
+    let option = $('#accountLoginActivityAll');
+    if (!option && allowed) {
+      option = document.createElement('option');
+      option.id = 'accountLoginActivityAll';
+      option.value = 'all';
+      option.textContent = 'All submitted attempts (admin)';
+      scope.append(option);
+    }
+    if (option) { option.hidden = !allowed; option.disabled = !allowed; }
+    if (!allowed && scope.value === 'all') scope.value = 'account';
+  }
   async function renewLoginActivitySession(auth, userId) {
     if (typeof renewEmailAiSession === 'function') return renewEmailAiSession(auth, userId);
     const renewed = await auth.refreshSession();
@@ -62,7 +77,7 @@
     if (loginActivityOwner !== userId) {
       loginActivityOwner = userId;
       $('#accountLoginActivityScope').value = 'account';
-      $('#accountLoginActivityAll').hidden = true;
+      setLoginActivityAdminOption(false);
     }
     const scope = $('#accountLoginActivityScope').value === 'all' ? 'all' : 'account';
     const cacheKey = `${userId}:${scope}`;
@@ -79,7 +94,7 @@
     try {
       const payload = await requestLoginActivity('GET', scope);
       if (!payload || currentUser?.id !== userId || $('#accountLoginActivityScope').value !== scope) return;
-      $('#accountLoginActivityAll').hidden = payload.canViewAll !== true;
+      setLoginActivityAdminOption(payload.canViewAll === true);
       const events = Array.isArray(payload.events) ? payload.events : [];
       loginActivityCache.set(cacheKey, { events, at: Date.now(), pending: false });
       renderLoginActivity(events);
