@@ -302,8 +302,6 @@ public final class MainActivity extends Activity {
         EditText password = input(content, "Password", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         action(content, "Sign in", true, () -> {
             if (busy) return;
-            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email.getText().toString().trim()).matches()) { email.setError("Enter your email"); return; }
-            if (password.length() == 0) { password.setError("Enter your password"); return; }
             busy = true; hideKeyboard(); loading("Signing in…");
             String address = email.getText().toString().trim(), secret = password.getText().toString(); password.setText("");
             async(() -> { repository.login(address, secret); return repository.load(); }, result -> { busy = false; offline = false; resetAccountViews(); data = result; showWorkspace(); }, e -> showLogin(e.getMessage()));

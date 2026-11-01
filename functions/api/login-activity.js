@@ -14,6 +14,16 @@ async function coordinator(env, key, body) {
     method: 'POST', body: JSON.stringify(body)
   }));
 }
+function canViewAll(user, env) {
+  return user.app_metadata?.login_activity_admin === true
+    || String(env.LOGIN_ACTIVITY_ADMIN_IDS || '').split(',').map(id => id.trim()).filter(Boolean).includes(user.id);
+}
+async function recordAttempt(env, email, event) {
+  // A non-reversible reference groups attempts without keeping arbitrary typed text.
+  const publicEvent = { ...event, accountRef: email ? (await digest(email)).slice(0, 12) : 'empty-input' };
+  if (!(await coordinator(env, 'site-attempts', { action: 'record', event: publicEvent })).ok) throw new Error('Activity storage unavailable');
+  if (email && email.length <= 320 && email.includes('@') && !(await coordinator(env, 'email:' + email, { action: 'record', event })).ok) throw new Error('Activity storage unavailable');
+}
 function context(request) {
   return { ip: (request.headers.get('CF-Connecting-IP') || '').slice(0, 64),
     device: (request.headers.get('user-agent') || 'Unknown device').slice(0, 300) };
@@ -41,21 +51,30 @@ export async function passwordLogin(request, env) {
     let input;
     try { input = JSON.parse(raw); } catch { return json({ error: 'Invalid sign-in request.' }, 400); }
     if (!input || typeof input !== 'object' || Array.isArray(input)) return json({ error: 'Invalid sign-in request.' }, 400);
-    const email = normalize(input.email);
-    if (!email || email.length > 320 || !email.includes('@') || typeof input.password !== 'string'
-      || !input.password || input.password.length > 4096 || Object.keys(input).some(key => !['email', 'password'].includes(key))) {
-      return json({ error: 'Enter your email and password.' }, 400);
-    }
+    const email = typeof input.email === 'string' ? normalize(input.email) : '';
     const metadata = context(request);
     const event = { id: crypto.randomUUID(), at: new Date().toISOString(), result: 'interrupted', provider: 'Email and password', ...metadata };
     // Cloudflare sets this header. Never trust browser-supplied X-Forwarded-For.
     const limit = await coordinator(env, 'rate:' + (metadata.ip || 'unknown'), { action: 'rate' });
     if (!limit.ok) {
       event.result = 'rate_limited';
-      if (!(await coordinator(env, 'email:' + email, { action: 'record', event })).ok) throw new Error('Activity storage unavailable');
+      await recordAttempt(env, email, event);
       return json({ error: 'Too many sign-in attempts. Try again in five minutes.' }, 429);
     }
-    if (!(await coordinator(env, 'email:' + email, { action: 'record', event })).ok) throw new Error('Activity storage unavailable');
+    if (!email || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof input.password !== 'string'
+      || !input.password || input.password.length > 4096 || Object.keys(input).some(key => !['email', 'password'].includes(key))) {
+      event.result = 'invalid_input';
+      await recordAttempt(env, email, event);
+      return json({ error: 'Enter your email and password.' }, 400);
+    }
+    const passwordKey = 'password-limit:' + (metadata.ip || 'unknown');
+    const allowed = await coordinator(env, passwordKey, { action: 'password-reserve', id: event.id });
+    if (!allowed.ok) {
+      event.result = 'rate_limited';
+      await recordAttempt(env, email, event);
+      return json({ error: 'Password checks are temporarily blocked after five unsuccessful or pending attempts. Try again in five minutes.' }, 429);
+    }
+    await recordAttempt(env, email, event);
     let upstream, session;
     try {
       upstream = await fetch(`${env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -67,8 +86,12 @@ export async function passwordLogin(request, env) {
     const success = upstream.ok && Boolean(session.access_token && session.refresh_token && session.user?.id);
     event.result = success ? 'successful' : session.error_code === 'invalid_credentials' ? 'failed' : 'not_completed';
     if (success && session.user.last_sign_in_at) event.signInId = `${session.user.id}:${session.user.last_sign_in_at}`;
-    if (!(await coordinator(env, 'email:' + email, { action: 'record', event })).ok) throw new Error('Activity storage unavailable');
+    await recordAttempt(env, email, event);
+    const completed = await coordinator(env, passwordKey, { action: 'password-complete', id: event.id, failed: event.result === 'failed' });
+    if (!completed.ok) throw new Error('Password limit unavailable');
+    const { locked } = await completed.json();
     if (success) return json(session);
+    if (locked && event.result === 'failed') return json({ error: 'Five wrong-password attempts. Try again in five minutes.' }, 429);
     return json({ error: upstream.status === 429 ? 'Too many sign-in attempts. Please try again later.'
       : upstream.status >= 500 ? 'Sign-in is temporarily unavailable. Please try again.'
         : 'Sign-in could not be completed. Check your email and password, and confirm your account if needed.' }, upstream.status === 429 ? 429 : upstream.status >= 500 ? 503 : 400);
@@ -78,6 +101,9 @@ export async function loginActivity(request, env, user) {
   if (!user.email || !user.email_confirmed_at) return json({ error: 'A verified account email is required.' }, 403);
   try {
     const key = 'email:' + normalize(user.email);
+    const admin = canViewAll(user, env);
+    const all = new URL(request.url).searchParams.get('scope') === 'all';
+    if (all && !admin) return json({ error: 'Administrator access is required.' }, 403);
     if (request.method === 'POST') {
       // Only a server-verified, recent Supabase sign-in can create a success event.
       const at = Date.parse(user.last_sign_in_at);
@@ -88,14 +114,32 @@ export async function loginActivity(request, env, user) {
       if (!result.ok) throw new Error('Activity storage unavailable');
       return json({ recorded: true });
     }
-    const response = await coordinator(env, key, { action: 'list' });
+    const response = await coordinator(env, all ? 'site-attempts' : key, { action: 'list' });
     if (!response.ok) throw new Error('Activity storage unavailable');
-    return json(await response.json());
+    return json({ ...await response.json(), canViewAll: admin, scope: all ? 'all' : 'account' });
   } catch { return json({ error: 'Login activity is temporarily unavailable.' }, 503); }
 }
 export async function coordinateLoginActivity(storage, input) {
   return storage.transaction(async tx => {
     const now = Date.now();
+    if (input.action === 'password-reserve' || input.action === 'password-complete') {
+      const saved = (await tx.get('login-password-limit')) || { failures: [], pending: [] };
+      const failures = saved.failures.filter(t => t > now - 5 * 60000);
+      let pending = saved.pending.filter(entry => entry.at > now - 5 * 60000);
+      let blockedUntil = saved.blockedUntil || 0;
+      if (input.action === 'password-reserve') {
+        if (blockedUntil > now || failures.length + pending.length >= 5) return json({ allowed: false }, 429);
+        pending.push({ id: input.id, at: now });
+      } else {
+        const reserved = pending.some(entry => entry.id === input.id);
+        pending = pending.filter(entry => entry.id !== input.id);
+        if (reserved && input.failed) failures.push(now);
+        if (failures.length >= 5) blockedUntil = Math.max(blockedUntil, now + 5 * 60000);
+      }
+      await tx.put('login-password-limit', { failures, pending, blockedUntil });
+      await storage.setAlarm(now + 5 * 60000);
+      return json({ allowed: true, locked: blockedUntil > now });
+    }
     if (input.action === 'rate') {
       const times = ((await tx.get('login-rate')) || []).filter(t => t > now - 5 * 60000);
       if (times.length >= 20) return json({ allowed: false }, 429);
@@ -117,6 +161,7 @@ export async function coordinateLoginActivity(storage, input) {
 export async function expireLoginActivity(storage) {
   const events = recent(await storage.get('login-events'), Date.now());
   await storage.delete('login-rate');
+  await storage.delete('login-password-limit');
   if (!events.length) { await storage.delete('login-events'); return; }
   await storage.put('login-events', events);
   await storage.setAlarm(Math.min(...events.map(e => Date.parse(e.at))) + 30 * DAY + 1000);

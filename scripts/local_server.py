@@ -15,7 +15,7 @@ from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
@@ -133,7 +133,7 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
             })
             try:
                 with urlopen(request, timeout=timeout) as upstream:
-                    status, body = upstream.status, upstream.read(100000 if upstream_url == RESEARCH_UPSTREAM else 16384)
+                    status, body = upstream.status, upstream.read(131072 if "/api/auth/activity" in upstream_url else 100000 if upstream_url == RESEARCH_UPSTREAM else 16384)
             except HTTPError as error:
                 status, body = error.code, error.read(16384)
             # Never pass an HTML error page off as a successful token response.
@@ -160,7 +160,8 @@ class JeffVARequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - inherited HTTP handler name
         if urlparse(self.path).path == "/api/auth/activity":
-            self._refresh_gmail("https://jeff-va-monitoring.jeffdigi.workers.dev/api/auth/activity", method="GET")
+            suffix = "?scope=all" if parse_qs(urlparse(self.path).query).get("scope") == ["all"] else ""
+            self._refresh_gmail("https://jeff-va-monitoring.jeffdigi.workers.dev/api/auth/activity" + suffix, method="GET")
             return
         if urlparse(self.path).path == RESEARCH_USAGE_PATH:
             self._refresh_gmail(RESEARCH_USAGE_UPSTREAM, timeout=15, method="GET")

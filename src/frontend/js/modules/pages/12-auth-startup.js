@@ -18,12 +18,7 @@
       loginError.textContent = 'Sign-in is unavailable. Check the app configuration.';
       return;
     }
-    const email = identity.includes('@') ? identity : (window.SUPABASE_LOGIN_EMAIL || '');
-    if (!email) {
-      loginError.textContent = 'Enter your account email to sign in.';
-      loginPassword.value = '';
-      return;
-    }
+    const email = identity.includes('@') ? identity : (window.SUPABASE_LOGIN_EMAIL || identity);
     loginError.textContent = '';
     activeAuthProvider = 'email';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);

@@ -1222,13 +1222,14 @@
   }
 
   const loginActivityCache = new Map();
-  async function requestLoginActivity(method = 'GET') {
+  let loginActivityOwner = null;
+  async function requestLoginActivity(method = 'GET', scope = 'account') {
     const userId = currentUser?.id;
     if (!userId) return;
     const { data: sessionData } = await requireSupabase().auth.getSession();
     const token = sessionData?.session?.access_token;
     if (!token) throw new Error('Sign in to view login activity.');
-    const response = await fetch('/api/auth/activity', { method, headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+    const response = await fetch('/api/auth/activity' + (scope === 'all' ? '?scope=all' : ''), { method, headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || 'Login activity is unavailable.');
     if (currentUser?.id !== userId) return;
@@ -1237,11 +1238,11 @@
   function renderLoginActivity(events) {
     const list = $('#accountLoginActivity');
     list.replaceChildren();
-    const labels = { successful: 'Successful', failed: 'Failed password', interrupted: 'Interrupted', not_completed: 'Not completed', rate_limited: 'Blocked (rate limit)' };
+    const labels = { successful: 'Successful', failed: 'Unrecognized credentials', invalid_input: 'Invalid or empty input', interrupted: 'Interrupted', not_completed: 'Not completed', rate_limited: 'Blocked (rate limit)' };
     for (const event of events) {
       const row = document.createElement('tr');
       for (const value of [formatAccountTimestamp(event.at), labels[event.result] || 'Unknown', event.provider,
-        event.ip || 'Unavailable', event.device || 'Unknown device']) {
+        event.accountRef || 'This account', event.ip || 'Unavailable', event.device || 'Unknown device']) {
         const cell = document.createElement('td');
         cell.textContent = value;
         row.append(cell);
@@ -1253,35 +1254,44 @@
   async function loadLoginActivity(force = false) {
     const userId = currentUser?.id;
     if (!userId) return;
-    const cached = loginActivityCache.get(userId);
+    if (loginActivityOwner !== userId) {
+      loginActivityOwner = userId;
+      $('#accountLoginActivityScope').value = 'account';
+      $('#accountLoginActivityAll').hidden = true;
+    }
+    const scope = $('#accountLoginActivityScope').value === 'all' ? 'all' : 'account';
+    const cacheKey = `${userId}:${scope}`;
+    const cached = loginActivityCache.get(cacheKey);
     if (cached?.pending) return;
     if (!force && cached && Date.now() - cached.at < 30000) {
       if (cached.events) renderLoginActivity(cached.events);
       return;
     }
-    loginActivityCache.set(userId, { ...cached, pending: true, at: Date.now() });
+    loginActivityCache.set(cacheKey, { ...cached, pending: true, at: Date.now() });
     $('#accountLoginActivity').replaceChildren();
     $('#accountLoginActivityRefresh').disabled = true;
     $('#accountLoginActivityStatus').textContent = 'Loading secure login activity…';
     try {
-      const payload = await requestLoginActivity();
-      if (!payload || currentUser?.id !== userId) return;
+      const payload = await requestLoginActivity('GET', scope);
+      if (!payload || currentUser?.id !== userId || $('#accountLoginActivityScope').value !== scope) return;
+      $('#accountLoginActivityAll').hidden = payload.canViewAll !== true;
       const events = Array.isArray(payload.events) ? payload.events : [];
-      loginActivityCache.set(userId, { events, at: Date.now(), pending: false });
+      loginActivityCache.set(cacheKey, { events, at: Date.now(), pending: false });
       renderLoginActivity(events);
     } catch {
       if (currentUser?.id === userId) $('#accountLoginActivityStatus').textContent = 'Login activity is unavailable. The updated server must be deployed; use Refresh to retry.';
     } finally {
-      const entry = loginActivityCache.get(userId);
+      const entry = loginActivityCache.get(cacheKey);
       if (entry) entry.pending = false;
       if (currentUser?.id === userId) $('#accountLoginActivityRefresh').disabled = false;
     }
   }
   async function recordVerifiedLoginActivity() {
-    try { await requestLoginActivity('POST'); if (currentUser) loginActivityCache.delete(currentUser.id); }
+    try { await requestLoginActivity('POST'); if (currentUser) loginActivityCache.delete(`${currentUser.id}:account`); }
     catch { /* Server password attempts are recorded independently of workspace state. */ }
   }
   $('#accountLoginActivityRefresh').addEventListener('click', () => loadLoginActivity(true));
+  $('#accountLoginActivityScope').addEventListener('change', () => loadLoginActivity(true));
 
   // --- Application/email matching ---
   const PLATFORM_SENDER_EMAILS = Object.freeze({
@@ -14817,12 +14827,7 @@
       loginError.textContent = 'Sign-in is unavailable. Check the app configuration.';
       return;
     }
-    const email = identity.includes('@') ? identity : (window.SUPABASE_LOGIN_EMAIL || '');
-    if (!email) {
-      loginError.textContent = 'Enter your account email to sign in.';
-      loginPassword.value = '';
-      return;
-    }
+    const email = identity.includes('@') ? identity : (window.SUPABASE_LOGIN_EMAIL || identity);
     loginError.textContent = '';
     activeAuthProvider = 'email';
     sessionStorage.setItem(AUTH_PROVIDER_SESSION_KEY, activeAuthProvider);

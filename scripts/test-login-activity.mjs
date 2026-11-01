@@ -4,6 +4,7 @@ import { FollowUpDelivery } from '../functions/api/follow-up-send.js';
 import { MemoryStorage } from './lib/memory-durable.mjs';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { coordinateLoginActivity } from '../functions/api/login-activity.js';
 class AlarmStorage extends MemoryStorage {
   async setAlarm(at) { this.alarmAt = at; }
   transaction(callback) { return super.transaction(tx => callback({ get: tx.get.bind(tx), put: tx.put.bind(tx), delete: tx.delete.bind(tx) })); }
@@ -27,7 +28,7 @@ globalThis.fetch = async (url, options) => {
   }
   assert.equal(String(url), 'https://auth.example/auth/v1/token?grant_type=password');
   assert.equal(options.headers.apikey, 'public');
-  assert.deepEqual(JSON.parse(options.body), { email: user.email, password: 'test-password' });
+  assert.equal(JSON.parse(options.body).password, 'test-password');
   if (mode === 'network') throw new Error('Offline');
   if (mode === 'service') return Response.json({ message: 'service failure' }, { status: 503 });
   if (mode === 'success') return Response.json({ access_token: 'test-access', refresh_token: 'test-refresh', user });
@@ -68,10 +69,42 @@ try {
   assert.equal((await login('203.0.113.1', {}, { ...env, FOLLOW_UP_DELIVERIES: null })).status, 503);
   assert.equal(calls, previous, 'Missing activity storage never bypasses the gateway');
   mode = 'failed';
-  for (let i = 0; i < 20; i++) assert.equal((await login('203.0.113.2')).status, 400);
+  for (let i = 0; i < 4; i++) assert.equal((await login('203.0.113.2')).status, 400);
+  assert.equal((await login('203.0.113.2')).status, 429, 'Fifth wrong password starts the block');
   const rateCalls = calls;
   assert.equal((await login('203.0.113.2')).status, 429);
   assert.equal(calls, rateCalls, 'Rate-limited attempts never hit Supabase');
+  mode = 'success';
+  assert.equal((await login('203.0.113.2')).status, 429, 'Correct credentials cannot bypass an active IP block');
+  mode = 'failed';
+  const beforeConcurrent = calls;
+  const concurrent = await Promise.all(Array.from({ length: 12 }, () => login('203.0.113.4')));
+  assert.equal(calls - beforeConcurrent, 5, 'Parallel requests reserve at most five password checks');
+  assert.equal(concurrent.filter(r => r.status === 400).length, 4);
+  assert.equal((await login('203.0.113.5', { email: 'random text with no account', password: '' })).status, 400);
+  assert.equal((await login('203.0.113.5', { email: 'nonexistent@example.com' })).status, 400);
+  assert.equal((await activity('owner', 'GET', '?scope=all')).status, 403);
+  user.user_metadata = { login_activity_admin: true };
+  assert.equal((await activity('owner', 'GET', '?scope=all')).status, 403, 'Editable user metadata cannot grant admin');
+  user.app_metadata.login_activity_admin = true;
+  const all = await (await activity('owner', 'GET', '?scope=all')).json();
+  assert.equal(all.canViewAll, true);
+  assert.ok(all.events.some(e => e.result === 'invalid_input'));
+  assert.ok(all.events.every(e => e.accountRef));
+  assert.ok(!JSON.stringify(all).includes('random text with no account'));
+  delete user.app_metadata.login_activity_admin;
+  for (let i = 0; i < 20; i++) assert.equal((await login('203.0.113.7', { email: 'nonsense' })).status, 400);
+  assert.equal((await login('203.0.113.7', { email: 'nonsense' })).status, 429);
+  const limitStorage = new AlarmStorage();
+  for (let i = 0; i < 5; i++) {
+    assert.equal((await coordinateLoginActivity(limitStorage, { action: 'password-reserve', id: String(i) })).status, 200);
+    await coordinateLoginActivity(limitStorage, { action: 'password-complete', id: String(i), failed: true });
+  }
+  const originalNow = Date.now;
+  try {
+    Date.now = () => originalNow() + 5 * 60000 + 1;
+    assert.equal((await coordinateLoginActivity(limitStorage, { action: 'password-reserve', id: 'after-expiry' })).status, 200);
+  } finally { Date.now = originalNow; }
   assert.ok((await (await activity('owner')).json()).events.some(e => e.result === 'rate_limited'));
   const foreign = new Request('https://app.example/api/auth/login', { method: 'POST', headers: { origin: 'https://foreign.example' }, body: '{}' });
   assert.equal((await worker.fetch(foreign, env, {})).status, 403);
@@ -101,7 +134,7 @@ try {
   });
   vm.runInContext(fs.readFileSync(new URL('../src/frontend/js/modules/01a-login-activity.js', import.meta.url), 'utf8'), ui);
   await vm.runInContext('loadLoginActivity(true)', ui);
-  assert.equal(elements.get('#accountLoginActivity').children[0].children[4].textContent, '<script>unsafe</script>', 'Device metadata must be rendered as plain text');
+  assert.equal(elements.get('#accountLoginActivity').children[0].children[5].textContent, '<script>unsafe</script>', 'Device metadata must be rendered as plain text');
   ui.currentUser = { id: 'other' };
   let rejectRequest;
   ui.fetch = () => new Promise((_, reject) => { rejectRequest = reject; });

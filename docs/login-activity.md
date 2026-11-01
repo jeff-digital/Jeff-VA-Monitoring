@@ -15,8 +15,24 @@ Activity uses the existing `FOLLOW_UP_DELIVERIES` Durable Object binding, in a
 separate hashed namespace. No SQL migration or service-role key is needed. Stored
 events contain no passwords, tokens, email addresses, or request bodies. IP comes
 only from Cloudflare's `CF-Connecting-IP`. User-Agent is descriptive, not proof of
-device identity. Rate limits allow 20 gateway requests per source IP per 5 minutes.
+device identity. Five wrong-password responses from one IP block further password
+checks for five minutes. Pending requests reserve slots, preventing concurrent
+requests from bypassing this limit. A separate 20-request/5-minute IP limit also
+bounds malformed and empty submissions. Successful checks do not count as failures.
 Interrupted requests remain distinguishable from rejected credentials.
+
+All password-form submissions, including invalid input and nonexistent account
+details, are also recorded in a site-wide feed. Only a hashed account reference
+is stored, never the submitted identifier text. Supabase deliberately does not
+distinguish nonexistent accounts from wrong passwords in the public response.
+Typing alone is not logged: the visitor must submit the form.
+
+The all-attempts view requires a server-authorized administrator. Set the Worker's
+`LOGIN_ACTIVITY_ADMIN_IDS` environment variable to comma-separated verified account
+user IDs, or set `login_activity_admin: true` in trusted Supabase `app_metadata`.
+Never use user-editable `user_metadata` for this permission. With no administrator
+configured, the global feed is recorded but its reader remains disabled. Once
+authorized, choose **All submitted attempts (admin)** on the Account page.
 
 ## Rollout
 
