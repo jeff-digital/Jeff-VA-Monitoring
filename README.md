@@ -27,6 +27,25 @@ The application is intended for authorized users. Access to this repository does
 
 Frontend source is maintained in `src/frontend/`, with JavaScript organized into shared and page-specific files. Build tools are maintained in `scripts/`. Generated output should not be edited directly.
 
+### Folder guide
+
+| Location | Contents |
+| --- | --- |
+| `src/frontend/` | Website pages, styles, and JavaScript. |
+| `src/frontend/images/` | Logos, article images, and other images used by the website. |
+| `src/backend/` | Cloudflare Worker entry point. |
+| `functions/api/` | Server API handlers used by the Worker. |
+| `android/` | Native Android app, build tools, and mobile design preview. |
+| `scripts/` | Website build, local server, and verification tools. |
+| `docs/` | Project and feature documentation. |
+| `docs/previews/homepage/` | Local homepage and login design screenshots; excluded from Git and deployment. |
+| `templates/` | Reusable document and email templates. |
+| `dist/` | Generated website build; excluded from Git. |
+
+Keep design screenshots in `docs/previews/`, and put images required by the website in `src/frontend/images/`. The root contains repository configuration, `wrangler.jsonc`, and this guide.
+
+Personal local tooling (`start-jeff-va.bat`, `scripts/local_server.py`, and `scripts/test_local_gmail.py`) is excluded from Git, along with machine-specific editor settings, local tool state, credentials, and generated output. Build scripts, shared tests, and the Android Gradle wrapper remain versioned so the project can be built and maintained from the repository.
+
 Environment setup, service configuration, deployment procedures, and operational details should be maintained in private documentation available to authorized maintainers.
 
 ## Security and privacy

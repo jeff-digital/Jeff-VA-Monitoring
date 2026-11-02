@@ -2,6 +2,22 @@ __pycache__/
 *.py[cod]
 *.xlsx
 /dist/
+# Personal local launcher and localhost-only tooling
+/start-jeff-va.bat
+/scripts/local_server.py
+/scripts/test_local_gmail.py
+# Machine-specific editor settings and local tool state
+/.idea/
+/.vscode/
+/.wrangler/
+/.codex/
+/.agents/
+/.aws/
+*.code-workspace
+Thumbs.db
+.DS_Store
+# Local design screenshots and review exports (not application assets)
+/docs/previews/
 /Jeff-VA-Monitoring/
 /.venv/
 /src/frontend/documents/*
