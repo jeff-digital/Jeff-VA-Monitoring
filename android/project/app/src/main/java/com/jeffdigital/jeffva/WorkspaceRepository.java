@@ -154,13 +154,9 @@ final class WorkspaceRepository {
         if (!path.startsWith("/api/")) throw new Exception("Invalid API path.");
         return new JSONObject(authenticated(method, BuildConfig.API_ORIGIN + path, body, null));
     }
-    private JSONArray rows() throws Exception {
-        return new JSONArray(authenticated("GET", BuildConfig.SUPABASE_URL + "/rest/v1/app_state?user_id=eq." + encode(userId) + "&select=data,updated_at", null, null));
-    }
     JSONObject load() throws Exception {
         String identity = userId;
-        JSONArray rows = rows();
-        JSONObject saved = rows.length() == 0 ? new JSONObject() : rows.getJSONObject(0).optJSONObject("data");
+        JSONObject saved = api("GET", "/api/workspace", null).optJSONObject("data");
         if (!identity.equals(userId) || !signedIn()) throw new Exception("The account changed while syncing.");
         workspace = saved == null ? new JSONObject() : saved;
         vault.put("workspace:" + identity, workspace.toString());
@@ -185,22 +181,94 @@ final class WorkspaceRepository {
     // Called on the same serial IO queue as saves/session refreshes.
     JSONObject liveCredentials() throws Exception { return new JSONObject().put("user", userId).put("token", accessToken()); }
     interface Mutation { void apply(JSONObject state) throws Exception; }
-    private JSONObject mutate(Mutation mutation) throws Exception {
-        for (int attempt = 0; attempt < 3; attempt++) {
-            JSONArray rows = rows();
-            JSONObject row = rows.length() == 0 ? null : rows.getJSONObject(0);
-            JSONObject latest = row == null || row.optJSONObject("data") == null ? new JSONObject() : row.getJSONObject("data");
-            mutation.apply(latest);
-            JSONObject body = new JSONObject().put("data", latest).put("updated_at", WorkspaceModel.now());
-            String result;
-            if (row == null) {
-                body.put("user_id", userId);
-                result = authenticated("POST", BuildConfig.SUPABASE_URL + "/rest/v1/app_state?on_conflict=user_id", body, "resolution=ignore-duplicates,return=representation");
-            } else {
-                String revision = row.isNull("updated_at") ? "is.null" : "eq." + encode(row.getString("updated_at"));
-                result = authenticated("PATCH", BuildConfig.SUPABASE_URL + "/rest/v1/app_state?user_id=eq." + encode(userId) + "&updated_at=" + revision, body, "return=representation");
+    private static boolean sameJson(Object left, Object right) throws Exception {
+        if (left == null || left == JSONObject.NULL) return right == null || right == JSONObject.NULL;
+        if (right == null || right == JSONObject.NULL) return false;
+        if (left instanceof JSONObject && right instanceof JSONObject) {
+            JSONObject a = (JSONObject) left, b = (JSONObject) right;
+            if (a.length() != b.length()) return false;
+            Iterator<String> keys = a.keys();
+            while (keys.hasNext()) { String key = keys.next(); if (!b.has(key) || !sameJson(a.get(key), b.get(key))) return false; }
+            return true;
+        }
+        if (left instanceof JSONArray && right instanceof JSONArray) {
+            JSONArray a = (JSONArray) left, b = (JSONArray) right;
+            if (a.length() != b.length()) return false;
+            for (int i = 0; i < a.length(); i++) if (!sameJson(a.get(i), b.get(i))) return false;
+            return true;
+        }
+        if (left instanceof Number && right instanceof Number) return new java.math.BigDecimal(left.toString()).compareTo(new java.math.BigDecimal(right.toString())) == 0;
+        return left.equals(right);
+    }
+    private static java.util.LinkedHashMap<String, JSONObject> recordsById(JSONArray rows) throws Exception {
+        java.util.LinkedHashMap<String, JSONObject> records = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject item = rows.optJSONObject(i);
+            if (item == null || item.optString("id").isEmpty() || records.containsKey(item.getString("id"))) return null;
+            records.put(item.getString("id"), item);
+        }
+        return records;
+    }
+    private static JSONArray workspaceChanges(JSONObject before, JSONObject after) throws Exception {
+        JSONArray changes = new JSONArray();
+        String[] fields = {"applications","toApply","dailyTasks","clientTasks","socialTrends","emails","deletedGmailIds","alerts","clearedNotificationKeys","onboardingSubmissionIds","emailTemplates","personalDocuments","invoices","scripts","workLinks","walletEntries","subscriptions","accountSignInHistory","weeklyActivityGoal","emailTaskAiUsage"};
+        for (String key : fields) {
+            if (!after.has(key) || sameJson(before.opt(key), after.opt(key))) continue;
+            Object oldValue = before.has(key) ? before.get(key) : JSONObject.NULL;
+            JSONArray oldRows = before.optJSONArray(key), newRows = after.optJSONArray(key);
+            if (newRows != null && (oldRows != null || oldValue == JSONObject.NULL)) {
+                java.util.LinkedHashMap<String, JSONObject> old = recordsById(oldRows == null ? new JSONArray() : oldRows), next = recordsById(newRows);
+                if (old != null && next != null) {
+                    java.util.ArrayList<String> oldOrder = new java.util.ArrayList<>(), newOrder = new java.util.ArrayList<>();
+                    for (String id : old.keySet()) if (next.containsKey(id)) oldOrder.add(id);
+                    for (String id : next.keySet()) if (old.containsKey(id)) newOrder.add(id);
+                    {
+                        for (int i = newRows.length() - 1; i >= 0; i--) {
+                            JSONObject item = newRows.getJSONObject(i); String id = item.getString("id");
+                            if (!sameJson(old.get(id), item)) changes.put(new JSONObject().put("key", key).put("type", "put").put("id", id)
+                                .put("base", old.containsKey(id) ? old.get(id) : JSONObject.NULL).put("value", item)
+                                .put("beforeId", i + 1 < newRows.length() ? newRows.getJSONObject(i + 1).getString("id") : JSONObject.NULL));
+                        }
+                        for (String id : old.keySet()) if (!next.containsKey(id)) changes.put(new JSONObject().put("key", key).put("type", "remove").put("id", id).put("base", old.get(id)));
+                        if (!oldOrder.equals(newOrder)) {
+                            JSONArray baseOrder = new JSONArray(), nextOrder = new JSONArray();
+                            for (String id : old.keySet()) baseOrder.put(id);
+                            for (String id : next.keySet()) nextOrder.put(id);
+                            changes.put(new JSONObject().put("key", key).put("type", "order").put("base", baseOrder).put("value", nextOrder));
+                        }
+                        continue;
+                    }
+                }
             }
-            if (new JSONArray(result).length() > 0) { workspace = latest; vault.put("workspace:" + userId, latest.toString()); return latest; }
+            changes.put(new JSONObject().put("key", key).put("type", "set").put("base", oldValue).put("value", after.get(key)));
+        }
+        return changes;
+    }
+    private JSONObject mutate(Mutation mutation) throws Exception {
+        String identity = userId;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            if (!identity.equals(userId) || !signedIn()) throw new Exception("The account changed while saving.");
+            JSONObject before = WorkspaceModel.copy(workspace), latest = WorkspaceModel.copy(before);
+            mutation.apply(latest);
+            JSONArray changes = workspaceChanges(before, latest);
+            try {
+                for (int start = 0; start < changes.length();) {
+                    JSONArray batch = new JSONArray(); int bytes = 0;
+                    while (start < changes.length() && batch.length() < 100) {
+                        Object change = changes.get(start);
+                        int length = change.toString().getBytes(StandardCharsets.UTF_8).length;
+                        if (length > 7 * 1024 * 1024) throw new Exception("One record is too large. Export a full backup from the website first.");
+                        if (batch.length() > 0 && bytes + length > 512 * 1024) break;
+                        batch.put(change); bytes += length; start++;
+                    }
+                    api("PATCH", "/api/workspace", new JSONObject().put("changes", batch));
+                }
+                if (!identity.equals(userId) || !signedIn()) throw new Exception("The account changed while saving.");
+                workspace = latest; vault.put("workspace:" + identity, latest.toString()); return latest;
+            } catch (ApiError error) {
+                if (error.status != 409 || attempt == 2) throw error;
+                load();
+            }
         }
         throw new Exception("The workspace is changing on another device. Refresh and try again.");
     }

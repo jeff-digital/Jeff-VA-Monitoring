@@ -141,6 +141,20 @@
     return true;
   }
 
+  function exportFullWorkspaceBackup() {
+    try {
+      if (!currentUser || !dataReady || !supabaseDataLoaded) throw new Error('Load your workspace before downloading a backup.');
+      const backup = workspaceStore.backup(data, currentUser.id);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `jeff-va-full-records-${today()}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      toast('Full records backup downloaded. Attached files are not included.');
+    } catch (error) { toast(error.message || 'The backup could not be created.'); }
+  }
+
   function canSaveToDocuments() {
     return window.location.protocol.startsWith('http')
       && ['127.0.0.1', 'localhost'].includes(window.location.hostname)

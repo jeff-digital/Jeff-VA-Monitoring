@@ -26,7 +26,9 @@ assert.ok(manifest.includes(`android:host="${callback.hostname}"`));
 assert.ok(manifest.includes(`android:path="${callback.pathname}"`));
 assert.match(repository, /code_challenge_method=s256/);
 assert.match(repository, /code_verifier/);
-assert.match(repository, /updated_at=/);
+assert.match(repository, /api\("PATCH", "\/api\/workspace"/);
+assert.match(repository, /workspaceChanges\(before, latest\)/);
+assert.doesNotMatch(repository, /\/rest\/v1\/app_state/);
 assert.ok(config.versionCode > 1, 'Native APK must update the original browser APK');
 const webConfig = fs.readFileSync(path.join(root, 'src/frontend/js/supabase-config.js'), 'utf8');
 if (hasLocalConfig) {

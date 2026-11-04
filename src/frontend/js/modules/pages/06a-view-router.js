@@ -19,6 +19,7 @@
 
   function renderCurrentView() {
     const viewName = typeof activeView !== 'undefined' ? activeView : (localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard');
+    workspaceStore.activatePage(viewName);
     switch (viewName) {
       case 'dashboard':
         renderClientDashboard();

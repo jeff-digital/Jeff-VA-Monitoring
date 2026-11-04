@@ -15,13 +15,13 @@ let issued = true, requests = 0, opened = 0, errors = 0, clean = 0;
 const context = vm.createContext({ $, URL, TextEncoder, Uint8Array, crypto: require('node:crypto').webcrypto,
   data: { applications: [client] }, hiredEditingId: client.id, window: { location: { origin: 'https://app.test' } },
   console: { error() {} }, toast() {},
-  requireSupabase: () => ({ rpc: async (name, input) => {
+  workspaceStore: { onboarding: async (name, input) => {
     requests++;
     assert.equal(name, 'issue_client_onboarding_invite');
     assert.equal(input.p_client_id, client.id);
     assert.match(input.p_token_hash, /^[a-f0-9]{64}$/);
-    return { data: issued, error: null };
-  } }),
+    return issued;
+  } },
   openPlainClientEmailComposer: item => { assert.equal(item.id, client.id); opened++; $('#composeTo').value = item.email; },
   markActiveClientDrawerFormClean: view => { assert.equal(view, 'email'); assert.match($('#composeBody').value, /https:\/\/app\.test\/onboarding\/#token=/); clean++; },
   showActionResult: () => { errors++; }

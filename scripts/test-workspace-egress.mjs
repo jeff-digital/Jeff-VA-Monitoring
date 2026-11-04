@@ -24,6 +24,10 @@ const client = {
 const ctx = vm.createContext({ currentUser: { id: 'owner' }, supabaseClient: client, appStateChannel: null, dataReady: true, persistWritePending: false,
   data: {}, lastLocalWriteStamps: new Set(['local-write']), console,
   requireSupabase: () => client, renderAll: () => renders++, dedupeEmails: items => items,
+  workspaceStore: {
+    load: async () => { reads++; return pendingRead ? (await pendingRead).data.data : stored; },
+    adopt: value => ctx.normalizeSavedWorkspace(value)
+  },
   normalizeWeeklyActivityGoal: () => 5, weeklyActivityGoalStorageKey: () => 'goal', localStorage: { getItem: () => null }, emptyData: () => ({}),
   setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id)
 });

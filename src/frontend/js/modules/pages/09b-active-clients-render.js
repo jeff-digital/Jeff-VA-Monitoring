@@ -508,10 +508,9 @@
     updateClientOnboardingStatus('Checking status', 'pending');
     target.innerHTML = '<p class="client-onboarding-loading">Loading onboarding details…</p>';
     try {
-      const { data: submission, error } = await requireSupabase().rpc('get_client_onboarding_submission', {
+      const submission = await workspaceStore.onboarding('get_client_onboarding_submission', {
         p_client_id: item.id
       });
-      if (error) throw error;
       if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
       if (!submission) {
         clientTimeZones.delete(item.id);

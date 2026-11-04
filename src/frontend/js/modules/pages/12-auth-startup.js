@@ -166,6 +166,7 @@
     stopSavedEmailAiChecks();
     dataReady = false;
     supabaseDataLoaded = false;
+    workspaceStore.reset();
     data = emptyData();
     setAuthenticated(false);
     applicationDateFilter = '';

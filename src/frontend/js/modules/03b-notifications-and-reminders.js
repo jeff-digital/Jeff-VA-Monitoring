@@ -447,8 +447,7 @@
     const userId = currentUser.id;
     onboardingAlertsRefreshInFlight = true;
     try {
-      const { data: submissions, error } = await requireSupabase().rpc('get_client_onboarding_submissions');
-      if (error) throw error;
+      const submissions = await workspaceStore.onboarding('get_client_onboarding_submissions');
       if (!currentUser || currentUser.id !== userId || !dataReady || !supabaseDataLoaded) return;
       if (!Array.isArray(submissions)) throw new Error('The onboarding notifications response was invalid.');
       submissions.forEach(submission => {

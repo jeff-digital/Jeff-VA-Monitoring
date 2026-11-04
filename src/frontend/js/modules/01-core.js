@@ -604,15 +604,8 @@
   }
 
   async function loadDataFromSupabase() {
-    const client = requireSupabase();
     if (!currentUser) return emptyData();
-    const { data: row, error } = await client
-      .from('app_state')
-      .select('data')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-    if (error) throw error;
-    return normalizeSavedWorkspace(row?.data || {});
+    return workspaceStore.load();
   }
 
   function normalizeSavedWorkspace(saved) {
@@ -683,9 +676,6 @@
     const snapshot = JSON.parse(JSON.stringify(data));
     const userId = currentUser.id;
     const client = supabaseClient;
-    const updatedAt = new Date().toISOString();
-    // perf: remember our own writes so repeat realtime echoes do not trigger a reload loop.
-    rememberLocalWriteStamp(updatedAt);
     pendingPersistWrites += 1;
     persistWritePending = true;
     updateSaveIndicator('saving');
@@ -694,20 +684,18 @@
       if (!client || !userId) return;
       let lastError = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const { error } = await client.from('app_state').upsert({
-          user_id: userId,
-          data: snapshot,
-          updated_at: updatedAt
-        }, { onConflict: 'user_id' });
+        let error = null;
+        try { await workspaceStore.save(snapshot, userId); } catch (failure) { error = failure; }
         if (!error) {
           saved = true;
           return;
         }
         lastError = error;
+        if (error.status === 409) break;
         if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 350 * (attempt + 1)));
       }
-      console.error('Supabase save failed after retries:', lastError);
-      showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
+      console.error('Workspace save failed:', lastError);
+      showActionResult({ title: 'Cloud save failed', message: lastError?.message || 'Your change could not be saved. Check your connection and try again.', status: 'error' });
       throw lastError || new Error('Cloud save failed.');
     });
     const result = write.then(() => true).catch(() => false).finally(() => {
@@ -938,7 +926,7 @@
       // Older Realtime servers may still send the full row. Reuse it instead
       // of downloading the same workspace a second time.
       if (payload?.new?.data && typeof payload.new.data === 'object' && !Array.isArray(payload.new.data)) {
-        data = normalizeSavedWorkspace(payload.new.data);
+        data = workspaceStore.adopt(payload.new.data, userId);
         renderAll();
         return;
       }
@@ -1092,10 +1080,9 @@
       const { error: personalStorageError } = await client.storage.from(SUPABASE_BUCKET).remove(personalPaths);
       if (personalStorageError) throw personalStorageError;
     }
-    const { error } = await client.from('app_state').delete().eq('user_id', verifiedUserId);
-    if (error) throw error;
+    await workspaceStore.clear();
     if (currentUser?.id !== verifiedUserId) throw new Error('Your account changed. Reload to view the current workspace.');
-    data = emptyData();
+    data = workspaceStore.adopt({}, verifiedUserId);
     supabaseDataLoaded = true;
   }
 

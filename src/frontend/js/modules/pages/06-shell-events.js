@@ -361,6 +361,7 @@
   });
 
   $('#exportButton').addEventListener('click', exportBackup);
+  $('#exportFullWorkspaceBackup').addEventListener('click', exportFullWorkspaceBackup);
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
   $('#settingsButton').addEventListener('click', openWorkspaceSettings);
   $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());

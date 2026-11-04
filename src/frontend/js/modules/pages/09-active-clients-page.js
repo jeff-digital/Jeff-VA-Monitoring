@@ -577,14 +577,8 @@
         updatedAt: new Date().toISOString()
       };
       cacheHiredClientAvatar(item.id, storagePath, file);
-      await persist();
-      const { data: savedState, error: verifyError } = await requireSupabase()
-        .from('app_state')
-        .select('data')
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
-      if (verifyError) throw verifyError;
-      const savedClient = savedState?.data?.applications?.find(application => application.id === item.id);
+      if (await persist() === false) throw new Error('The client photo record could not be saved.');
+      const savedClient = await workspaceStore.record('applications', item.id);
       if (savedClient?.profileImage?.storagePath !== storagePath) {
         throw new Error('The photo uploaded, but its client record could not be confirmed as saved. Please try again.');
       }
@@ -762,11 +756,10 @@
       const token = [...randomBytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
       const tokenHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
-      const { data: issued, error } = await requireSupabase().rpc('issue_client_onboarding_invite', {
+      const issued = await workspaceStore.onboarding('issue_client_onboarding_invite', {
         p_client_id: item.id,
         p_token_hash: tokenHash
       });
-      if (error) throw error;
       if (issued !== true) throw new Error('The onboarding invitation could not be created.');
       const onboardingUrl = new URL('/onboarding/', window.location.origin);
       onboardingUrl.hash = `token=${token}`;

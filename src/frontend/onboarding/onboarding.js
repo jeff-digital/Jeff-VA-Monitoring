@@ -638,23 +638,19 @@
 
   async function rpc(name, body) {
     if (previewMode) throw new Error('Submission is disabled in the design preview.');
-    if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
-      throw new Error('The secure onboarding form is not configured.');
-    }
-    const response = await fetch(`${window.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/rpc/${name}`, {
+    const response = await fetch('/api/onboarding', {
       method: 'POST',
       headers: {
-        apikey: window.SUPABASE_ANON_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ action: name, parameters: body }),
       cache: 'no-store',
       credentials: 'omit',
       referrerPolicy: 'no-referrer'
     });
     const result = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(result?.message || 'The onboarding request could not be completed.');
-    return result;
+    if (!response.ok) throw new Error(result?.error || 'The onboarding request could not be completed.');
+    return result?.data;
   }
 
   function showUnavailable(message = 'This invitation may have expired, been replaced, or already been submitted. Please contact your Jeff VA representative if you need help.') {

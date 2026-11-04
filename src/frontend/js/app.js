@@ -607,15 +607,8 @@
   }
 
   async function loadDataFromSupabase() {
-    const client = requireSupabase();
     if (!currentUser) return emptyData();
-    const { data: row, error } = await client
-      .from('app_state')
-      .select('data')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-    if (error) throw error;
-    return normalizeSavedWorkspace(row?.data || {});
+    return workspaceStore.load();
   }
 
   function normalizeSavedWorkspace(saved) {
@@ -686,9 +679,6 @@
     const snapshot = JSON.parse(JSON.stringify(data));
     const userId = currentUser.id;
     const client = supabaseClient;
-    const updatedAt = new Date().toISOString();
-    // perf: remember our own writes so repeat realtime echoes do not trigger a reload loop.
-    rememberLocalWriteStamp(updatedAt);
     pendingPersistWrites += 1;
     persistWritePending = true;
     updateSaveIndicator('saving');
@@ -697,20 +687,18 @@
       if (!client || !userId) return;
       let lastError = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        const { error } = await client.from('app_state').upsert({
-          user_id: userId,
-          data: snapshot,
-          updated_at: updatedAt
-        }, { onConflict: 'user_id' });
+        let error = null;
+        try { await workspaceStore.save(snapshot, userId); } catch (failure) { error = failure; }
         if (!error) {
           saved = true;
           return;
         }
         lastError = error;
+        if (error.status === 409) break;
         if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 350 * (attempt + 1)));
       }
-      console.error('Supabase save failed after retries:', lastError);
-      showActionResult({ title: 'Cloud save failed', message: 'Your change could not be saved to your account. Check your connection and try again.', status: 'error' });
+      console.error('Workspace save failed:', lastError);
+      showActionResult({ title: 'Cloud save failed', message: lastError?.message || 'Your change could not be saved. Check your connection and try again.', status: 'error' });
       throw lastError || new Error('Cloud save failed.');
     });
     const result = write.then(() => true).catch(() => false).finally(() => {
@@ -941,7 +929,7 @@
       // Older Realtime servers may still send the full row. Reuse it instead
       // of downloading the same workspace a second time.
       if (payload?.new?.data && typeof payload.new.data === 'object' && !Array.isArray(payload.new.data)) {
-        data = normalizeSavedWorkspace(payload.new.data);
+        data = workspaceStore.adopt(payload.new.data, userId);
         renderAll();
         return;
       }
@@ -1095,10 +1083,9 @@
       const { error: personalStorageError } = await client.storage.from(SUPABASE_BUCKET).remove(personalPaths);
       if (personalStorageError) throw personalStorageError;
     }
-    const { error } = await client.from('app_state').delete().eq('user_id', verifiedUserId);
-    if (error) throw error;
+    await workspaceStore.clear();
     if (currentUser?.id !== verifiedUserId) throw new Error('Your account changed. Reload to view the current workspace.');
-    data = emptyData();
+    data = workspaceStore.adopt({}, verifiedUserId);
     supabaseDataLoaded = true;
   }
 
@@ -1375,6 +1362,133 @@
   }
   $('#accountLoginActivityRefresh').addEventListener('click', () => loadLoginActivity(true));
   $('#accountLoginActivityScope').addEventListener('change', () => loadLoginActivity(true));
+
+  // All pages use this contract; database-specific code stays on the Worker.
+  const workspaceStore = (() => {
+    const fields = ['applications', 'toApply', 'dailyTasks', 'clientTasks', 'socialTrends', 'emails', 'deletedGmailIds', 'alerts', 'clearedNotificationKeys', 'onboardingSubmissionIds', 'emailTemplates', 'personalDocuments', 'invoices', 'scripts', 'workLinks', 'walletEntries', 'subscriptions', 'accountSignInHistory', 'weeklyActivityGoal', 'emailTaskAiUsage'];
+    const pageCollections = Object.freeze({
+      dashboard: ['applications', 'emails', 'alerts', 'dailyTasks', 'clientTasks', 'toApply', 'invoices', 'walletEntries', 'weeklyActivityGoal'],
+      'daily-task': ['dailyTasks', 'clientTasks', 'applications', 'toApply'],
+      applications: ['applications', 'emails', 'alerts'],
+      'to-apply': ['toApply', 'applications', 'alerts'],
+      hired: ['applications', 'emails', 'clientTasks', 'invoices', 'walletEntries', 'alerts', 'onboardingSubmissionIds'],
+      inbox: ['emails', 'applications', 'alerts', 'deletedGmailIds', 'emailTemplates', 'clientTasks', 'emailTaskAiUsage'],
+      documents: ['personalDocuments', 'invoices', 'scripts', 'workLinks', 'emailTemplates', 'applications', 'walletEntries'],
+      wallet: ['walletEntries', 'applications', 'invoices'],
+      subscriptions: ['subscriptions'],
+      'social-trends': ['socialTrends'], news: [],
+      account: ['accountSignInHistory', 'applications', 'emails', 'weeklyActivityGoal']
+    });
+    const copy = value => JSON.parse(JSON.stringify(value));
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
+    const records = value => Array.isArray(value) && value.every(item => item && typeof item === 'object' && !Array.isArray(item) && typeof item.id === 'string' && item.id) && new Set(value.map(item => item.id)).size === value.length;
+    let owner = null, raw = {}, baseline = {}, loaded = false;
+    async function request(method = 'GET', body, suffix = '') {
+      const userId = currentUser?.id;
+      if (!userId) throw new Error('Sign in to access your workspace.');
+      const auth = requireSupabase().auth;
+      let session = (await auth.getSession()).data?.session;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (!session?.access_token || (session.user?.id && session.user.id !== userId)) throw new Error('Sign in again to access your workspace.');
+        if (currentUser?.id !== userId) throw new Error('Your account changed.');
+        const response = await fetch('/api/workspace' + suffix, { method,
+          headers: { authorization: `Bearer ${session.access_token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+          ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(30000) });
+        if (currentUser?.id !== userId) throw new Error('Your account changed.');
+        if (response.status === 401 && attempt === 0) { session = (await auth.refreshSession()).data?.session; continue; }
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload) throw Object.assign(new Error(payload?.error || 'Workspace storage is unavailable. Deploy the updated server before using this page.'), { status: response.status });
+        return payload;
+      }
+    }
+    function adopt(saved, userId) {
+      if (currentUser?.id !== userId) throw new Error('Your account changed.');
+      owner = userId;
+      raw = copy(saved);
+      baseline = copy(normalizeSavedWorkspace(saved));
+      loaded = true;
+      return copy(baseline);
+    }
+    function changesFor(snapshot) {
+      const changes = [];
+      for (const key of fields) {
+        if (!has(snapshot, key) || same(snapshot[key], baseline[key])) continue;
+        const previous = baseline[key], next = snapshot[key], original = raw[key];
+        if (records(previous) && records(next) && records(original || [])) {
+          const beforeIds = new Set(previous.map(item => item.id)), afterIds = new Set(next.map(item => item.id));
+          const reordered = !same(previous.filter(item => afterIds.has(item.id)).map(item => item.id), next.filter(item => beforeIds.has(item.id)).map(item => item.id));
+          const old = new Map(previous.map(item => [item.id, item]));
+          const originals = new Map((original || []).map(item => [item.id, item]));
+          for (let index = next.length - 1; index >= 0; index--) {
+            const item = next[index];
+            if (!same(item, old.get(item.id))) changes.push({ key, type: 'put', id: item.id, base: originals.get(item.id) || null, value: item, beforeId: next[index + 1]?.id || null });
+          }
+          for (const item of previous) if (!afterIds.has(item.id)) changes.push({ key, type: 'remove', id: item.id, base: originals.get(item.id) || null });
+          if (reordered) changes.push({ key, type: 'order', base: previous.map(item => item.id), value: next.map(item => item.id) });
+        } else changes.push({ key, type: 'set', base: original ?? null, value: next });
+      }
+      return changes;
+    }
+    function acknowledge(change) {
+      if (change.type === 'set') { raw[change.key] = copy(change.value); return; }
+      const rows = Array.isArray(raw[change.key]) ? raw[change.key] : [];
+      if (change.type === 'order') {
+        const byId = new Map(rows.map(item => [item.id, item]));
+        const wanted = new Set(change.value);
+        raw[change.key] = [...change.value.flatMap(id => byId.has(id) ? [byId.get(id)] : []), ...rows.filter(item => !wanted.has(item.id))];
+        return;
+      }
+      const index = rows.findIndex(item => item.id === change.id);
+      if (change.type === 'remove') { raw[change.key] = rows.filter(item => item.id !== change.id); return; }
+      if (index >= 0) rows[index] = copy(change.value);
+      else {
+        const anchor = rows.findIndex(item => item.id === change.beforeId);
+        rows.splice(anchor >= 0 ? anchor : rows.length, 0, copy(change.value));
+      }
+      raw[change.key] = rows;
+    }
+    return {
+      pageCollections,
+      activatePage(page) { if (!has(pageCollections, page)) throw new Error('Unknown workspace page.'); return [...pageCollections[page]]; },
+      async load() {
+        const userId = currentUser?.id;
+        const payload = await request();
+        if (!payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) throw new Error('The workspace response is invalid.');
+        return adopt(payload.data, userId);
+      },
+      adopt,
+      async save(snapshot, userId) {
+        if (!loaded || owner !== userId || currentUser?.id !== userId) throw new Error('Reload your workspace before saving.');
+        const changes = changesFor(snapshot);
+        let batch = [], size = 0;
+        async function flush() {
+          if (!batch.length) return;
+          const payload = await request('PATCH', { changes: batch });
+          if (owner !== userId || currentUser?.id !== userId) throw new Error('Your account changed.');
+          batch.forEach(acknowledge);
+          baseline = copy(normalizeSavedWorkspace(raw));
+          if (payload.revision) rememberLocalWriteStamp(payload.revision);
+          batch = []; size = 0;
+        }
+        for (const change of changes) {
+          const length = new TextEncoder().encode(JSON.stringify(change)).length;
+          if (length > 7 * 1024 * 1024) throw new Error('One record is too large to save. Export a full backup before editing it.');
+          if (batch.length >= 100 || (batch.length && size + length > 512 * 1024)) await flush();
+          batch.push(change); size += length;
+        }
+        await flush();
+      },
+      async record(collection, id) { return (await request('GET', undefined, '?' + new URLSearchParams({ collection, id }))).record; },
+      async onboarding(action, parameters = {}) { return (await request('POST', { action, parameters }, '/onboarding')).data; },
+      async clear() { await request('DELETE'); this.reset(); },
+      reset() { owner = null; raw = {}; baseline = {}; loaded = false; },
+      backup(snapshot, userId) {
+        if (!loaded || owner !== userId || currentUser?.id !== userId) throw new Error('Load your account before creating a backup.');
+        return { format: 'jeff-va-workspace', version: 1, userId, exportedAt: new Date().toISOString(), attachedFilesIncluded: false, data: { ...copy(raw), ...copy(snapshot) } };
+      }
+    };
+  })();
 
   // --- Application/email matching ---
   const PLATFORM_SENDER_EMAILS = Object.freeze({
@@ -3766,10 +3880,9 @@
     updateClientOnboardingStatus('Checking status', 'pending');
     target.innerHTML = '<p class="client-onboarding-loading">Loading onboarding details…</p>';
     try {
-      const { data: submission, error } = await requireSupabase().rpc('get_client_onboarding_submission', {
+      const submission = await workspaceStore.onboarding('get_client_onboarding_submission', {
         p_client_id: item.id
       });
-      if (error) throw error;
       if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
       if (!submission) {
         clientTimeZones.delete(item.id);
@@ -3946,6 +4059,7 @@
 
   function renderCurrentView() {
     const viewName = typeof activeView !== 'undefined' ? activeView : (localStorage.getItem(ACTIVE_VIEW_KEY) || 'dashboard');
+    workspaceStore.activatePage(viewName);
     switch (viewName) {
       case 'dashboard':
         renderClientDashboard();
@@ -6364,8 +6478,7 @@
     const userId = currentUser.id;
     onboardingAlertsRefreshInFlight = true;
     try {
-      const { data: submissions, error } = await requireSupabase().rpc('get_client_onboarding_submissions');
-      if (error) throw error;
+      const submissions = await workspaceStore.onboarding('get_client_onboarding_submissions');
       if (!currentUser || currentUser.id !== userId || !dataReady || !supabaseDataLoaded) return;
       if (!Array.isArray(submissions)) throw new Error('The onboarding notifications response was invalid.');
       submissions.forEach(submission => {
@@ -8854,6 +8967,20 @@
     return true;
   }
 
+  function exportFullWorkspaceBackup() {
+    try {
+      if (!currentUser || !dataReady || !supabaseDataLoaded) throw new Error('Load your workspace before downloading a backup.');
+      const backup = workspaceStore.backup(data, currentUser.id);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `jeff-va-full-records-${today()}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      toast('Full records backup downloaded. Attached files are not included.');
+    } catch (error) { toast(error.message || 'The backup could not be created.'); }
+  }
+
   function canSaveToDocuments() {
     return window.location.protocol.startsWith('http')
       && ['127.0.0.1', 'localhost'].includes(window.location.hostname)
@@ -9397,6 +9524,7 @@
   });
 
   $('#exportButton').addEventListener('click', exportBackup);
+  $('#exportFullWorkspaceBackup').addEventListener('click', exportFullWorkspaceBackup);
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
   $('#settingsButton').addEventListener('click', openWorkspaceSettings);
   $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
@@ -11431,14 +11559,8 @@
         updatedAt: new Date().toISOString()
       };
       cacheHiredClientAvatar(item.id, storagePath, file);
-      await persist();
-      const { data: savedState, error: verifyError } = await requireSupabase()
-        .from('app_state')
-        .select('data')
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
-      if (verifyError) throw verifyError;
-      const savedClient = savedState?.data?.applications?.find(application => application.id === item.id);
+      if (await persist() === false) throw new Error('The client photo record could not be saved.');
+      const savedClient = await workspaceStore.record('applications', item.id);
       if (savedClient?.profileImage?.storagePath !== storagePath) {
         throw new Error('The photo uploaded, but its client record could not be confirmed as saved. Please try again.');
       }
@@ -11616,11 +11738,10 @@
       const token = [...randomBytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
       const tokenHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
-      const { data: issued, error } = await requireSupabase().rpc('issue_client_onboarding_invite', {
+      const issued = await workspaceStore.onboarding('issue_client_onboarding_invite', {
         p_client_id: item.id,
         p_token_hash: tokenHash
       });
-      if (error) throw error;
       if (issued !== true) throw new Error('The onboarding invitation could not be created.');
       const onboardingUrl = new URL('/onboarding/', window.location.origin);
       onboardingUrl.hash = `token=${token}`;
@@ -15143,6 +15264,7 @@
     stopSavedEmailAiChecks();
     dataReady = false;
     supabaseDataLoaded = false;
+    workspaceStore.reset();
     data = emptyData();
     setAuthenticated(false);
     applicationDateFilter = '';

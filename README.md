@@ -1,6 +1,6 @@
 # Jeff VA Monitoring
 
-Jeff VA Monitoring is a personal workspace for organizing job applications and virtual-assistant client work.
+Jeff VA Monitoring is a multi-user workspace for organizing job applications and virtual-assistant client work, with account-specific records across the website and Android app.
 
 ## Features
 
@@ -26,6 +26,8 @@ The application is intended for authorized users. Access to this repository does
 ## Development
 
 Frontend source is maintained in `src/frontend/`, with JavaScript organized into shared and page-specific files. Build tools are maintained in `scripts/`. Generated output should not be edited directly.
+
+The [page-first storage preparation guide](docs/workspace-storage-preparation.md) describes the shared website/Android storage API, complete-record JSON backups, and the next D1 migration phase. Existing data remains in Supabase during this preparation.
 
 ### Folder guide
 
