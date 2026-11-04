@@ -448,16 +448,36 @@
 
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
 
+  function selectWorkspaceSettingsSection(section = 'account') {
+    const titles = { account: 'Account', appearance: 'Appearance', backups: 'Data & backups', automations: 'Automations', security: 'Security' };
+    if (!Object.hasOwn(titles, section)) section = 'account';
+    $('#settingsSectionTitle').textContent = titles[section];
+    document.querySelectorAll('#settingsModal [data-settings-panel]').forEach(panel => { panel.hidden = panel.dataset.settingsPanel !== section; });
+    document.querySelectorAll('#settingsModal [data-settings-section]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.settingsSection === section));
+    });
+    $('#settingsAccountContent').scrollTop = 0;
+  }
+  document.querySelectorAll('#settingsModal [data-settings-section]').forEach(button => {
+    button.addEventListener('click', () => selectWorkspaceSettingsSection(button.dataset.settingsSection));
+  });
+
   function openWorkspaceSettings() {
     lockWorkspaceDataControls();
     const accountView = $('#accountView');
     $('#settingsAccountContent').append(accountView);
+    for (const child of accountView.children) {
+      child.dataset.settingsPanel = child.matches('.account-identity-section, .account-overview-grid') ? 'account'
+        : child.matches('.account-storage-section') ? 'backups'
+        : child.querySelector('#backgroundFollowUpTitle') ? 'automations' : 'security';
+    }
     accountView.classList.add('active');
     renderPasswordPage();
     renderAccountPage();
     refreshAccountStorageUsage();
     renderGmailSyncStatus();
     renderEmailTaskAiStatus();
+    selectWorkspaceSettingsSection(passwordRecoveryMode ? 'security' : 'account');
     if (!$('#settingsModal').open) $('#settingsModal').showModal();
   }
 
@@ -471,6 +491,7 @@
     $('#changePasswordError').textContent = '';
     renderPasswordPage();
     showView('account');
+    selectWorkspaceSettingsSection('security');
     $('#newPassword').focus();
   }
   const today = () => {

@@ -8496,3 +8496,64 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap
   body:has(#dailyTaskView.active) #dailyTaskView .daily-task-filter-field { flex: 1 1 auto; margin-left: 0; }
   #dailyTaskView .daily-task-filter-field select { width: 100%; }
 }
+
+/* Settings navigation and compact, consistently aligned controls. */
+#settingsModal { width: min(1120px, calc(100vw - 40px)); height: min(86dvh, 800px); }
+#settingsModal[open] { display: grid; grid-template-columns: 192px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+#settingsModal .settings-modal-heading { padding: 18px 24px; }
+#settingsModal .settings-modal-heading h2 { font-size: 18px; }
+#settingsModal .settings-navigation { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 5px; padding: 20px 12px; border-right: 1px solid var(--line); background: var(--theme-raised, #f6f7f9); overflow-y: auto; }
+#settingsModal .settings-navigation button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 38px; padding: 9px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--theme-muted, #646977); text-align: left; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+#settingsModal .settings-navigation button i { width: 16px; text-align: center; font-size: 13px; }
+#settingsModal .settings-navigation button:hover { background: var(--theme-surface, #fff); color: var(--theme-text, #1a2340); }
+#settingsModal .settings-navigation button[aria-pressed="true"] { color: var(--theme-text, #1a2340); background: var(--theme-surface, #fff); box-shadow: inset 3px 0 var(--theme-info-text, #1a2340); font-weight: 650; }
+#settingsModal .settings-navigation button:focus-visible { outline: 2px solid var(--theme-info-text, #4f5aa3); outline-offset: 1px; }
+#settingsModal [data-settings-panel][hidden] { display: none !important; }
+#settingsModal .settings-account-content { grid-column: 2; grid-row: 2; min-height: 0; overflow-y: auto; padding: 26px 28px; }
+#settingsModal .settings-account-heading { margin: 0 0 22px; padding: 0; border: 0; }
+#settingsModal .settings-account-heading h3 { font-size: 17px; font-weight: 650; }
+#settingsModal .settings-device-panels { display: contents; }
+#settingsModal .settings-device-section { max-width: 680px; padding-bottom: 22px; }
+#settingsModal .settings-device-heading { margin-bottom: 14px; }
+#settingsModal .settings-device-heading .eyebrow { display: none; }
+#settingsModal .settings-device-heading h3 { margin: 0; font-size: 13px; }
+#settingsModal .settings-stats { display: flex; gap: 28px; padding: 0 0 16px; margin: 0 0 14px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+#settingsModal .settings-stats span { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+#settingsModal .settings-stats strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+#settingsModal .settings-copy { font-size: 12px; line-height: 1.55; }
+#settingsModal .settings-backup-controls { gap: 12px; max-width: 580px; margin-top: 20px; }
+#settingsModal .settings-backup-controls > .button { justify-self: start; }
+#settingsModal :is(.button, .danger-button) { width: auto; min-height: 32px; padding: 7px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; font-weight: 600; }
+#settingsModal .text-button { font-size: 12px; }
+#settingsModal .form-field { font-size: 12px; }
+#settingsModal .form-field :is(select, input) { min-height: 34px; padding: 7px 10px; font-size: 12px; }
+#settingsModal .settings-device-section .form-field select { width: min(100%, 240px); }
+#settingsModal #accountView.active { gap: 20px; }
+#settingsModal #accountView .account-identity-section { padding: 0 0 20px; }
+#settingsModal #accountView .account-identity-copy h2 { font-size: 14px; }
+#settingsModal #accountView .account-avatar { width: 36px; height: 36px; font-size: 14px; border-radius: 7px; }
+#settingsModal #accountView .account-overview-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; padding: 0; border: 0; align-items: start; }
+#settingsModal #accountView .account-section-heading { margin-bottom: 12px; }
+#settingsModal #accountView .account-section-heading h2 { font-size: 13px; }
+#settingsModal #accountView .account-connection-row,
+#settingsModal #accountView .account-detail-list > div { grid-template-columns: 105px minmax(0, 1fr); gap: 12px; min-height: 44px; padding: 12px 0; align-items: start; }
+#settingsModal #accountView :is(dt, dd) { line-height: 1.5; }
+#settingsModal #accountView .account-connection-row dd strong { font-weight: 550; }
+#settingsModal #accountView .account-connection-row dd small { line-height: 1.5; }
+#settingsModal #accountUserId { font-size: 11px; font-variant-numeric: tabular-nums; }
+#settingsModal #accountView > .account-section { padding: 0 0 20px; }
+#settingsModal .background-follow-up-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+#settingsModal .password-security-layout { margin-top: 18px; }
+@media (max-width: 1000px) {
+  #settingsModal #accountView .account-overview-grid { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+}
+@media (max-width: 700px) {
+  #settingsModal { width: calc(100vw - 20px); height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); }
+  #settingsModal[open] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; }
+  #settingsModal .settings-modal-heading { padding: 14px 18px; }
+  #settingsModal .settings-navigation { grid-column: 1; grid-row: 2; flex-direction: row; gap: 5px; padding: 10px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
+  #settingsModal .settings-navigation button { flex: 0 0 auto; width: auto; min-height: 34px; padding: 8px 10px; white-space: nowrap; font-size: 11px; }
+  #settingsModal .settings-navigation button[aria-pressed="true"] { box-shadow: inset 0 -2px var(--theme-info-text, #1a2340); }
+  #settingsModal .settings-account-content { grid-column: 1; grid-row: 3; padding: 20px 18px; }
+  #settingsModal #accountView .account-history-heading { flex-wrap: wrap; }
+}

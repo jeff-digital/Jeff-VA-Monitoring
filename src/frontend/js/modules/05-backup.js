@@ -181,7 +181,7 @@
       if (status) status.textContent = 'Documents backup could not be saved.';
       return;
     }
-    note.textContent = `Auto-save: Documents\\${DOCUMENTS_BACKUP_NAME}. Downloads go to your Downloads folder.`;
+    note.textContent = 'Saved to Documents. Manual downloads go to Downloads.';
     const lastSavedAt = localStorage.getItem(DOCUMENTS_BACKUP_LAST_SAVED_KEY);
     if (status) status.textContent = lastSavedAt
       ? `Documents backup saved at ${documentsBackupTime(lastSavedAt)}.`

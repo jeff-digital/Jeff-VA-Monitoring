@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261105-background-follow-ups" />
+    <link rel="stylesheet" href="css/styles.css?v=20261105-settings-navigation" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
@@ -915,6 +915,7 @@
             <p class="account-empty-state" id="accountNoSignIns">No sign-ins yet.</p>
             <ol class="account-sign-in-history" id="accountSignInHistory"></ol>
           </section>
+          <div class="settings-password-panel">
           <p class="settings-copy account-google-password-notice" id="accountGooglePasswordNotice" hidden>Password is managed by your Google account.</p>
           <div class="password-security-layout">
             <section class="password-security-section" id="passwordSettingsSection">
@@ -933,6 +934,7 @@
               <p class="settings-copy">Reset link for <strong id="passwordAccountEmail"></strong>.</p>
               <button class="button button-secondary" type="button" id="sendPasswordResetLinkButton">Send reset link</button>
             </section>
+          </div>
           </div>
         </section>
       </main>
@@ -1808,8 +1810,17 @@
         <div><p class="eyebrow">WORKSPACE</p><h2 id="settingsTitle">Settings &amp; account</h2></div>
         <button class="icon-button" type="button" id="closeSettingsModal" aria-label="Close settings">×</button>
       </header>
-      <section class="settings-device-pane" aria-labelledby="settingsDeviceTitle">
-        <section class="settings-device-section" aria-labelledby="settingsAppearanceTitle">
+      <nav class="settings-navigation" aria-label="Settings sections">
+        <button type="button" data-settings-section="account" aria-pressed="false"><i class="fa-solid fa-user" aria-hidden="true"></i><span>Account</span></button>
+        <button type="button" data-settings-section="appearance" aria-pressed="false"><i class="fa-solid fa-palette" aria-hidden="true"></i><span>Appearance</span></button>
+        <button type="button" data-settings-section="backups" aria-pressed="false"><i class="fa-solid fa-database" aria-hidden="true"></i><span>Data & backups</span></button>
+        <button type="button" data-settings-section="automations" aria-pressed="false"><i class="fa-solid fa-bolt" aria-hidden="true"></i><span>Automations</span></button>
+        <button type="button" data-settings-section="security" aria-pressed="false"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Security</span></button>
+      </nav>
+      <div class="settings-account-content" id="settingsAccountContent">
+        <header class="settings-account-heading"><h3 id="settingsSectionTitle">Account</h3></header>
+      <section class="settings-device-panels" aria-labelledby="settingsDeviceTitle">
+        <section class="settings-device-section" data-settings-panel="appearance" aria-labelledby="settingsAppearanceTitle">
           <div class="settings-device-heading"><div><p class="eyebrow">APPEARANCE</p><h3 id="settingsAppearanceTitle">Workspace theme</h3></div></div>
           <label class="form-field">Color mode
             <select id="workspaceTheme">
@@ -1818,8 +1829,9 @@
             </select>
           </label>
         </section>
-        <section class="settings-device-section" aria-labelledby="settingsDeviceTitle">
-          <div class="settings-device-heading"><div><p class="eyebrow">BACKUP &amp; DEVICE</p><h3 id="settingsDeviceTitle">Data &amp; backups</h3></div><div class="settings-stats"><span><strong id="settingsAppCount">0</strong> applications</span><span><strong id="settingsEmailCount">0</strong> email headers</span></div></div>
+        <section class="settings-device-section" data-settings-panel="backups" aria-labelledby="settingsDeviceTitle">
+          <div class="settings-device-heading"><div><p class="eyebrow">BACKUP &amp; DEVICE</p><h3 id="settingsDeviceTitle">Data &amp; backups</h3></div></div>
+          <div class="settings-stats"><span><strong id="settingsAppCount">0</strong> applications</span><span><strong id="settingsEmailCount">0</strong> emails</span></div>
           <p class="settings-copy">Excel backups exclude attached files.</p>
           <div class="settings-backup-controls">
             <label class="form-field">Excel download schedule
@@ -1829,16 +1841,15 @@
                 <option value="weekly">Every week</option>
               </select>
             </label>
-            <div><p class="settings-copy" id="autoBackupNote">Auto-save: Documents\Jeff VA Backup.xlsx. Downloads go to your Downloads folder.</p><p class="backup-status" id="documentsBackupStatus" role="status" aria-live="polite">Waiting for the first Documents backup.</p></div>
-            <button class="button button-secondary" type="button" id="exportFullWorkspaceBackup">Download full records (.json)</button>
+            <div><p class="settings-copy" id="autoBackupNote">Saved to Documents. Manual downloads go to Downloads.</p><p class="backup-status" id="documentsBackupStatus" role="status" aria-live="polite">Waiting for the first Documents backup.</p></div>
+            <button class="button button-secondary" type="button" id="exportFullWorkspaceBackup">Download full backup (.json)</button>
             <p class="settings-copy">Includes email history. Attached files stay in storage.</p>
             <button class="button button-secondary" type="button" id="unlockDataControlsButton">Unlock data controls</button>
             <button class="danger-button" type="button" id="clearDataButton" hidden>Clear all cloud data</button>
           </div>
         </section>
       </section>
-      <div class="settings-account-content" id="settingsAccountContent">
-        <header class="settings-account-heading"><p class="eyebrow">ACCOUNT ACCESS</p><h3>Google account</h3></header>
+
       </div>
     </dialog>
 
@@ -1863,6 +1874,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261105-d1-connections"></script>
+    <script src="js/app.js?v=20261105-settings-navigation"></script>
   </body>
 </html>
