@@ -1,5 +1,8 @@
 # Page-first storage migration preparation
 
+This document describes the completed preparation phase. The current D1 backend,
+import checks and remaining device/permission steps are in [D1 migration](d1-migration.md).
+
 This is the first phase of the Cloudflare D1 migration. It changes page storage
 access **before** splitting the database tables. No existing Supabase records or
 files are moved or deleted. Supabase Auth, file storage and realtime remain active.

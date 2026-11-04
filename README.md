@@ -52,6 +52,8 @@ Environment setup, service configuration, deployment procedures, and operational
 
 ## Security and privacy
 
+Workspace records now use Cloudflare D1; Supabase continues to provide authentication and existing file storage. See [D1 migration](docs/d1-migration.md) for backup verification, device updates and the final legacy-write permission step.
+
 Keep passwords, tokens, private keys, and other credentials outside the repository. Use sample information when sharing screenshots or reporting issues.
 
 Report suspected security issues privately to the repository maintainer. Do not include credentials, personal information, or exploit details in public issues.

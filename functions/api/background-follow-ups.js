@@ -1,5 +1,7 @@
 import { isFollowUpSendTime, followUpLocalDate } from './follow-up-calendar.js';
 import { savedFollowUpDelivery } from './follow-up-send.js';
+import {d1Enabled} from './d1-workspace.js';
+import {d1FollowUpSchedules,saveD1FollowUpReceipt} from './d1-follow-ups.js';
 
 const CONFIG = 'background-follow-up-config';
 const HISTORY = 'background-follow-up-history';
@@ -53,6 +55,7 @@ async function googleJson(url, accessToken) {
   return response.json();
 }
 async function saveReceipt(env, userId, receipt, checkOnly = false) {
+  if(d1Enabled(env)) return saveD1FollowUpReceipt(env,userId,receipt,checkOnly);
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/record_background_follow_up`, { method: 'POST', headers: serviceHeaders(env),
     body: JSON.stringify(checkOnly ? { p_user_id: userId, p_check_only: true } : {
       p_user_id: userId, p_application_id: receipt.applicationId, p_scheduled_date: receipt.scheduledDate,
@@ -61,6 +64,7 @@ async function saveReceipt(env, userId, receipt, checkOnly = false) {
   if (!response.ok || (await response.json()) !== true) throw new Error('Background delivery storage is not ready. Apply the follow-up database update.');
 }
 async function workspace(env, userId, applicationId = null) {
+  if(d1Enabled(env)) return d1FollowUpSchedules(env,userId,applicationId);
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/background_follow_up_snapshot`, {
     method: 'POST', headers: serviceHeaders(env), body: JSON.stringify({ p_user_id: userId, p_application_id: applicationId }), signal: AbortSignal.timeout(10000)
   });
@@ -110,7 +114,7 @@ export async function coordinateBackgroundFollowUps(storage, env, input) {
     const config = await storage.get(CONFIG);
     const history = await storage.get(HISTORY) || [];
     return json({ configured: backgroundFollowUpReady(env), enabled: Boolean(config?.enabled), email: config?.email || '',
-      status: config?.status || 'off', lastCheckedAt: config?.lastCheckedAt || '', message: config?.message || '',
+      status: config?.enabled && env.BACKGROUND_FOLLOW_UPS_PAUSED === 'true' ? 'paused' : config?.status || 'off', lastCheckedAt: config?.lastCheckedAt || '', message: config?.enabled && env.BACKGROUND_FOLLOW_UPS_PAUSED === 'true' ? 'Automatic follow-ups are paused during migration. Review restored schedules before resuming.' : config?.message || '',
       recent: history.slice(0, 20).map(({ body, subject, ...record }) => record) });
   }
   if (input.action === 'disable') {
@@ -200,6 +204,7 @@ const fingerprint = app => JSON.stringify([app.id, app.followUpDate, app.email, 
 export async function runBackgroundFollowUps(storage, env) {
   const config = await storage.get(CONFIG);
   if (!config?.enabled) return;
+  if (env.BACKGROUND_FOLLOW_UPS_PAUSED === 'true') { await storage.setAlarm(Date.now()+300000); return; }
   const current = async () => {
     const latest = await storage.get(CONFIG);
     return latest?.enabled && latest.generation === config.generation;
@@ -219,6 +224,12 @@ export async function runBackgroundFollowUps(storage, env) {
     }
     const due = (state.applications || []).filter(eligible).slice(0, 10);
     if (due.length) {
+      if(d1Enabled(env)) {
+        const response=await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(config.userId)}`,{headers:serviceHeaders(env),signal:AbortSignal.timeout(10000)});
+        if(!response.ok) throw Object.assign(new Error('Account verification failed. Background sending is paused.'),{reconnect:response.status===404});
+        const user=await response.json();
+        if(!user.email_confirmed_at || email(user.email)!==config.email || Date.parse(user.banned_until || '')>Date.now()) throw Object.assign(new Error('Reconnect this account before resuming background follow-ups.'),{reconnect:true});
+      }
       const access = await gmailAccess(env, await unseal(env, config));
       // Google can rotate refresh tokens; retain the replacement encrypted.
       if (access.refresh_token && await current()) {

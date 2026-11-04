@@ -1,6 +1,8 @@
 // Page-facing storage contract. Keep the existing Supabase data until every
 // client is ready; a D1 implementation can replace this adapter without changing pages.
 export const WORKSPACE_FIELDS = Object.freeze(['applications', 'toApply', 'dailyTasks', 'clientTasks', 'socialTrends', 'emails', 'deletedGmailIds', 'alerts', 'clearedNotificationKeys', 'onboardingSubmissionIds', 'emailTemplates', 'personalDocuments', 'invoices', 'scripts', 'workLinks', 'walletEntries', 'subscriptions', 'accountSignInHistory', 'weeklyActivityGoal', 'emailTaskAiUsage']);
+import {d1Enabled,readD1Workspace,applyD1Changes,d1Revision,d1Table,clearD1Workspace,ensureD1Account} from './d1-workspace.js';
+import {d1Onboarding} from './d1-onboarding.js';
 const fields = new Set(WORKSPACE_FIELDS);
 const json = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' } });
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -38,6 +40,10 @@ export async function workspaceOnboarding(request, env, user = null) {
   const parameters = input.parameters;
   if (allowed[input.action].includes('p_token_hash') && !/^[a-f0-9]{64}$/.test(parameters.p_token_hash || '')) return json({ error: 'Invalid invitation.' }, 400);
   if (allowed[input.action].includes('p_client_id') && (typeof parameters.p_client_id !== 'string' || !parameters.p_client_id || parameters.p_client_id.length > 512)) return json({ error: 'Invalid client.' }, 400);
+  if(d1Enabled(env)) {
+    try{return json({data:await d1Onboarding(request,env,user,input.action,parameters)});}
+    catch(error){return json({error:error.status===400?error.message:'Onboarding could not be completed. Check the form or retry after migration setup.'},error.status===400?400:503);}
+  }
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/${input.action}`, { method: 'POST', headers: {
     apikey: env.SUPABASE_PUBLISHABLE_KEY, 'content-type': 'application/json', ...(user ? { authorization: request.headers.get('authorization') } : {})
   }, body: JSON.stringify(parameters), signal: AbortSignal.timeout(15000) });
@@ -65,6 +71,15 @@ export async function workspaceApi(request, env, user) {
     const id = url.searchParams.get('id');
     if (key && (!fields.has(key) || key === 'weeklyActivityGoal' || key === 'emailTaskAiUsage')) return json({ error: 'Unknown collection.' }, 400);
     if (id && (!key || id.length > 512)) return json({ error: 'Invalid record.' }, 400);
+    if(d1Enabled(env)) {
+      try {
+        await ensureD1Account(request,env,user);
+        if(url.searchParams.get('revision')==='1') return json({backend:'d1',revision:await d1Revision(env,user.id)});
+        if(key && id) return json({backend:'d1',record:JSON.parse((await env.WORKSPACE_DB.prepare(`SELECT payload FROM ${d1Table(key)} WHERE user_id=? AND id=?`).bind(user.id,id).first())?.payload || 'null')});
+        const loaded=await readD1Workspace(env,user.id,key?[key]:null);
+        return json(key?{backend:'d1',records:loaded.data[key] || [],revision:loaded.revision}:{backend:'d1',data:loaded.data,revision:loaded.revision});
+      } catch(error) {return json({error:error.status?error.message:'D1 storage is not ready. Check its binding and schema.'},error.status || 503);}
+    }
     if (key && id) {
       const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/get_workspace_record`, { method: 'POST', headers, body: JSON.stringify({ p_collection: key, p_id: id }), signal: AbortSignal.timeout(15000) });
       if (!response.ok) return json({ error: 'Record reads need the page-storage database update.' }, 503);
@@ -81,13 +96,18 @@ export async function workspaceApi(request, env, user) {
     return json({ backend: 'supabase', revision: row?.updated_at || null, ...(url.searchParams.get('revision') !== '1' ? { data: row?.data || {} } : {}) });
   }
   if (request.method === 'DELETE') {
+    if(d1Enabled(env)) {await clearD1Workspace(env,user.id);return json({cleared:true});}
     const params = new URLSearchParams({ user_id: `eq.${user.id}` });
     const response = await fetch(`${env.SUPABASE_URL}/rest/v1/app_state?${params}`, { method: 'DELETE', headers: { ...headers, prefer: 'return=minimal' }, signal: AbortSignal.timeout(15000) });
     return response.ok ? json({ cleared: true }) : json({ error: 'Workspace could not be cleared.' }, 503);
   }
   const input = await boundedJson(request);
-  if (!object(input) || Object.keys(input).some(key => key !== 'changes') || !Array.isArray(input.changes) || input.changes.length > 100 || !input.changes.every(validChange)) return json({ error: 'Invalid workspace changes.' }, 400);
+  if (!object(input) || Object.keys(input).some(key => !['changes','revision'].includes(key)) || (input.revision!==undefined && input.revision!==null && (typeof input.revision!=='string' || input.revision.length>128)) || !Array.isArray(input.changes) || input.changes.length > 100 || !input.changes.every(validChange)) return json({ error: 'Invalid workspace changes.' }, 400);
   if (!input.changes.length) return json({ saved: true, revision: null });
+  if(d1Enabled(env)) {
+    try {return json(await applyD1Changes(env,user.id,input.changes,input.revision));}
+    catch(error) {return json({error:error.status?error.message:'D1 save failed. Your previous records remain available.',code:error.status===409?'WORKSPACE_CONFLICT':'D1_UNAVAILABLE'},error.status || 503);}
+  }
   const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/apply_workspace_changes`, { method: 'POST', headers,
     body: JSON.stringify({ p_changes: input.changes }), signal: AbortSignal.timeout(20000) });
   const result = await response.json().catch(() => null);

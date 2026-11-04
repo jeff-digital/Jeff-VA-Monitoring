@@ -3,17 +3,45 @@
   "name": "jeff-va-monitoring",
   "main": "src/backend/worker.mjs",
   "compatibility_date": "2026-10-08",
-  "ai": { "binding": "AI" },
-  "durable_objects": { "bindings": [{ "name": "FOLLOW_UP_DELIVERIES", "class_name": "FollowUpDelivery" }] },
-  "migrations": [{ "tag": "follow-up-delivery-v1", "new_sqlite_classes": ["FollowUpDelivery"] }],
+  "ai": {
+    "binding": "AI"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "FOLLOW_UP_DELIVERIES",
+        "class_name": "FollowUpDelivery"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "follow-up-delivery-v1",
+      "new_sqlite_classes": [
+        "FollowUpDelivery"
+      ]
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "vars": {
+    "WORKSPACE_BACKEND": "d1",
+    "BACKGROUND_FOLLOW_UPS_PAUSED": "true",
     "SUPABASE_URL": "https://oeooedwobhmpwwdohrcy.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_avqScHW52sfzxgl_e1aqEQ_Wk6FRGAU"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "WORKSPACE_DB",
+      "database_name": "jeff-va-workspace",
+      "database_id": "671cb15b-0a62-4368-a516-fcf7dc7d66d5",
+      "migrations_dir": "src/backend/d1"
+    }
+  ]
 }

@@ -145,10 +145,10 @@ public final class MainActivity extends Activity {
     private void reloadLiveWorkspace() {
         if (!foregroundActive || preview || repository == null || !repository.signedIn() || busy || liveLoading) return;
         liveLoading = true; int generation = accountGeneration; WorkspaceLiveUpdates connection = liveUpdates; JSONObject baseline = data;
-        async(() -> { JSONObject credentials = repository.liveCredentials(), latest = repository.load(); return new Object[]{credentials, latest, !baseline.toString().equals(latest.toString())}; }, result -> {
+        async(() -> { JSONObject credentials = repository.liveCredentials(), latest = repository.loadIfChanged(); return new Object[]{credentials, latest, !baseline.toString().equals(latest.toString())}; }, result -> {
             liveLoading = false;
             if (!foregroundActive || generation != accountGeneration || connection != liveUpdates || !repository.signedIn()) return;
-            if (connection != null) connection.connect((JSONObject) result[0]);
+            if (connection != null) { if ("d1".equals(((JSONObject) result[0]).optString("backend"))) connection.close(); else connection.connect((JSONObject) result[0]); }
             if (busy) return;
             // A recovered background connection must unlock editing too, even if
             // the saved records are identical to the offline snapshot.

@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *.xlsx
 /dist/
+/migration-data/
 # Personal local launcher and localhost-only tooling
 /start-jeff-va.bat
 /scripts/local_server.py

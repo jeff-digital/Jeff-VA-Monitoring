@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import worker from '../src/backend/worker.mjs';
+import {sqliteD1} from './lib/sqlite-d1.mjs';
+import {prepareImport} from './prepare-d1-import.mjs';
+import {readD1Workspace} from '../functions/api/d1-workspace.js';
+import {saveD1FollowUpReceipt,d1FollowUpSchedules} from '../functions/api/d1-follow-ups.js';
+const db=sqliteD1(fs.readFileSync('src/backend/d1/0001-workspace.sql','utf8'));
+const owner='11111111-1111-4111-8111-111111111111', other='22222222-2222-4222-8222-222222222222';
+const apps=[{id:'client',status:'Active client',clientName:'Client',email:'client@example.com'},{id:'app',status:'Applied',email:'hiring@example.com',role:'VA',automaticFollowUp:true,followUpDate:'2026-11-05',location:'Philippines'}];
+for(const userId of [owner,other]) db.sqlite.exec(prepareImport({format:'jeff-va-workspace',version:1,userId,data:{applications:apps,emails:[],alerts:[]}},userId).sql);
+const env={WORKSPACE_BACKEND:'d1',WORKSPACE_DB:db,SUPABASE_URL:'https://auth.test',SUPABASE_PUBLISHABLE_KEY:'public'};
+const original=globalThis.fetch;
+let workspaceDownloads=0;
+globalThis.fetch=async(url,options)=>{
+ if(String(url).endsWith('/auth/v1/user')) return Response.json({id:options.headers.authorization==='Bearer other'?other:owner});
+ if(String(url).endsWith('/rpc/get_client_onboarding_submissions')) return Response.json([]);
+ workspaceDownloads++;throw new Error('Unexpected Supabase workspace download');
+};
+const call=(path,method='GET',body=null,token='owner')=>worker.fetch(new Request('https://app.test'+path,{method,headers:{origin:'https://app.test',...(token?{authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})}),env,{});
+try {
+ let result=await(await call('/api/workspace')).json();
+ assert.equal(result.backend,'d1');assert.equal(result.data.applications.length,2);
+ const oldRevision=result.revision;
+ assert.equal((await(await call('/api/workspace?collection=applications&id=app')).json()).record.role,'VA');
+ assert.equal((await call('/api/workspace','PATCH',{revision:oldRevision,changes:[{key:'dailyTasks',type:'put',id:'task',base:null,value:{id:'task',title:'Work'}}]})).status,200);
+ assert.equal((await(await call('/api/workspace', 'GET',null,'other')).json()).data.dailyTasks.length,0);
+ result=await(await call('/api/workspace','PATCH',{revision:oldRevision,changes:[{key:'subscriptions',type:'put',id:'sub',base:null,value:{id:'sub'}}]})).json();
+ assert.equal(result.refreshNeeded,true,'Client learns when other changes predated its successful save');
+ assert.equal((await d1FollowUpSchedules(env,owner)).applications.length,1);
+ const receipt={applicationId:'app',scheduledDate:'2026-11-05',sentAt:'2026-11-05T01:00:00Z',gmailId:'sent-1',recipient:'hiring@example.com',subject:'Application for VA',body:'Follow-up'};
+ await saveD1FollowUpReceipt(env,owner,receipt); await saveD1FollowUpReceipt(env,owner,receipt);
+ result=(await readD1Workspace(env,owner)).data;
+ assert.equal(result.emails.length,1); assert.equal(result.alerts.length,1);assert.equal(result.applications.find(app=>app.id==='app').automaticFollowUp,false);
+ const hash='a'.repeat(64);
+ assert.equal((await(await call('/api/workspace/onboarding','POST',{action:'issue_client_onboarding_invite',parameters:{p_client_id:'client',p_token_hash:hash}})).json()).data,true);
+ assert.equal((await(await call('/api/onboarding','POST',{action:'lookup_client_onboarding_invite',parameters:{p_token_hash:hash}},'')).json()).data.client_name,'Client');
+ const parameters={p_token_hash:hash,p_contact_name:'Contact',p_phone:'',p_timezone:'Asia/Manila',p_availability:'Weekdays',p_tools:'',p_priorities:'Inbox',p_details:{companyName:'Company',role:'VA',services:['Inbox management'],hoursPerWeek:'Under 10 hours',preferredChannel:'Email',agreement:true}};
+ assert.equal((await(await call('/api/onboarding','POST',{action:'submit_client_onboarding',parameters},'')).json()).data,true);
+ assert.equal((await(await call('/api/onboarding','POST',{action:'submit_client_onboarding',parameters},'')).json()).data,false,'Invitation can be submitted only once');
+ assert.equal((await(await call('/api/workspace/onboarding','POST',{action:'get_client_onboarding_submission',parameters:{p_client_id:'client'}})).json()).data.contact_name,'Contact');
+ assert.equal((await(await call('/api/workspace/onboarding','POST',{action:'get_client_onboarding_submission',parameters:{p_client_id:'client'}},'other')).json()).data,null);
+ assert.equal(workspaceDownloads,0,'Imported D1 accounts never download app_state from Supabase');
+ await call('/api/workspace','DELETE');
+ assert.equal((await(await call('/api/workspace')).json()).data.emails.length,0,'Cleared accounts do not resurrect old Supabase records');
+ assert.equal((await readD1Workspace(env,other)).data.applications.length,2);
+ console.log('PASS D1 integration: authenticated API, revisions, account isolation, background receipts, onboarding, token replay protection, no Supabase workspace downloads and safe clearing.');
+} finally {globalThis.fetch=original;db.sqlite.close();}

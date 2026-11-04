@@ -5,6 +5,8 @@ import worker from '../src/backend/worker.mjs';
 import { FollowUpDelivery } from '../functions/api/follow-up-send.js';
 import { backgroundFollowUpMessage, backgroundRawMessage } from '../functions/api/background-follow-ups.js';
 import { MemoryStorage } from './lib/memory-durable.mjs';
+import {sqliteD1} from './lib/sqlite-d1.mjs';
+import {importD1Account,readD1Workspace} from '../functions/api/d1-workspace.js';
 
 const NativeDate = Date, originalFetch = globalThis.fetch;
 let clock = '2026-11-05T01:00:00Z'; // Thursday, 9 AM in the Philippines.
@@ -93,6 +95,11 @@ try {
   const statusText = await (await f.api()).text();
   assert.ok(!statusText.includes('ciphertext') && !statusText.includes('refresh'), 'Status must never return token material');
   assert.equal((await (await f.api('GET', null, 'other')).json()).enabled, false, 'Another account cannot read this connection');
+  f.env.BACKGROUND_FOLLOW_UPS_PAUSED='true';
+  await f.alarm();
+  assert.equal(f.control.sends,0,'Migration pause prevents background delivery');
+  assert.equal((await (await f.api()).json()).status,'paused');
+  delete f.env.BACKGROUND_FOLLOW_UPS_PAUSED;
   await f.alarm(); // No browser or bearer session participates in the alarm.
   assert.equal(f.control.sends, 1);
   assert.equal(f.control.receipts.length, 1);
@@ -198,5 +205,29 @@ try {
   const raw = Buffer.from(backgroundRawMessage({ ...f.app, email: 'client@example.com' }, { subject: 'Hello\r\nBcc: bad@example.com', body: 'Unicode ✓' }), 'base64url').toString();
   assert.equal(raw.split('\r\n').filter(line => line.startsWith('To:')).length, 1);
   assert.ok(!raw.includes('\r\nBcc:'), 'Subject values cannot inject email headers');
-  console.log('PASS background follow-ups: logged-out delivery, encrypted credentials, mailbox isolation, sending windows, cancellation, duplicate alarms, ambiguous delivery, retries, receipt recovery and template parity.');
+  clock='2026-11-05T01:00:00Z';
+  f=fixture();
+  const d1=sqliteD1(fs.readFileSync('src/backend/d1/0001-workspace.sql','utf8'));
+  try {
+    Object.assign(f.env,{WORKSPACE_BACKEND:'d1',WORKSPACE_DB:d1});
+    await importD1Account(f.env,'owner',f.state);
+    const providerFetch=globalThis.fetch;
+    let accountDeleted=false;
+    globalThis.fetch=async(input,options)=>String(input).endsWith('/auth/v1/admin/users/owner')
+      ? accountDeleted ? new Response('',{status:404}) : Response.json({email:'owner@example.com',email_confirmed_at:clock})
+      : providerFetch(input,options);
+    await f.enable(); await f.alarm();
+    assert.equal(f.control.sends,1,'D1 background jobs send without a browser');
+    let stored=(await readD1Workspace(f.env,'owner')).data;
+    assert.equal(stored.applications[0].automaticFollowUp,false);
+    assert.equal(stored.emails.length,1);
+    assert.equal(f.control.reads,0,'D1 alarms do not read Supabase workspace snapshots');
+    await f.alarm(); assert.equal(f.control.sends,1,'D1 receipts prevent duplicate deliveries');
+    // A deleted auth account must never send using its retained D1 records.
+    d1.sqlite.prepare("UPDATE workspace_applications SET payload=? WHERE user_id='owner' AND id='app'").run(JSON.stringify(f.app));
+    accountDeleted=true; await f.alarm();
+    assert.equal(f.control.sends,1);
+    assert.equal((await (await f.api()).json()).enabled,false);
+  } finally {d1.sqlite.close();}
+  console.log('PASS background follow-ups: logged-out delivery, encrypted credentials, mailbox isolation, sending windows, cancellation, duplicate alarms, ambiguous delivery, retries, receipt recovery, D1 delivery and deleted-account protection.');
 } finally { globalThis.fetch = originalFetch; globalThis.Date = NativeDate; }

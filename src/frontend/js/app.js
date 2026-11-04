@@ -269,11 +269,7 @@
       ? 'Not configured'
       : !navigator.onLine
         ? 'Offline'
-        : supabaseDataLoaded
-          ? 'Connected'
-          : dataReady
-            ? 'Unavailable'
-            : 'Connecting';
+        : 'Connected';
     const gmailSyncMessage = $('#accountGmailSyncStatus').textContent;
     const gmailNeedsAttention = /failed|expired|not set up|unavailable|paused|needs.*cloudflare/i.test(gmailSyncMessage);
     const gmailStatus = !navigator.onLine
@@ -292,6 +288,9 @@
     $('#accountSignInProvider').textContent = provider;
     $('#accountSupabaseStatus').textContent = supabaseStatus;
     $('#accountSupabaseProject').textContent = projectHost;
+    $('#accountDatabaseStatus').textContent = !navigator.onLine ? 'Offline'
+      : supabaseDataLoaded ? (workspaceStore.backend === 'd1' ? 'Cloudflare D1 · Connected' : 'Supabase · Connected')
+      : dataReady ? 'Unavailable' : 'Connecting';
     $('#accountNetworkStatus').textContent = navigator.onLine ? 'Online' : 'Offline';
     $('#accountGmailStatus').textContent = gmailStatus;
     updateGmailConnectionUI(Boolean(gmailAccessToken && !gmailReconnectRequired));
@@ -707,7 +706,7 @@
       if (!pendingPersistWrites) updateSaveIndicator(saved ? 'saved' : 'error');
     });
     // Keep the queue alive after a failure, while allowing the caller that
-    // initiated this save to know whether its snapshot reached Supabase.
+    // initiated this save to know whether its snapshot reached the database.
     persistChain = result.then(() => undefined);
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
@@ -814,7 +813,7 @@
     try {
       data = await waitForWorkspaceData(loadDataFromSupabase());
     } catch (error) {
-      console.error('Could not load workspace data from Supabase:', error);
+      console.error('Could not load workspace data:', error);
       data = emptyData();
       supabaseDataLoaded = false;
       dataReady = true;
@@ -832,6 +831,7 @@
 
     supabaseDataLoaded = true;
     dataReady = true;
+    if(workspaceStore.backend === 'd1') subscribeToAppState(user.id);
     let autoRejectedApplications = [];
     let workspaceRenderFailed = false;
     try {
@@ -896,10 +896,12 @@
   function subscribeToAppState(userId) {
     if (!supabaseClient || !userId) return;
     if (appStateChannel) supabaseClient.removeChannel(appStateChannel);
+    if(typeof stopWorkspaceD1Sync === 'function') stopWorkspaceD1Sync();
+    if(workspaceStore.backend === 'd1') { appStateChannel=null;startWorkspaceD1Sync(userId);return; }
     let refreshTimer = null, refreshing = false, refreshAgain = false;
     const active = () => dataReady && currentUser?.id === userId && appStateChannel === channel;
     const refresh = async () => {
-      if (!active()) return;
+      if (!active() || workspaceStore.backend === 'd1') return;
       if (refreshing) { refreshAgain = true; return; }
       refreshing = true;
       try {
@@ -1383,7 +1385,7 @@
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     const has = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
     const records = value => Array.isArray(value) && value.every(item => item && typeof item === 'object' && !Array.isArray(item) && typeof item.id === 'string' && item.id) && new Set(value.map(item => item.id)).size === value.length;
-    let owner = null, raw = {}, baseline = {}, loaded = false;
+    let owner = null, raw = {}, baseline = {}, loaded = false, backend = 'supabase', revision = null;
     async function request(method = 'GET', body, suffix = '') {
       const userId = currentUser?.id;
       if (!userId) throw new Error('Sign in to access your workspace.');
@@ -1449,12 +1451,15 @@
       raw[change.key] = rows;
     }
     return {
+      get backend() { return backend; },
       pageCollections,
       activatePage(page) { if (!has(pageCollections, page)) throw new Error('Unknown workspace page.'); return [...pageCollections[page]]; },
       async load() {
         const userId = currentUser?.id;
         const payload = await request();
+        if(loaded && owner===userId && typeof persistWritePending!=='undefined' && persistWritePending) throw new Error('A save is in progress.');
         if (!payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) throw new Error('The workspace response is invalid.');
+        backend = payload.backend || 'supabase'; revision = payload.revision || null;
         return adopt(payload.data, userId);
       },
       adopt,
@@ -1464,11 +1469,12 @@
         let batch = [], size = 0;
         async function flush() {
           if (!batch.length) return;
-          const payload = await request('PATCH', { changes: batch });
+          const payload = await request('PATCH', { changes: batch, revision });
           if (owner !== userId || currentUser?.id !== userId) throw new Error('Your account changed.');
           batch.forEach(acknowledge);
           baseline = copy(normalizeSavedWorkspace(raw));
           if (payload.revision) rememberLocalWriteStamp(payload.revision);
+          if (payload.revision) revision = payload.refreshNeeded ? null : payload.revision;
           batch = []; size = 0;
         }
         for (const change of changes) {
@@ -1482,13 +1488,37 @@
       async record(collection, id) { return (await request('GET', undefined, '?' + new URLSearchParams({ collection, id }))).record; },
       async onboarding(action, parameters = {}) { return (await request('POST', { action, parameters }, '/onboarding')).data; },
       async clear() { await request('DELETE'); this.reset(); },
-      reset() { owner = null; raw = {}; baseline = {}; loaded = false; },
+      async hasChanges() { return (await request('GET',undefined,'?revision=1')).revision !== revision; },
+      reset() { owner = null; raw = {}; baseline = {}; loaded = false; backend = 'supabase'; revision = null; },
       backup(snapshot, userId) {
         if (!loaded || owner !== userId || currentUser?.id !== userId) throw new Error('Load your account before creating a backup.');
         return { format: 'jeff-va-workspace', version: 1, userId, exportedAt: new Date().toISOString(), attachedFilesIncluded: false, data: { ...copy(raw), ...copy(snapshot) } };
       }
     };
   })();
+  let workspaceD1Timer = null, workspaceD1Focus = null;
+  function stopWorkspaceD1Sync() {
+    clearInterval(workspaceD1Timer); workspaceD1Timer = null;
+    if(workspaceD1Focus) window.removeEventListener('focus',workspaceD1Focus);
+    workspaceD1Focus = null;
+  }
+  function startWorkspaceD1Sync(userId) {
+    stopWorkspaceD1Sync();
+    let pending = false;
+    const check = async () => {
+      if(pending || document.hidden || currentUser?.id !== userId || !dataReady || persistWritePending) return;
+      pending = true;
+      try {
+        if(await workspaceStore.hasChanges()) {
+          const latest=await workspaceStore.load();
+          if(currentUser?.id===userId && !persistWritePending) { data=latest;renderAll(); }
+        }
+      } catch { /* Keep the loaded records available during temporary outages. */ }
+      finally {pending=false;}
+    };
+    workspaceD1Timer=setInterval(check,60000);
+    workspaceD1Focus=()=>void check(); window.addEventListener('focus',workspaceD1Focus);
+  }
 
   // --- Application/email matching ---
   const PLATFORM_SENDER_EMAILS = Object.freeze({

@@ -266,11 +266,7 @@
       ? 'Not configured'
       : !navigator.onLine
         ? 'Offline'
-        : supabaseDataLoaded
-          ? 'Connected'
-          : dataReady
-            ? 'Unavailable'
-            : 'Connecting';
+        : 'Connected';
     const gmailSyncMessage = $('#accountGmailSyncStatus').textContent;
     const gmailNeedsAttention = /failed|expired|not set up|unavailable|paused|needs.*cloudflare/i.test(gmailSyncMessage);
     const gmailStatus = !navigator.onLine
@@ -289,6 +285,9 @@
     $('#accountSignInProvider').textContent = provider;
     $('#accountSupabaseStatus').textContent = supabaseStatus;
     $('#accountSupabaseProject').textContent = projectHost;
+    $('#accountDatabaseStatus').textContent = !navigator.onLine ? 'Offline'
+      : supabaseDataLoaded ? (workspaceStore.backend === 'd1' ? 'Cloudflare D1 · Connected' : 'Supabase · Connected')
+      : dataReady ? 'Unavailable' : 'Connecting';
     $('#accountNetworkStatus').textContent = navigator.onLine ? 'Online' : 'Offline';
     $('#accountGmailStatus').textContent = gmailStatus;
     updateGmailConnectionUI(Boolean(gmailAccessToken && !gmailReconnectRequired));
@@ -704,7 +703,7 @@
       if (!pendingPersistWrites) updateSaveIndicator(saved ? 'saved' : 'error');
     });
     // Keep the queue alive after a failure, while allowing the caller that
-    // initiated this save to know whether its snapshot reached Supabase.
+    // initiated this save to know whether its snapshot reached the database.
     persistChain = result.then(() => undefined);
     // Keep the local Documents Excel copy current too. The function debounces
     // rapid edits, so this does not create a file for every keystroke.
@@ -811,7 +810,7 @@
     try {
       data = await waitForWorkspaceData(loadDataFromSupabase());
     } catch (error) {
-      console.error('Could not load workspace data from Supabase:', error);
+      console.error('Could not load workspace data:', error);
       data = emptyData();
       supabaseDataLoaded = false;
       dataReady = true;
@@ -829,6 +828,7 @@
 
     supabaseDataLoaded = true;
     dataReady = true;
+    if(workspaceStore.backend === 'd1') subscribeToAppState(user.id);
     let autoRejectedApplications = [];
     let workspaceRenderFailed = false;
     try {
@@ -893,10 +893,12 @@
   function subscribeToAppState(userId) {
     if (!supabaseClient || !userId) return;
     if (appStateChannel) supabaseClient.removeChannel(appStateChannel);
+    if(typeof stopWorkspaceD1Sync === 'function') stopWorkspaceD1Sync();
+    if(workspaceStore.backend === 'd1') { appStateChannel=null;startWorkspaceD1Sync(userId);return; }
     let refreshTimer = null, refreshing = false, refreshAgain = false;
     const active = () => dataReady && currentUser?.id === userId && appStateChannel === channel;
     const refresh = async () => {
-      if (!active()) return;
+      if (!active() || workspaceStore.backend === 'd1') return;
       if (refreshing) { refreshAgain = true; return; }
       refreshing = true;
       try {

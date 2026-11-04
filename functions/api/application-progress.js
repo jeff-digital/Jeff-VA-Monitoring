@@ -1,3 +1,4 @@
+import { savedWorkspace } from './saved-workspace.js';
 import { applicationEmailCandidates } from './application-email-classify.js';
 import { savedFollowUpDelivery } from './follow-up-send.js';
 
@@ -134,11 +135,7 @@ export async function reviewApplicationProgress(request, env, user) {
   if (!input || Array.isArray(input) || Object.keys(input).length) return reply({ error: 'The review uses your saved activity only.' }, 400);
   if (!env.AI?.run) return reply({ error: 'Progress AI is not available yet. Your tracker is unchanged.' }, 503);
   try {
-    const response = await fetch(`${env.SUPABASE_URL}/rest/v1/app_state?user_id=eq.${encodeURIComponent(user.id)}&select=data&limit=1`, {
-      headers: { authorization: request.headers.get('authorization'), apikey: env.SUPABASE_PUBLISHABLE_KEY }, signal: AbortSignal.timeout(8000)
-    });
-    if (!response.ok) return reply({ error: 'Saved activity could not be loaded. Please try again.' }, 503);
-    const state = (await response.json())?.[0]?.data;
+    const state = await savedWorkspace(request, env, user);
     if (!state) return reply({ error: 'Save some application activity before requesting a review.' }, 409);
     const metrics = applicationProgressMetrics(state, user);
     const { applicationChecks, ...aggregateMetrics } = metrics;

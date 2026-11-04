@@ -28,6 +28,7 @@ final class WorkspaceRepository {
     private JSONObject workspace = new JSONObject();
     private JSONObject coverDraft = new JSONObject();
     private String userId = "";
+    private String workspaceBackend = "supabase", workspaceRevision = "";
     private final OkHttpClient http = new OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS).callTimeout(35, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build();
     static final class ApiError extends Exception {
@@ -156,11 +157,18 @@ final class WorkspaceRepository {
     }
     JSONObject load() throws Exception {
         String identity = userId;
-        JSONObject saved = api("GET", "/api/workspace", null).optJSONObject("data");
+        JSONObject reply = api("GET", "/api/workspace", null);
+        JSONObject saved = reply.optJSONObject("data");
         if (!identity.equals(userId) || !signedIn()) throw new Exception("The account changed while syncing.");
+        workspaceBackend = reply.optString("backend", "supabase"); workspaceRevision = reply.optString("revision", "");
         workspace = saved == null ? new JSONObject() : saved;
         vault.put("workspace:" + identity, workspace.toString());
         return workspace;
+    }
+    JSONObject loadIfChanged() throws Exception {
+        JSONObject metadata = api("GET", "/api/workspace?revision=1", null);
+        if (!workspaceRevision.isEmpty() && workspaceRevision.equals(metadata.optString("revision"))) return workspace;
+        return load();
     }
     JSONObject cached() throws Exception {
         if (userId.isEmpty()) throw new Exception("Sign in to open saved data.");
@@ -179,7 +187,7 @@ final class WorkspaceRepository {
     void saveCoverLetterDraft(JSONObject draft) throws Exception { if (!signedIn()) throw new Exception("Sign in first."); vault.put("cover-letter:" + userId, draft.toString()); coverDraft = new JSONObject(draft.toString()); }
     boolean signedIn() { return session != null && !userId.isEmpty(); }
     // Called on the same serial IO queue as saves/session refreshes.
-    JSONObject liveCredentials() throws Exception { return new JSONObject().put("user", userId).put("token", accessToken()); }
+    JSONObject liveCredentials() throws Exception { return new JSONObject().put("user", userId).put("token", accessToken()).put("backend", workspaceBackend); }
     interface Mutation { void apply(JSONObject state) throws Exception; }
     private static boolean sameJson(Object left, Object right) throws Exception {
         if (left == null || left == JSONObject.NULL) return right == null || right == JSONObject.NULL;
@@ -261,7 +269,8 @@ final class WorkspaceRepository {
                         if (batch.length() > 0 && bytes + length > 512 * 1024) break;
                         batch.put(change); bytes += length; start++;
                     }
-                    api("PATCH", "/api/workspace", new JSONObject().put("changes", batch));
+                    JSONObject acknowledgement = api("PATCH", "/api/workspace", new JSONObject().put("changes", batch).put("revision", workspaceRevision));
+                    workspaceRevision = acknowledgement.optBoolean("refreshNeeded") ? "" : acknowledgement.optString("revision", workspaceRevision);
                 }
                 if (!identity.equals(userId) || !signedIn()) throw new Exception("The account changed while saving.");
                 workspace = latest; vault.put("workspace:" + identity, latest.toString()); return latest;

@@ -1,3 +1,4 @@
+import { savedWorkspace } from './saved-workspace.js';
 import { authoredEmailText, emailAiFailure } from './email-classify.js';
 import { emailIsInCurrentAiWeek } from './email-ai-week.js';
 
@@ -110,11 +111,7 @@ export async function classifyApplicationEmail(input, request, env, user) {
     || typeof input.emailId !== 'string' || !input.emailId || input.emailId.length > 200) return reply({ error: 'Choose a saved email and application.' }, 400);
   let stage = 'saved_email_lookup';
   try {
-    const response = await fetch(`${env.SUPABASE_URL}/rest/v1/app_state?user_id=eq.${encodeURIComponent(user.id)}&select=data&limit=1`, {
-      headers: { authorization: request.headers.get('authorization'), apikey: env.SUPABASE_PUBLISHABLE_KEY }, signal: AbortSignal.timeout(8000)
-    });
-    if (!response.ok) return reply({ error: 'Saved application emails could not be checked. Will retry.', retryAfter: 60 }, 503);
-    const state = (await response.json())?.[0]?.data;
+    const state = await savedWorkspace(request, env, user, ["applications", "emails"]);
     const app = state?.applications?.find(item => item.id === input.applicationId);
     const email = state?.emails?.find(item => item.id === input.emailId);
     if (!app || !email) return reply({ error: 'The saved application or email is not available yet.', retryAfter: 60 }, 409);

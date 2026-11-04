@@ -1,3 +1,4 @@
+import { savedWorkspace } from './saved-workspace.js';
 import { coordinateBackup } from './backup-download.js';
 import { coordinateLoginActivity, expireLoginActivity } from './login-activity.js';
 import { coordinateResearchUsage } from './research-usage.js';
@@ -46,11 +47,10 @@ export async function sendFollowUp(request, env, user) {
   }
   if (input.action !== 'claim' && (typeof input.claimToken !== 'string' || input.claimToken.length > 100)) return reply({ error: 'Invalid delivery receipt.' }, 400);
   if (input.action === 'complete' && (!Number.isFinite(Date.parse(input.sentAt)) || typeof input.gmailId !== 'string' || input.gmailId.length > 200)) return reply({ error: 'Invalid delivery receipt.' }, 400);
-  const saved = await fetch(`${env.SUPABASE_URL}/rest/v1/app_state?user_id=eq.${encodeURIComponent(user.id)}&select=data&limit=1`, {
-    headers: { authorization: request.headers.get('authorization'), apikey: env.SUPABASE_PUBLISHABLE_KEY }, signal: AbortSignal.timeout(8000)
-  });
-  if (!saved.ok) return reply({ error: 'Could not verify the saved follow-up. No email was sent.' }, 503);
-  const state = (await saved.json())?.[0]?.data;
+  if (input.action === 'claim' && !input.manual && env.BACKGROUND_FOLLOW_UPS_PAUSED === 'true') return reply({error:'Automatic follow-ups are paused during migration. Review restored schedules before resuming.'},409);
+  let state;
+  try {state = await savedWorkspace(request, env, user, ["applications", "emails"]);}
+  catch {return reply({error:'Could not verify the saved follow-up. No email was sent.'},503);}
   const app = state?.applications?.find(item => item.id === input.applicationId);
   if (!app) return reply({ error: 'The application no longer exists. No email was sent.' }, 409);
   const today = followUpLocalDate(app);

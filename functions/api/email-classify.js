@@ -1,3 +1,4 @@
+import { savedWorkspace } from './saved-workspace.js';
 import { classifyApplicationEmail } from './application-email-classify.js';
 import { resolveEmailTaskDeadline } from './email-task-deadline.js';
 import { emailIsInCurrentAiWeek } from './email-ai-week.js';
@@ -103,12 +104,7 @@ export async function classifyClientEmail(request, env, user) {
   try {
     // Read the signed-in user's saved records. Never trust a browser-supplied
     // sender, job role, or message body when deciding which client can be used.
-    const stateResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/app_state?user_id=eq.${encodeURIComponent(user.id)}&select=data&limit=1`, {
-      headers: { authorization: request.headers.get('authorization'), apikey: env.SUPABASE_PUBLISHABLE_KEY },
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!stateResponse.ok) return reply({ error: 'Saved client emails could not be checked. Will retry.', retryAfter: 60 }, 503);
-    const state = (await stateResponse.json())?.[0]?.data;
+    const state = await savedWorkspace(request, env, user, ["applications", "emails"]);
     const client = state?.applications?.find(item => item.id === input.clientId);
     const email = state?.emails?.find(item => item.id === input.emailId);
     if (!client || !email) return reply({ error: 'The saved email or client is not available yet.', retryAfter: 60 }, 409);

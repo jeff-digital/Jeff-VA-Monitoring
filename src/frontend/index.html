@@ -832,8 +832,12 @@
             <div class="account-section-heading"><h2 id="accountConnectionsTitle">Connections</h2></div>
             <dl class="account-connection-list">
               <div class="account-connection-row">
-                <dt>Supabase</dt>
+                <dt>Sign-in · Supabase</dt>
                 <dd><strong id="accountSupabaseStatus">Checking</strong><small id="accountSupabaseProject" hidden></small></dd>
+              </div>
+              <div class="account-connection-row">
+                <dt>Database</dt>
+                <dd><strong id="accountDatabaseStatus">Checking</strong></dd>
               </div>
               <div class="account-connection-row">
                 <dt>Network</dt>
@@ -876,7 +880,7 @@
           </section>
           <section class="account-section account-storage-section" aria-labelledby="accountStorageTitle">
             <div class="account-section-heading">
-              <h2 id="accountStorageTitle">Storage usage</h2>
+              <h2 id="accountStorageTitle">File storage usage</h2>
               <div class="account-storage-actions">
                 <a class="text-button" href="https://supabase.com/dashboard/org/_/usage" target="_blank" rel="noopener noreferrer">Usage &amp; quota <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
                 <button class="text-button account-storage-refresh" type="button" id="refreshAccountStorageUsage"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
@@ -1859,6 +1863,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261105-workspace-page-storage"></script>
+    <script src="js/app.js?v=20261105-d1-connections"></script>
   </body>
 </html>
