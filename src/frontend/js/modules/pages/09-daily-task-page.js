@@ -213,7 +213,6 @@
     const remainingCount = dateTasks.length - completedCount;
     const dateLabel = formatDate(selectedDate);
     $('#dailyTaskHeaderDate').textContent = dateLabel;
-    $('#dailyTaskDateLabel').textContent = dateLabel;
     $('#dailyTaskToday').disabled = selectedDate === today();
     $('#dailyTaskScheduledCount').textContent = dateTasks.length;
     $('#dailyTaskCompletedCount').textContent = completedCount;
@@ -351,21 +350,6 @@
     }
   });
   $('#dailyTaskDate').addEventListener('change', () => {
-    $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
-    renderDailyTasks();
-  });
-  $('#dailyTaskDateLabel').addEventListener('click', () => {
-    const input = $('#dailyTaskDate');
-    if (typeof input.showPicker === 'function') input.showPicker();
-    else input.click();
-  });
-  $('#dailyTaskPreviousDate').addEventListener('click', () => {
-    $('#dailyTaskDate').value = addDays($('#dailyTaskDate').value, -1);
-    $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
-    renderDailyTasks();
-  });
-  $('#dailyTaskNextDate').addEventListener('click', () => {
-    $('#dailyTaskDate').value = addDays($('#dailyTaskDate').value, 1);
     $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
     renderDailyTasks();
   });

@@ -2,6 +2,7 @@ import { coordinateBackup } from './backup-download.js';
 import { coordinateLoginActivity, expireLoginActivity } from './login-activity.js';
 import { coordinateResearchUsage } from './research-usage.js';
 import { isFollowUpSendTime, followUpLocalDate } from './follow-up-calendar.js';
+import { coordinateBackgroundFollowUps, runBackgroundFollowUps } from './background-follow-ups.js';
 const reply = (body, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
 
 export function savedFollowUpDelivery(state, app, scheduledDate) {
@@ -66,10 +67,14 @@ export async function sendFollowUp(request, env, user) {
 // reloads, cloud state overwrites and uncertain Gmail delivery. It never expires
 // automatically: expiring a reservation could send a second accepted email.
 export class FollowUpDelivery {
-  constructor(ctx) { this.storage = ctx.storage; }
-  async alarm() { await expireLoginActivity(this.storage); }
+  constructor(ctx, env) { this.storage = ctx.storage; this.env = env; }
+  async alarm() {
+    if (await this.storage.get('background-follow-up-config')) await runBackgroundFollowUps(this.storage, this.env);
+    else await expireLoginActivity(this.storage);
+  }
   async fetch(request) {
     const input = await request.json();
+    if (new URL(request.url).pathname === '/background-follow-ups') return coordinateBackgroundFollowUps(this.storage, this.env, input);
     if (new URL(request.url).pathname === '/login-activity') return coordinateLoginActivity(this.storage, input);
     if (new URL(request.url).pathname === '/backup') return coordinateBackup(this.storage, input);
     if (new URL(request.url).pathname === '/research-usage') return coordinateResearchUsage(this.storage, input);

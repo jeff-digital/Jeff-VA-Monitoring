@@ -1071,9 +1071,16 @@ td:first-child { color: var(--theme-text, #242522); font-weight: 650; }
 .application-salary { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; color: var(--theme-info-text, #2f3f4f); font-size: 11px; line-height: 1.45; }
 .application-salary strong { color: var(--theme-info-text, #23384d); font-weight: 700; }
 .application-salary .empty-salary { color: var(--theme-muted, #8a8e87); font-style: italic; }
+.background-follow-up-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.background-follow-up-history { list-style: none; margin: 12px 0 0; padding: 0; max-height: 220px; overflow: auto; }
+.background-follow-up-history:empty { display: none; }
+.background-follow-up-history li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; padding: 10px 0; border-top: 1px solid var(--theme-border, #dfe3ec); font-size: 12px; }
+.background-follow-up-history small { grid-column: 1 / -1; color: var(--theme-muted, #74756f); overflow-wrap: anywhere; }
 .application-empty, .email-empty { padding: 54px 22px; text-align: center; color: var(--theme-muted, #74756f); }
 .application-empty h3, .email-empty h3 { margin: 0 0 7px; color: var(--theme-text, #343531); font-size: 21px; font-weight: 650; }
 .application-empty p, .email-empty p { margin: 0 auto 17px; font-size: 13px; max-width: 370px; line-height: 1.55; }
+#applicationsView #applicationList:has(> .application-empty) { display: flex; align-items: center; justify-content: center; }
+#applicationsView #applicationList > .application-empty { box-sizing: border-box; width: 100%; }
 .application-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .view-details-button { padding: 7px 9px; font-size: 11px; white-space: nowrap; }
 .list-action { color: var(--navy); font-weight: 700; border: 0; background: transparent; font-size: 11px; padding: 4px 0; }
@@ -4371,7 +4378,7 @@ body:has(#hiredView.active) .hired-list { grid-template-columns: repeat(3, minma
   body:has(#dailyTaskView.active) .notification-button { width: 36px; height: 36px; border-color: var(--theme-border, #e6e8f0); border-radius: 9px; background: var(--theme-surface, #fff); }
   body:has(#dailyTaskView.active) #dailyTaskView.active {
     display: grid;
-    grid-template-rows: 44px 64px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     gap: 14px;
     min-width: 0;
     min-height: 0;
@@ -8128,7 +8135,7 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
   body:has(#dailyTaskView.active) .content { grid-template-rows: 44px minmax(0, 1fr); gap: 8px; }
   body:has(#dailyTaskView.active) .topbar { height: 44px; min-height: 44px; }
   body:has(#dailyTaskView.active) .topbar h1 { font-size: 20px; }
-  body:has(#dailyTaskView.active) #dailyTaskView.active { grid-template-rows: 32px 32px minmax(0, 1fr); gap: 10px; overflow: hidden; }
+  body:has(#dailyTaskView.active) #dailyTaskView.active { grid-template-rows: minmax(0, 1fr); gap: 0; overflow: hidden; }
   body:has(#dailyTaskView.active) #dailyTaskView .daily-task-toolbar { gap: 8px; }
   body:has(#dailyTaskView.active) #dailyTaskView .daily-task-date-step { width: 30px; min-width: 30px; height: 32px; min-height: 32px; }
   body:has(#dailyTaskView.active) #dailyTaskView .daily-task-date-label { min-height: 32px; padding: 5px 8px; font-size: 12px; }
@@ -8464,3 +8471,28 @@ body:has(#hiredView.active) .hired-header-summary:not([hidden]) { flex-wrap: wra
 #accountView .account-login-activity dd { margin:0; overflow-wrap:anywhere; }
 @media(max-width:600px) { #accountView .account-login-activity summary { flex-wrap:wrap; gap:5px; } #accountView .account-login-activity summary time { flex:0 0 100%; text-align:left; padding-left:16px; } #accountView .account-login-activity dl { grid-template-columns:90px minmax(0,1fr); gap:7px 10px; } }
 @media(prefers-reduced-motion:reduce) { #accountView .account-login-activity summary > span::before { transition:none; } }
+
+/* Keep task actions and summaries within their own card. */
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-list-panel > .daily-task-toolbar { flex: 0 0 auto; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-list-panel > .daily-task-summary { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 12px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary > div,
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-start; gap: 6px; width: auto; min-width: 0; min-height: 24px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary strong { font-size: 15px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary span { font-size: 11px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-filter-field { margin-left: auto; }
+body:has(#dailyTaskView.active) #dailyTaskView #openDailyTaskAddModal { margin-left: 0; }
+
+/* Calendar selection and compact, evenly spaced task totals. */
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-date-navigation { display: flex; flex: 0 1 auto; align-items: center; width: auto; gap: 8px; }
+#dailyTaskView .daily-task-calendar-field { display: block; min-width: 0; }
+#dailyTaskView .daily-task-calendar-field input { box-sizing: border-box; width: 150px; max-width: 100%; min-height: 34px; padding: 6px 10px; border: 1px solid var(--theme-border, #dfe3ec); border-radius: 7px; background: var(--theme-surface, #fff); color: var(--theme-text, #343531); font: inherit; font-size: 12px; color-scheme: light; }
+:root[data-theme="dark"] #dailyTaskView .daily-task-calendar-field input { color-scheme: dark; }
+#dailyTaskView .daily-task-calendar-field input:focus-visible { outline: 2px solid var(--theme-info-text, #4f5aa3); outline-offset: 2px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-list-panel > .daily-task-summary { gap: 8px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary > div,
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap: 8px; min-height: 28px; padding: 3px 9px; border: 0; border-radius: 5px; background: var(--theme-raised, #f6f7f9); }
+@media (max-width: 600px) {
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-date-navigation { flex-basis: 100%; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-filter-field { flex: 1 1 auto; margin-left: 0; }
+  #dailyTaskView .daily-task-filter-field select { width: 100%; }
+}

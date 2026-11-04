@@ -167,7 +167,7 @@
       if (status) status.textContent = 'Documents backup could not be saved.';
       return;
     }
-    note.textContent = `An updated Excel copy is saved to Documents\\${DOCUMENTS_BACKUP_NAME} when Jeff VA opens and when it closes. Downloaded backups still use your browser Downloads folder.`;
+    note.textContent = `Auto-save: Documents\\${DOCUMENTS_BACKUP_NAME}. Downloads go to your Downloads folder.`;
     const lastSavedAt = localStorage.getItem(DOCUMENTS_BACKUP_LAST_SAVED_KEY);
     if (status) status.textContent = lastSavedAt
       ? `Documents backup saved at ${documentsBackupTime(lastSavedAt)}.`

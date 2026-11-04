@@ -176,12 +176,15 @@
       renderNewsArticles();
     } catch (error) {
       if (requestId !== newsRequest) return;
-      if (newsArticles.length) renderNewsArticles();
+      if (newsArticles.length) {
+        renderNewsArticles();
+        $('#newsLiveStatus').textContent = error.message || 'News could not be loaded.';
+      }
       else {
         $('#newsLiveGrid').setAttribute('aria-busy', 'false');
-        $('#newsLiveGrid').innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Please try again later.</p></div>';
+        $('#newsLiveGrid').innerHTML = `<div class="news-empty" role="status"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>${escapeHtml(error.message || 'Please try again later.')}</p></div>`;
+        $('#newsLiveStatus').textContent = '';
       }
-      $('#newsLiveStatus').textContent = error.message || 'News could not be loaded.';
       $('#loadMoreNews').hidden = true;
     } finally {
       if (requestId === newsRequest) newsLoading = false;

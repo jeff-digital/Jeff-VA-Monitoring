@@ -7,6 +7,7 @@ import { onRequestGet as tools } from '../../functions/api/tools.js';
 import { refreshGmail } from '../../functions/api/gmail-refresh.js';
 import { classifyClientEmail } from '../../functions/api/email-classify.js';
 import { sendFollowUp } from '../../functions/api/follow-up-send.js';
+import { backgroundFollowUps } from '../../functions/api/background-follow-ups.js';
 import { reviewApplicationProgress } from '../../functions/api/application-progress.js';
 export { FollowUpDelivery } from '../../functions/api/follow-up-send.js';
 
@@ -27,12 +28,13 @@ export default {
     const isGmailRefresh = path === '/api/gmail/refresh';
     const isEmailClassification = path === '/api/email/classify';
     const isFollowUp = path === '/api/follow-up/delivery';
+    const isBackgroundFollowUp = path === '/api/follow-up/background';
     const isBackupReceipt = path === '/api/backup/download';
     const isResearch = path === '/api/research';
     const isResearchUsage = path === '/api/research/usage';
     const isProgressReview = path === '/api/application-progress';
-    if (!handler && !isLoginActivity && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
-    if (isLoginActivity ? !['GET', 'POST'].includes(request.method) : request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
+    if (!handler && !isLoginActivity && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isBackgroundFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
+    if (isBackgroundFollowUp ? !['GET', 'POST', 'DELETE'].includes(request.method) : isLoginActivity ? !['GET', 'POST'].includes(request.method) : request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to continue.', 401);
     let verified = false;
@@ -52,6 +54,7 @@ export default {
       if (isGmailRefresh) return refreshGmail(request, env);
       if (isEmailClassification) return classifyClientEmail(request, env, user);
       if (isFollowUp) return sendFollowUp(request, env, user);
+      if (isBackgroundFollowUp) return await backgroundFollowUps(request, env, user);
       if (isProgressReview) return reviewApplicationProgress(request, env, user);
       const response = await handler({ request, env, caches: globalThis.caches, waitUntil: promise => ctx.waitUntil(promise) });
       // Internal provider caching is shared only after authentication; browsers must revalidate.

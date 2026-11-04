@@ -258,6 +258,7 @@
   }
 
   function renderAccountPage() {
+    if (typeof loadBackgroundFollowUpStatus === 'function') void loadBackgroundFollowUpStatus();
     if (!currentUser) return;
     loadLoginActivity();
     const provider = activeAuthProvider === 'google' ? 'Google' : activeAuthProvider === 'email' ? 'Email and password' : 'Supabase Auth';
@@ -614,7 +615,10 @@
       .eq('user_id', currentUser.id)
       .maybeSingle();
     if (error) throw error;
-    const saved = row?.data || {};
+    return normalizeSavedWorkspace(row?.data || {});
+  }
+
+  function normalizeSavedWorkspace(saved) {
     const deletedGmailIds = Array.isArray(saved.deletedGmailIds) ? saved.deletedGmailIds : [];
     const deletedGmailIdSet = new Set(deletedGmailIds);
     const weeklyActivityGoal = normalizeWeeklyActivityGoal(saved.weeklyActivityGoal)
@@ -904,21 +908,47 @@
   function subscribeToAppState(userId) {
     if (!supabaseClient || !userId) return;
     if (appStateChannel) supabaseClient.removeChannel(appStateChannel);
-    appStateChannel = supabaseClient.channel(`app-state-${userId}`).on('postgres_changes', {
-      event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}`
-    }, async (payload) => {
-      if (!dataReady || !currentUser || currentUser.id !== userId) return;
+    let refreshTimer = null, refreshing = false, refreshAgain = false;
+    const active = () => dataReady && currentUser?.id === userId && appStateChannel === channel;
+    const refresh = async () => {
+      if (!active()) return;
+      if (refreshing) { refreshAgain = true; return; }
+      refreshing = true;
+      try {
+        do {
+          refreshAgain = false;
+          const refreshed = await loadDataFromSupabase();
+          if (!active() || persistWritePending) return;
+          data = refreshed;
+          renderAll();
+        } while (refreshAgain && active());
+      } catch (error) {
+        console.error('Could not refresh live app state:', error);
+      } finally { refreshing = false; }
+    };
+    const channel = supabaseClient.channel(`app-state-${userId}`).on('postgres_changes', {
+      event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}`,
+      // Local writes need only an acknowledgement, not another entire workspace.
+      select: ['user_id', 'updated_at']
+    }, (payload) => {
+      if (!active()) return;
+      const owner = payload?.new?.user_id || payload?.old?.user_id;
+      if (owner && owner !== userId) return;
       const updatedAt = payload?.new?.updated_at;
       // perf: ignore the realtime echo from our own local write and any queued local save still in flight.
       if (updatedAt && lastLocalWriteStamps.has(updatedAt)) return;
       if (persistWritePending) return;
-      try {
-        data = await loadDataFromSupabase();
+      // Older Realtime servers may still send the full row. Reuse it instead
+      // of downloading the same workspace a second time.
+      if (payload?.new?.data && typeof payload.new.data === 'object' && !Array.isArray(payload.new.data)) {
+        data = normalizeSavedWorkspace(payload.new.data);
         renderAll();
-      } catch (error) {
-        console.error('Could not refresh live app state:', error);
+        return;
       }
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => { refreshTimer = null; void refresh(); }, 150);
     }).subscribe();
+    appStateChannel = channel;
   }
 
   async function restoreSupabaseSession() {
@@ -6931,9 +6961,9 @@
   });
 
   // --- Gmail sync ---
-  // Runs entirely in the browser via Google's own sign-in (Google Identity Services) and calls
-  // the Gmail API directly with the resulting token. Jeff VA has no server of its own,
-  // so nothing about your inbox passes through anything but your browser and Google's API.
+  // Interactive inbox sync calls Gmail directly from the browser. Optional
+  // background follow-ups use encrypted offline authorization on the Worker;
+  // see 04b-background-follow-ups.js and docs/background-follow-ups.md.
   const GMAIL_SCOPE = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send'
@@ -6953,7 +6983,7 @@
     'follow-up': {
       name: 'Follow-up',
       subject: 'Application for {{role}}',
-      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would welcome any updates regarding my application status or the next steps in the application process.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
+      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would welcome any updates regarding my application status or the next steps in the application process.\n\nThank you for your time and consideration.\n\nBest regards,\n{{senderName}}\n{{senderEmail}}'
     },
     'proceed-application': {
       name: 'Proceed application',
@@ -7226,6 +7256,9 @@
   }
 
   function buildDocumentEmailTemplate(templateType, application = {}, additional = {}) {
+    const sender = typeof currentUser === 'undefined' ? null : currentUser;
+    const senderEmail = String(sender?.email || '').trim();
+    const senderName = String(sender?.user_metadata?.full_name || sender?.user_metadata?.name || senderEmail || 'Your name').replace(/[\r\n]+/g, ' ').trim().slice(0, 200);
     const template = DOCUMENT_TEMPLATE_DEFINITIONS[templateType] || DOCUMENT_TEMPLATE_DEFINITIONS['contract-signing'];
     const clientName = application.clientName || 'Client';
     const contactName = application.contact || clientName;
@@ -7240,6 +7273,8 @@
     const issueDate = additional.issueDate || new Date().toISOString().slice(0, 10);
     const dueDate = additional.dueDate || new Date().toISOString().slice(0, 10);
     const subject = (additional.subject || template.subject)
+      .replace(/{{senderName}}/g, () => senderName)
+      .replace(/{{senderEmail}}/g, () => senderEmail)
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)
@@ -7254,6 +7289,8 @@
       .replace(/{{issueDate}}/g, issueDate)
       .replace(/{{dueDate}}/g, dueDate);
     const body = (additional.body || template.body)
+      .replace(/{{senderName}}/g, () => senderName)
+      .replace(/{{senderEmail}}/g, () => senderEmail)
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)
@@ -8583,6 +8620,97 @@
         subject: `${email.subject || '(No subject)'} — ${analysis.reason}`, from: email.from, date: email.date })) });
   }
 
+  let backgroundFollowUpOwner = null;
+  let backgroundFollowUpLoadedAt = 0;
+  let backgroundFollowUpPending = null;
+  async function backgroundFollowUpRequest(method = 'GET', body) {
+    const userId = currentUser?.id;
+    if (!userId) throw new Error('Sign in to manage background follow-ups.');
+    const auth = requireSupabase().auth;
+    let session = (await auth.getSession()).data?.session;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!session?.access_token) throw new Error('Sign in again to manage background follow-ups.');
+      if (currentUser?.id !== userId || (session.user?.id && session.user.id !== userId)) return null;
+      const response = await fetch('/api/follow-up/background', {
+        method, headers: { authorization: `Bearer ${session.access_token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+        ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(30000)
+      });
+      if (currentUser?.id !== userId) return null;
+      if (response.status === 401 && attempt === 0) { session = (await auth.refreshSession()).data?.session; continue; }
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload) throw new Error(payload?.error || 'Background follow-ups are unavailable on this server.');
+      return payload;
+    }
+  }
+  function renderBackgroundFollowUpStatus(payload) {
+    const enabled = payload.enabled === true;
+    const enable = $('#enableBackgroundFollowUps');
+    enable.hidden = enabled;
+    enable.disabled = !payload.configured;
+    $('#disableBackgroundFollowUps').hidden = !enabled && payload.status !== 'reconnect';
+    const reconnect = payload.status === 'reconnect' || !readGmailCredentials()?.refreshToken;
+    $('#reconnectBackgroundGmail').hidden = enabled || !payload.configured || !reconnect;
+    $('#backgroundFollowUpStatus').textContent = payload.message || (!payload.configured
+      ? 'Server setup is required before enabling background sending.'
+      : enabled ? `Enabled${payload.email ? ' · ' + payload.email : ''}${payload.lastCheckedAt ? ' · Checked ' + formatAccountTimestamp(payload.lastCheckedAt) : ' · First check within a minute'}`
+        : 'Off · Enable to send without keeping this page open.');
+    const list = $('#backgroundFollowUpHistory');
+    list.replaceChildren();
+    const labels = { sent: 'Sent', retry: 'Will retry', review: 'Needs review' };
+    for (const item of payload.recent || []) {
+      const row = document.createElement('li');
+      const title = document.createElement('span');
+      title.textContent = data.applications?.find(app => app.id === item.applicationId)?.clientName || 'Application';
+      const status = document.createElement('strong');
+      status.textContent = labels[item.status] || 'Pending';
+      const detail = document.createElement('small');
+      detail.textContent = item.message || formatAccountTimestamp(item.sentAt || item.updatedAt);
+      row.append(title, status, detail);
+      list.append(row);
+    }
+  }
+  async function loadBackgroundFollowUpStatus(force = false) {
+    if (!currentUser || !$('#backgroundFollowUpStatus')) return;
+    const userId = currentUser.id;
+    if (backgroundFollowUpOwner !== userId) {
+      backgroundFollowUpOwner = userId;
+      backgroundFollowUpLoadedAt = 0;
+      $('#backgroundFollowUpHistory').replaceChildren();
+      $('#backgroundFollowUpStatus').textContent = 'Checking…';
+      $('#enableBackgroundFollowUps').disabled = true;
+      $('#disableBackgroundFollowUps').hidden = true;
+      $('#reconnectBackgroundGmail').hidden = true;
+    }
+    if (backgroundFollowUpPending === userId || (!force && Date.now() - backgroundFollowUpLoadedAt < 30000)) return;
+    backgroundFollowUpPending = userId;
+    try {
+      const payload = await backgroundFollowUpRequest();
+      if (payload && currentUser?.id === userId) { renderBackgroundFollowUpStatus(payload); backgroundFollowUpLoadedAt = Date.now(); }
+    } catch (error) {
+      if (currentUser?.id === userId) $('#backgroundFollowUpStatus').textContent = error.message || 'Background follow-ups could not be loaded.';
+    } finally { if (backgroundFollowUpPending === userId) backgroundFollowUpPending = null; }
+  }
+  async function changeBackgroundFollowUps(enabled) {
+    const userId = currentUser?.id;
+    const button = $(enabled ? '#enableBackgroundFollowUps' : '#disableBackgroundFollowUps');
+    button.disabled = true;
+    try {
+      const refreshToken = enabled ? readGmailCredentials()?.refreshToken : null;
+      if (enabled && !refreshToken) {
+        $('#reconnectBackgroundGmail').hidden = false;
+        throw new Error('Reconnect Gmail, then enable background sending.');
+      }
+      const result = await backgroundFollowUpRequest(enabled ? 'POST' : 'DELETE', enabled ? { refreshToken } : undefined);
+      if (result && currentUser?.id === userId) await loadBackgroundFollowUpStatus(true);
+    } catch (error) {
+      if (currentUser?.id === userId) $('#backgroundFollowUpStatus').textContent = error.message || 'Background settings could not be saved.';
+    } finally { if (currentUser?.id === userId) button.disabled = false; }
+  }
+  $('#enableBackgroundFollowUps')?.addEventListener('click', () => changeBackgroundFollowUps(true));
+  $('#disableBackgroundFollowUps')?.addEventListener('click', () => changeBackgroundFollowUps(false));
+  $('#refreshBackgroundFollowUps')?.addEventListener('click', () => loadBackgroundFollowUpStatus(true));
+  $('#reconnectBackgroundGmail')?.addEventListener('click', () => loginWithGoogle());
+
   // --- Excel export/restore ---
   // Uses SheetJS (loaded via CDN in index.html) to read/write real .xlsx workbooks in the
   // browser. Application records and tool data are exported as separate sheets. Document binaries stay in private
@@ -8752,7 +8880,7 @@
       if (status) status.textContent = 'Documents backup could not be saved.';
       return;
     }
-    note.textContent = `An updated Excel copy is saved to Documents\\${DOCUMENTS_BACKUP_NAME} when Jeff VA opens and when it closes. Downloaded backups still use your browser Downloads folder.`;
+    note.textContent = `Auto-save: Documents\\${DOCUMENTS_BACKUP_NAME}. Downloads go to your Downloads folder.`;
     const lastSavedAt = localStorage.getItem(DOCUMENTS_BACKUP_LAST_SAVED_KEY);
     if (status) status.textContent = lastSavedAt
       ? `Documents backup saved at ${documentsBackupTime(lastSavedAt)}.`
@@ -10395,7 +10523,6 @@
     const remainingCount = dateTasks.length - completedCount;
     const dateLabel = formatDate(selectedDate);
     $('#dailyTaskHeaderDate').textContent = dateLabel;
-    $('#dailyTaskDateLabel').textContent = dateLabel;
     $('#dailyTaskToday').disabled = selectedDate === today();
     $('#dailyTaskScheduledCount').textContent = dateTasks.length;
     $('#dailyTaskCompletedCount').textContent = completedCount;
@@ -10533,21 +10660,6 @@
     }
   });
   $('#dailyTaskDate').addEventListener('change', () => {
-    $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
-    renderDailyTasks();
-  });
-  $('#dailyTaskDateLabel').addEventListener('click', () => {
-    const input = $('#dailyTaskDate');
-    if (typeof input.showPicker === 'function') input.showPicker();
-    else input.click();
-  });
-  $('#dailyTaskPreviousDate').addEventListener('click', () => {
-    $('#dailyTaskDate').value = addDays($('#dailyTaskDate').value, -1);
-    $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
-    renderDailyTasks();
-  });
-  $('#dailyTaskNextDate').addEventListener('click', () => {
-    $('#dailyTaskDate').value = addDays($('#dailyTaskDate').value, 1);
     $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
     renderDailyTasks();
   });
@@ -14519,12 +14631,15 @@
       renderNewsArticles();
     } catch (error) {
       if (requestId !== newsRequest) return;
-      if (newsArticles.length) renderNewsArticles();
+      if (newsArticles.length) {
+        renderNewsArticles();
+        $('#newsLiveStatus').textContent = error.message || 'News could not be loaded.';
+      }
       else {
         $('#newsLiveGrid').setAttribute('aria-busy', 'false');
-        $('#newsLiveGrid').innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Please try again later.</p></div>';
+        $('#newsLiveGrid').innerHTML = `<div class="news-empty" role="status"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>${escapeHtml(error.message || 'Please try again later.')}</p></div>`;
+        $('#newsLiveStatus').textContent = '';
       }
-      $('#newsLiveStatus').textContent = error.message || 'News could not be loaded.';
       $('#loadMoreNews').hidden = true;
     } finally {
       if (requestId === newsRequest) newsLoading = false;

@@ -20,6 +20,7 @@ pages/07c-application-form.js
 03a-invoice-payments.js
 04-gmail.js
 04a-email-outcomes.js
+04b-background-follow-ups.js
 05-backup.js
 pages/06-shell-events.js
 pages/06c-assistant-workspace.js

@@ -1,7 +1,7 @@
   // --- Gmail sync ---
-  // Runs entirely in the browser via Google's own sign-in (Google Identity Services) and calls
-  // the Gmail API directly with the resulting token. Jeff VA has no server of its own,
-  // so nothing about your inbox passes through anything but your browser and Google's API.
+  // Interactive inbox sync calls Gmail directly from the browser. Optional
+  // background follow-ups use encrypted offline authorization on the Worker;
+  // see 04b-background-follow-ups.js and docs/background-follow-ups.md.
   const GMAIL_SCOPE = [
     'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/gmail.send'
@@ -21,7 +21,7 @@
     'follow-up': {
       name: 'Follow-up',
       subject: 'Application for {{role}}',
-      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would welcome any updates regarding my application status or the next steps in the application process.\n\nThank you for your time and consideration.\n\nBest regards,\nJeffrey S. Almocera\nalmocerajeffreys@gmail.com | +63 975-683-4839'
+      body: 'Hi {{contact}},\n\nI wanted to follow up on my application for the **{{role}}** role, which I submitted on {{applicationDate}}{{applicationPlatform}}. I would welcome any updates regarding my application status or the next steps in the application process.\n\nThank you for your time and consideration.\n\nBest regards,\n{{senderName}}\n{{senderEmail}}'
     },
     'proceed-application': {
       name: 'Proceed application',
@@ -294,6 +294,9 @@
   }
 
   function buildDocumentEmailTemplate(templateType, application = {}, additional = {}) {
+    const sender = typeof currentUser === 'undefined' ? null : currentUser;
+    const senderEmail = String(sender?.email || '').trim();
+    const senderName = String(sender?.user_metadata?.full_name || sender?.user_metadata?.name || senderEmail || 'Your name').replace(/[\r\n]+/g, ' ').trim().slice(0, 200);
     const template = DOCUMENT_TEMPLATE_DEFINITIONS[templateType] || DOCUMENT_TEMPLATE_DEFINITIONS['contract-signing'];
     const clientName = application.clientName || 'Client';
     const contactName = application.contact || clientName;
@@ -308,6 +311,8 @@
     const issueDate = additional.issueDate || new Date().toISOString().slice(0, 10);
     const dueDate = additional.dueDate || new Date().toISOString().slice(0, 10);
     const subject = (additional.subject || template.subject)
+      .replace(/{{senderName}}/g, () => senderName)
+      .replace(/{{senderEmail}}/g, () => senderEmail)
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)
@@ -322,6 +327,8 @@
       .replace(/{{issueDate}}/g, issueDate)
       .replace(/{{dueDate}}/g, dueDate);
     const body = (additional.body || template.body)
+      .replace(/{{senderName}}/g, () => senderName)
+      .replace(/{{senderEmail}}/g, () => senderEmail)
       .replace(/{{clientName}}/g, clientName)
       .replace(/{{contact}}/g, contactName)
       .replace(/{{contactPerson}}/g, contactPerson)

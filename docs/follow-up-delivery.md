@@ -1,5 +1,10 @@
 # Automatic follow-up delivery protection
 
+For sending while the page is closed, see [Background follow-ups](background-follow-ups.md).
+The browser-only behavior described below remains available and shares its delivery
+ledger with the background sender. Background setup adds a database receipt function
+and encrypted server-side Gmail authorization.
+
 Automatic follow-ups now reserve one delivery for each signed-in account,
 application ID and scheduled date before calling Gmail. The reservation lives in
 the `FOLLOW_UP_DELIVERIES` Cloudflare Durable Object binding, independently of

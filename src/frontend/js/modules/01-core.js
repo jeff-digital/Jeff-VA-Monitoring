@@ -255,6 +255,7 @@
   }
 
   function renderAccountPage() {
+    if (typeof loadBackgroundFollowUpStatus === 'function') void loadBackgroundFollowUpStatus();
     if (!currentUser) return;
     loadLoginActivity();
     const provider = activeAuthProvider === 'google' ? 'Google' : activeAuthProvider === 'email' ? 'Email and password' : 'Supabase Auth';
@@ -611,7 +612,10 @@
       .eq('user_id', currentUser.id)
       .maybeSingle();
     if (error) throw error;
-    const saved = row?.data || {};
+    return normalizeSavedWorkspace(row?.data || {});
+  }
+
+  function normalizeSavedWorkspace(saved) {
     const deletedGmailIds = Array.isArray(saved.deletedGmailIds) ? saved.deletedGmailIds : [];
     const deletedGmailIdSet = new Set(deletedGmailIds);
     const weeklyActivityGoal = normalizeWeeklyActivityGoal(saved.weeklyActivityGoal)
@@ -901,21 +905,47 @@
   function subscribeToAppState(userId) {
     if (!supabaseClient || !userId) return;
     if (appStateChannel) supabaseClient.removeChannel(appStateChannel);
-    appStateChannel = supabaseClient.channel(`app-state-${userId}`).on('postgres_changes', {
-      event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}`
-    }, async (payload) => {
-      if (!dataReady || !currentUser || currentUser.id !== userId) return;
+    let refreshTimer = null, refreshing = false, refreshAgain = false;
+    const active = () => dataReady && currentUser?.id === userId && appStateChannel === channel;
+    const refresh = async () => {
+      if (!active()) return;
+      if (refreshing) { refreshAgain = true; return; }
+      refreshing = true;
+      try {
+        do {
+          refreshAgain = false;
+          const refreshed = await loadDataFromSupabase();
+          if (!active() || persistWritePending) return;
+          data = refreshed;
+          renderAll();
+        } while (refreshAgain && active());
+      } catch (error) {
+        console.error('Could not refresh live app state:', error);
+      } finally { refreshing = false; }
+    };
+    const channel = supabaseClient.channel(`app-state-${userId}`).on('postgres_changes', {
+      event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}`,
+      // Local writes need only an acknowledgement, not another entire workspace.
+      select: ['user_id', 'updated_at']
+    }, (payload) => {
+      if (!active()) return;
+      const owner = payload?.new?.user_id || payload?.old?.user_id;
+      if (owner && owner !== userId) return;
       const updatedAt = payload?.new?.updated_at;
       // perf: ignore the realtime echo from our own local write and any queued local save still in flight.
       if (updatedAt && lastLocalWriteStamps.has(updatedAt)) return;
       if (persistWritePending) return;
-      try {
-        data = await loadDataFromSupabase();
+      // Older Realtime servers may still send the full row. Reuse it instead
+      // of downloading the same workspace a second time.
+      if (payload?.new?.data && typeof payload.new.data === 'object' && !Array.isArray(payload.new.data)) {
+        data = normalizeSavedWorkspace(payload.new.data);
         renderAll();
-      } catch (error) {
-        console.error('Could not refresh live app state:', error);
+        return;
       }
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => { refreshTimer = null; void refresh(); }, 150);
     }).subscribe();
+    appStateChannel = channel;
   }
 
   async function restoreSupabaseSession() {
