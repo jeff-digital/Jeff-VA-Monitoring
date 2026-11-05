@@ -52,7 +52,7 @@ Environment setup, service configuration, deployment procedures, and operational
 
 ## Security and privacy
 
-Workspace records now use Cloudflare D1; Supabase continues to provide authentication and existing file storage. See [D1 migration](docs/d1-migration.md) for backup verification, device updates and the final legacy-write permission step.
+Workspace records use Cloudflare D1, and private documents, attachments and profile images use Cloudflare R2. Supabase continues to provide authentication; original files are retained during migration. See [D1 migration](docs/d1-migration.md) and [private file storage](docs/private-file-storage.md) for verification and device updates.
 
 Keep passwords, tokens, private keys, and other credentials outside the repository. Use sample information when sharing screenshots or reporting issues.
 

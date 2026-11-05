@@ -1,6 +1,5 @@
   // --- Active client documents ---
-  // Document binaries are stored in the private Supabase Storage bucket; only metadata and
-  // the storage path are kept in the user's app_state row. Nothing is stored in IndexedDB.
+  // Private files use Cloudflare R2; paths and document details remain in D1.
   const PDFJS_MODULE_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs';
   const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
   const MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024;
@@ -33,33 +32,23 @@
   }
 
   async function saveDocumentBlob(id, file) {
-    const client = requireSupabase();
     if (!currentUser) throw new Error('Not signed in');
     if (file.size > MAX_DOCUMENT_SIZE_BYTES) throw new Error('Documents must be 25 MB or smaller.');
     const path = `${currentUser.id}/${id}`;
-    const { error } = await client.storage.from(SUPABASE_BUCKET).upload(path, file, {
-      upsert: false,
-      contentType: documentContentType(file)
-    });
-    if (error) throw error;
+    await uploadStoredFile(path, file, documentContentType(file));
     return path;
   }
 
   async function getDocumentBlob(idOrPath) {
-    const client = requireSupabase();
     if (!currentUser) throw new Error('Not signed in');
     const path = String(idOrPath).includes('/') ? String(idOrPath) : `${currentUser.id}/${idOrPath}`;
-    const { data: blob, error } = await client.storage.from(SUPABASE_BUCKET).download(path);
-    if (error) throw error;
-    return blob;
+    return (await privateFileRequest({ path })).blob();
   }
 
   async function deleteDocumentBlob(idOrPath) {
-    const client = requireSupabase();
     if (!currentUser) return;
     const path = String(idOrPath).includes('/') ? String(idOrPath) : `${currentUser.id}/${idOrPath}`;
-    const { error } = await client.storage.from(SUPABASE_BUCKET).remove([path]);
-    if (error) throw error;
+    await privateFileRequest({ path }, { method: 'DELETE' });
   }
 
   function personalDocumentPath(id) {
@@ -251,18 +240,13 @@
     try {
       const documentId = uid();
       const storagePath = personalDocumentPath(documentId);
-      const client = requireSupabase();
-      const { error } = await client.storage.from(SUPABASE_BUCKET).upload(storagePath, file, {
-        upsert: false,
-        contentType: documentContentType(file)
-      });
-      if (error) throw error;
+      await uploadStoredFile(storagePath, file, documentContentType(file));
       data.personalDocuments = data.personalDocuments || [];
       const record = { id: documentId, storagePath, name: file.name, type: file.type, size: file.size, addedAt: new Date().toISOString() };
       data.personalDocuments.unshift(record);
       persist();
       renderAll();
-      showActionResult({ title: 'Document uploaded', message: 'Your personal document was saved to Supabase.' });
+      showActionResult({ title: 'Document uploaded', message: 'Your personal document was saved securely.' });
       return record;
     } catch (error) {
       console.error(error);

@@ -1,4 +1,7 @@
 import { research } from '../../functions/api/research.js';
+import {fileStorage} from '../../functions/api/files.js';
+import {startFileMigration} from '../../functions/api/file-migration.js';
+let migrationStarted=false;
 import { passwordLogin, loginActivity } from '../../functions/api/login-activity.js';
 import { getResearchUsage } from '../../functions/api/research-usage.js';
 import { automaticBackupReceipt } from '../../functions/api/backup-download.js';
@@ -21,6 +24,7 @@ const sessionFailure = (expired = false) => Response.json({
 
 export default {
   async fetch(request, env, ctx) {
+    if(env.WORKSPACE_FILES && !migrationStarted && ctx.waitUntil){migrationStarted=true;ctx.waitUntil(startFileMigration(env).catch(()=>{migrationStarted=false;}));}
     const path = new URL(request.url).pathname;
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (path === '/api/auth/login') return passwordLogin(request, env);
@@ -29,6 +33,7 @@ export default {
       catch { return reply('Onboarding is temporarily unavailable.', 503); }
     }
     const isLoginActivity = path === '/api/auth/activity';
+    const isFiles = path === '/api/files';
     const isWorkspaceOnboarding = path === '/api/workspace/onboarding';
     const isWorkspace = path === '/api/workspace' || isWorkspaceOnboarding;
     const handler = path === '/api/news' ? news : path === '/api/news/usage' ? newsUsage : path === '/api/tools' ? tools : null;
@@ -40,8 +45,8 @@ export default {
     const isResearch = path === '/api/research';
     const isResearchUsage = path === '/api/research/usage';
     const isProgressReview = path === '/api/application-progress';
-    if (!handler && !isWorkspace && !isLoginActivity && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isBackgroundFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
-    if (isWorkspace ? (isWorkspaceOnboarding ? request.method !== 'POST' : !['GET', 'PATCH', 'DELETE'].includes(request.method)) : isBackgroundFollowUp ? !['GET', 'POST', 'DELETE'].includes(request.method) : isLoginActivity ? !['GET', 'POST'].includes(request.method) : request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
+    if (!handler && !isFiles && !isWorkspace && !isLoginActivity && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isBackgroundFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
+    if (isFiles ? !['GET','PUT','DELETE'].includes(request.method) : isWorkspace ? (isWorkspaceOnboarding ? request.method !== 'POST' : !['GET', 'PATCH', 'DELETE'].includes(request.method)) : isBackgroundFollowUp ? !['GET', 'POST', 'DELETE'].includes(request.method) : isLoginActivity ? !['GET', 'POST'].includes(request.method) : request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to continue.', 401);
     let verified = false;
@@ -54,6 +59,7 @@ export default {
       const user = await auth.json();
       if (!user.id) return sessionFailure(true);
       verified = true;
+      if (isFiles) return await fileStorage(request, env, user);
       if (isWorkspaceOnboarding) return await workspaceOnboarding(request, env, user);
       if (isWorkspace) return await workspaceApi(request, env, user);
       if (isLoginActivity) return loginActivity(request, env, user);

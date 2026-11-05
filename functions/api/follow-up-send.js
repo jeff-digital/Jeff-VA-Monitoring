@@ -1,4 +1,5 @@
 import { savedWorkspace } from './saved-workspace.js';
+import {coordinateFileMigration,runFileMigration} from './file-migration.js';
 import { coordinateBackup } from './backup-download.js';
 import { coordinateLoginActivity, expireLoginActivity } from './login-activity.js';
 import { coordinateResearchUsage } from './research-usage.js';
@@ -69,11 +70,13 @@ export async function sendFollowUp(request, env, user) {
 export class FollowUpDelivery {
   constructor(ctx, env) { this.storage = ctx.storage; this.env = env; }
   async alarm() {
+    if(await runFileMigration(this.storage,this.env))return;
     if (await this.storage.get('background-follow-up-config')) await runBackgroundFollowUps(this.storage, this.env);
     else await expireLoginActivity(this.storage);
   }
   async fetch(request) {
     const input = await request.json();
+    if (new URL(request.url).pathname === '/file-migration') return coordinateFileMigration(this.storage);
     if (new URL(request.url).pathname === '/background-follow-ups') return coordinateBackgroundFollowUps(this.storage, this.env, input);
     if (new URL(request.url).pathname === '/login-activity') return coordinateLoginActivity(this.storage, input);
     if (new URL(request.url).pathname === '/backup') return coordinateBackup(this.storage, input);

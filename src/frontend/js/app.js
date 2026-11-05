@@ -384,69 +384,18 @@
   renderProjectStorageSummary();
 
   async function refreshAccountStorageUsage() {
-    const output = $('#accountStorageUsage');
-    const refreshButton = $('#refreshAccountStorageUsage');
-    if (!currentUser || !output || !refreshButton || refreshButton.disabled) return;
+    const output = $('#accountStorageUsage'), button = $('#refreshAccountStorageUsage');
+    if (!currentUser || !output || button.disabled) return;
     const userId = currentUser.id;
-    output.textContent = 'Checking...';
-    $('#accountProjectStorageUsage').textContent = 'Checking...';
-    $('#accountProjectStorageAvailable').textContent = 'Checking...';
-    refreshButton.disabled = true;
+    button.disabled = true; output.textContent = 'Checking…';
     try {
-      const client = requireSupabase();
-      try {
-        const { data: usage, error } = await client.rpc('get_project_storage_usage');
-        if (error) throw error;
-        const summary = Array.isArray(usage) ? usage[0] : usage;
-        const usedBytes = Number(summary?.total_bytes);
-        const fileCount = Number(summary?.file_count);
-        if (!Number.isFinite(usedBytes) || usedBytes < 0 || !Number.isFinite(fileCount) || fileCount < 0) {
-          throw new Error('The project storage summary is invalid.');
-        }
-        projectStorageUsedBytes = usedBytes;
-        projectStorageFileCount = fileCount;
-      } catch (error) {
-        projectStorageUsedBytes = null;
-        projectStorageFileCount = 0;
-        console.error('Could not load project storage usage:', error);
-      }
-      renderProjectStorageSummary();
-
-      const bucket = client.storage.from(SUPABASE_BUCKET);
-      const folders = [userId];
-      let totalBytes = 0;
-      let fileCount = 0;
-      while (folders.length) {
-        const folder = folders.pop();
-        let offset = 0;
-        while (true) {
-          const { data: entries, error } = await bucket.list(folder, { limit: 100, offset });
-          if (error) throw error;
-          const objects = entries || [];
-          objects.forEach(object => {
-            if (object.id === null && object.metadata === null) {
-              folders.push(`${folder}/${object.name}`);
-              return;
-            }
-            const size = Number(object.metadata?.size);
-            if (!Number.isFinite(size) || size < 0) throw new Error('A stored file size is unavailable.');
-            totalBytes += size;
-            fileCount += 1;
-          });
-          if (objects.length < 100) break;
-          offset += objects.length;
-        }
-      }
-      if (currentUser?.id === userId) output.textContent = `${formatFileSize(totalBytes)} across ${plural(fileCount, 'file')}`;
+      const usage = await (await privateFileRequest({ action: 'usage' })).json();
+      if (currentUser?.id !== userId) return;
+      output.textContent = `${formatFileSize(usage.bytes)} · ${plural(usage.count, 'file')}`;
+      $('#accountProjectStorageUsage').textContent = 'Cloudflare R2 · Private';
     } catch (error) {
-      console.error('Could not load account storage usage:', error);
-      if (currentUser?.id === userId) output.textContent = 'Unavailable';
-      projectStorageUsedBytes = null;
-      projectStorageFileCount = 0;
-      renderProjectStorageSummary();
-    } finally {
-      refreshButton.disabled = false;
-    }
+      if (currentUser?.id === userId) output.textContent = error.message || 'Usage unavailable';
+    } finally { button.disabled = false; }
   }
 
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
@@ -1095,17 +1044,15 @@
     if (!grant || grant.expiresAt <= Date.now() || grant.userId !== currentUser?.id) throw new Error('Unlock data controls with your password first.');
     const verifiedUserId = grant.userId;
     if (!supabaseClient || currentUser?.id !== verifiedUserId) throw new Error('Sign in again before clearing data.');
-    const client = supabaseClient;
-    const paths = (data.applications || []).flatMap(application => (application.documents || []).map(doc => doc.storagePath || `${verifiedUserId}/${doc.id}`));
-    if (paths.length) {
-      const { error: storageError } = await client.storage.from(SUPABASE_BUCKET).remove(paths);
-      if (storageError) throw storageError;
-    }
-    const personalPaths = (data.personalDocuments || []).map(document => document.storagePath).filter(Boolean);
-    if (personalPaths.length) {
-      const { error: personalStorageError } = await client.storage.from(SUPABASE_BUCKET).remove(personalPaths);
-      if (personalStorageError) throw personalStorageError;
-    }
+    const paths = new Set();
+    const collect = value => {
+      if (!value || typeof value !== 'object') return;
+      if (typeof value.storagePath === 'string' && value.storagePath.startsWith(verifiedUserId + '/')) paths.add(value.storagePath);
+      Object.values(value).forEach(collect);
+    };
+    collect(data);
+    for (const application of data.applications || []) for (const doc of application.documents || []) paths.add(doc.storagePath || `${verifiedUserId}/${doc.id}`);
+    for (const path of paths) await deleteDocumentBlob(path);
     await workspaceStore.clear();
     if (currentUser?.id !== verifiedUserId) throw new Error('Your account changed. Reload to view the current workspace.');
     data = workspaceStore.adopt({}, verifiedUserId);
@@ -1539,6 +1486,27 @@
     };
     workspaceD1Timer=setInterval(check,60000);
     workspaceD1Focus=()=>void check(); window.addEventListener('focus',workspaceD1Focus);
+  }
+
+  async function privateFileRequest(query, { method = 'GET', body, contentType } = {}) {
+    const userId = currentUser?.id;
+    if (!userId) throw new Error('Sign in to access your files.');
+    const auth = requireSupabase().auth;
+    let session = (await auth.getSession()).data?.session;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!session?.access_token || currentUser?.id !== userId || session.user?.id !== userId) throw new Error('Sign in again to access your files.');
+      const response = await fetch('/api/files?' + new URLSearchParams(query), {
+        method, headers: { authorization: `Bearer ${session.access_token}`, ...(contentType ? { 'content-type': contentType } : {}) },
+        ...(body ? { body } : {}), signal: AbortSignal.timeout(90000)
+      });
+      if (currentUser?.id !== userId) throw new Error('Your account changed while accessing a file.');
+      if (response.status === 401 && attempt === 0) { session = (await auth.refreshSession()).data?.session; continue; }
+      if (!response.ok) { const error = await response.json().catch(() => null); throw new Error(error?.error || 'Private file storage is unavailable.'); }
+      return response;
+    }
+  }
+  async function uploadStoredFile(path, file, contentType) {
+    return (await privateFileRequest({ path }, { method: 'PUT', body: file, contentType })).json();
   }
 
   // --- Application/email matching ---
@@ -4917,8 +4885,7 @@
   }
 
   // --- Active client documents ---
-  // Document binaries are stored in the private Supabase Storage bucket; only metadata and
-  // the storage path are kept in the user's app_state row. Nothing is stored in IndexedDB.
+  // Private files use Cloudflare R2; paths and document details remain in D1.
   const PDFJS_MODULE_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs';
   const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
   const MAX_DOCUMENT_SIZE_BYTES = 25 * 1024 * 1024;
@@ -4951,33 +4918,23 @@
   }
 
   async function saveDocumentBlob(id, file) {
-    const client = requireSupabase();
     if (!currentUser) throw new Error('Not signed in');
     if (file.size > MAX_DOCUMENT_SIZE_BYTES) throw new Error('Documents must be 25 MB or smaller.');
     const path = `${currentUser.id}/${id}`;
-    const { error } = await client.storage.from(SUPABASE_BUCKET).upload(path, file, {
-      upsert: false,
-      contentType: documentContentType(file)
-    });
-    if (error) throw error;
+    await uploadStoredFile(path, file, documentContentType(file));
     return path;
   }
 
   async function getDocumentBlob(idOrPath) {
-    const client = requireSupabase();
     if (!currentUser) throw new Error('Not signed in');
     const path = String(idOrPath).includes('/') ? String(idOrPath) : `${currentUser.id}/${idOrPath}`;
-    const { data: blob, error } = await client.storage.from(SUPABASE_BUCKET).download(path);
-    if (error) throw error;
-    return blob;
+    return (await privateFileRequest({ path })).blob();
   }
 
   async function deleteDocumentBlob(idOrPath) {
-    const client = requireSupabase();
     if (!currentUser) return;
     const path = String(idOrPath).includes('/') ? String(idOrPath) : `${currentUser.id}/${idOrPath}`;
-    const { error } = await client.storage.from(SUPABASE_BUCKET).remove([path]);
-    if (error) throw error;
+    await privateFileRequest({ path }, { method: 'DELETE' });
   }
 
   function personalDocumentPath(id) {
@@ -5169,18 +5126,13 @@
     try {
       const documentId = uid();
       const storagePath = personalDocumentPath(documentId);
-      const client = requireSupabase();
-      const { error } = await client.storage.from(SUPABASE_BUCKET).upload(storagePath, file, {
-        upsert: false,
-        contentType: documentContentType(file)
-      });
-      if (error) throw error;
+      await uploadStoredFile(storagePath, file, documentContentType(file));
       data.personalDocuments = data.personalDocuments || [];
       const record = { id: documentId, storagePath, name: file.name, type: file.type, size: file.size, addedAt: new Date().toISOString() };
       data.personalDocuments.unshift(record);
       persist();
       renderAll();
-      showActionResult({ title: 'Document uploaded', message: 'Your personal document was saved to Supabase.' });
+      showActionResult({ title: 'Document uploaded', message: 'Your personal document was saved securely.' });
       return record;
     } catch (error) {
       console.error(error);
@@ -11595,11 +11547,7 @@
     let uploaded = false;
     const previousProfileImage = item.profileImage;
     try {
-      const { error } = await requireSupabase().storage.from(SUPABASE_BUCKET).upload(storagePath, file, {
-        upsert: false,
-        contentType: 'image/jpeg'
-      });
-      if (error) throw error;
+      await uploadStoredFile(storagePath, file, 'image/jpeg');
       uploaded = true;
       const previousPath = item.profileImage?.storagePath;
       item.profileImage = {
@@ -11645,7 +11593,7 @@
       showActionResult({
         title: 'Profile photo could not be uploaded',
         message: /mime type .* not supported|mime types? not allowed/i.test(error.message || '')
-          ? 'The Supabase client-documents bucket must allow image/jpeg. Apply src/backend/supabase/profile-photo-storage-migration.sql in your Supabase SQL Editor, then try again.'
+          ? 'Private image storage is unavailable. Check the Cloudflare file storage connection and try again.'
           : error.message || 'Check your connection and try again.',
         status: 'error'
       });

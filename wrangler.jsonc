@@ -43,5 +43,6 @@
       "database_id": "671cb15b-0a62-4368-a516-fcf7dc7d66d5",
       "migrations_dir": "src/backend/d1"
     }
-  ]
+  ],
+  "r2_buckets": [{"binding":"WORKSPACE_FILES","bucket_name":"jeff-va-files"}]
 }

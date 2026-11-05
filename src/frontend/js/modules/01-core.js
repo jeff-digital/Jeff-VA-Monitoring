@@ -381,69 +381,18 @@
   renderProjectStorageSummary();
 
   async function refreshAccountStorageUsage() {
-    const output = $('#accountStorageUsage');
-    const refreshButton = $('#refreshAccountStorageUsage');
-    if (!currentUser || !output || !refreshButton || refreshButton.disabled) return;
+    const output = $('#accountStorageUsage'), button = $('#refreshAccountStorageUsage');
+    if (!currentUser || !output || button.disabled) return;
     const userId = currentUser.id;
-    output.textContent = 'Checking...';
-    $('#accountProjectStorageUsage').textContent = 'Checking...';
-    $('#accountProjectStorageAvailable').textContent = 'Checking...';
-    refreshButton.disabled = true;
+    button.disabled = true; output.textContent = 'Checking…';
     try {
-      const client = requireSupabase();
-      try {
-        const { data: usage, error } = await client.rpc('get_project_storage_usage');
-        if (error) throw error;
-        const summary = Array.isArray(usage) ? usage[0] : usage;
-        const usedBytes = Number(summary?.total_bytes);
-        const fileCount = Number(summary?.file_count);
-        if (!Number.isFinite(usedBytes) || usedBytes < 0 || !Number.isFinite(fileCount) || fileCount < 0) {
-          throw new Error('The project storage summary is invalid.');
-        }
-        projectStorageUsedBytes = usedBytes;
-        projectStorageFileCount = fileCount;
-      } catch (error) {
-        projectStorageUsedBytes = null;
-        projectStorageFileCount = 0;
-        console.error('Could not load project storage usage:', error);
-      }
-      renderProjectStorageSummary();
-
-      const bucket = client.storage.from(SUPABASE_BUCKET);
-      const folders = [userId];
-      let totalBytes = 0;
-      let fileCount = 0;
-      while (folders.length) {
-        const folder = folders.pop();
-        let offset = 0;
-        while (true) {
-          const { data: entries, error } = await bucket.list(folder, { limit: 100, offset });
-          if (error) throw error;
-          const objects = entries || [];
-          objects.forEach(object => {
-            if (object.id === null && object.metadata === null) {
-              folders.push(`${folder}/${object.name}`);
-              return;
-            }
-            const size = Number(object.metadata?.size);
-            if (!Number.isFinite(size) || size < 0) throw new Error('A stored file size is unavailable.');
-            totalBytes += size;
-            fileCount += 1;
-          });
-          if (objects.length < 100) break;
-          offset += objects.length;
-        }
-      }
-      if (currentUser?.id === userId) output.textContent = `${formatFileSize(totalBytes)} across ${plural(fileCount, 'file')}`;
+      const usage = await (await privateFileRequest({ action: 'usage' })).json();
+      if (currentUser?.id !== userId) return;
+      output.textContent = `${formatFileSize(usage.bytes)} · ${plural(usage.count, 'file')}`;
+      $('#accountProjectStorageUsage').textContent = 'Cloudflare R2 · Private';
     } catch (error) {
-      console.error('Could not load account storage usage:', error);
-      if (currentUser?.id === userId) output.textContent = 'Unavailable';
-      projectStorageUsedBytes = null;
-      projectStorageFileCount = 0;
-      renderProjectStorageSummary();
-    } finally {
-      refreshButton.disabled = false;
-    }
+      if (currentUser?.id === userId) output.textContent = error.message || 'Usage unavailable';
+    } finally { button.disabled = false; }
   }
 
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
@@ -1092,17 +1041,15 @@
     if (!grant || grant.expiresAt <= Date.now() || grant.userId !== currentUser?.id) throw new Error('Unlock data controls with your password first.');
     const verifiedUserId = grant.userId;
     if (!supabaseClient || currentUser?.id !== verifiedUserId) throw new Error('Sign in again before clearing data.');
-    const client = supabaseClient;
-    const paths = (data.applications || []).flatMap(application => (application.documents || []).map(doc => doc.storagePath || `${verifiedUserId}/${doc.id}`));
-    if (paths.length) {
-      const { error: storageError } = await client.storage.from(SUPABASE_BUCKET).remove(paths);
-      if (storageError) throw storageError;
-    }
-    const personalPaths = (data.personalDocuments || []).map(document => document.storagePath).filter(Boolean);
-    if (personalPaths.length) {
-      const { error: personalStorageError } = await client.storage.from(SUPABASE_BUCKET).remove(personalPaths);
-      if (personalStorageError) throw personalStorageError;
-    }
+    const paths = new Set();
+    const collect = value => {
+      if (!value || typeof value !== 'object') return;
+      if (typeof value.storagePath === 'string' && value.storagePath.startsWith(verifiedUserId + '/')) paths.add(value.storagePath);
+      Object.values(value).forEach(collect);
+    };
+    collect(data);
+    for (const application of data.applications || []) for (const doc of application.documents || []) paths.add(doc.storagePath || `${verifiedUserId}/${doc.id}`);
+    for (const path of paths) await deleteDocumentBlob(path);
     await workspaceStore.clear();
     if (currentUser?.id !== verifiedUserId) throw new Error('Your account changed. Reload to view the current workspace.');
     data = workspaceStore.adopt({}, verifiedUserId);

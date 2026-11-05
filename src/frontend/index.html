@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261105-settings-navigation" />
+    <link rel="stylesheet" href="css/styles.css?v=20261105-private-files" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
@@ -882,19 +882,18 @@
             <div class="account-section-heading">
               <h2 id="accountStorageTitle">File storage usage</h2>
               <div class="account-storage-actions">
-                <a class="text-button" href="https://supabase.com/dashboard/org/_/usage" target="_blank" rel="noopener noreferrer">Usage &amp; quota <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
                 <button class="text-button account-storage-refresh" type="button" id="refreshAccountStorageUsage"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
               </div>
             </div>
-            <div class="account-storage-plan-controls">
+            <div class="account-storage-plan-controls" hidden>
               <label class="account-storage-plan-field"><span>Supabase plan</span><select id="accountStoragePlan" aria-label="Supabase plan for storage quota"><option value="">Select plan</option><option value="free">Free · 1 GB</option><option value="pro-team">Pro / Team · 100 GB</option><option value="custom">Enterprise / custom</option></select></label>
               <label class="account-storage-plan-field" id="accountStorageCustomQuotaField" hidden><span>Custom quota (GB)</span><input id="accountStorageCustomQuota" type="number" min="0.01" step="0.1" inputmode="decimal" /></label>
             </div>
             <dl class="account-detail-list">
-              <div><dt>Storage used</dt><dd id="accountProjectStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
-              <div><dt>Plan storage</dt><dd id="accountProjectStorageQuota">Select plan</dd></div>
-              <div><dt>Estimated available</dt><dd id="accountProjectStorageAvailable">Select plan</dd></div>
-              <div><dt>Uploaded documents</dt><dd id="accountStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
+              <div><dt>Storage provider</dt><dd id="accountProjectStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
+              <div hidden><dt>Plan storage</dt><dd id="accountProjectStorageQuota">Select plan</dd></div>
+              <div hidden><dt>Estimated available</dt><dd id="accountProjectStorageAvailable">Select plan</dd></div>
+              <div><dt>Your files</dt><dd id="accountStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
             </dl>
           </section>
           <section class="account-section account-history-section" aria-labelledby="accountLoginActivityTitle">
@@ -1874,6 +1873,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261105-settings-navigation"></script>
+    <script src="js/app.js?v=20261105-private-files"></script>
   </body>
 </html>

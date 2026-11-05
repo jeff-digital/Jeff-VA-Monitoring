@@ -1,5 +1,7 @@
 # D1 workspace migration
 
+File storage has since moved to R2; see [private file storage](private-file-storage.md). The Supabase file references below describe the original D1 cutover and retained source backups.
+
 The Worker uses `WORKSPACE_BACKEND=d1` and the `WORKSPACE_DB` binding for workspace records. The database is `jeff-va-workspace` (`671cb15b-0a62-4368-a516-fcf7dc7d66d5`). Its schema is `src/backend/d1/0001-workspace.sql`.
 
 Applications, emails, daily tasks, client tasks, invoices, subscriptions, wallet entries and the other collections have separate account-scoped tables. Saves update changed records with conflict checks. The website checks a small revision while visible every 60 seconds and on focus; Android checks the revision before downloading changed data. Supabase Auth still verifies users. Existing attached files remain in Supabase Storage. These services can still generate Supabase usage; this is not a complete removal of Supabase.

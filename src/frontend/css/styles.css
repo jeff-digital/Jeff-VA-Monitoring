@@ -8557,3 +8557,5 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap
   #settingsModal .settings-account-content { grid-column: 1; grid-row: 3; padding: 20px 18px; }
   #settingsModal #accountView .account-history-heading { flex-wrap: wrap; }
 }
+#settingsModal .account-storage-plan-controls[hidden],
+#accountView .account-detail-list > div[hidden] { display: none !important; }

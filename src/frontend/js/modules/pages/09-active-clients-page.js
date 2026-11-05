@@ -562,11 +562,7 @@
     let uploaded = false;
     const previousProfileImage = item.profileImage;
     try {
-      const { error } = await requireSupabase().storage.from(SUPABASE_BUCKET).upload(storagePath, file, {
-        upsert: false,
-        contentType: 'image/jpeg'
-      });
-      if (error) throw error;
+      await uploadStoredFile(storagePath, file, 'image/jpeg');
       uploaded = true;
       const previousPath = item.profileImage?.storagePath;
       item.profileImage = {
@@ -612,7 +608,7 @@
       showActionResult({
         title: 'Profile photo could not be uploaded',
         message: /mime type .* not supported|mime types? not allowed/i.test(error.message || '')
-          ? 'The Supabase client-documents bucket must allow image/jpeg. Apply src/backend/supabase/profile-photo-storage-migration.sql in your Supabase SQL Editor, then try again.'
+          ? 'Private image storage is unavailable. Check the Cloudflare file storage connection and try again.'
           : error.message || 'Check your connection and try again.',
         status: 'error'
       });

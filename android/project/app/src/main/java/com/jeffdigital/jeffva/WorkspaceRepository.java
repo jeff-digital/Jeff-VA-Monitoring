@@ -329,32 +329,29 @@ final class WorkspaceRepository {
     JSONObject upload(String name, String mime, byte[] contents) throws Exception {
         String id = UUID.randomUUID().toString();
         String storagePath = userId + "/" + id;
-        request("POST", BuildConfig.SUPABASE_URL + "/storage/v1/object/client-documents/" + storagePath, contents, mime, accessToken(), null);
+        request("PUT", BuildConfig.API_ORIGIN + "/api/files?path=" + java.net.URLEncoder.encode(storagePath, "UTF-8"), contents, mime, accessToken(), null);
         return new JSONObject().put("id", id).put("name", name).put("type", mime).put("size", contents.length).put("storagePath", storagePath).put("addedAt", WorkspaceModel.now());
     }
     byte[] document(JSONObject doc) throws Exception {
         String storagePath = doc.optString("storagePath", doc.optString("id"));
         if (!storagePath.startsWith(userId + "/")) throw new Exception("The document is not in this account's storage.");
-        String response = authenticated("POST", BuildConfig.SUPABASE_URL + "/storage/v1/object/sign/client-documents/" + storagePath,
-            new JSONObject().put("expiresIn", 60), null);
-        return downloadSignedFile(response, 25 * 1024 * 1024);
+        return downloadPrivateFile(storagePath, accessToken(), 25 * 1024 * 1024);
     }
-    /** Capture read-only credentials now; photo requests never refresh or write a signed-out session. */
+    /** Capture read-only credentials now; photo requests never refresh a signed-out session. */
     java.util.concurrent.Callable<byte[]> profilePhoto(JSONObject photo) throws Exception {
         String path = photo.optString("storagePath");
         if (userId.isEmpty() || session == null || !path.startsWith(userId + "/") || path.contains("..") || path.contains("?") || path.contains("#")) throw new Exception("Profile photo is unavailable.");
         final String token = session.optString("access_token");
-        final String endpoint = BuildConfig.SUPABASE_URL + "/storage/v1/object/sign/client-documents/" + path;
-        return () -> downloadSignedFile(json("POST", endpoint, new JSONObject().put("expiresIn", 60), token, null), 5 * 1024 * 1024);
+        return () -> downloadPrivateFile(path, token, 5 * 1024 * 1024);
     }
-    private byte[] downloadSignedFile(String response, int maximumBytes) throws Exception {
-        String signed = new JSONObject(response).getString("signedURL");
-        URL url = new URL(BuildConfig.SUPABASE_URL + "/storage/v1" + signed);
-        if (!"https".equals(url.getProtocol()) || !url.getHost().equals(new URL(BuildConfig.SUPABASE_URL).getHost())) throw new Exception("Invalid document address.");
+    private byte[] downloadPrivateFile(String path, String token, int maximumBytes) throws Exception {
+        URL url = new URL(BuildConfig.API_ORIGIN + "/api/files?path=" + java.net.URLEncoder.encode(path, "UTF-8"));
+        if (!"https".equals(url.getProtocol()) || !url.getHost().equals(new URL(BuildConfig.API_ORIGIN).getHost())) throw new Exception("Invalid document address.");
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setConnectTimeout(20000); connection.setReadTimeout(25000); connection.setInstanceFollowRedirects(false);
+        connection.setRequestProperty("Authorization", "Bearer " + token);
+        connection.setConnectTimeout(20000); connection.setReadTimeout(90000); connection.setInstanceFollowRedirects(false);
         try {
-            if (connection.getResponseCode() != 200) throw new Exception("Could not download the document.");
+            if (connection.getResponseCode() != 200) throw new Exception("Could not download the private file.");
             try (InputStream in = connection.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[8192]; int length;
                 while ((length = in.read(buffer)) != -1) { if (out.size() + length > maximumBytes) throw new Exception("This file is too large to open here."); out.write(buffer, 0, length); }
@@ -385,7 +382,7 @@ final class WorkspaceRepository {
                 for (JSONObject file : WorkspaceModel.records(checked, "personalDocuments")) if (document.getString("storagePath").equals(file.optString("storagePath"))) linked = true;
                 for (JSONObject client : WorkspaceModel.records(checked, "applications")) for (JSONObject file : WorkspaceModel.records(client, "documents")) if (document.getString("storagePath").equals(file.optString("storagePath"))) linked = true;
                 if (linked) return checked;
-                authenticated("DELETE", BuildConfig.SUPABASE_URL + "/storage/v1/object/client-documents", new JSONObject().put("prefixes", new JSONArray().put(document.getString("storagePath"))), null);
+                api("DELETE", "/api/files?path=" + java.net.URLEncoder.encode(document.getString("storagePath"), "UTF-8"), null);
             } catch (Exception ignored) { }
             throw error;
         }

@@ -1,6 +1,7 @@
 01-core.js
 01a-login-activity.js
 01b-workspace-store.js
+01c-file-store.js
 02-email-matching.js
 02ac-follow-up-calendar.js
 02ad-follow-up-date-picker.js
