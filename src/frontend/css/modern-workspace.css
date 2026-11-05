@@ -1,0 +1,405 @@
+/* Workspace refresh. Client details and their dialogs retain their existing design. */
+body:not(:has(#hiredView.active.client-focused)) {
+  --modern-surface: var(--theme-surface, #fff);
+  --modern-canvas: var(--theme-raised, #f5f7fb);
+  --modern-text: var(--theme-text, #202b41);
+  --modern-muted: var(--theme-muted, #6b7588);
+  --modern-border: var(--theme-border, #e3e7ef);
+  --modern-accent: var(--theme-info-text, #465bc5);
+  background: var(--modern-canvas);
+}
+
+/* Compact page headers. Client detail mode keeps its original shell and typography. */
+body:not(:has(#hiredView.active.client-focused)) .topbar .topbar-copy {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 3px; min-width: 0;
+}
+body:not(:has(#hiredView.active.client-focused)) .topbar .topbar-title-area { min-width: 0; padding-top: 0; }
+body:not(:has(#hiredView.active.client-focused)) .content .topbar #pageTitle {
+  margin: 0; font-size: 20px; font-weight: 650; line-height: 1.25; letter-spacing: -.4px; overflow-wrap: anywhere;
+}
+body:not(:has(#hiredView.active.client-focused)) .topbar .page-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+body:not(:has(#hiredView.active.client-focused)) .topbar .page-context { margin: 0; font-size: 11px; line-height: 1.4; }
+body:not(:has(#hiredView.active.client-focused)) .topbar .eyebrow { display: none; }
+body:not(:has(#hiredView.active.client-focused)) .topbar :is(.button, .text-button) { min-height: 34px; padding: 7px 11px; font-size: 11px; line-height: 1.4; }
+body:not(:has(#hiredView.active.client-focused)) .topbar .topbar-title-area { order: 0; }
+body:not(:has(#hiredView.active.client-focused)) .topbar .dashboard-switcher { order: 1; }
+body:not(:has(#hiredView.active.client-focused)) .topbar .topbar-actions { order: 2; }
+body:not(:has(#hiredView.active.client-focused)) .topbar #openAddModal {
+  position: static; inset: auto; width: auto; max-width: none; margin: 0;
+}
+
+/* Active Clients list only; none of these selectors match a client detail screen. */
+body:has(#hiredView.active:not(.client-focused)) .content { padding: 16px 24px 32px; }
+body:has(#hiredView.active:not(.client-focused)) .topbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; height: auto; min-height: 44px;
+  margin: 0 0 14px; padding: 0 0 10px; border-bottom: 1px solid var(--modern-border);
+}
+body:has(#hiredView.active:not(.client-focused)) .topbar-title-area { flex: 1 1 280px; }
+body:has(#hiredView.active:not(.client-focused)) .hired-header-summary { flex-wrap: wrap; gap: 6px; }
+body:has(#hiredView.active:not(.client-focused)) .hired-header-summary > span { padding: 4px 7px; font-size: 10px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar {
+  display: flex; flex-wrap: wrap; gap: 10px; padding: 12px; margin: 0 0 16px;
+  border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-surface);
+}
+body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar .search-field { flex: 1 1 220px; max-width: 440px; min-width: 0; height: 36px; border-radius: 7px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar select { height: 36px; min-height: 36px; border-radius: 7px; font-size: 12px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredView > .hired-panel { padding: 0; border: 0; background: transparent; box-shadow: none; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 16px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 210px; height: 100%; padding: 20px;
+  border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); box-shadow: 0 2px 6px #14234304;
+}
+body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card:hover { border-color: var(--theme-info-border, #b7c1df); box-shadow: 0 4px 14px #1423430a; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card:focus-visible { outline: 2px solid var(--modern-accent); outline-offset: 3px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card-heading { align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card-profile { flex: 1 1 180px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card-avatar { width: 40px; height: 40px; flex-basis: 40px; border-radius: 11px; font-size: 13px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .client-card-title { font-size: 14px; line-height: 1.5; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .client-card-subtitle { font-size: 12px; line-height: 1.5; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card-footer { margin-top: auto; padding-top: 12px; font-size: 11px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredList .view-details-label { border-top: 0; padding-top: 0; }
+
+/* Settings use the same compact heading scale. */
+#settingsModal .settings-modal-heading { padding: 16px 22px; }
+#settingsModal .settings-modal-heading h2 { font-size: 17px; }
+#settingsModal .settings-account-heading h3 { font-size: 20px; }
+#settingsModal .settings-account-heading { margin-bottom: 18px; }
+
+@media (max-width: 1100px) {
+  body:has(#hiredView.active:not(.client-focused)) .content { padding: 14px 20px 28px; }
+}
+@media (max-width: 720px) {
+  body:not(:has(#hiredView.active.client-focused)) .topbar .topbar-title-area { flex: 1 1 0; }
+  body:not(:has(#hiredView.active.client-focused)) .content .topbar #pageTitle { font-size: 18px; }
+  body:has(#hiredView.active:not(.client-focused)) .content { padding: 12px 14px 28px; }
+  body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar .search-field { flex-basis: 100%; max-width: none; }
+  body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar .select-field { flex: 1 1 120px; min-width: 0; }
+  body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar select { width: 100%; }
+  body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card { padding: 16px; min-height: 190px; }
+  body:has(#hiredView.active:not(.client-focused)) .topbar { position: relative; align-items: flex-start; min-height: 72px; padding-bottom: 36px; }
+  body:has(#hiredView.active:not(.client-focused)) .hired-header-summary:not([hidden]) { position: absolute; left: 0; bottom: 8px; width: 100%; flex-wrap: nowrap; gap: 6px; margin: 0; }
+  body:has(#hiredView.active:not(.client-focused)) .hired-header-summary .client-world-clock-trigger { min-height: 24px; padding: 4px 7px; font-size: 10px; }
+}
+
+/* Keep the navigation familiar while giving it more breathing room. */
+body .sidebar { border-right-color: #ffffff12; font-family: var(--font-ui); }
+body .sidebar :is(button, label) { font-family: var(--font-ui); }
+body:not(:has(#hiredView.active)) .app-shell,
+body:not(:has(#hiredView.active)) .app-shell :is(h1, h2, h3, h4, button, label) { font-family: var(--font-ui); }
+body .sidebar .nav-link { border-radius: 9px; min-height: 42px; }
+body .sidebar .nav-link.active { background: #ffffff16; box-shadow: inset 3px 0 #b9c6ff; }
+body .sidebar .nav-group-label { letter-spacing: .13em; font-size: 9px; }
+body .sidebar .nav-count { border-radius: 6px; font-variant-numeric: tabular-nums; }
+
+/* Replace the older page-specific height locks with a single scrolling canvas. */
+body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) {
+  height: auto; min-height: 100dvh; overflow: auto;
+}
+body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) .app-shell {
+  height: auto; min-height: 100dvh;
+}
+body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) .content {
+  display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 1680px;
+  height: auto; min-height: 100dvh; margin: 0 auto; padding: 16px 24px 32px; overflow: visible;
+}
+body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) .topbar {
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+  height: auto; min-height: 44px; margin: 0; padding: 0 0 10px; border-bottom: 1px solid var(--modern-border);
+}
+body:not(:has(#hiredView.active)) .topbar .topbar-title-area { flex: 1 1 240px; }
+body:not(:has(#hiredView.active)) .topbar #pageTitle { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.25; letter-spacing: -.4px; white-space: normal; color: var(--modern-text); }
+body:not(:has(#hiredView.active)) .topbar .page-context { margin: 0; color: var(--modern-muted); font-size: 11px; line-height: 1.4; }
+body:not(:has(#hiredView.active)) .topbar .eyebrow { font-size: 9px; letter-spacing: .13em; }
+body:not(:has(#hiredView.active)) .topbar .topbar-actions { flex: 0 0 auto; margin-left: auto; gap: 10px; }
+body:not(:has(#hiredView.active)) .topbar :is(.global-search-trigger, .notification-button) { min-height: 34px; height: 34px; border: 1px solid var(--modern-border); border-radius: 8px; background: var(--modern-surface); }
+body:not(:has(#hiredView.active)) .topbar .dashboard-switcher { position: static; order: 3; transform: none; flex: 0 1 auto; max-width: 100%; margin: 0; padding: 4px; border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-surface); }
+body:not(:has(#hiredView.active)) .dashboard-switcher .dashboard-switcher-tab { min-height: 30px; padding: 6px 12px; border-radius: 6px; font-size: 11px; }
+
+/* Shared visual language, scoped to page contents rather than client dialogs. */
+.content > .view:not(#hiredView):not(#accountView) {
+  --workspace-ink: var(--modern-text); --workspace-muted: var(--modern-muted); --workspace-line: var(--modern-border);
+  color: var(--modern-text);
+}
+.content > .view.active:not(#hiredView):not(#accountView) { flex: 1; height: auto; min-height: 0; max-height: none; overflow: visible; }
+.content > .view:not(#hiredView):not(#accountView) :is(.panel, .client-dashboard-panel, .news-live-section, .subscription-card, .social-trend-card) {
+  border: 1px solid var(--modern-border); border-radius: 14px; background: var(--modern-surface); box-shadow: 0 2px 6px #14234304;
+}
+.content > .view:not(#hiredView):not(#accountView) :is(.button, .danger-button) {
+  min-height: 38px; padding: 9px 14px; border-radius: 8px; font-size: 12px; line-height: 1.5; font-weight: 600;
+}
+.content > .view:not(#hiredView):not(#accountView) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-radius: 8px; border-color: var(--modern-border); color: var(--modern-text); font-size: 13px;
+}
+.content > .view:not(#hiredView):not(#accountView) :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--modern-accent); outline-offset: 3px;
+}
+.content > .view:not(#hiredView):not(#accountView) :is(.search-field, .daily-task-search, .daily-task-quick-add, .client-dashboard-search) {
+  border: 1px solid var(--modern-border); border-radius: 9px; background: var(--modern-surface); min-height: 40px;
+}
+.content > .view:not(#hiredView):not(#accountView) .search-field input { border: 0; background: transparent; }
+.content > .view:not(#hiredView):not(#accountView) :is(.application-filters, .subscriptions-toolbar, .social-trend-toolbar) {
+  padding: 16px; margin: 0 0 18px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); gap: 12px;
+}
+.content > .view:not(#hiredView):not(#accountView) :is(.application-filter-field select, .application-filter-field input) { min-height: 40px; height: auto; }
+.content > .view:not(#hiredView):not(#accountView) :is(th, .application-list-head) { background: var(--modern-canvas); color: var(--modern-muted); font-size: 11px; font-weight: 600; }
+.content > .view:not(#hiredView):not(#accountView) :is(td, th) { padding-top: 15px; padding-bottom: 15px; }
+.content > .view:not(#hiredView):not(#accountView) :is(.application-empty, .to-apply-empty, .daily-task-empty, .daily-task-history-empty, .wallet-empty, .subscriptions-empty, .news-empty, .documents-empty) {
+  min-height: 180px; padding: 36px 22px; border-radius: 10px; color: var(--modern-muted); font-size: 13px; line-height: 1.7;
+}
+.content > .view:not(#hiredView):not(#accountView) :is(.stat-card, .wallet-stat, .social-trend-summary article) { border-radius: 13px; padding: 22px; box-shadow: 0 2px 6px #14234304; }
+
+/* Dashboards: distinct summary cards and comfortable, readable work panels. */
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) #dashboardView { display: block; overflow: visible; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) :is(#clientDashboardPanel, #clientDashboardContent) { height: auto; overflow: visible; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) #clientDashboardContent { display: flex; flex-direction: column; gap: 22px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-stat-grid { gap: 16px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi { padding: 22px; min-height: 130px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi > strong { font-size: 30px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-kpi :is(.stat-label, p) { font-size: 12px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-main-grid { grid-template-columns: minmax(0, 2fr) minmax(230px, 1fr); grid-template-rows: auto auto; gap: 20px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-bottom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; gap: 20px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-panel-heading { padding: 20px; }
+body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-panel-heading h2 { font-size: 15px; }
+#dashboardView #clientDashboardPanel :is(.client-dashboard-client-list, .client-dashboard-task-list, .client-dashboard-activity-list) { max-height: 360px; overflow-y: auto; }
+#dashboardView #applicationDashboardPanel { height: auto; overflow: visible; }
+body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #dashboardView { overflow: visible; }
+body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel {
+  height: auto; grid-template-rows: auto auto minmax(280px, auto) auto; gap: 22px; overflow: visible;
+}
+body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .weekly-report-banner { padding: 20px; border-radius: 12px; gap: 16px; flex-wrap: wrap; }
+body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel .stat-card { min-height: 130px; padding: 22px; }
+body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) :is(.platform-panel, .status-panel, .interview-calendar-panel) { padding: 22px; border-radius: 14px; }
+body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .interview-calendar { min-height: 360px; }
+#dashboardView .dashboard-overview { border-radius: 14px; }
+#dashboardView .recent-panel { margin-top: 22px; }
+
+/* Tasks and application pipelines. */
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-layout { height: auto; align-items: start; gap: 22px; }
+body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list-panel, .daily-task-history-panel) { height: auto; min-height: 360px; padding: 22px; overflow: visible; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-section-heading { padding-bottom: 16px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-section-heading h3 { font-size: 16px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-toolbar { gap: 12px; margin-bottom: 18px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary { gap: 10px; margin: 0 0 18px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary > div { flex: 1; display: grid; gap: 6px; padding: 14px; border: 1px solid var(--modern-border); border-radius: 9px; background: var(--modern-canvas); }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary > div:first-child { padding-left: 14px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary strong { font-size: 23px; }
+body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list, .daily-task-history-list) { max-height: 620px; overflow-y: auto; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-item { min-height: 58px; padding: 13px 10px; }
+body:has(#dailyTaskView.active) #dailyTaskView .daily-task-item-title { font-size: 13px; }
+#applicationsView.active, #toApplyView.active { display: flex; flex-direction: column; gap: 18px; }
+#applicationsView .application-workspace-head, #toApplyView .to-apply-workspace-head { min-height: 42px; margin: 0; padding: 0; justify-content: space-between; }
+body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #applicationsView .application-workspace-head { padding: 0; min-height: 42px; justify-content: space-between; }
+#applicationsView #applicationListLabel { font-size: 15px; font-weight: 650; }
+#applicationsView .application-filter-controls { flex-wrap: wrap; gap: 10px; }
+#applicationsView .application-panel, #toApplyView .to-apply-page-panel { min-height: 240px; }
+#applicationsView .application-list, #toApplyView .to-apply-list { max-height: none; overflow: visible; }
+#applicationsView .application-table-wrap, #toApplyView .application-table-wrap { overflow-x: auto; }
+
+/* Inbox and discovery pages. */
+#inboxView .inbox-panel { padding: 0; overflow: visible; }
+#inboxView .email-panel-header { padding: 22px; border-bottom: 1px solid var(--modern-border); border-radius: 13px 13px 0 0; }
+#inboxView .email-panel-header .email-filters { margin: 18px 0 0; padding: 0; border: 0; box-shadow: none; }
+#inboxView .email-summary { padding: 4px; gap: 4px; border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-canvas); }
+#inboxView .email-summary-item { min-height: 40px; padding: 9px 18px; border-radius: 7px; font-size: 13px; }
+#inboxView .email-summary-item.active { background: var(--modern-surface); box-shadow: 0 1px 3px #1423430a; }
+#inboxView .email-list { max-height: none; }
+#inboxView .email-item { padding: 20px 22px; }
+#inboxView .privacy-note { margin: 16px 0 0; color: var(--modern-muted); font-size: 11px; }
+#newsView .news-live-section { padding: 24px; }
+#newsView .news-live-header { margin-bottom: 22px; }
+#newsView .news-live-grid { gap: 20px; }
+#newsView .news-card { border-radius: 12px; overflow: hidden; }
+#socialTrendsView .social-trends-intro { margin-bottom: 24px; }
+#socialTrendsView .social-trend-summary { gap: 16px; margin-bottom: 22px; }
+
+/* Finances: separate overview, accounts, and transactions into clear sections. */
+#walletView.active { display: flex; flex-direction: column; gap: 22px; }
+#walletView .wallet-intro { margin: 0; }
+#walletView .wallet-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 14px; }
+#walletView .wallet-stat { min-height: 130px; padding: 20px; }
+#walletView .wallet-stat strong { font-size: 26px; }
+#walletView .wallet-stat :is(span, small) { font-size: 11px; line-height: 1.6; }
+#walletView .wallet-section { padding: 22px; border: 1px solid var(--modern-border); border-radius: 14px; background: var(--modern-surface); }
+#walletView .wallet-section-heading { margin-bottom: 18px; }
+#walletView .wallet-section-heading h3 { font-size: 16px; }
+#walletView .wallet-accounts { gap: 14px; overflow: visible; }
+#walletView .wallet-account { padding: 20px; border-radius: 10px; background: var(--modern-canvas); }
+#walletView .wallet-transactions { padding: 22px; overflow: visible; }
+#walletView #walletTransactionList { max-height: none; overflow: visible; }
+#subscriptionsView.active { display: flex; flex-direction: column; gap: 18px; }
+#subscriptionsView .subscriptions-intro { margin: 0; }
+#subscriptionsView .subscriptions-intro h2 { font-size: 18px; }
+#subscriptionsView .subscriptions-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; border: 0; }
+#subscriptionsView .subscriptions-summary article { display: grid; gap: 8px; padding: 22px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); }
+#subscriptionsView .subscriptions-summary strong { font-size: 28px; }
+#subscriptionsView .subscriptions-summary small { display: block; color: var(--modern-muted); font-size: 11px; line-height: 1.6; }
+#subscriptionsView .subscriptions-grid { gap: 20px; overflow: visible; }
+#subscriptionsView .subscription-card { padding: 24px; }
+
+/* Career Tools: grouped navigation, an explicit mobile picker, and focused content. */
+body:has(#documentsView.active #coverLetterPanel:not(.hidden)) .content { height: auto; }
+#documentsView.active .documents-page-panel { display: block; height: auto; min-height: 650px; padding: 0; overflow: visible; }
+#documentsView .career-tools-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 650px; }
+#documentsView .career-tools-navigation { min-width: 0; padding: 18px 12px; border-right: 1px solid var(--modern-border); }
+body:has(#documentsView.active) #documentsView .documents-tabs { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; overflow: visible; border: 0; background: transparent; }
+#documentsView .career-tool-group { margin: 18px 12px 7px; color: var(--modern-muted); font-size: 9px; font-weight: 650; letter-spacing: .12em; }
+#documentsView .career-tool-group:first-child { margin-top: 6px; }
+body:has(#documentsView.active) #documentsView .documents-tab { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--modern-muted); text-align: left; white-space: normal; box-shadow: none; }
+#documentsView .documents-tab::after { display: none; }
+#documentsView .documents-tab > i { width: 18px; flex: 0 0 18px; font-size: 16px; }
+#documentsView .documents-tab > span { font-size: 12px; font-weight: 600; }
+#documentsView .documents-tab small { display: block; margin-top: 5px; font-size: 10px; font-weight: 400; line-height: 1.5; }
+body:has(#documentsView.active) #documentsView .documents-tab.active { background: var(--modern-canvas); color: var(--modern-text); border-color: var(--modern-border); }
+#documentsView .documents-tab:hover { background: var(--modern-canvas); }
+#documentsView .career-tool-picker { display: none; }
+#documentsView .career-tool-content { min-width: 0; padding: 28px; }
+#documentsView .career-tool-description { margin: 0 0 24px; padding-bottom: 20px; border-bottom: 1px solid var(--modern-border); color: var(--modern-muted); font-size: 13px; line-height: 1.7; }
+#documentsView .documents-tab-panel { padding: 0; }
+#documentsView .documents-tab-panel[hidden] { display: none !important; }
+#documentsView :is(.cover-letter-heading, .documents-subsection-head) { margin: 0 0 22px; padding: 0; gap: 16px; align-items: center; }
+#documentsView :is(.cover-letter-heading, .documents-subsection-head) h3 { margin: 5px 0 0; font-size: 20px; font-weight: 650; letter-spacing: -.5px; }
+#documentsView .eyebrow { color: var(--modern-muted); font-size: 9px; letter-spacing: .12em; }
+#documentsView #coverLetterPanel .cover-letter-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; padding: 0; }
+#documentsView .cover-letter-editor { padding: 22px; border: 1px solid var(--modern-border); border-radius: 11px; background: var(--modern-canvas); }
+#documentsView .cover-letter-editor-heading { margin-bottom: 20px; flex-wrap: wrap; gap: 8px; }
+#documentsView #coverLetterPanel .cover-letter-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+#documentsView .cover-letter-editor-fields :is(.cover-letter-fixed-contact, .cover-letter-body-field) { grid-column: 1 / -1; }
+#documentsView .cover-letter-editor-fields label:has([data-cover-letter-field="role"]) { grid-column: 1 / -1; }
+#documentsView #coverLetterPanel .cover-letter-editor-fields input { min-height: 42px; padding: 10px 12px; background: var(--modern-surface); }
+#documentsView #coverLetterPanel .cover-letter-body-field textarea { min-height: 280px; height: auto; padding: 14px; resize: vertical; line-height: 1.8; text-align: left; background: var(--modern-surface); }
+#documentsView .cover-letter-fixed-contact { padding: 12px; font-size: 11px; line-height: 1.7; }
+#documentsView .cover-letter-preview-area { overflow: hidden; min-width: 0; }
+#documentsView .cover-letter-preview-stage { position: relative; height: 620px; min-height: 0; flex: none; border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-canvas); overflow: hidden; }
+#documentsView #coverLetterPreview { position: absolute; top: 50%; left: 50%; width: 794px; min-height: 1123px; max-width: none; margin: 0; transform-origin: center; transform: translate(-50%, -50%) scale(var(--letter-preview-scale, .4)); }
+#documentsView :is(.script-item, .work-link-item, .personal-document-card, .invoice-item) { border-radius: 10px; padding: 18px; border-color: var(--modern-border); }
+#documentsView .salary-calculator-fields { gap: 18px; }
+#documentsView .salary-calculator-result { margin-top: 24px; gap: 14px; }
+#documentsView .salary-calculator-result { border: 0; border-radius: 0; background: transparent; overflow: visible; }
+#documentsView .salary-calculator-result > div { padding: 22px; border-radius: 10px; background: var(--modern-canvas); border: 1px solid var(--modern-border); }
+#documentsView .template-tester { gap: 20px; }
+#documentsView :is(.form-field input, .form-field select) { min-height: 42px; padding: 10px 12px; }
+
+@media (min-width: 1250px) {
+  #documentsView #coverLetterPanel .cover-letter-workspace { grid-template-columns: minmax(300px, 1fr) minmax(0, 1fr); align-items: start; }
+}
+@media (max-width: 1100px) {
+  body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) .content { padding: 14px 20px 28px; }
+  #documentsView .career-tools-layout { grid-template-columns: 200px minmax(0, 1fr); }
+  #documentsView .career-tool-content { padding: 22px; }
+}
+@media (max-width: 900px) {
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel { display: flex; flex-direction: column; gap: 20px; }
+  #documentsView .career-tools-layout { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  #documentsView .career-tools-navigation { padding: 20px; border-right: 0; border-bottom: 1px solid var(--modern-border); background: var(--modern-canvas); border-radius: 14px 14px 0 0; }
+  body:has(#documentsView.active) #documentsView .documents-tabs { display: none; }
+  #documentsView .career-tool-picker { display: grid; gap: 9px; font-size: 12px; font-weight: 600; color: var(--modern-text); }
+  #documentsView .career-tool-picker select { width: 100%; min-height: 46px; padding: 12px; border: 1px solid var(--modern-border); border-radius: 9px; background: var(--modern-surface); font: inherit; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-main-grid { grid-template-columns: minmax(0, 1fr); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-main-grid > section { grid-column: auto; grid-row: auto; }
+  body:has(#dailyTaskView.active) #dailyTaskView .daily-task-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) .content { padding: 12px 14px 28px; gap: 12px; }
+  body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) .topbar { gap: 8px; padding-bottom: 8px; }
+  body:not(:has(#hiredView.active)) .topbar .topbar-title-area { flex: 1 1 150px; }
+  body:not(:has(#hiredView.active)) .topbar #pageTitle { font-size: 18px; }
+  body:not(:has(#hiredView.active)) .topbar .topbar-actions { flex-wrap: wrap; }
+  body:not(:has(#hiredView.active)) .topbar .dashboard-switcher { flex: 1 1 100%; }
+  body:not(:has(#hiredView.active)) .topbar .dashboard-switcher-tab { padding: 8px; font-size: 11px; white-space: normal; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-stat-grid { grid-template-columns: minmax(0, 1fr); }
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-bottom-grid { grid-template-columns: minmax(0, 1fr); }
+  body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list-panel, .daily-task-history-panel) { padding: 16px; }
+  .content > .view:not(#hiredView):not(#accountView) :is(.application-filter-controls, .email-filter-controls) { width: 100%; }
+  .content > .view:not(#hiredView):not(#accountView) :is(.application-filters, .subscriptions-toolbar) { padding: 12px; }
+  #inboxView .email-panel-header, #newsView .news-live-section { padding: 16px; }
+  #subscriptionsView .subscriptions-summary { gap: 8px; }
+  #subscriptionsView .subscriptions-summary article { padding: 14px 10px; }
+  #subscriptionsView .subscriptions-summary small { display: none; }
+  #subscriptionsView .subscriptions-summary strong { font-size: 24px; }
+  #walletView .wallet-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #walletView :is(.wallet-section, .wallet-transactions) { padding: 16px; }
+  #documentsView .career-tool-content { padding: 20px 16px; }
+  #documentsView .cover-letter-editor { padding: 16px; }
+  #documentsView #coverLetterPanel .cover-letter-editor-fields { grid-template-columns: minmax(0, 1fr); }
+  #documentsView .cover-letter-preview-stage { height: 480px; }
+  #documentsView :is(.cover-letter-heading, .documents-subsection-head) { align-items: flex-start; flex-wrap: wrap; }
+  #documentsView .salary-calculator-result { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Desktop dashboards use the viewport; growing records scroll inside their panels. */
+@media (min-width: 1000px) and (min-height: 600px) {
+  body:has(#dashboardView.active):not(:has(#hiredView.active)) { height: 100dvh; min-height: 0; overflow: hidden; }
+  body:has(#dashboardView.active):not(:has(#hiredView.active)) .app-shell { height: 100dvh; min-height: 0; }
+  body:has(#dashboardView.active):not(:has(#hiredView.active)) .content {
+    display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; min-height: 0;
+    gap: 10px; padding: 12px 20px; overflow: hidden;
+  }
+  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar { flex-wrap: nowrap; min-height: 40px; gap: 10px; padding-bottom: 8px; }
+  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar-title-area { flex: 1 1 0; width: auto; }
+  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar .dashboard-switcher { flex: 0 0 auto; width: auto; order: 1; }
+  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar .topbar-actions { flex: 0 0 auto; order: 2; }
+  body:has(#dashboardView.active):has(#clientDashboardPanel) #dashboardView.view.active { display: grid; grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel,
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel { height: 100%; min-height: 0; overflow: hidden; }
+
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel #clientDashboardContent {
+    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: 110px minmax(0, 1fr);
+    height: 100%; min-height: 0; gap: 12px;
+  }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-stat-grid { grid-column: 1 / -1; grid-row: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-stat-grid:not(.has-income) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi { min-height: 0; padding: 10px 14px; gap: 4px; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi .stat-icon { width: 24px; height: 24px; flex-basis: 24px; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi > strong { font-size: 25px; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi :is(.stat-label, p) { font-size: 11px; line-height: 1.4; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-main-grid {
+    grid-column: 1 / 10; grid-row: 2; grid-template-columns: minmax(0, 2fr) minmax(190px, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; gap: 12px; min-height: 0;
+  }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-clients { grid-column: 1; grid-row: 1; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-tasks { grid-column: 1; grid-row: 2; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-attention { grid-column: 2; grid-row: 1 / 3; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-bottom-grid {
+    grid-column: 10 / -1; grid-row: 2; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 12px; min-height: 0; margin: 0;
+  }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-panel-heading { flex: 0 0 auto; padding: 12px; gap: 8px; flex-wrap: wrap; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-panel-heading h2 { font-size: 13px; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel :is(.client-dashboard-table-wrap, .client-dashboard-attention-list, .client-dashboard-task-list, .client-dashboard-activity-list) {
+    flex: 1; min-height: 0; max-height: none; overflow: auto; overscroll-behavior: contain;
+  }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-chart-wrap { flex: 1; min-height: 0; overflow: hidden; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-chart-wrap svg { height: 100%; min-height: 0; max-height: 100%; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-table :is(td, th) { padding: 9px 8px; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-search { min-height: 32px; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-filters :is(input, select) { min-height: 32px; height: 32px; }
+
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel {
+    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: 64px 90px minmax(155px, 1.15fr) minmax(100px, 1fr); gap: 10px 12px;
+  }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .weekly-report-banner { grid-column: 1 / -1; grid-row: 1; padding: 10px 14px; min-height: 0; gap: 10px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .weekly-report-banner > div { flex-wrap: wrap; gap: 4px 10px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .stat-grid { grid-column: 1 / 9; grid-row: 2; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .stat-card { min-height: 0; padding: 12px 16px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .stat-card strong { font-size: 25px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .dashboard-overview-carousel { grid-column: 1 / 9; grid-row: 3; min-height: 0; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .dashboard-overview-viewport { flex: 1; height: auto; min-height: 0; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel :is(.platform-panel, .status-panel) { padding: 12px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .platform-list { min-height: 0; overflow: auto; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .recent-panel { grid-column: 1 / 9; grid-row: 4; display: flex; flex-direction: column; min-height: 0; margin: 0; padding: 12px 14px; overflow: hidden; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .recent-panel .table-wrap { flex: 1; min-height: 0; overflow: auto; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .application-dashboard-insights {
+    grid-column: 9 / -1; grid-row: 2 / 5; display: grid; grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 12px; min-height: 0; overflow: hidden;
+  }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .interview-calendar-panel { min-height: 0; padding: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .interview-calendar { flex: 1; min-height: 0; grid-template-rows: 22px repeat(6, minmax(0, 1fr)); }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .calendar-day { min-height: 0; padding: 3px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai { min-height: 0; padding: 12px; overflow: auto; overscroll-behavior: contain; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-heading h2 { font-size: 13px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-heading .button { min-height: 30px; padding: 6px 8px; font-size: 11px; }
+  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-note { font-size: 11px; line-height: 1.5; }
+}

@@ -7,7 +7,7 @@
   });
 
   function isMobileLayout() {
-    return window.matchMedia('(max-width: 720px)').matches;
+    return window.matchMedia('(max-width: 1100px)').matches;
   }
 
   function openMobileSidebar() {
@@ -29,7 +29,7 @@
     const mobileLayout = isMobileLayout();
     const wasOpen = sidebar.classList.contains('open');
     sidebar.classList.remove('open');
-    sidebar.setAttribute('aria-hidden', String(mobileLayout));
+    sidebar.setAttribute('aria-hidden', String(window.matchMedia('(max-width: 720px)').matches));
     backdrop.hidden = true;
     document.body.classList.remove('mobile-sidebar-open');
     $('#mobileMenu').setAttribute('aria-expanded', 'false');

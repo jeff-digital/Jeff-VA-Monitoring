@@ -421,6 +421,7 @@
   function closeClientDashboardDrawer() {
     const drawer = $('#clientDashboardDrawer');
     if (!drawer || drawer.hidden) return;
+    if (drawer.open) drawer.close();
     drawer.hidden = true;
     drawer.setAttribute('aria-hidden', 'true');
     $('#clientDashboardBackdrop').hidden = true;
@@ -440,6 +441,7 @@
     const drawer = $('#clientDashboardDrawer');
     drawer.hidden = false;
     drawer.setAttribute('aria-hidden', 'false');
+    if (!drawer.open) drawer.showModal();
     $('#clientDashboardBackdrop').hidden = false;
     document.body.classList.add('client-dashboard-drawer-open');
     requestAnimationFrame(() => drawer.querySelector('button, a, input, select, textarea')?.focus());
@@ -534,6 +536,15 @@
   }
 
   $('#clientDashboardSearch').addEventListener('input', () => renderClientDashboardTable(hiredClients()));
+  $('#clientDashboardDrawer').addEventListener('cancel', event => {
+    event.preventDefault();
+    closeClientDashboardDrawer();
+  });
+  $('#clientDashboardDrawer').addEventListener('click', event => {
+    if (event.target !== event.currentTarget) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeClientDashboardDrawer();
+  });
   $('#clientDashboardStatusFilter').addEventListener('change', () => renderClientDashboardTable(hiredClients()));
   $('#clientDashboardActionForm').addEventListener('submit', saveClientDashboardAction);
   $('#clientDashboardClients').addEventListener('click', event => {

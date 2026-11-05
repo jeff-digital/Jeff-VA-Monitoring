@@ -10,8 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261105-private-files" />
+    <link rel="stylesheet" href="css/styles.css?v=20261105-consistent-sidebar" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
+    <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261105-dashboard-fit" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body>
@@ -250,10 +252,10 @@
               </div>
             </div>
             <div class="client-dashboard-backdrop" id="clientDashboardBackdrop" hidden></div>
-            <aside class="client-dashboard-drawer" id="clientDashboardDrawer" role="dialog" aria-modal="true" aria-labelledby="clientDashboardDrawerTitle" aria-hidden="true" hidden>
+            <dialog class="client-dashboard-drawer" id="clientDashboardDrawer" aria-labelledby="clientDashboardDrawerTitle" aria-hidden="true" hidden>
               <header class="client-dashboard-drawer-heading"><div><span class="eyebrow">CLIENT DETAILS</span><h2 id="clientDashboardDrawerTitle">Client</h2></div><button class="icon-button" type="button" data-client-dashboard-close aria-label="Close client details"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
               <div class="client-dashboard-drawer-content" id="clientDashboardDrawerContent"></div>
-            </aside>
+            </dialog>
             <dialog class="client-dashboard-action-dialog" id="clientDashboardActionDialog" aria-labelledby="clientDashboardActionTitle">
               <form id="clientDashboardActionForm">
                 <div class="client-dashboard-drawer-heading"><div><span class="eyebrow">QUICK ACTION</span><h2 id="clientDashboardActionTitle">Add a note</h2></div></div>
@@ -653,15 +655,24 @@
 
         <section class="view" id="documentsView" data-view-panel="documents" data-page="tools">
           <section class="panel documents-page-panel">
-            <div class="documents-tabs" role="tablist" aria-label="Tools">
-              <button class="documents-tab active" type="button" role="tab" aria-selected="true" data-documents-tab="cover-letter"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Cover letter</span></button>
-              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="scripts"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Scripts</span></button>
-              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="links"><i class="fa-solid fa-link" aria-hidden="true"></i><span>Softcopy links</span></button>
-              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="documents"><i class="fa-regular fa-folder-open" aria-hidden="true"></i><span>Documents</span></button>
-              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="templates"><i class="fa-regular fa-copy" aria-hidden="true"></i><span>Templates</span></button>
-              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="invoices"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Invoices</span></button>
-              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="salary"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span>Salary</span></button>
+            <div class="career-tools-layout">
+            <div class="career-tools-navigation">
+              <label class="career-tool-picker" for="careerToolSelect"><span>Choose a tool</span><select id="careerToolSelect"><option value="cover-letter">Cover letter</option><option value="scripts">Reusable scripts</option><option value="templates">Email templates</option><option value="documents">My documents</option><option value="links">Saved links</option><option value="invoices">Invoice history</option><option value="salary">Salary calculator</option></select></label>
+            <div class="documents-tabs" role="tablist" aria-label="Career tools" aria-orientation="vertical">
+              <span class="career-tool-group" aria-hidden="true">CREATE &amp; PREPARE</span>
+              <button class="documents-tab active" type="button" role="tab" aria-selected="true" data-documents-tab="cover-letter"><i class="fa-regular fa-file-lines" aria-hidden="true"></i><span>Cover letter<small>Build your introduction</small></span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="scripts"><i class="fa-regular fa-comment-dots" aria-hidden="true"></i><span>Reusable scripts<small>Keep your best responses</small></span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="templates"><i class="fa-regular fa-copy" aria-hidden="true"></i><span>Email templates<small>Preview before you send</small></span></button>
+              <span class="career-tool-group" aria-hidden="true">YOUR RESOURCES</span>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="documents"><i class="fa-regular fa-folder-open" aria-hidden="true"></i><span>My documents<small>Find your saved files</small></span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="links"><i class="fa-solid fa-link" aria-hidden="true"></i><span>Saved links<small>Docs, portfolios &amp; more</small></span></button>
+              <span class="career-tool-group" aria-hidden="true">PAY &amp; BILLING</span>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="invoices"><i class="fa-regular fa-credit-card" aria-hidden="true"></i><span>Invoice history<small>Review sent invoices</small></span></button>
+              <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="salary"><i class="fa-solid fa-calculator" aria-hidden="true"></i><span>Salary calculator<small>Understand your rates</small></span></button>
             </div>
+            </div>
+            <div class="career-tool-content">
+            <p class="career-tool-description" id="careerToolDescription">Create a tailored introduction, then download it as a Word document or PDF.</p>
             <div class="documents-tab-panel" id="coverLetterPanel" data-documents-panel="cover-letter">
               <div class="cover-letter-heading">
                 <div><p class="eyebrow">DOCUMENT BUILDER</p><h3>Cover letter</h3></div>
@@ -759,6 +770,8 @@
                 <p class="salary-calculator-help">Hourly estimates use 52 weeks divided by 12 months. Monthly pay uses the amount entered. PHP/USD conversion is approximate and uses the rate shown above.</p>
               </div>
             </div>
+            </div>
+            </div>
           </section>
         </section>
 
@@ -825,6 +838,7 @@
             <div class="account-identity-copy">
               <p class="account-provider-label" id="accountSignInProvider">Supabase Auth</p>
               <h2 id="accountEmail">Account</h2>
+              <p class="account-identity-caption">Your personal workspace and connected services.</p>
             </div>
           </section>
           <div class="account-overview-grid">
@@ -1806,7 +1820,7 @@
 
     <dialog class="modal settings-modal" id="settingsModal" aria-labelledby="settingsTitle">
       <header class="settings-modal-heading">
-        <div><p class="eyebrow">WORKSPACE</p><h2 id="settingsTitle">Settings &amp; account</h2></div>
+        <div class="settings-brand"><span class="settings-brand-icon" aria-hidden="true"><i class="fa-solid fa-sliders"></i></span><div><p class="eyebrow">YOUR WORKSPACE</p><h2 id="settingsTitle">Settings &amp; account</h2></div></div>
         <button class="icon-button" type="button" id="closeSettingsModal" aria-label="Close settings">×</button>
       </header>
       <nav class="settings-navigation" aria-label="Settings sections">
@@ -1817,10 +1831,12 @@
         <button type="button" data-settings-section="security" aria-pressed="false"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Security</span></button>
       </nav>
       <div class="settings-account-content" id="settingsAccountContent">
-        <header class="settings-account-heading"><h3 id="settingsSectionTitle">Account</h3></header>
+        <header class="settings-account-heading"><h3 id="settingsSectionTitle">Account</h3><p id="settingsSectionDescription">Manage your personal account and connected services.</p></header>
       <section class="settings-device-panels" aria-labelledby="settingsDeviceTitle">
         <section class="settings-device-section" data-settings-panel="appearance" aria-labelledby="settingsAppearanceTitle">
           <div class="settings-device-heading"><div><p class="eyebrow">APPEARANCE</p><h3 id="settingsAppearanceTitle">Workspace theme</h3></div></div>
+          <p class="settings-copy">Choose a comfortable look for your everyday work.</p>
+          <div class="settings-theme-preview" aria-hidden="true"><div class="theme-preview-sidebar"><span></span><span></span><span></span><span></span></div><div class="theme-preview-content"><div class="theme-preview-heading"></div><div class="theme-preview-cards"><span></span><span></span><span></span></div><div class="theme-preview-lines"><span></span><span></span><span></span></div></div></div>
           <label class="form-field">Color mode
             <select id="workspaceTheme">
               <option value="light">Light</option>
@@ -1873,6 +1889,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261105-private-files"></script>
+    <script src="js/app.js?v=20261105-compact-headers"></script>
   </body>
 </html>

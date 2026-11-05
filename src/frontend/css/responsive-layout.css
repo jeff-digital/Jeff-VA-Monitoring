@@ -1,0 +1,194 @@
+/* Respond to usable workspace width, including a window beside another app. */
+.content { container: workspace / inline-size; }
+.view, .panel, .topbar-title-area, .topbar-copy { min-width: 0; }
+/* Keep this overlay in the viewport rather than an animated/contained view. */
+#clientDashboardDrawer { margin: 0; padding: 0; max-width: 100vw; max-height: 100dvh; border-top: 0; border-bottom: 0; border-right: 0; }
+#clientDashboardDrawer::backdrop { background: rgba(16, 24, 40, .42); }
+#clientDashboardBackdrop { display: none; }
+body #hiredView.active .hired-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+body #hiredView.active .hired-card { min-width: 0; width: auto; max-width: none; }
+body #hiredView.active .hired-card-contact { flex-wrap: wrap; justify-content: flex-start; row-gap: 5px; }
+body #hiredView.active .hired-card .hired-card-timezone { flex: 1 1 150px; max-width: 100%; white-space: normal; }
+body #hiredView.active [data-client-timezone-text] { min-width: 0; overflow-wrap: anywhere; }
+body #hiredView.active .hired-card > *, body #hiredView.active .hired-card-header > * { min-width: 0; }
+body:has(#hiredView.active) .hired-card .client-card-title,
+body:has(#hiredView.active) .hired-card .hired-card-email { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+body #inboxView .email-sender-line .sent-email-badge { flex: 0 0 auto; margin: 0; }
+
+/* A compact rail preserves content space without changing the saved preference. */
+@media (min-width: 721px) and (max-width: 1100px) {
+  body:not(.sidebar-collapsed) .app-shell { grid-template-columns: 68px minmax(0, 1fr); }
+  body:not(.sidebar-collapsed) .sidebar { width: 68px; padding: 14px 7px 10px; }
+  html:has(dialog[open]) body:not(.sidebar-collapsed) .sidebar { width: 68px; }
+  body:not(.sidebar-collapsed) .sidebar .sidebar-brand-row { justify-content: center; padding: 0 0 14px; }
+  body:not(.sidebar-collapsed) .sidebar :is(.brand-label, .nav-label, .nav-group-label, .nav-count, .sidebar-toggle, .sidebar-utility-chevron) { display: none; }
+  body:not(.sidebar-collapsed) .sidebar .brand { padding: 0; }
+  body:not(.sidebar-collapsed) .sidebar .main-nav { gap: 10px; }
+  body:not(.sidebar-collapsed) .sidebar :is(.nav-link, .sidebar-utility-trigger) { justify-content: center; min-height: 40px; padding: 9px; }
+  body:not(.sidebar-collapsed) .sidebar .sidebar-utility-trigger .sidebar-label { display: none; }
+  body:not(.sidebar-collapsed) .sidebar .sidebar-utility-panel { left: calc(100% + 12px); right: auto; bottom: 0; }
+  body:not(.sidebar-collapsed) .sidebar .sidebar-utility-panel .sidebar-label { display: inline; }
+  body .content { padding-left: 20px; padding-right: 20px; }
+  body .topbar :is(.button, .text-button) { font-size: 12px; }
+  body .topbar .button { min-height: 34px; padding: 7px 11px; }
+  body .mobile-menu { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; }
+  body .sidebar .sidebar-toggle { display: none; }
+  body .sidebar .brand { display: flex; }
+  body.mobile-sidebar-open { overflow: hidden; }
+  body.mobile-sidebar-open .app-shell > .content { grid-column: 2; }
+  body:not(.sidebar-collapsed) .sidebar.open,
+  body.sidebar-collapsed .sidebar.open { position: fixed; z-index: 30; inset: 0 auto 0 0; width: 248px; max-width: calc(100vw - 48px); padding: 16px 12px; box-shadow: 8px 0 30px rgba(0, 0, 0, .16); }
+  body .sidebar.open .sidebar-brand-row { justify-content: space-between; }
+  body .sidebar.open .brand { display: flex; }
+  body .sidebar.open :is(.brand-label, .nav-label, .nav-group-label, .nav-count, .sidebar-utility-trigger .sidebar-label) { display: inline; }
+  body .sidebar.open :is(.nav-link, .sidebar-utility-trigger) { justify-content: flex-start; gap: 10px; padding: 9px; }
+  body .sidebar.open .mobile-sidebar-close { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border: 1px solid rgba(255, 255, 255, .2); border-radius: 6px; background: transparent; color: #fff; font-size: 21px; }
+  body .sidebar-backdrop:not([hidden]) { display: block; position: fixed; z-index: 29; inset: 0; background: rgba(13, 20, 42, .44); }
+}
+@media (max-width: 1280px) {
+  body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .content,
+  body:has(:is(#applicationsView.active, #toApplyView.active, #hiredView.active, #dailyTaskView.active, #subscriptionsView.active)) .content { grid-template-rows: auto minmax(0, 1fr); }
+}
+
+@container workspace (max-width: 960px) {
+  body .topbar { flex-wrap: wrap; height: auto; min-height: 54px; gap: 10px 14px; align-content: center; }
+  body .topbar-title-area { flex: 1 1 200px; }
+  body .topbar h1 { font-size: clamp(19px, 2.6cqw, 25px); line-height: 1.25; }
+  body .topbar-actions { flex: 0 0 auto; margin-left: auto; gap: 9px; }
+  body .topbar .dashboard-switcher { position: static; order: 3; flex: 1 0 100%; width: 100%; transform: none; margin: 0; }
+  body .dashboard-switcher-tab { flex: 1 1 0; min-width: 0; font-size: 11px; padding: 8px 10px; }
+  body:has(#dashboardView.active) .topbar { flex-wrap: wrap; height: auto; }
+  body:has(#dashboardView.active):has(:is(#clientDashboardPanel, #applicationDashboardPanel):not([hidden])) .topbar { height: auto; min-height: 0; flex-wrap: wrap; padding-bottom: 8px; }
+  body:has(#dashboardView.active) .topbar > .topbar-actions { margin-left: auto; }
+  body:has(#dashboardView.active) .topbar .dashboard-switcher { display: flex; flex: 1 0 100%; order: 3; width: 100%; max-width: 100%; margin: 0; }
+  body:has(#dashboardView.active) .topbar .dashboard-switcher-tab { flex: 1 1 0; min-width: 0; padding: 8px 10px; white-space: normal; }
+  body .content .cover-letter-workspace { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  body .content .cover-letter-preview-area { width: 100%; margin: 0; }
+  body .content .cover-letter-page { padding: clamp(20px, 5cqw, 44px); min-height: 0; overflow-wrap: anywhere; }
+  body .content .cover-letter-page-header { flex-wrap: wrap; }
+  body #hiredView.active .client-overview-profile-card { grid-template-columns: minmax(0, 1fr); }
+  body #hiredView.active .client-overview-profile-identity :is(h3, p) { white-space: normal; overflow-wrap: anywhere; }
+  body #hiredView.active .client-overview-profile-facts { justify-content: flex-start; flex-wrap: wrap; }
+  body .content .documents-tabs { display: flex; flex-wrap: wrap; overflow: visible; gap: 5px; padding: 7px; }
+  body .content .documents-tab { flex: 1 1 105px; min-width: 0; white-space: normal; padding: 9px 11px; font-size: 11px; }
+  body #applicationsView .application-filters { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  body #applicationsView .application-filter-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  body #applicationsView .application-filter-field :is(input, select) { min-width: 0; width: 100%; font-size: 12px; min-height: 34px; }
+  body :is(#applicationsView, #toApplyView, #inboxView) .application-workspace-head { flex-wrap: wrap; gap: 10px; }
+  body :is(#applicationsView, #toApplyView, #inboxView) .application-workspace-count { flex: 1 1 165px; width: auto; }
+  body :is(#applicationsView, #toApplyView, #inboxView) .application-workspace-count-summary { flex-wrap: wrap; gap: 5px; }
+  body .content .wallet-accounts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body .content .invoice-email-row { grid-template-columns: 32px minmax(0, 1fr); gap: 8px 12px; }
+  body .content .invoice-email-row > :nth-child(n+3) { grid-column: 2; }
+}
+
+@container workspace (max-width: 700px) {
+  body #walletView .wallet-table-scroll { overflow: visible; }
+  body #walletView .wallet-table { width: 100%; min-width: 0; }
+  body #walletView .wallet-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  body #walletView .wallet-table tbody { display: block; }
+  body #walletView .wallet-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  body #walletView .wallet-table td { display: block; width: auto; min-width: 0; max-width: none; padding: 0; border: 0; overflow-wrap: anywhere; }
+  body #walletView .wallet-table td:first-child { grid-column: 1 / -1; }
+  body #walletView .wallet-table td:not(:first-child):not(:last-child)::before { content: attr(data-label); display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 400; }
+  body #walletView .wallet-table td:last-child { align-self: end; justify-self: end; }
+  body #walletView .wallet-table tbody tr:last-child { border-bottom: 0; }
+  body .topbar-title-area { flex-basis: 160px; }
+  body .topbar-actions { gap: 7px; }
+  body #dailyTaskView.active .daily-task-layout { grid-template-columns: minmax(0, 1fr); }
+  body #dailyTaskView .daily-task-toolbar { flex-wrap: wrap; }
+  body .content .active-client-two-column { grid-template-columns: minmax(0, 1fr); }
+  body .content .hired-detail-grid-large { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body #hiredView.active > .toolbar { flex-wrap: wrap; }
+  body #hiredView.active > .toolbar > .search-field { flex: 1 1 100%; min-width: 0; }
+  body .content .salary-calculator-result { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body .content .personal-document-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body #inboxView .email-panel-heading { flex-wrap: wrap; gap: 10px; }
+  body #inboxView .email-header-status-group { flex-basis: 100%; margin-left: 0; }
+  body #inboxView .email-filters { grid-template-columns: minmax(0, 1fr); }
+  body #inboxView .email-filter-controls { justify-content: stretch; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body .content .news-lead-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Keep the message, rather than fixed date/action columns, prominent in split views. */
+@container workspace (max-width: 960px) {
+  body #inboxView .email-row { grid-template-columns: 30px minmax(0, 1fr) 68px; gap: 5px 10px; align-items: start; padding: 12px; }
+  body #inboxView .email-selection-mode .email-row { grid-template-columns: 18px 30px minmax(0, 1fr) 68px; }
+  body #inboxView .email-avatar { grid-column: 1; grid-row: 1 / span 2; width: 30px; height: 30px; }
+  body #inboxView .email-row-content { grid-column: 2; grid-row: 1; min-width: 0; gap: 4px; }
+  body #inboxView .email-date { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; gap: 3px 7px; text-align: left; font-size: 10px; }
+  body #inboxView .email-time { font-size: inherit; }
+  body #inboxView .email-row-actions { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
+  body #inboxView .email-select-checkbox { grid-column: 1; grid-row: 1 / span 2; }
+  body #inboxView .email-selection-mode .email-avatar { grid-column: 2; }
+  body #inboxView .email-selection-mode :is(.email-row-content, .email-date) { grid-column: 3; }
+  body #inboxView .email-selection-mode .email-row-actions { grid-column: 4; }
+  body #inboxView .email-sender-line { align-items: start; }
+  body #inboxView .email-from { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+  body #inboxView .email-preview { display: block; white-space: normal; overflow: visible; }
+  body #inboxView .email-subject { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; line-height: 1.45; }
+  body #inboxView .email-snippet { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.5; }
+  body #inboxView .email-actions-trigger { width: 68px; min-width: 0; min-height: 34px; padding: 7px 6px; font-size: 11px; }
+  body #inboxView .email-actions-menu { right: 0; left: auto; min-width: 150px; }
+}
+
+@media (pointer: coarse) and (max-width: 1100px) {
+  body #inboxView .email-actions-trigger { min-height: 40px; }
+  body #inboxView .email-select-checkbox { width: 18px; height: 18px; }
+}
+
+@container workspace (max-width: 480px) {
+  body #applicationsView .application-filter-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body .content .wallet-accounts, body .content .hired-detail-grid-large { grid-template-columns: minmax(0, 1fr); }
+  body .content .cover-letter-page-header h1 { font-size: 18px; }
+  body .content .cover-letter-contact { overflow-wrap: anywhere; }
+}
+
+/* Mid-sized touch layouts keep useful density rather than phone-sized cards. */
+@media (min-width: 480px) and (max-width: 720px) {
+  body #clientDashboardPanel .client-dashboard-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body #clientDashboardPanel .client-dashboard-stat { min-height: 100px; }
+}
+@media (max-width: 720px) {
+  /* Desktop percentage widths must not survive the table-to-card conversion. */
+  body #clientDashboardPanel .client-dashboard-table tbody tr > td:nth-child(n) { width: auto; max-width: none; min-width: 0; overflow: visible; text-overflow: clip; }
+  body #clientDashboardPanel .client-dashboard-table td:last-child .client-dashboard-row-action { width: auto; min-width: 58px; }
+}
+@media (max-width: 480px) {
+  body #clientDashboardPanel .client-dashboard-table tbody tr { grid-template-columns: minmax(0, 1fr); }
+  body #clientDashboardPanel .client-dashboard-table td::before { min-width: 100px; }
+}
+@media (max-width: 1100px) {
+  body dialog.modal { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+  body :is(.modal, .active-client-drawer, .client-task-drawer) :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+  body :is(.modal-actions, .modal-actions-right, .contract-controls) { flex-wrap: wrap; gap: 8px; }
+  body .modal-actions .button { width: auto; min-height: 34px; padding: 7px 12px; font-size: 12px; }
+  body :is(.active-client-drawer, .client-task-drawer) { max-width: calc(100vw - 20px); }
+  body :is(#dailyTaskAddModal, #clientModal, #walletEntryPanel, #worldClockModal) .modal-heading h2 { font-size: 21px; line-height: 1.3; }
+  body dialog .form-field:has(> .required) { display: flex; flex-wrap: wrap; gap: 5px; }
+  body dialog .form-field:has(> .required) > :is(input, select, textarea, small) { flex-basis: 100%; }
+  body .email-compose-modal .compose-template-save { flex-wrap: wrap; justify-content: flex-start; align-items: center; }
+  body .email-compose-modal .compose-template-save input { flex: 1 1 180px; min-width: 0; max-width: 360px; }
+  body .email-compose-modal .compose-template-save .button { flex: 0 0 auto; white-space: nowrap; }
+}
+@media (max-width: 900px) and (min-width: 601px) {
+  body #clientModal #clientForm .client-form-layout { grid-template-columns: minmax(0, 1fr); }
+  body #clientModal #clientForm .client-form-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  body .cover-letter-editor-fields { grid-template-columns: minmax(0, 1fr); }
+  body .cover-letter-editor-fields > * { grid-column: 1 !important; }
+}
+@media (max-width: 700px) {
+  body #settingsModal .settings-navigation { flex-wrap: nowrap; }
+  body #settingsModal .settings-navigation button { flex: 0 0 auto; }
+}
+@media (max-height: 560px) {
+  body dialog.modal { max-height: calc(100dvh - 20px); }
+  body .modal:not(.settings-modal):not(.weekly-report-modal):not(.application-detail-panel) { overflow-y: auto; }
+}
+@media (pointer: coarse) and (max-width: 1100px) {
+  /* Override older page-specific compact controls only on touch devices. */
+  body :is(.content, dialog) :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]) { font-size: 16px !important; }
+  body :is(.content, dialog) :is(.button, .icon-button, .client-dashboard-row-action, .client-dashboard-name, .client-detail-tab, .documents-tab, .dashboard-switcher-tab, [data-settings-section]) { min-height: 40px !important; }
+}

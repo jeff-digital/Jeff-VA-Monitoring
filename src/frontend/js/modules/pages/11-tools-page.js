@@ -299,6 +299,58 @@
   renderTemplateTesterPreview();
   updateSalaryCalculator();
 
+  const careerToolDescriptions = {
+    'cover-letter': 'Create a tailored introduction, then download it as a Word document or PDF.',
+    scripts: 'Save useful responses and talking points so you can find the right words faster.',
+    templates: 'Preview your email templates with sample details before sending a test to yourself.',
+    documents: 'Keep your resume, certificates, and other career documents together.',
+    links: 'A home for your Google Docs, portfolios, and other useful resource links.',
+    invoices: 'Find and review the invoices you have sent to your clients.',
+    salary: 'Compare hourly and monthly pay, and estimate the equivalent in USD or PHP.'
+  };
+
+  function selectCareerTool(selectedPanel, { focus = false } = {}) {
+    if (!Object.hasOwn(careerToolDescriptions, selectedPanel)) selectedPanel = 'cover-letter';
+    $$('[data-documents-tab]').forEach(tab => {
+      const active = tab.dataset.documentsTab === selectedPanel;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focus) tab.focus();
+    });
+    $$('[data-documents-panel]').forEach(panel => {
+      const active = panel.dataset.documentsPanel === selectedPanel;
+      panel.classList.toggle('hidden', !active);
+      panel.hidden = !active;
+    });
+    $('#careerToolSelect').value = selectedPanel;
+    $('#careerToolDescription').textContent = careerToolDescriptions[selectedPanel];
+    $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
+    // The A4 preview fits a different available area after switching tools.
+    if (selectedPanel === 'cover-letter') requestAnimationFrame(fitCoverLetterPreview);
+  }
+
+  $$('[data-documents-tab]').forEach(tab => {
+    const panel = $(`[data-documents-panel="${tab.dataset.documentsTab}"]`);
+    tab.id = `careerToolTab-${tab.dataset.documentsTab}`;
+    tab.setAttribute('aria-controls', panel.id);
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', tab.id);
+    panel.tabIndex = 0;
+  });
+  $('#careerToolSelect').addEventListener('change', event => selectCareerTool(event.target.value));
+  $('#documentsView .documents-tabs').addEventListener('keydown', event => {
+    const tab = event.target.closest('[data-documents-tab]');
+    if (!tab || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const tabs = $$('[data-documents-tab]');
+    const index = tabs.indexOf(tab);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+      : (index + (event.key === 'ArrowDown' ? 1 : -1) + tabs.length) % tabs.length;
+    selectCareerTool(tabs[next].dataset.documentsTab, { focus: true });
+  });
+  selectCareerTool('cover-letter');
+
   document.addEventListener('click', event => {
     const personalDeleteButton = event.target.closest('[data-personal-delete]');
     const personalOpenButton = event.target.closest('[data-personal-open]');
@@ -363,14 +415,7 @@
     }
     if (saveWorkLinkButton) saveWorkLink();
     if (documentsTab) {
-      const selectedPanel = documentsTab.dataset.documentsTab;
-      $$('[data-documents-tab]').forEach(tab => {
-        const active = tab.dataset.documentsTab === selectedPanel;
-        tab.classList.toggle('active', active);
-        tab.setAttribute('aria-selected', String(active));
-      });
-      $$('[data-documents-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.documentsPanel !== selectedPanel));
-      $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
+      selectCareerTool(documentsTab.dataset.documentsTab);
     }
   });
 

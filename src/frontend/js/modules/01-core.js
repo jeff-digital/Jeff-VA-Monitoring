@@ -401,6 +401,14 @@
     const titles = { account: 'Account', appearance: 'Appearance', backups: 'Data & backups', automations: 'Automations', security: 'Security' };
     if (!Object.hasOwn(titles, section)) section = 'account';
     $('#settingsSectionTitle').textContent = titles[section];
+    const descriptions = {
+      account: 'Manage your personal account and connected services.',
+      appearance: 'Make your workspace feel like your own.',
+      backups: 'Keep your work organized, backed up, and in your control.',
+      automations: 'Keep things moving, even when you step away.',
+      security: 'Manage your password and review recent account activity.'
+    };
+    $('#settingsSectionDescription').textContent = descriptions[section];
     document.querySelectorAll('#settingsModal [data-settings-panel]').forEach(panel => { panel.hidden = panel.dataset.settingsPanel !== section; });
     document.querySelectorAll('#settingsModal [data-settings-section]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.settingsSection === section));

@@ -404,6 +404,14 @@
     const titles = { account: 'Account', appearance: 'Appearance', backups: 'Data & backups', automations: 'Automations', security: 'Security' };
     if (!Object.hasOwn(titles, section)) section = 'account';
     $('#settingsSectionTitle').textContent = titles[section];
+    const descriptions = {
+      account: 'Manage your personal account and connected services.',
+      appearance: 'Make your workspace feel like your own.',
+      backups: 'Keep your work organized, backed up, and in your control.',
+      automations: 'Keep things moving, even when you step away.',
+      security: 'Manage your password and review recent account activity.'
+    };
+    $('#settingsSectionDescription').textContent = descriptions[section];
     document.querySelectorAll('#settingsModal [data-settings-panel]').forEach(panel => { panel.hidden = panel.dataset.settingsPanel !== section; });
     document.querySelectorAll('#settingsModal [data-settings-section]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.settingsSection === section));
@@ -2544,6 +2552,7 @@
   function closeClientDashboardDrawer() {
     const drawer = $('#clientDashboardDrawer');
     if (!drawer || drawer.hidden) return;
+    if (drawer.open) drawer.close();
     drawer.hidden = true;
     drawer.setAttribute('aria-hidden', 'true');
     $('#clientDashboardBackdrop').hidden = true;
@@ -2563,6 +2572,7 @@
     const drawer = $('#clientDashboardDrawer');
     drawer.hidden = false;
     drawer.setAttribute('aria-hidden', 'false');
+    if (!drawer.open) drawer.showModal();
     $('#clientDashboardBackdrop').hidden = false;
     document.body.classList.add('client-dashboard-drawer-open');
     requestAnimationFrame(() => drawer.querySelector('button, a, input, select, textarea')?.focus());
@@ -2657,6 +2667,15 @@
   }
 
   $('#clientDashboardSearch').addEventListener('input', () => renderClientDashboardTable(hiredClients()));
+  $('#clientDashboardDrawer').addEventListener('cancel', event => {
+    event.preventDefault();
+    closeClientDashboardDrawer();
+  });
+  $('#clientDashboardDrawer').addEventListener('click', event => {
+    if (event.target !== event.currentTarget) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeClientDashboardDrawer();
+  });
   $('#clientDashboardStatusFilter').addEventListener('change', () => renderClientDashboardTable(hiredClients()));
   $('#clientDashboardActionForm').addEventListener('submit', saveClientDashboardAction);
   $('#clientDashboardClients').addEventListener('click', event => {
@@ -3382,8 +3401,8 @@
       const sentTime = emailTime(item.date);
       const selectionLabel = platformName ? `${platformName} email` : (item.subject || 'email');
       const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}" />` : '';
-      const previewMarkup = `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong>${sentBadge}<span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
-      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      const previewMarkup = `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong><span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
+      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}${sentBadge}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
   }
@@ -9173,7 +9192,7 @@
   });
 
   function isMobileLayout() {
-    return window.matchMedia('(max-width: 720px)').matches;
+    return window.matchMedia('(max-width: 1100px)').matches;
   }
 
   function openMobileSidebar() {
@@ -9195,7 +9214,7 @@
     const mobileLayout = isMobileLayout();
     const wasOpen = sidebar.classList.contains('open');
     sidebar.classList.remove('open');
-    sidebar.setAttribute('aria-hidden', String(mobileLayout));
+    sidebar.setAttribute('aria-hidden', String(window.matchMedia('(max-width: 720px)').matches));
     backdrop.hidden = true;
     document.body.classList.remove('mobile-sidebar-open');
     $('#mobileMenu').setAttribute('aria-expanded', 'false');
@@ -13379,6 +13398,58 @@
   renderTemplateTesterPreview();
   updateSalaryCalculator();
 
+  const careerToolDescriptions = {
+    'cover-letter': 'Create a tailored introduction, then download it as a Word document or PDF.',
+    scripts: 'Save useful responses and talking points so you can find the right words faster.',
+    templates: 'Preview your email templates with sample details before sending a test to yourself.',
+    documents: 'Keep your resume, certificates, and other career documents together.',
+    links: 'A home for your Google Docs, portfolios, and other useful resource links.',
+    invoices: 'Find and review the invoices you have sent to your clients.',
+    salary: 'Compare hourly and monthly pay, and estimate the equivalent in USD or PHP.'
+  };
+
+  function selectCareerTool(selectedPanel, { focus = false } = {}) {
+    if (!Object.hasOwn(careerToolDescriptions, selectedPanel)) selectedPanel = 'cover-letter';
+    $$('[data-documents-tab]').forEach(tab => {
+      const active = tab.dataset.documentsTab === selectedPanel;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focus) tab.focus();
+    });
+    $$('[data-documents-panel]').forEach(panel => {
+      const active = panel.dataset.documentsPanel === selectedPanel;
+      panel.classList.toggle('hidden', !active);
+      panel.hidden = !active;
+    });
+    $('#careerToolSelect').value = selectedPanel;
+    $('#careerToolDescription').textContent = careerToolDescriptions[selectedPanel];
+    $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
+    // The A4 preview fits a different available area after switching tools.
+    if (selectedPanel === 'cover-letter') requestAnimationFrame(fitCoverLetterPreview);
+  }
+
+  $$('[data-documents-tab]').forEach(tab => {
+    const panel = $(`[data-documents-panel="${tab.dataset.documentsTab}"]`);
+    tab.id = `careerToolTab-${tab.dataset.documentsTab}`;
+    tab.setAttribute('aria-controls', panel.id);
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', tab.id);
+    panel.tabIndex = 0;
+  });
+  $('#careerToolSelect').addEventListener('change', event => selectCareerTool(event.target.value));
+  $('#documentsView .documents-tabs').addEventListener('keydown', event => {
+    const tab = event.target.closest('[data-documents-tab]');
+    if (!tab || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const tabs = $$('[data-documents-tab]');
+    const index = tabs.indexOf(tab);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+      : (index + (event.key === 'ArrowDown' ? 1 : -1) + tabs.length) % tabs.length;
+    selectCareerTool(tabs[next].dataset.documentsTab, { focus: true });
+  });
+  selectCareerTool('cover-letter');
+
   document.addEventListener('click', event => {
     const personalDeleteButton = event.target.closest('[data-personal-delete]');
     const personalOpenButton = event.target.closest('[data-personal-open]');
@@ -13443,14 +13514,7 @@
     }
     if (saveWorkLinkButton) saveWorkLink();
     if (documentsTab) {
-      const selectedPanel = documentsTab.dataset.documentsTab;
-      $$('[data-documents-tab]').forEach(tab => {
-        const active = tab.dataset.documentsTab === selectedPanel;
-        tab.classList.toggle('active', active);
-        tab.setAttribute('aria-selected', String(active));
-      });
-      $$('[data-documents-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.documentsPanel !== selectedPanel));
-      $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
+      selectCareerTool(documentsTab.dataset.documentsTab);
     }
   });
 
@@ -14465,7 +14529,7 @@
     $('#walletClientRates').innerHTML = hiredClients().filter(isActiveContract).map(client => `<article class="wallet-account"><h4>${escapeHtml(client.clientName || 'Client')}</h4><strong>${escapeHtml(clientDashboardRate(client) || 'Rate not set')}</strong><span>Contract rate · counted as received only after payment</span></article>`).join('') || '<p class="wallet-hint">No active client contracts.</p>';
     const account = $('#walletAccountFilter').value;
     const visible = entries.filter(entry => account === 'all' || entry.account === account).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)));
-    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletEntryTypeDetail(entry))}</small></td><td>${entry.type === 'payable' ? `<strong>${escapeHtml(formatDate(entry.date))}</strong><small class="${entry.date < today() ? 'wallet-deadline-overdue' : ''}">${entry.date < today() ? 'Overdue' : entry.date === today() ? 'Due today' : 'Deadline'}</small>` : escapeHtml(entry.date)}</td><td>${entry.type === 'payable' ? '—' : escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : entry.type === 'payable' ? 'wallet-pending' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : entry.type === 'payable' ? 'Due ' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-actions="${escapeHtml(entry.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(entry.description)}">Actions</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, expense, or upcoming payment to start tracking.</p></div>';
+    $('#walletTransactionList').innerHTML = visible.length ? `<div class="wallet-table-scroll"><table class="wallet-table"><thead><tr><th scope="col">Transaction</th><th scope="col">Date</th><th scope="col">Account</th><th scope="col">Amount</th><th scope="col">Actions</th></tr></thead><tbody>${visible.map(entry => `<tr><td data-label="Transaction"><strong>${escapeHtml(entry.description)}</strong><small>${escapeHtml(walletEntryTypeDetail(entry))}</small></td><td data-label="Date">${entry.type === 'payable' ? `<strong>${escapeHtml(formatDate(entry.date))}</strong><small class="${entry.date < today() ? 'wallet-deadline-overdue' : ''}">${entry.date < today() ? 'Overdue' : entry.date === today() ? 'Due today' : 'Deadline'}</small>` : escapeHtml(entry.date)}</td><td data-label="Account">${entry.type === 'payable' ? '—' : escapeHtml(walletAccountNames[entry.account] || entry.account)}</td><td data-label="Amount" class="wallet-amount ${entry.type === 'expense' ? 'wallet-outgoing' : entry.type === 'payable' ? 'wallet-pending' : 'wallet-incoming'}">${entry.type === 'expense' ? '−' : entry.type === 'payable' ? 'Due ' : '+'}${entry.cents === null ? 'Needs PHP amount' : walletMoney(entry.cents)}</td><td data-label="Actions"><div class="wallet-row-actions">${entry.invoiceId ? `<button type="button" class="button button-secondary" data-wallet-invoice="${escapeHtml(entry.invoiceId)}">Edit payment</button>` : `<button type="button" class="button button-secondary" data-wallet-actions="${escapeHtml(entry.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(entry.description)}">Actions</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<div class="wallet-empty"><i class="fa-solid fa-wallet" aria-hidden="true"></i><h4>No transactions yet</h4><p>Add an opening balance, income, salary, expense, or upcoming payment to start tracking.</p></div>';
   }
 
   function openWalletEntry(entry = null) {
