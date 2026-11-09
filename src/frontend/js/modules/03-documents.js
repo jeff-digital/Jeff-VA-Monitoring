@@ -214,7 +214,7 @@
   function renderInvoiceList() {
     const target = $('#invoiceList');
     if (!target) return;
-    const invoices = [...(data.invoices || [])].sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => !invoice.invoiceDraft).sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
     target.innerHTML = invoices.length ? invoices.map(invoice => {
       const client = data.applications.find(application => application.id === invoice.clientId);
       const dueDate = parseInvoiceDate(invoice.dueDate);
@@ -267,7 +267,7 @@
 
   function extractInvoiceField(content, labelPattern, maxLength, dateField = false) {
     if (!content) return '';
-    const labels = '(?:Invoice\\s*(?:Number|No\\.?|#)|Date\\s+of\\s+Issue|Billing\\s+Period|Due\\s+Date)';
+    const labels = '(?:Invoice\\s*(?:Number|No\\.?|#)|Date\\s+(?:of\\s+)?Issue|Issued|Billing\\s+Period|Due\\s+Date|Currency|Description|Service\\s+Breakdown|Subtotal|Total\\s+Due)';
     const matches = content.matchAll(new RegExp(`${labelPattern}\\s*[:#-]?\\s*(.*?)(?=\\s+${labels}\\s*[:#-]?|$)`, 'gi'));
     for (const match of matches) {
       if (/[\[\]]/.test(match[1] || '')) continue;
@@ -285,17 +285,21 @@
   }
 
   function extractInvoiceDetails(content) {
-    return {
-      invoiceNumber: extractInvoiceField(content, '(?:Invoice\\s*(?:Number|No\\.?|#))', 40),
-      issueDate: extractInvoiceField(content, 'Date\\s+of\\s+Issue', 40, true),
-      billingPeriod: extractInvoiceField(content, 'Billing\\s+Period', 60),
-      dueDate: extractInvoiceField(content, 'Due\\s+Date', 40, true)
-    };
+    const text=String(content || '').replace(/\s+/g,' ').trim();
+    const numbered=[...text.matchAll(/(?:Invoice\s*(?:Number|No\.?|#)\s*[:#-]?\s*|\bINVOICE\s+)([A-Za-z0-9][A-Za-z0-9_\/-]{0,59})/gi)].find(match=>/\d/.test(match[1]));
+    const billingPeriod=extractInvoiceField(text,'Billing\\s+Period',120);
+    const dates=billingPeriod.match(/\b(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4})\b/gi) || [];
+    const total=text.match(/TOTAL\s+DUE\s*:?\s*(?:(USD|PHP|EUR|GBP|AUD|CAD)\s*|[$€£₱]\s*)?(\d[\d,]*\.\d{2})\b/i);
+    const currency=text.match(/\bCurrency\s*:?\s*(USD|PHP|EUR|GBP|AUD|CAD)\b/i)?.[1]?.toUpperCase() || total?.[1]?.toUpperCase() || '';
+    return {invoiceNumber:numbered?.[1] || '',issueDate:parseInvoiceDate(extractInvoiceField(text,'(?:Date\\s+(?:of\\s+)?Issue|Issued)',40,true)),
+      billingPeriod,dueDate:parseInvoiceDate(extractInvoiceField(text,'Due\\s+Date',40,true)),startDate:dates.length>=2?parseInvoiceDate(dates[0]):'',endDate:dates.length>=2?parseInvoiceDate(dates[1]):'',
+      amountInvoiced:total?total[2].replace(/,/g,''):'',currency};
   }
 
   function invoiceAlreadySent(clientId, invoiceNumber) {
     const normalized = String(invoiceNumber || '').trim().toLowerCase();
-    return Boolean(normalized && (data.invoices || []).some(invoice => invoice.clientId === clientId && String(invoice.invoiceNumber || '').trim().toLowerCase() === normalized));
+    const numbered=/^\d{4}-\d+$/.test(normalized),key=value=>String(value || '').trim().toLowerCase().replace(/^(\d{4})-0+(\d)/,'$1-$2');
+    return Boolean(normalized && (data.invoices || []).some(invoice => !invoice.invoiceDraft && (numbered || invoice.clientId === clientId) && key(invoice.invoiceNumber) === key(normalized)));
   }
 
   function showInvoiceDuplicateAlert(invoiceNumber) {
@@ -324,8 +328,13 @@
     return '';
   }
 
-  function openInvoiceDocumentPicker(application) {
-    if (!application?.email) { toast('Add a client email before sending an invoice.'); return; }
+  function clearInvoiceUploadDraft() {
+    pendingInvoiceClientId=null;pendingInvoiceFile=null;pendingInvoiceDetails={};
+    $('#invoicePickerUploadInput').value='';$('#useInvoiceFileButton').disabled=true;
+  }
+  function openInvoiceDocumentPicker(application, preferDrawer=false) {
+    if (!application?.id) return;
+    clearInvoiceUploadDraft();
     pendingInvoiceClientId = application.id;
     pendingInvoiceFile = null;
     pendingInvoiceDetails = {};
@@ -336,18 +345,24 @@
     $('#invoiceService').value = application.role || '';
     $('#invoiceStartDate').value = '';
     $('#invoiceEndDate').value = '';
+    $('#invoiceUploadAmount').value='';$('#invoiceUploadCurrency').value=application.salaryCurrency || 'USD';
+    $('#invoiceUploadFileInfo').textContent='No file selected';
     $('#invoiceDocumentPickerStatus').textContent = 'Choose an invoice file. Its invoice details will be read from the document.';
     $('#useInvoiceFileButton').disabled = true;
-    $('#invoiceDocumentPickerModal').showModal();
+    if(preferDrawer){showActiveClientDrawerView('invoice-upload');markActiveClientDrawerFormClean('invoice-upload');}
+    else $('#invoiceDocumentPickerModal').showModal();
   }
 
   async function stageInvoiceFile(file) {
     if (!file) return;
-    if (!/\.(pdf|doc|docx)$/i.test(file.name)) {
-      $('#invoiceDocumentPickerStatus').textContent = 'Please choose a PDF or Word invoice.';
+    if (!/\.(pdf|doc|docx)$/i.test(file.name) || file.size>MAX_DOCUMENT_SIZE_BYTES) {
+      pendingInvoiceFile=null;$('#useInvoiceFileButton').disabled=true;
+      $('#invoiceDocumentPickerStatus').textContent = 'Choose a PDF or Word invoice up to 25 MB.';
       return;
     }
     pendingInvoiceFile = file;
+    $('#invoiceUploadFileInfo').textContent=file.name;
+    for(const selector of ['#invoiceNumber','#invoiceIssueDate','#invoiceBillingPeriod','#invoiceDueDate','#invoiceStartDate','#invoiceEndDate','#invoiceUploadAmount'])$(selector).value='';
     $('#useInvoiceFileButton').disabled = true;
     $('#invoiceDocumentPickerStatus').textContent = 'Reading invoice content...';
     try {
@@ -358,6 +373,9 @@
       $('#invoiceIssueDate').value = pendingInvoiceDetails.issueDate;
       $('#invoiceBillingPeriod').value = pendingInvoiceDetails.billingPeriod;
       $('#invoiceDueDate').value = pendingInvoiceDetails.dueDate;
+      $('#invoiceStartDate').value=pendingInvoiceDetails.startDate;$('#invoiceEndDate').value=pendingInvoiceDetails.endDate;
+      $('#invoiceUploadAmount').value=pendingInvoiceDetails.amountInvoiced;
+      if(pendingInvoiceDetails.currency)$('#invoiceUploadCurrency').value=pendingInvoiceDetails.currency;
       if (invoiceAlreadySent(pendingInvoiceClientId, pendingInvoiceDetails.invoiceNumber)) {
         showInvoiceDuplicateAlert(pendingInvoiceDetails.invoiceNumber);
         $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
@@ -365,6 +383,7 @@
         $('#invoiceDocumentPickerStatus').textContent = content ? 'Invoice details loaded from the file. Empty fields were left blank.' : 'The file text could not be read. Invoice detail fields were left blank.';
       }
     } catch (error) {
+      if(pendingInvoiceFile!==file)return;
       console.error('Could not read invoice content:', error);
       pendingInvoiceDetails = {};
       $('#invoiceDocumentPickerStatus').textContent = 'Could not read the file content. Invoice detail fields were left blank.';
@@ -374,7 +393,8 @@
 
   function continueInvoicePicker() {
     const application = data.applications.find(item => item.id === pendingInvoiceClientId);
-    if (!application || !pendingInvoiceFile) return;
+    if (!application) return;
+    if(!pendingInvoiceFile){$('#invoiceDocumentPickerStatus').textContent='Choose an invoice file before preparing the email.';return;}
     const invoiceNumber = $('#invoiceNumber').value.trim();
     const service = $('#invoiceService').value.trim();
     const issueDate = $('#invoiceIssueDate').value.trim();
@@ -386,12 +406,17 @@
       $('#invoiceDocumentPickerStatus').textContent = 'Complete every invoice field before continuing.';
       return;
     }
+    if(!parseInvoiceDate(issueDate) || !parseInvoiceDate(dueDate) || dueDate<issueDate || !parseInvoiceDate(startDate) || !parseInvoiceDate(endDate) || endDate<startDate){$('#invoiceDocumentPickerStatus').textContent='Check the dates: due date must follow issue date, and billing end must follow billing start.';return;}
+    const amount=$('#invoiceUploadAmount').value.trim();
+    if(amount && (!/^\d+(?:\.\d{1,2})?$/.test(amount) || !Number.isFinite(Number(amount)))){$('#invoiceDocumentPickerStatus').textContent='Enter a valid invoice amount with at most two decimals.';return;}
+    const source=(data.invoices || []).find(item=>item.invoiceDraft && item.draftStatus!=='sent' && item.clientId===application.id && String(item.document?.invoiceNumber || '').toLowerCase()===invoiceNumber.toLowerCase());
     if (invoiceAlreadySent(application.id, invoiceNumber)) {
       showInvoiceDuplicateAlert(invoiceNumber);
       $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
       return;
     }
     const file = pendingInvoiceFile;
+    if(typeof isActiveClientDrawerView==='function' && isActiveClientDrawerView('invoice-upload'))markActiveClientDrawerFormClean('invoice-upload');
     $('#invoiceDocumentPickerModal').close();
     pendingInvoiceFile = null;
     pendingInvoiceClientId = null;
@@ -402,8 +427,9 @@
       dueDate,
       service,
       startDate,
-      endDate
-    });
+      endDate,paymentCurrency:$('#invoiceUploadCurrency').value || 'USD',...(amount?{amountInvoiced:Number(amount)}:{}),
+      ...(source?{sourceDraftId:source.id,sourceDraftUpdatedAt:source.updatedAt,sourceAttachmentType:file.type || documentContentType(file)}:{})
+    },typeof isActiveClientDrawerView==='function' && isActiveClientDrawerView('invoice-upload'));
   }
 
   function openClientDocumentPicker(application) {

@@ -22,6 +22,7 @@
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], clearedNotificationKeys: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], subscriptions: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
+  let accountIdVisible = false;
   let activeAuthProvider = null;
   let appStateChannel = null;
   let gmailSyncTimer = null;
@@ -257,6 +258,19 @@
     return true;
   }
 
+  function setAccountIdVisibility(visible = false) {
+    const id = currentUser?.id || '';
+    accountIdVisible = Boolean(visible && id);
+    $('#accountUserId').textContent = id ? (accountIdVisible ? id : '••••••••') : 'Not available';
+    const toggle = $('#toggleAccountUserId');
+    const label = accountIdVisible ? 'Hide account ID' : 'Show account ID';
+    toggle.disabled = !id;
+    toggle.setAttribute('aria-label', label);
+    toggle.setAttribute('aria-pressed', String(accountIdVisible));
+    toggle.title = label;
+    toggle.querySelector('i').className = `fa-solid ${accountIdVisible ? 'fa-eye-slash' : 'fa-eye'}`;
+  }
+
   function renderAccountPage() {
     if (typeof loadBackgroundFollowUpStatus === 'function') void loadBackgroundFollowUpStatus();
     if (!currentUser) return;
@@ -284,7 +298,7 @@
               ? 'Connected'
               : 'Not connected';
     $('#accountEmail').textContent = currentUser.email || 'Not available';
-    $('#accountUserId').textContent = currentUser.id || 'Not available';
+    setAccountIdVisibility(accountIdVisible);
     $('#accountSignInProvider').textContent = provider;
     $('#accountSupabaseStatus').textContent = supabaseStatus;
     $('#accountSupabaseProject').textContent = projectHost;
@@ -423,6 +437,7 @@
   });
 
   function openWorkspaceSettings() {
+    setAccountIdVisibility(false);
     lockWorkspaceDataControls();
     const accountView = $('#accountView');
     $('#settingsAccountContent').append(accountView);
@@ -839,7 +854,8 @@
       initializingUserId = null;
     }
     if (workspaceRenderFailed) return;
-    if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
+    const resumedDraft=typeof browserDrafts!=='undefined'?await browserDrafts.restore():false;
+    if (!passwordRecoveryMode && !resumedDraft && activeView==='applications' && localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
 
     // Everything below is useful refresh work, but none of it is required to
     // enter the dashboard. Keep it outside the login critical path.
@@ -925,6 +941,7 @@
     sessionStorage.setItem(AUTH_TAB_READY_KEY, '1');
     const callbackParams = new URLSearchParams(`${window.location.search}&${window.location.hash.slice(1)}`);
     const isPasswordRecovery = callbackParams.get('type') === 'recovery';
+    if(isPasswordRecovery)setPasswordRecoveryMode(true);
     const isAuthenticationCallback = callbackParams.has('code')
       || (callbackParams.has('access_token') && callbackParams.has('refresh_token'));
     const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
@@ -980,12 +997,13 @@
         await initializeSupabaseForUser(sessionData.session.user, {
           showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
-          showOverview: !isPasswordRecovery
+          showOverview: isAuthenticationCallback && !isPasswordRecovery
         });
         if (isPasswordRecovery) openPasswordPage({ recovery: true });
       }
       client.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT' && currentUser) {
+          if(typeof browserDrafts!=='undefined')browserDrafts.signOut();
           dataReady = false;
           setAuthenticated(false);
           window.location.reload();
@@ -1001,7 +1019,7 @@
           initializeSupabaseForUser(session.user, {
             showLoading: !isPasswordRecovery && isFirstLoadInTab,
             recordSignIn: !isPasswordRecovery,
-            showOverview: !isPasswordRecovery
+            showOverview: isAuthenticationCallback && !isPasswordRecovery
           });
         }, 0);
       });
@@ -3765,7 +3783,7 @@
     $('#hiredDetailContact').innerHTML = contactDetails.length
       ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
       : '';
-    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
     const sentEmails = sentEmailsForApplication(item);
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
@@ -3842,6 +3860,7 @@
       <section class="invoice-send-panel client-invoice-panel${contractEnded ? ' contract-ended-readonly' : ''}" aria-labelledby="clientInvoicesTitle">
         <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><div class="client-invoice-heading-actions"><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))}</span></div></div>
         ${contractEnded ? '<div class="client-invoice-actions"><p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p></div>' : ''}
+        ${renderInvoiceDraftQueue(item)}
         ${invoices.length ? `${invoicePaymentSummary(invoices)}<div class="client-invoice-table-wrap"><table class="client-invoice-table"><thead><tr><th scope="col">Invoice</th><th scope="col">Service</th><th scope="col">Period</th><th scope="col">Sent</th><th scope="col">Due</th><th scope="col">Payment</th></tr></thead><tbody>${invoices.map(invoice => {
           const status = invoicePaymentStatus(invoice);
           const paid = status === 'Paid';
@@ -5119,7 +5138,7 @@
   function renderInvoiceList() {
     const target = $('#invoiceList');
     if (!target) return;
-    const invoices = [...(data.invoices || [])].sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => !invoice.invoiceDraft).sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
     target.innerHTML = invoices.length ? invoices.map(invoice => {
       const client = data.applications.find(application => application.id === invoice.clientId);
       const dueDate = parseInvoiceDate(invoice.dueDate);
@@ -5172,7 +5191,7 @@
 
   function extractInvoiceField(content, labelPattern, maxLength, dateField = false) {
     if (!content) return '';
-    const labels = '(?:Invoice\\s*(?:Number|No\\.?|#)|Date\\s+of\\s+Issue|Billing\\s+Period|Due\\s+Date)';
+    const labels = '(?:Invoice\\s*(?:Number|No\\.?|#)|Date\\s+(?:of\\s+)?Issue|Issued|Billing\\s+Period|Due\\s+Date|Currency|Description|Service\\s+Breakdown|Subtotal|Total\\s+Due)';
     const matches = content.matchAll(new RegExp(`${labelPattern}\\s*[:#-]?\\s*(.*?)(?=\\s+${labels}\\s*[:#-]?|$)`, 'gi'));
     for (const match of matches) {
       if (/[\[\]]/.test(match[1] || '')) continue;
@@ -5190,17 +5209,21 @@
   }
 
   function extractInvoiceDetails(content) {
-    return {
-      invoiceNumber: extractInvoiceField(content, '(?:Invoice\\s*(?:Number|No\\.?|#))', 40),
-      issueDate: extractInvoiceField(content, 'Date\\s+of\\s+Issue', 40, true),
-      billingPeriod: extractInvoiceField(content, 'Billing\\s+Period', 60),
-      dueDate: extractInvoiceField(content, 'Due\\s+Date', 40, true)
-    };
+    const text=String(content || '').replace(/\s+/g,' ').trim();
+    const numbered=[...text.matchAll(/(?:Invoice\s*(?:Number|No\.?|#)\s*[:#-]?\s*|\bINVOICE\s+)([A-Za-z0-9][A-Za-z0-9_\/-]{0,59})/gi)].find(match=>/\d/.test(match[1]));
+    const billingPeriod=extractInvoiceField(text,'Billing\\s+Period',120);
+    const dates=billingPeriod.match(/\b(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4})\b/gi) || [];
+    const total=text.match(/TOTAL\s+DUE\s*:?\s*(?:(USD|PHP|EUR|GBP|AUD|CAD)\s*|[$€£₱]\s*)?(\d[\d,]*\.\d{2})\b/i);
+    const currency=text.match(/\bCurrency\s*:?\s*(USD|PHP|EUR|GBP|AUD|CAD)\b/i)?.[1]?.toUpperCase() || total?.[1]?.toUpperCase() || '';
+    return {invoiceNumber:numbered?.[1] || '',issueDate:parseInvoiceDate(extractInvoiceField(text,'(?:Date\\s+(?:of\\s+)?Issue|Issued)',40,true)),
+      billingPeriod,dueDate:parseInvoiceDate(extractInvoiceField(text,'Due\\s+Date',40,true)),startDate:dates.length>=2?parseInvoiceDate(dates[0]):'',endDate:dates.length>=2?parseInvoiceDate(dates[1]):'',
+      amountInvoiced:total?total[2].replace(/,/g,''):'',currency};
   }
 
   function invoiceAlreadySent(clientId, invoiceNumber) {
     const normalized = String(invoiceNumber || '').trim().toLowerCase();
-    return Boolean(normalized && (data.invoices || []).some(invoice => invoice.clientId === clientId && String(invoice.invoiceNumber || '').trim().toLowerCase() === normalized));
+    const numbered=/^\d{4}-\d+$/.test(normalized),key=value=>String(value || '').trim().toLowerCase().replace(/^(\d{4})-0+(\d)/,'$1-$2');
+    return Boolean(normalized && (data.invoices || []).some(invoice => !invoice.invoiceDraft && (numbered || invoice.clientId === clientId) && key(invoice.invoiceNumber) === key(normalized)));
   }
 
   function showInvoiceDuplicateAlert(invoiceNumber) {
@@ -5229,8 +5252,13 @@
     return '';
   }
 
-  function openInvoiceDocumentPicker(application) {
-    if (!application?.email) { toast('Add a client email before sending an invoice.'); return; }
+  function clearInvoiceUploadDraft() {
+    pendingInvoiceClientId=null;pendingInvoiceFile=null;pendingInvoiceDetails={};
+    $('#invoicePickerUploadInput').value='';$('#useInvoiceFileButton').disabled=true;
+  }
+  function openInvoiceDocumentPicker(application, preferDrawer=false) {
+    if (!application?.id) return;
+    clearInvoiceUploadDraft();
     pendingInvoiceClientId = application.id;
     pendingInvoiceFile = null;
     pendingInvoiceDetails = {};
@@ -5241,18 +5269,24 @@
     $('#invoiceService').value = application.role || '';
     $('#invoiceStartDate').value = '';
     $('#invoiceEndDate').value = '';
+    $('#invoiceUploadAmount').value='';$('#invoiceUploadCurrency').value=application.salaryCurrency || 'USD';
+    $('#invoiceUploadFileInfo').textContent='No file selected';
     $('#invoiceDocumentPickerStatus').textContent = 'Choose an invoice file. Its invoice details will be read from the document.';
     $('#useInvoiceFileButton').disabled = true;
-    $('#invoiceDocumentPickerModal').showModal();
+    if(preferDrawer){showActiveClientDrawerView('invoice-upload');markActiveClientDrawerFormClean('invoice-upload');}
+    else $('#invoiceDocumentPickerModal').showModal();
   }
 
   async function stageInvoiceFile(file) {
     if (!file) return;
-    if (!/\.(pdf|doc|docx)$/i.test(file.name)) {
-      $('#invoiceDocumentPickerStatus').textContent = 'Please choose a PDF or Word invoice.';
+    if (!/\.(pdf|doc|docx)$/i.test(file.name) || file.size>MAX_DOCUMENT_SIZE_BYTES) {
+      pendingInvoiceFile=null;$('#useInvoiceFileButton').disabled=true;
+      $('#invoiceDocumentPickerStatus').textContent = 'Choose a PDF or Word invoice up to 25 MB.';
       return;
     }
     pendingInvoiceFile = file;
+    $('#invoiceUploadFileInfo').textContent=file.name;
+    for(const selector of ['#invoiceNumber','#invoiceIssueDate','#invoiceBillingPeriod','#invoiceDueDate','#invoiceStartDate','#invoiceEndDate','#invoiceUploadAmount'])$(selector).value='';
     $('#useInvoiceFileButton').disabled = true;
     $('#invoiceDocumentPickerStatus').textContent = 'Reading invoice content...';
     try {
@@ -5263,6 +5297,9 @@
       $('#invoiceIssueDate').value = pendingInvoiceDetails.issueDate;
       $('#invoiceBillingPeriod').value = pendingInvoiceDetails.billingPeriod;
       $('#invoiceDueDate').value = pendingInvoiceDetails.dueDate;
+      $('#invoiceStartDate').value=pendingInvoiceDetails.startDate;$('#invoiceEndDate').value=pendingInvoiceDetails.endDate;
+      $('#invoiceUploadAmount').value=pendingInvoiceDetails.amountInvoiced;
+      if(pendingInvoiceDetails.currency)$('#invoiceUploadCurrency').value=pendingInvoiceDetails.currency;
       if (invoiceAlreadySent(pendingInvoiceClientId, pendingInvoiceDetails.invoiceNumber)) {
         showInvoiceDuplicateAlert(pendingInvoiceDetails.invoiceNumber);
         $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
@@ -5270,6 +5307,7 @@
         $('#invoiceDocumentPickerStatus').textContent = content ? 'Invoice details loaded from the file. Empty fields were left blank.' : 'The file text could not be read. Invoice detail fields were left blank.';
       }
     } catch (error) {
+      if(pendingInvoiceFile!==file)return;
       console.error('Could not read invoice content:', error);
       pendingInvoiceDetails = {};
       $('#invoiceDocumentPickerStatus').textContent = 'Could not read the file content. Invoice detail fields were left blank.';
@@ -5279,7 +5317,8 @@
 
   function continueInvoicePicker() {
     const application = data.applications.find(item => item.id === pendingInvoiceClientId);
-    if (!application || !pendingInvoiceFile) return;
+    if (!application) return;
+    if(!pendingInvoiceFile){$('#invoiceDocumentPickerStatus').textContent='Choose an invoice file before preparing the email.';return;}
     const invoiceNumber = $('#invoiceNumber').value.trim();
     const service = $('#invoiceService').value.trim();
     const issueDate = $('#invoiceIssueDate').value.trim();
@@ -5291,12 +5330,17 @@
       $('#invoiceDocumentPickerStatus').textContent = 'Complete every invoice field before continuing.';
       return;
     }
+    if(!parseInvoiceDate(issueDate) || !parseInvoiceDate(dueDate) || dueDate<issueDate || !parseInvoiceDate(startDate) || !parseInvoiceDate(endDate) || endDate<startDate){$('#invoiceDocumentPickerStatus').textContent='Check the dates: due date must follow issue date, and billing end must follow billing start.';return;}
+    const amount=$('#invoiceUploadAmount').value.trim();
+    if(amount && (!/^\d+(?:\.\d{1,2})?$/.test(amount) || !Number.isFinite(Number(amount)))){$('#invoiceDocumentPickerStatus').textContent='Enter a valid invoice amount with at most two decimals.';return;}
+    const source=(data.invoices || []).find(item=>item.invoiceDraft && item.draftStatus!=='sent' && item.clientId===application.id && String(item.document?.invoiceNumber || '').toLowerCase()===invoiceNumber.toLowerCase());
     if (invoiceAlreadySent(application.id, invoiceNumber)) {
       showInvoiceDuplicateAlert(invoiceNumber);
       $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
       return;
     }
     const file = pendingInvoiceFile;
+    if(typeof isActiveClientDrawerView==='function' && isActiveClientDrawerView('invoice-upload'))markActiveClientDrawerFormClean('invoice-upload');
     $('#invoiceDocumentPickerModal').close();
     pendingInvoiceFile = null;
     pendingInvoiceClientId = null;
@@ -5307,8 +5351,9 @@
       dueDate,
       service,
       startDate,
-      endDate
-    });
+      endDate,paymentCurrency:$('#invoiceUploadCurrency').value || 'USD',...(amount?{amountInvoiced:Number(amount)}:{}),
+      ...(source?{sourceDraftId:source.id,sourceDraftUpdatedAt:source.updatedAt,sourceAttachmentType:file.type || documentContentType(file)}:{})
+    },typeof isActiveClientDrawerView==='function' && isActiveClientDrawerView('invoice-upload'));
   }
 
   function openClientDocumentPicker(application) {
@@ -6052,7 +6097,7 @@
 
 
   const generatedNotificationTypes = new Set([
-    'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
+    'invoice-ready', 'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
     'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended',
     'wallet-payment-due-soon', 'wallet-payment-due-today', 'wallet-payment-overdue',
     'subscription-due-soon', 'subscription-due-today', 'subscription-expired'
@@ -6146,6 +6191,7 @@
         urgency: type.endsWith('overdue') ? 'overdue' : 'due-today'
       });
     };
+    if (globalThis.JeffInvoiceEngine) (data.invoices || []).filter(invoice => invoice.invoiceDraft && invoice.draftStatus!=='sent' && invoice.document?.billTo).forEach(invoice => add(globalThis.JeffInvoiceEngine.readyAlert(invoice)));
     const todayDate = today();
     (data.dailyTasks || []).forEach(task => {
       if (!task.id || task.completedAt || task.status === 'done' || !task.taskDate) return;
@@ -6259,6 +6305,7 @@
 
   function notificationCategory(alert) {
     if (alert.type?.startsWith('task-')) return 'daily-tasks';
+    if (alert.type === 'invoice-ready') return 'finance';
     if (alert.type?.startsWith('wallet-payment-') || alert.type?.startsWith('subscription-')) return 'finance';
     if (alert.type === 'to-apply' || alert.id?.startsWith('to-apply|due|')) return 'to-apply';
     if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission', 'active-client-email', 'active-client-email-review'].includes(alert.type)) return 'active-clients';
@@ -6945,6 +6992,7 @@
   }
 
   function invoicePaymentStatus(invoice) {
+    if (invoice.invoiceDraft) return 'Draft';
     if (invoice.paidAt) return 'Paid';
     const dueDate = parseInvoiceDate(invoice.dueDate);
     return dueDate && dueDate < today() ? 'Overdue' : 'Sent';
@@ -6956,6 +7004,7 @@
   }
 
   function invoicePaymentSummary(invoices) {
+    invoices = invoices.filter(invoice => !invoice.invoiceDraft);
     const totals = { invoiced: new Map(), received: new Map(), unpaid: new Map() };
     let paidCount = 0;
     invoices.forEach(invoice => {
@@ -6992,7 +7041,7 @@
 
   function openInvoicePayment(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice) return;
+    if (!invoice || invoice.invoiceDraft) return;
     const client = data.applications.find(item => item.id === invoice.clientId);
     const salaryAmount = Number(client?.salaryAmount);
     const amountPrefill = Number.isFinite(salaryAmount) && salaryAmount >= 0 && client?.salaryAmount !== '' ? String(salaryAmount) : '';
@@ -7023,7 +7072,7 @@
 
   async function markInvoiceUnpaid(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice) return;
+    if (!invoice || invoice.invoiceDraft) return;
     if (!(await appConfirm(`Mark invoice ${invoice.invoiceNumber || ''} as unpaid? Its payment details will be cleared.`, {
       title: 'Mark invoice as unpaid',
       confirmLabel: 'Mark as unpaid',
@@ -7093,6 +7142,463 @@
     if (activeView === 'wallet') renderWallet();
     else if (client) renderHiredDetail(client, false);
     showActionResult({ title: 'Payment saved', message: `Payment for ${invoice.invoiceNumber || 'the invoice'} was saved.` });
+  });
+
+  // Client billing is draft-only. This module intentionally has no send-email call.
+  const invoiceEngine = window.JeffInvoiceEngine;
+  let invoiceCheckClientId = '', invoiceCheckDraft = null, invoiceCheckLogo = '', invoiceCheckBusy = false;
+  let invoiceCheckSequence = 0, invoicePreviewSnapshot = null, invoiceAutomaticReady = false;
+  let invoicePreviewSequence=0;
+  let invoiceProfileOwner='', invoiceProfile=null, invoicePaymentOptions=[];
+  let invoiceLogoSequence=0;
+  let invoiceLogoLoad=Promise.resolve();
+  let invoiceBrandLogoPromise=null;
+  let invoiceHourlyCalculationPending=false;
+  let invoiceHourlyBillingChanged=false;
+  const invoiceField = name => $(`#invoiceCheck${name}`);
+  const invoiceClient = () => (data.applications || []).find(item => item.id === invoiceCheckClientId);
+  const invoiceCopy = value => JSON.parse(JSON.stringify(value));
+  function openClientInvoiceHub(clientId) {
+    const client=(data.applications || []).find(item=>item.id===clientId);if(!client)return;
+    if(invoiceCheckBusy){toast('Wait for the invoice to finish saving.');return;}
+    if(activeClientDrawerOpen && activeClientDrawerFormChanged(activeClientDrawerView)){
+      if(!window.confirm('Discard unsaved invoice changes?'))return;
+      resetActiveClientDrawerForm(activeClientDrawerView);
+    }
+    if(activeClientDrawerView==='invoice-upload')clearInvoiceUploadDraft();
+    hiredEditingId=clientId;
+    if(!activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));
+    $('#generateClientInvoice').disabled=isContractEnded(client);
+    $('#invoiceHubStatus').textContent=isContractEnded(client)?'This contract has ended. You can review existing drafts or upload a final invoice.':'Nothing sends automatically. Both options open an email for your review.';
+    $('#invoiceHubDrafts').innerHTML=invoiceDraftRows(clientId);
+    showActiveClientDrawerView('invoice-home');
+    $('#activeClientDrawerInvoiceHome').scrollTop=0;
+    $('#activeClientDrawerInvoiceHome button:not([disabled])')?.focus();
+  }
+  $('#generateClientInvoice').addEventListener('click',()=>openInvoiceCheck(hiredEditingId));
+  $('#uploadClientInvoice').addEventListener('click',()=>{
+    const client=(data.applications || []).find(item=>item.id===hiredEditingId);if(client)openInvoiceDocumentPicker(client,true);
+  });
+  $('#cancelInvoiceUpload').addEventListener('click',event=>{
+    if(activeClientDrawerOpen && activeClientDrawerView==='invoice-upload'){event.preventDefault();openClientInvoiceHub(hiredEditingId);}
+  });
+  $('#invoiceUploadForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    if(event.submitter?.id==='cancelInvoiceUpload'){
+      if(activeClientDrawerOpen && activeClientDrawerView==='invoice-upload')openClientInvoiceHub(hiredEditingId);
+      else $('#invoiceDocumentPickerModal').close();
+    }else continueInvoicePicker();
+  });
+  for(const selector of ['#invoiceStartDate','#invoiceEndDate'])$(selector).addEventListener('change',()=>{
+    const start=$('#invoiceStartDate').value,end=$('#invoiceEndDate').value;
+    if(invoiceEngine.validDate(start) && invoiceEngine.validDate(end) && end>=start)$('#invoiceBillingPeriod').value=`${invoiceEngine.formatDate(start)} – ${invoiceEngine.formatDate(end)}`;
+  });
+  function invoiceStatus(message = '', error = false) {
+    $('#invoiceCheckStatus').textContent = message;
+    $('#invoiceCheckStatus').classList.toggle('is-error',error);
+  }
+  function invoiceCheckDefaults(client) {
+    const saved = client.invoiceSettings;
+    const reusable = (data.applications || []).find(item => item.invoiceSettings?.issuer?.name)?.invoiceSettings;
+    const metadata = currentUser?.user_metadata || {};
+    const profile=invoiceProfileOwner===currentUser?.id?invoiceProfile:null;
+    return invoiceEngine.settings(saved || {
+      basis:String(client.salaryType || '').toLowerCase()==='hourly'?'logged':'weekly',
+      rate:String(client.salaryType || '').toLowerCase()==='hourly'?String(client.salaryAmount || ''):'',
+      weeklyHours:client.hoursPerWeek || '',workdays:5,
+      currency:client.salaryCurrency || 'USD',service:client.role || 'Professional services',
+      issuer:reusable?.issuer || profile?.issuer || {name:metadata.full_name || metadata.name || '',email:currentUser?.email || ''},
+      payment:reusable?.payment || profile?.payment || {},notes:reusable?.notes || '',timezone:reusable?.timezone || 'Asia/Manila'
+    });
+  }
+  function invoiceFillSettings(config) {
+    invoicePaymentOptions=config.payment.options || [];
+    renderInvoicePaymentMethods(config.payment.method);
+    for(const [name,value] of Object.entries({Basis:config.basis,Currency:config.currency,Rate:config.rate,Terms:config.termsDays,Service:config.service,WeeklyHours:config.weeklyHours,Workdays:config.workdays,
+      BusinessName:config.issuer.name,BusinessEmail:config.issuer.email,BusinessAddress:config.issuer.address,BusinessPhone:config.issuer.phone,
+      PaymentMethod:config.payment.method,PaymentDetails:config.payment.details,Notes:config.notes,Timezone:config.timezone,
+      ScheduleDay:config.schedule.day,ScheduleHour:config.schedule.hour})) invoiceField(name).value=value ?? '';
+    invoiceField('Automatic').checked=config.schedule.enabled;
+    invoiceCheckLogo=config.issuer.logo;renderInvoiceLogo();
+    $('#invoiceCheckBusiness').open=!config.issuer.name || !config.issuer.email;
+    $('#invoiceCheckPayment').open=!config.payment.method || !config.payment.details;
+    $('#invoiceCheckSchedule').open=config.schedule.enabled;
+    updateInvoiceBasis();
+  }
+  function renderInvoicePaymentMethods(selected='') {
+    const methods=[...new Set(['',...invoicePaymentOptions.map(option=>option.method),selected,'Wise','PayPal','Payoneer','Bank transfer','GCash','MariBank','Other'])];
+    invoiceField('PaymentMethod').innerHTML=methods.map(method=>`<option value="${escapeHtml(method)}">${escapeHtml(method || 'Choose a method')}</option>`).join('');
+    invoiceField('PaymentMethod').value=selected;
+  }
+  function invoiceReadSettings() {
+    const previous=invoiceClient()?.invoiceSettings;
+    const enabled=invoiceField('Automatic').checked;
+    if(enabled && !invoiceAutomaticReady) throw new Error('Weekly preparation needs the updated Cloudflare Worker. Manual invoice generation is still available.');
+    return invoiceEngine.validateSettings({basis:invoiceField('Basis').value,rate:invoiceField('Rate').value,currency:invoiceField('Currency').value,
+      weeklyHours:invoiceField('WeeklyHours').value,workdays:invoiceField('Workdays').value,
+      service:invoiceField('Service').value,termsDays:invoiceField('Terms').value,timezone:invoiceField('Timezone').value,
+      issuer:{name:invoiceField('BusinessName').value,email:invoiceField('BusinessEmail').value,address:invoiceField('BusinessAddress').value,phone:invoiceField('BusinessPhone').value,logo:invoiceCheckLogo},
+      payment:{method:invoiceField('PaymentMethod').value,details:invoiceField('PaymentDetails').value,options:invoicePaymentOptions},notes:invoiceField('Notes').value,
+      schedule:{enabled,day:Number(invoiceField('ScheduleDay').value),hour:Number(invoiceField('ScheduleHour').value),enabledAt:enabled?(previous?.schedule?.enabled?previous.schedule.enabledAt:new Date().toISOString()):''}});
+  }
+  function updateInvoiceBasis({recalculate=false}={}) {
+    const basis=invoiceField('Basis').value;
+    $('#invoiceCheckRateLabel').textContent=basis==='weekly'?'Agreed weekly fee':'Hourly rate';
+    try{
+      const duration=invoiceEngine.workDuration(invoiceField('WeeklyHours').value,invoiceField('Workdays').value);
+      let summary=invoiceEngine.durationLabel(duration);
+      $('#invoiceCheckHourlyCalculation').hidden=true;
+      if(duration && basis==='agreed'){
+        const rate=invoiceEngine.cents(invoiceField('Rate').value),currency=invoiceField('Currency').value,total=Math.round(duration.hoursPerWeek*rate);
+        $('#invoiceCheckHourlyCalculation').hidden=false;
+        $('#invoiceCheckWeeklyTotal').textContent=invoiceEngine.money(total,currency);
+        $('#invoiceCheckHourlyBreakdown').textContent=`${invoiceEngine.money(rate,currency)}/hour × ${duration.hoursPerWeek} hours · ${duration.daysPerWeek} workdays · ${invoiceEngine.money(Math.round(total/duration.daysPerWeek),currency)}/day`;
+        summary+=` · ${invoiceEngine.money(total,currency)} per week`;
+        if(invoiceCheckDraft && recalculate){
+          invoiceHourlyBillingChanged=true;
+          const rows=$('#invoiceCheckLines').querySelectorAll('.invoice-service-editor');
+          if(rows.length===1){
+            rows[0].querySelector('[data-invoice-line="quantity"]').value=duration.hoursPerWeek;
+            rows[0].querySelector('[data-invoice-line="rate"]').value=(rate/100).toFixed(2);
+            rows[0].querySelector('[data-invoice-line="unit"]').value='hour';
+            invoiceHourlyCalculationPending=false;updateInvoiceEditTotal();
+          }else invoiceHourlyCalculationPending=true;
+        }
+      }
+      if(basis!=='agreed')invoiceHourlyCalculationPending=false;
+      if(invoiceCheckDraft && recalculate && basis==='weekly'){
+        const rows=$('#invoiceCheckLines').querySelectorAll('.invoice-service-editor');
+        if(rows.length===1){rows[0].querySelector('[data-invoice-line="quantity"]').value=1;rows[0].querySelector('[data-invoice-line="rate"]').value=invoiceField('Rate').value;rows[0].querySelector('[data-invoice-line="unit"]').value='week';updateInvoiceEditTotal();}
+      }
+      $('#applyInvoiceHourlyCalculation').hidden=!invoiceHourlyCalculationPending;
+      if(invoiceCheckDraft && basis!=='agreed')summary+=' · Review and edit the saved service charges below.';
+      else if(basis==='weekly')summary+=' · Billed as the fixed weekly fee.';
+      else if(basis==='logged')summary+=' · Billed from saved time entries.';
+      $('#invoiceCheckDurationSummary').textContent=summary.replace(/^ · /,'');
+    }catch(error){$('#invoiceCheckHourlyCalculation').hidden=true;$('#invoiceCheckDurationSummary').textContent=error.message;}
+    if(invoiceEngine.validDate(invoiceField('Week').value)) {
+      const start=invoiceEngine.weekStart(invoiceField('Week').value);invoiceField('Week').value=start;
+      $('#invoiceCheckPeriod').textContent=`${invoiceEngine.formatDate(start)} – ${invoiceEngine.formatDate(invoiceEngine.addDays(start,6))}`;
+    }
+  }
+  function renderInvoiceLogo() {
+    const image=$('#invoiceCheckLogoPreview');image.hidden=!invoiceCheckLogo;$('#invoiceCheckLogoData').value=invoiceCheckLogo;
+    if(invoiceCheckLogo) image.src=invoiceCheckLogo;else image.removeAttribute('src');
+    $('#invoiceCheckRemoveLogo').hidden=!invoiceCheckLogo;
+  }
+  async function loadInvoiceBrandLogo(sequence) {
+    if(invoiceCheckLogo)return;
+    const owner=currentUser?.id,logoSequence=invoiceLogoSequence;
+    try{
+      const logo=await readInvoiceBrandLogo();if(!logo)return;
+      if(currentUser?.id===owner && sequence===invoiceCheckSequence && logoSequence===invoiceLogoSequence && !invoiceCheckLogo){invoiceCheckLogo=logo;renderInvoiceLogo();}
+    }catch{/* An existing saved logo remains usable offline. */}
+  }
+  function readInvoiceBrandLogo() {
+    if(!invoiceBrandLogoPromise)invoiceBrandLogoPromise=(async()=>{
+      const response=await fetch('/images/tab.png',{signal:AbortSignal.timeout(8000)});if(!response.ok)throw new Error('Logo unavailable.');
+      const blob=await response.blob();if(blob.type!=='image/png' || blob.size>130000)throw new Error('Invalid logo.');
+      return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});
+    })().catch(()=>{invoiceBrandLogoPromise=null;return '';});
+    return invoiceBrandLogoPromise;
+  }
+  function clientInvoiceDrafts(clientId) {
+    return (data.invoices || []).filter(item=>item.invoiceDraft && item.draftStatus!=='sent' && item.clientId===clientId).sort((a,b)=>String(b.document?.periodStart || '').localeCompare(String(a.document?.periodStart || '')));
+  }
+  function invoiceDraftRows(clientId) {
+    const rows=clientInvoiceDrafts(clientId);
+    return rows.length?rows.map(draft=>{
+      let amount='Needs review';try{amount=invoiceEngine.money(invoiceEngine.calculate(draft.document).totalCents,draft.document.currency);}catch{}
+      return `<article class="invoice-ready-row"><div><strong>${escapeHtml(draft.document?.invoiceNumber || 'Invoice draft')}</strong><span>${escapeHtml(invoiceEngine.formatDate(draft.document?.periodStart))} – ${escapeHtml(invoiceEngine.formatDate(draft.document?.periodEnd))}</span><small>${escapeHtml(amount)} · Not sent</small></div><div><button type="button" class="button button-secondary" data-invoice-draft-edit="${escapeHtml(draft.id)}">Edit</button><button type="button" class="button button-primary" data-invoice-draft-preview="${escapeHtml(draft.id)}">Preview</button></div></article>`;
+    }).join(''):'<p class="settings-copy">No generated drafts yet. Choose a billing week and generate your first preview.</p>';
+  }
+  function renderInvoiceDraftQueue(client) {
+    if(!invoiceEngine) return '';
+    const count=clientInvoiceDrafts(client.id).length;
+    return `<section class="invoice-check-queue"><div class="invoice-check-queue-heading"><div><p class="eyebrow">PREVIEW QUEUE</p><h4>Weekly invoice drafts${count?` · ${count}`:''}</h4><p>Editable invoices prepared for review. None are sent automatically.</p></div><button type="button" class="button button-secondary" data-invoice-check-client="${escapeHtml(client.id)}"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Invoice</button></div>${invoiceDraftRows(client.id)}</section>`;
+  }
+  async function refreshInvoiceAutomaticStatus(sequence,{fillProfile=true}={}) {
+    invoiceAutomaticReady=false;
+    invoiceField('Automatic').disabled=true;
+    $('#invoiceCheckAutomationStatus').textContent='Checking weekly preparation availability…';
+    const owner=currentUser?.id;
+    const initialProfileFields=Object.fromEntries(['BusinessName','BusinessEmail','BusinessAddress','BusinessPhone','PaymentMethod','PaymentDetails','LogoData'].map(name=>[name,invoiceField(name).value]));
+    try {
+      const auth=requireSupabase().auth;let session=(await auth.getSession()).data?.session;
+      for(let attempt=0;attempt<2;attempt++) {
+        if(!session?.access_token || currentUser?.id!==owner) throw new Error();
+        const response=await fetch('/api/invoice-check',{headers:{authorization:`Bearer ${session.access_token}`},signal:AbortSignal.timeout(10000)});
+        if(response.status===401 && attempt===0){session=(await auth.refreshSession()).data?.session;continue;}
+        if(!response.ok) throw new Error();
+        const result=await response.json();
+        if(sequence!==invoiceCheckSequence || currentUser?.id!==owner) return;
+        if(result.profile && fillProfile){
+          invoiceProfileOwner=owner;invoiceProfile=invoiceEngine.settings(result.profile);
+          invoicePaymentOptions=invoiceProfile.payment.options;
+          renderInvoicePaymentMethods(invoiceField('PaymentMethod').value);
+          const saved=invoiceClient()?.invoiceSettings;
+          for(const [name,value] of Object.entries({BusinessName:invoiceProfile.issuer.name,BusinessEmail:invoiceProfile.issuer.email,BusinessAddress:invoiceProfile.issuer.address,BusinessPhone:invoiceProfile.issuer.phone,PaymentMethod:invoiceProfile.payment.method,PaymentDetails:invoiceProfile.payment.details})){
+            const isPayment=name.startsWith('Payment'),issuerKey={BusinessName:'name',BusinessEmail:'email',BusinessAddress:'address',BusinessPhone:'phone'}[name];
+            if(invoiceField(name).value===initialProfileFields[name] && !(isPayment?saved?.payment?.options?.length:saved?.issuer?.[issuerKey]))invoiceField(name).value=value;
+          }
+          if(!invoiceCheckLogo && invoiceField('LogoData').value===initialProfileFields.LogoData){invoiceCheckLogo=invoiceProfile.issuer.logo;renderInvoiceLogo();}
+          $('#invoiceCheckPayment').open=false;
+          if(!$('#invoiceCheckStatus').textContent)invoiceStatus('Your saved payment options and logo are ready. Review the billing week and amount.');
+        }
+        invoiceAutomaticReady=result.automaticReady===true && result.draftOnly===true;break;
+      }
+    } catch { /* Manual generation remains available on an older/local server. */ }
+    if(sequence!==invoiceCheckSequence || currentUser?.id!==owner) return;
+    invoiceField('Automatic').disabled=!invoiceAutomaticReady || Boolean(invoiceCheckDraft);
+    $('#invoiceCheckAutomationStatus').textContent=invoiceAutomaticReady?'Weekly draft preparation is available. Enable it and save your setup to start.':'Manual generation is available. Closed-app weekly preparation requires deployment of the updated Cloudflare Worker and its cron trigger.';
+  }
+  function openInvoiceCheck(clientId, draftId='') {
+    const client=(data.applications || []).find(item=>item.id===clientId);
+    if(!client || !invoiceEngine) {toast('Invoice check is unavailable. Reload the app and try again.');return;}
+    if(activeClientDrawerOpen && activeClientDrawerView==='invoice-check' && activeClientDrawerFormChanged('invoice-check') && !window.confirm('Discard unsaved invoice changes?')) return;
+    invoiceCheckClientId=clientId;invoiceCheckDraft=null;invoiceHourlyCalculationPending=false;invoiceHourlyBillingChanged=false;
+    const sequence=++invoiceCheckSequence;
+    invoiceLogoSequence++;
+    hiredEditingId=clientId;
+    if(!activeClientDrawerOpen) openActiveClientActionsDrawer($('#activeClientActionsButton'));
+    invoiceFillSettings(invoiceCheckDefaults(client));
+    invoiceField('Week').disabled=false;
+    invoiceField('Week').value=invoiceEngine.addDays(invoiceEngine.weekStart(invoiceEngine.localDate(Date.now(),invoiceField('Timezone').value)),-7);
+    $('#invoiceCheckEditFields').hidden=true;$('#invoiceCheckNewWeek').hidden=true;
+    for(const name of ['Basis','Rate','Service']) invoiceField(name).disabled=false;
+    invoiceField('Terms').disabled=Boolean(draftId);
+    $('#saveInvoiceSetup').hidden=false;$('#generateInvoiceDraft').textContent='Generate preview';
+    if(draftId) {
+      const draft=(data.invoices || []).find(item=>item.id===draftId && item.invoiceDraft && item.clientId===clientId);
+      if(!draft) {invoiceStatus('This draft is no longer available. Refresh your workspace.',true);return;}
+      if(draft.draftStatus==='sent'){toast('This invoice has already been sent. Open invoice history to review it.');return;}
+      invoiceCheckDraft=invoiceCopy(draft);const d=draft.document;
+      invoiceFillSettings(invoiceEngine.settings({...client.invoiceSettings,basis:d.basis || client.invoiceSettings?.basis,rate:d.lines?.length===1?d.lines[0].rate:client.invoiceSettings?.rate,weeklyHours:d.workSchedule?.hoursPerWeek ?? '',workdays:d.workSchedule?.daysPerWeek ?? 5,issuer:d.issuer,payment:d.payment,notes:d.notes,currency:d.currency,service:d.service}));
+      invoiceField('Week').value=d.periodStart;invoiceField('Week').disabled=true;
+      for(const [name,value] of Object.entries({Number:invoiceEngine.legacyInvoiceNumber(d.invoiceNumber)?invoiceEngine.nextInvoiceNumber(data.invoices,d.issueDate.slice(0,4)):d.invoiceNumber,IssueDate:d.issueDate,DueDate:d.dueDate,BillTo:d.billTo.name,ClientEmail:d.billTo.email,ClientContact:d.billTo.contact,ClientAddress:d.billTo.address,Discount:d.discountPercent || 0,Tax:d.taxPercent || 0})) invoiceField(name).value=value ?? '';
+      renderInvoiceEditLines(d.lines);$('#invoiceCheckEditFields').hidden=false;$('#invoiceCheckNewWeek').hidden=false;
+      $('#saveInvoiceSetup').hidden=true;$('#generateInvoiceDraft').textContent='Save changes & preview';
+      $('#invoiceCheckSchedule').open=false;invoiceField('Automatic').disabled=true;
+    }
+    invoiceStatus(isContractEnded(client)?'Existing drafts can be edited. New invoices cannot be generated for an ended contract.':'');
+    $('#generateInvoiceDraft').disabled=isContractEnded(client) && !invoiceCheckDraft;
+    $('#invoiceCheckSavedDrafts').innerHTML=invoiceDraftRows(clientId);updateInvoiceBasis();
+    showActiveClientDrawerView('invoice-check');
+    $('#invoiceCheckForm .invoice-check-content').scrollTop=0;
+    markActiveClientDrawerFormClean('invoice-check');
+    void refreshInvoiceAutomaticStatus(sequence);
+    invoiceLogoLoad=loadInvoiceBrandLogo(sequence);
+  }
+  function renderInvoiceEditLines(lines) {
+    $('#invoiceCheckLines').innerHTML=lines.map(line=>`<div class="invoice-service-editor"><label class="form-field">Description<textarea data-invoice-line="description" maxlength="800" rows="2">${escapeHtml(line.description)}</textarea></label><div class="invoice-line-numbers"><label class="form-field">Quantity<input data-invoice-line="quantity" type="number" min="0.0001" step="0.0001" value="${escapeHtml(line.quantity)}" /></label><label class="form-field">Rate<input data-invoice-line="rate" type="number" min="0" step="0.01" value="${escapeHtml(line.rate)}" /></label><label class="form-field">Unit<select data-invoice-line="unit">${['hour','week','service'].map(unit=>`<option value="${unit}"${line.unit===unit?' selected':''}>${unit}</option>`).join('')}</select></label><button type="button" class="button button-secondary invoice-remove-line" aria-label="Remove service line"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></div></div>`).join('');
+    updateInvoiceEditTotal();
+  }
+  function invoiceReadLines() {
+    return [...$('#invoiceCheckLines').querySelectorAll('.invoice-service-editor')].map(row=>Object.fromEntries([...row.querySelectorAll('[data-invoice-line]')].map(field=>[field.dataset.invoiceLine,field.value])));
+  }
+  function invoiceReadDocument() {
+    if(invoiceHourlyCalculationPending)throw new Error('Click Apply hourly calculation to replace the existing service lines with this weekly total, then review and save.');
+    const d=invoiceCopy(invoiceCheckDraft.document);
+    Object.assign(d,{basis:invoiceField('Basis').value,service:invoiceField('Service').value,invoiceNumber:invoiceField('Number').value.trim(),issueDate:invoiceField('IssueDate').value,dueDate:invoiceField('DueDate').value,currency:invoiceField('Currency').value,
+      issuer:{name:invoiceField('BusinessName').value.trim(),email:invoiceField('BusinessEmail').value.trim(),address:invoiceField('BusinessAddress').value,phone:invoiceField('BusinessPhone').value,logo:invoiceCheckLogo},
+      billTo:{name:invoiceField('BillTo').value.trim(),email:invoiceField('ClientEmail').value.trim(),contact:invoiceField('ClientContact').value,address:invoiceField('ClientAddress').value},
+      payment:{method:invoiceField('PaymentMethod').value,details:invoiceField('PaymentDetails').value,options:invoicePaymentOptions},notes:invoiceField('Notes').value,
+      workSchedule:invoiceEngine.workDuration(invoiceField('WeeklyHours').value,invoiceField('Workdays').value),
+      lines:invoiceReadLines(),discountPercent:invoiceField('Discount').value,taxPercent:invoiceField('Tax').value});
+    return invoiceEngine.validateDocument(d);
+  }
+  function updateInvoiceEditTotal() {
+    if(!invoiceCheckDraft) return;
+    try {const total=invoiceEngine.calculate({lines:invoiceReadLines(),discountPercent:invoiceField('Discount').value,taxPercent:invoiceField('Tax').value});$('#invoiceCheckTotal').textContent=`Total due: ${invoiceEngine.money(total.totalCents,invoiceField('Currency').value)}`;}
+    catch {$('#invoiceCheckTotal').textContent='Complete the service lines to calculate the total.';}
+  }
+  // Roll back only an unchanged optimistic record, never another action's edits.
+  async function commitInvoiceRecords(changes) {
+    const owner=currentUser?.id;
+    for(const change of changes) {
+      data[change.key] ||= [];const index=data[change.key].findIndex(item=>item.id===change.value.id);
+      change.previous=index<0?null:invoiceCopy(data[change.key][index]);change.serialized=JSON.stringify(change.value);
+      if(index<0)data[change.key].unshift(change.value);else data[change.key][index]=change.value;
+    }
+    const saved=await persist();
+    if(saved && currentUser?.id===owner) return true;
+    if(currentUser?.id===owner)for(const change of changes){const index=data[change.key].findIndex(item=>item.id===change.value.id);if(index>=0 && JSON.stringify(data[change.key][index])===change.serialized){if(change.previous)data[change.key][index]=change.previous;else data[change.key].splice(index,1);}}
+    throw new Error('The invoice was not saved. Reconnect or refresh before trying again.');
+  }
+  async function invoiceCheckOperation(work) {
+    if(invoiceCheckBusy) return;
+    invoiceCheckBusy=true;const owner=currentUser?.id, clientId=invoiceCheckClientId;
+    $('#generateInvoiceDraft').disabled=true;$('#saveInvoiceSetup').disabled=true;invoiceStatus('Saving…');
+    try {await invoiceLogoLoad;if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)throw new Error('The account or client changed. Reopen Invoice check.');await work(owner,clientId);}
+    catch(error){if(currentUser?.id===owner && invoiceCheckClientId===clientId)invoiceStatus(error.message || 'The invoice could not be prepared.',true);}
+    finally {invoiceCheckBusy=false;if(currentUser?.id===owner && invoiceCheckClientId===clientId){$('#generateInvoiceDraft').disabled=isContractEnded(invoiceClient()) && !invoiceCheckDraft;$('#saveInvoiceSetup').disabled=false;}}
+  }
+  $('#saveInvoiceSetup').addEventListener('click',()=>invoiceCheckOperation(async()=>{
+    const config=invoiceReadSettings(),client=invoiceClient();
+    if(isContractEnded(client) && config.schedule.enabled) throw new Error('Disable weekly preparation for an ended contract.');
+    await commitInvoiceRecords([{key:'applications',value:{...client,invoiceSettings:config}}]);
+    if(typeof browserDrafts!=='undefined')browserDrafts.clearForm('invoiceCheckForm');
+    markActiveClientDrawerFormClean('invoice-check');invoiceStatus('Setup saved. Your business, payment details and billing basis will be reused.');
+  }));
+  $('#invoiceCheckForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    void invoiceCheckOperation(async(owner,clientId)=>{
+      const client=invoiceClient();let draft;
+      if(invoiceCheckDraft) {
+        const current=(data.invoices || []).find(item=>item.id===invoiceCheckDraft.id);
+        if(!current || current.updatedAt!==invoiceCheckDraft.updatedAt)throw new Error('This invoice changed on another device. Reopen it before saving.');
+        draft={...current,document:invoiceReadDocument(),updatedAt:new Date().toISOString()};
+        const duplicate=(data.invoices || []).some(item=>item.id!==draft.id && item.sourceDraftId!==draft.id && (item.invoiceNumber || item.document?.invoiceNumber)===draft.document.invoiceNumber);
+        if(duplicate)throw new Error('Another invoice already uses that invoice number.');
+        const changes=[{key:'invoices',value:draft}];
+        if(invoiceHourlyBillingChanged && draft.document.basis==='agreed'){
+          const config=invoiceEngine.validateSettings({...invoiceEngine.settings(client.invoiceSettings || {}),basis:'agreed',rate:invoiceField('Rate').value,weeklyHours:invoiceField('WeeklyHours').value,workdays:invoiceField('Workdays').value,currency:invoiceField('Currency').value,
+            issuer:client.invoiceSettings?.issuer?.name?client.invoiceSettings.issuer:draft.document.issuer,payment:client.invoiceSettings?.payment?.details?client.invoiceSettings.payment:draft.document.payment});
+          changes.push({key:'applications',value:{...client,invoiceSettings:config}});
+        }
+        await commitInvoiceRecords(changes);
+      } else {
+        const config=invoiceReadSettings(),start=invoiceEngine.weekStart(invoiceField('Week').value),id=await invoiceEngine.draftId(clientId,start);
+        const existing=(data.invoices || []).find(item=>item.id===id);
+        if(existing){
+          markActiveClientDrawerFormClean('invoice-check');
+          if(existing.draftStatus!=='sent' && config.basis==='agreed'){
+            $('#invoiceDraftPreviewModal').close();openInvoiceCheck(clientId,existing.id);
+            for(const [name,value] of Object.entries({Basis:'agreed',Rate:config.rate,Currency:config.currency,WeeklyHours:config.weeklyHours,Workdays:config.workdays}))invoiceField(name).value=value;
+            updateInvoiceBasis({recalculate:true});
+            if(invoiceHourlyCalculationPending){invoiceStatus('This invoice has multiple service lines. Click Apply hourly calculation to use one weekly service charge, then review and save.');return;}
+            draft={...existing,document:invoiceReadDocument(),updatedAt:new Date().toISOString()};
+            await commitInvoiceRecords([{key:'applications',value:{...invoiceClient(),invoiceSettings:config}},{key:'invoices',value:draft}]);
+            if(typeof browserDrafts!=='undefined')browserDrafts.clearForm('invoiceCheckForm');
+            invoiceCheckDraft=invoiceCopy(draft);markActiveClientDrawerFormClean('invoice-check');
+            $('#invoiceCheckSavedDrafts').innerHTML=invoiceDraftRows(clientId);
+            if(hiredEditingId===clientId)renderHiredDetail(invoiceClient(),false);
+            invoiceStatus('Hourly total recalculated and saved. Review the invoice before sending.');await openInvoiceDraftPreview(draft.id);
+          }else if(existing.draftStatus!=='sent' && config.weeklyHours && (existing.document?.workSchedule?.hoursPerWeek!==config.weeklyHours || existing.document?.workSchedule?.daysPerWeek!==config.workdays)){
+            $('#invoiceDraftPreviewModal').close();openInvoiceCheck(clientId,existing.id);
+            invoiceField('WeeklyHours').value=config.weeklyHours;invoiceField('Workdays').value=config.workdays;updateInvoiceBasis();
+            invoiceStatus('This week already has an invoice. Your weekly schedule is filled in. Review the saved service charges below, then save changes.');
+          }else{invoiceStatus('This week already has an invoice. Existing edits were preserved.');openInvoiceDraftPreview(existing.id);}
+          return;
+        }
+        if((data.invoices || []).some(item=>!item.invoiceDraft && item.clientId===clientId && item.startDate===start && item.endDate===invoiceEngine.addDays(start,6)))throw new Error('A sent invoice already exists for this billing week. Review invoice history before preparing another.');
+        draft=await invoiceEngine.generate(client,data.clientTasks || [],config,start,new Date().toISOString(),data.invoices || []);
+        if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)throw new Error('The account or client changed. Reopen Invoice check.');
+        if(invoiceClient()!==client || (data.invoices || []).some(item=>item.id===id))throw new Error('The client or invoice changed while preparing this draft. Reopen Invoice check before continuing.');
+        await commitInvoiceRecords([{key:'applications',value:{...client,invoiceSettings:config}},{key:'invoices',value:draft},{key:'alerts',value:invoiceEngine.readyAlert(draft)}]);
+      }
+      if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)return;
+      invoiceCheckDraft=invoiceCopy(draft);markActiveClientDrawerFormClean('invoice-check');
+      openInvoiceCheck(clientId,draft.id);
+      if(typeof browserDrafts!=='undefined')browserDrafts.clearForm('invoiceCheckForm');
+      $('#invoiceCheckSavedDrafts').innerHTML=invoiceDraftRows(clientId);renderAlerts();
+      invoiceStatus('Invoice is ready for preview. It has not been sent.');
+      if(hiredEditingId===clientId)renderHiredDetail(invoiceClient(),false);
+      openInvoiceDraftPreview(draft.id);
+    });
+  });
+  $('#invoiceCheckLogo').addEventListener('change',async event=>{
+    const file=event.target.files?.[0],sequence=invoiceCheckSequence;if(!file)return;
+    invoiceLogoSequence++;
+    try {
+      if(!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size>2*1024*1024)throw new Error('Choose a PNG, JPG or WebP logo smaller than 2 MB.');
+      const bitmap=await createImageBitmap(file);
+      if(bitmap.width>12000 || bitmap.height>12000){bitmap.close();throw new Error('This image is too large. Choose a smaller logo.');}
+      const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
+      const scale=Math.min(256/bitmap.width,256/bitmap.height);const context=canvas.getContext('2d');context.drawImage(bitmap,(256-bitmap.width*scale)/2,(256-bitmap.height*scale)/2,bitmap.width*scale,bitmap.height*scale);bitmap.close();
+      const logo=canvas.toDataURL('image/png');if(logo.length>180000)throw new Error('Choose a simpler or smaller logo image.');
+      if(sequence!==invoiceCheckSequence)return;invoiceCheckLogo=logo;renderInvoiceLogo();invoiceStatus('Logo loaded. Save the setup or invoice to keep it.');
+    }catch(error){invoiceStatus(error.message,true);}finally{event.target.value='';}
+  });
+  $('#invoiceCheckRemoveLogo').addEventListener('click',()=>{invoiceLogoSequence++;invoiceCheckLogo='';renderInvoiceLogo();});
+  $('#invoiceCheckBasis').addEventListener('change',()=>updateInvoiceBasis({recalculate:true}));$('#invoiceCheckWeek').addEventListener('change',updateInvoiceBasis);
+  for(const name of ['WeeklyHours','Workdays','Rate','Currency'])invoiceField(name).addEventListener('input',()=>{
+    if(name==='WeeklyHours' && Number(invoiceField('WeeklyHours').value)>0)invoiceField('Basis').value='agreed';
+    updateInvoiceBasis({recalculate:true});
+  });
+  $('#applyInvoiceHourlyCalculation').addEventListener('click',()=>{
+    try{
+      if(invoiceField('Basis').value!=='agreed')return;
+      const duration=invoiceEngine.workDuration(invoiceField('WeeklyHours').value,invoiceField('Workdays').value);
+      const lines=[{description:invoiceField('Service').value,quantity:duration?.hoursPerWeek,rate:invoiceField('Rate').value,unit:'hour'}];invoiceEngine.calculate({lines});
+      renderInvoiceEditLines(lines);
+      invoiceHourlyCalculationPending=false;updateInvoiceBasis({recalculate:true});
+    }catch(error){invoiceStatus(error.message,true);}
+  });
+  document.addEventListener('click',event=>{
+    const preset=event.target.closest('[data-invoice-weekly-hours]');if(!preset)return;
+    invoiceField('Basis').value='agreed';invoiceField('WeeklyHours').value=preset.dataset.invoiceWeeklyHours;invoiceField('Workdays').value=5;updateInvoiceBasis({recalculate:true});
+  });
+  $('#invoiceCheckPaymentMethod').addEventListener('change',()=>{
+    const saved=invoicePaymentOptions.find(option=>option.method===invoiceField('PaymentMethod').value);
+    if(saved)invoiceField('PaymentDetails').value=saved.details;
+  });
+  $('#invoiceCheckScheduleHour').innerHTML=Array.from({length:24},(_,hour)=>`<option value="${hour}">${String(hour).padStart(2,'0')}:00</option>`).join('');
+  $('#invoiceCheckForm').addEventListener('input',updateInvoiceEditTotal);
+  $('#invoiceCheckAddLine').addEventListener('click',()=>{const lines=invoiceReadLines();if(lines.length>=100){invoiceStatus('An invoice can contain up to 100 service lines.',true);return;}lines.push({description:'',quantity:1,rate:'0.00',unit:'service'});renderInvoiceEditLines(lines);});
+  $('#invoiceCheckLines').addEventListener('click',event=>{const button=event.target.closest('.invoice-remove-line');if(!button)return;const rows=[...$('#invoiceCheckLines').children];if(rows.length===1){invoiceStatus('Keep at least one service line.',true);return;}button.closest('.invoice-service-editor').remove();updateInvoiceEditTotal();});
+  $('#invoiceCheckNewWeek').addEventListener('click',()=>{if(!invoiceCheckBusy)openInvoiceCheck(invoiceCheckClientId);});
+  async function openInvoiceDraftPreview(id) {
+    const previewSequence=++invoicePreviewSequence;
+    let draft=(data.invoices || []).find(item=>item.invoiceDraft && item.id===id);
+    if(!draft){toast('This invoice draft is no longer available. Refresh your workspace.');return;}
+    if(draft.draftStatus==='sent'){toast('This invoice has already been sent. Open invoice history to review it.');return;}
+    const owner=currentUser?.id;
+    try {
+      const updated=invoiceCopy(draft),client=(data.applications || []).find(item=>item.id===draft.clientId);
+      if(!invoiceEngine.settings({issuer:updated.document.issuer}).issuer.logo){
+        updated.document.issuer.logo=invoiceEngine.settings({issuer:client?.invoiceSettings?.issuer || {}}).issuer.logo
+          || (invoiceProfileOwner===owner?invoiceProfile?.issuer?.logo:'') || await readInvoiceBrandLogo();
+        if(!updated.document.issuer.logo)throw new Error('The invoice logo could not load. Reconnect and open the preview again.');
+      }
+      if(currentUser?.id!==owner)return;
+      if(invoiceEngine.legacyInvoiceNumber(updated.document.invoiceNumber))updated.document.invoiceNumber=invoiceEngine.nextInvoiceNumber(data.invoices,updated.document.issueDate.slice(0,4));
+      if(JSON.stringify(updated.document)!==JSON.stringify(draft.document)){
+        const current=(data.invoices || []).find(item=>item.id===id);
+        if(!current || current.updatedAt!==draft.updatedAt)throw new Error('This invoice changed. Reopen the preview.');
+        updated.updatedAt=new Date().toISOString();await commitInvoiceRecords([{key:'invoices',value:updated}]);draft=updated;
+        if(currentUser?.id!==owner)return;
+        if(invoiceCheckClientId===draft.clientId)$('#invoiceCheckSavedDrafts').innerHTML=invoiceDraftRows(draft.clientId);
+      }
+      if(previewSequence!==invoicePreviewSequence)return;
+      invoicePreviewSnapshot=invoiceCopy(draft);
+      $('#invoiceDraftPreviewContent').innerHTML=invoiceEngine.html(draft.document);
+      $('#invoiceDraftPreviewTitle').textContent=draft.document.invoiceNumber;
+      $('#invoiceDraftWarnings').textContent=(draft.document.warnings || []).join(' ');
+      $('#invoiceDraftPreviewStatus').textContent='Ready for review · Not sent';
+      if(!$('#invoiceDraftPreviewModal').open)$('#invoiceDraftPreviewModal').showModal();
+    }catch(error){if(currentUser?.id===owner && previewSequence===invoicePreviewSequence)toast(error.message || 'This draft needs review.');}
+  }
+  $('#closeInvoiceDraftPreview').addEventListener('click',()=>$('#invoiceDraftPreviewModal').close());
+  $('#editInvoiceDraft').addEventListener('click',()=>{if(!invoicePreviewSnapshot)return;$('#invoiceDraftPreviewModal').close();openInvoiceCheck(invoicePreviewSnapshot.clientId,invoicePreviewSnapshot.id);});
+  $('#downloadInvoiceDraft').addEventListener('click',()=>{
+    if(!invoicePreviewSnapshot)return;
+    try {const pdf=window.JeffInvoicePdf.create(invoicePreviewSnapshot.document,window.jspdf?.jsPDF,invoiceEngine);pdf.save(`${invoicePreviewSnapshot.document.invoiceNumber.replace(/[^A-Za-z0-9_-]/g,'_')}.pdf`);$('#invoiceDraftPreviewStatus').textContent='PDF downloaded. No email was sent.';}
+    catch(error){$('#invoiceDraftPreviewStatus').textContent=error.message || 'PDF download failed.';}
+  });
+  function prepareInvoiceDraftEmail() {
+    if(!invoicePreviewSnapshot)return;
+    try {
+      const draft=(data.invoices || []).find(item=>item.id===invoicePreviewSnapshot.id && item.invoiceDraft);
+      if(!draft || draft.updatedAt!==invoicePreviewSnapshot.updatedAt)throw new Error('This invoice changed. Reopen its preview before preparing the email.');
+      const client=(data.applications || []).find(item=>item.id===draft.clientId);
+      if(!client)throw new Error('The client is no longer available.');
+      const d=invoiceEngine.validateDocument(draft.document);
+      if(draft.draftStatus==='sent' || invoiceAlreadySent(client.id,d.invoiceNumber))throw new Error('This invoice was already sent. Review invoice history.');
+      const filename=d.invoiceNumber.replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf';
+      const pdf=window.JeffInvoicePdf.create(d,window.jspdf?.jsPDF,invoiceEngine);
+      const file=new File([pdf.output('arraybuffer')],filename,{type:'application/pdf'});
+      const recipient={...client,email:d.billTo.email || client.email,contact:d.billTo.contact || client.contact};
+      openInvoiceComposer(recipient,file,{invoiceNumber:d.invoiceNumber,issueDate:d.issueDate,billingPeriod:`${invoiceEngine.formatDate(d.periodStart)} – ${invoiceEngine.formatDate(d.periodEnd)}`,dueDate:d.dueDate,service:d.service || client.role || 'Professional services',startDate:d.periodStart,endDate:d.periodEnd,amountInvoiced:invoiceEngine.calculate(d).totalCents/100,paymentCurrency:d.currency,sourceDraftId:draft.id,sourceDraftUpdatedAt:draft.updatedAt},true);
+      $('#invoiceDraftPreviewModal').close();
+    }catch(error){$('#invoiceDraftPreviewStatus').textContent=error.message || 'The email could not be prepared.';}
+  }
+  $('#emailInvoiceDraft').addEventListener('click',prepareInvoiceDraftEmail);
+  document.addEventListener('click',event=>{
+    const open=event.target.closest('[data-invoice-check-client]'),preview=event.target.closest('[data-invoice-draft-preview]'),edit=event.target.closest('[data-invoice-draft-edit]');
+      if(open)openClientInvoiceHub(open.dataset.invoiceCheckClient);
+    else if(preview)openInvoiceDraftPreview(preview.dataset.invoiceDraftPreview);
+    else if(edit){const draft=(data.invoices || []).find(item=>item.id===edit.dataset.invoiceDraftEdit);if(draft)openInvoiceCheck(draft.clientId,draft.id);}
   });
 
   // --- Gmail sync ---
@@ -7398,7 +7904,7 @@
     const clientName = application.clientName || 'Client';
     const contactName = application.contact || clientName;
     const contactPerson = application.contact || 'Client';
-    const roleName = String(application.role || '').trim() || (templateType === 'follow-up' ? 'position' : 'your project');
+    const roleName = String(additional.role || application.role || '').trim() || (templateType === 'follow-up' ? 'position' : 'your project');
     const platform = String(application.platform || '').trim();
     const applied = new Date(String(application.appliedDate || '').slice(0, 10) + 'T12:00:00');
     const applicationDate = Number.isFinite(applied.getTime()) ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(applied) : 'an earlier date';
@@ -7456,10 +7962,14 @@
     const label = $('#composeAttachmentName');
     const removeButton = $('#removeComposeAttachmentButton');
     if (label) label.textContent = fileName ? `Attachment: ${fileName}` : '';
+    if(label)label.title=fileName;
+    if(label?.dataset)label.dataset.fileType=(fileName.match(/\.([a-z0-9]{1,5})$/i)?.[1] || 'file').toUpperCase();
     if (removeButton) removeButton.hidden = !fileName;
   }
 
   function setEmailComposeStatus(message, type = 'info') {
+    const form=$('#emailComposeForm');if(form?.dataset)form.dataset.invoiceCompose=composeInvoiceDraft?'true':'false';
+    if($('#emailComposeTitle'))$('#emailComposeTitle').textContent=composeInvoiceDraft?'Invoice email':'Write an email';
     const status = $('#emailComposeStatus');
     if (!status) return;
     const classType = type === 'error' ? 'alert' : type;
@@ -7589,7 +8099,7 @@
     $('#composeBody').focus();
   }
 
-  function openInvoiceComposer(application, file, invoice) {
+  function openInvoiceComposer(application, file, invoice, preferDrawer=false) {
     composeClientId = null;
     composeActivationClientId = null;
     composeDocumentUpdateClientId = null;
@@ -7599,6 +8109,7 @@
     composeAttachmentFile = file;
     $('#composeAttachmentInput').value = '';
     composeInvoiceDraft = { ...invoice, clientId: application.id, fileName: file.name };
+    updateComposeAttachmentDisplay();
     const template = buildDocumentEmailTemplate('invoice', application, {
       invoiceNumber: invoice.invoiceNumber,
       billingPeriod: invoice.billingPeriod,
@@ -7612,7 +8123,9 @@
     $('#emailTemplateName').value = '';
     setEmailComposeStatus(`Review the invoice email, then send through Gmail. Attachment: ${file.name}`);
     renderEmailTemplateOptions();
-    $('#emailComposeModal').showModal();
+    if(preferDrawer && typeof isActiveClientDrawerOpen==='function' && isActiveClientDrawerOpen()){
+      showActiveClientDrawerView('email');markActiveClientDrawerFormClean('email');
+    }else $('#emailComposeModal').showModal();
     $('#composeBody').focus();
   }
 
@@ -8008,6 +8521,18 @@
     const contractEmailFile = contractEmailMode ? composeAttachmentFile : null;
     const attachment = composeAttachment;
     const attachmentFile = composeAttachmentFile;
+    const composedInvoice = composeInvoiceDraft ? {...composeInvoiceDraft} : null;
+    if(composedInvoice){
+      if(!attachment && !attachmentFile){setEmailComposeStatus('Attach the invoice file before sending.','error');return;}
+      if(invoiceAlreadySent(composedInvoice.clientId,composedInvoice.invoiceNumber)){
+        setEmailComposeStatus('This invoice was already sent. Review invoice history before sending again.','error');return;
+      }
+      if(composedInvoice.sourceDraftId){
+        const saved=(data.invoices || []).find(item=>item.id===composedInvoice.sourceDraftId);
+        if(!saved || saved.draftStatus==='sent' || saved.updatedAt!==composedInvoice.sourceDraftUpdatedAt){setEmailComposeStatus('This invoice changed. Reopen its preview and prepare the email again.','error');return;}
+        if(!attachmentFile || attachmentFile.name!==composedInvoice.fileName || (attachmentFile.type || documentContentType(attachmentFile))!==(composedInvoice.sourceAttachmentType || 'application/pdf')){setEmailComposeStatus('The invoice file must be attached. Reopen the invoice to prepare the email again.','error');return;}
+      }
+    }
     if (!to || !subject || !body || !isEmailAddress(to)) {
       setEmailComposeStatus('Enter a valid recipient, subject, and message.', 'error');
       return;
@@ -8056,13 +8581,14 @@
         : null;
       const gmailMessage = followUpDelivery ? { id: followUpDelivery.gmailId } : await sendGmailRaw(rawMessage);
       gmailAccepted = true;
+      if(typeof browserDrafts!=='undefined')browserDrafts.clearForm('emailComposeForm');
       const gmailId = gmailMessage?.id || '';
       const sentEmailRecord = {
         id: gmailId ? `gmail-${gmailId}` : uid(),
         gmailId,
         applicationId: contractEmailMode
           ? contractEmailApplication?.id || ''
-          : composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
+          : composeClientId || composeActivationClientId || composeDocumentUpdateClientId || composedInvoice?.clientId || '',
         from: 'You',
         to,
         subject,
@@ -8087,9 +8613,12 @@
         }
         reconcileSentFollowUpAlerts();
       }
-      if (composeInvoiceDraft) {
+      if (composedInvoice) {
         data.invoices = data.invoices || [];
-        data.invoices.unshift({ id: uid(), ...composeInvoiceDraft, sentAt: new Date().toISOString() });
+        const sentAt=new Date().toISOString(), sentInvoice={id:uid(),...composedInvoice,sentAt};
+        data.invoices.unshift(sentInvoice);
+        const source=data.invoices.find(item=>item.id===composedInvoice.sourceDraftId && item.invoiceDraft);
+        if(source){source.draftStatus='sent';source.sentInvoiceId=sentInvoice.id;source.sentAt=sentAt;source.updatedAt=sentAt;}
       }
       const activationCandidate = composeActivationClientId && data.applications.find(item => item.id === composeActivationClientId);
       const activatingClient = activationCandidate?.activePendingEmail
@@ -8121,7 +8650,7 @@
       } else if (updatingClient) {
         successMessage = 'Updated document email sent successfully.';
       }
-      if (composeInvoiceDraft) successMessage = 'Invoice sent successfully and added to this client\'s history.';
+      if (composedInvoice) successMessage = 'Invoice sent successfully and added to this client\'s history.';
       savePromise.catch(error => {
         console.error('Gmail accepted the email, but the app could not save its history:', error);
       });
@@ -8913,6 +9442,39 @@
     return sheet;
   }
 
+  // Chunk structured invoice records so embedded logos never exceed Excel's cell limit.
+  function invoiceCheckBackupRows() {
+    const rows=[];
+    const append=(kind,id,value)=>{
+      const json=JSON.stringify(value);
+      for(let offset=0;offset<json.length;offset+=30000) rows.push({kind,id,part:offset/30000,json:json.slice(offset,offset+30000)});
+    };
+    (data.applications || []).filter(client=>client.invoiceSettings).forEach(client=>append('setup',client.id,client.invoiceSettings));
+    (data.invoices || []).filter(invoice=>invoice.invoiceDraft).forEach(invoice=>append('draft',invoice.id,invoice));
+    return rows;
+  }
+
+  function readInvoiceCheckBackup(rows,clients) {
+    const groups=new Map(),drafts=[];
+    for(const row of rows){
+      if(!['setup','draft'].includes(row.kind) || !row.id || !Number.isInteger(Number(row.part)) || Number(row.part)<0)throw new Error('Invalid invoice backup.');
+      const key=JSON.stringify([row.kind,row.id]);if(!groups.has(key))groups.set(key,{kind:row.kind,id:row.id,parts:new Map()});
+      const group=groups.get(key);if(group.parts.has(Number(row.part)))throw new Error('Duplicate invoice backup part.');group.parts.set(Number(row.part),String(row.json));
+    }
+    for(const group of groups.values()){
+      const parts=[...group.parts].sort((a,b)=>a[0]-b[0]);if(parts.some(([part],index)=>part!==index))throw new Error('Incomplete invoice backup.');
+      const value=JSON.parse(parts.map(([,json])=>json).join(''));
+      if(group.kind==='setup'){
+        const client=clients.find(client=>client.id===group.id);
+        if(client)client.invoiceSettings=window.JeffInvoiceEngine.validateSettings(value);
+      }else{
+        if(value.id!==group.id || value.invoiceDraft!==true)throw new Error('Invalid invoice draft backup.');
+        value.document=window.JeffInvoiceEngine.validateDocument(value.document);drafts.push(value);
+      }
+    }
+    return drafts;
+  }
+
   function rowToApplication(row) {
     let documents = [];
     let socialLinks = [];
@@ -8969,7 +9531,8 @@
     const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];
     XLSX.utils.book_append_sheet(workbook, applicationsSheet, 'Applications');
     XLSX.utils.book_append_sheet(workbook, activeClientsSheet, 'Active clients');
-    XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
+    XLSX.utils.book_append_sheet(workbook, createDataSheet((data.invoices || []).filter(invoice=>!invoice.invoiceDraft), invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
+    XLSX.utils.book_append_sheet(workbook,createDataSheet(invoiceCheckBackupRows(),['kind','id','part','json']), 'Invoice check');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.toApply || [], TO_APPLY_COLUMNS, { id: 38, title: 28, link: 48, dueDate: 16, notes: 48 }), 'To apply');
     XLSX.utils.book_append_sheet(workbook, createDataSheet((data.dailyTasks || []).map(dailyTaskToRow), DAILY_TASK_COLUMNS, { id: 38, title: 40, type: 18, taskDate: 16, relatedType: 18, relatedId: 38, relatedName: 28, destination: 40, notes: 60, checklist: 60, createdAt: 24, completedAt: 24 }), 'Daily tasks');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.socialTrends || [], SOCIAL_TREND_COLUMNS, { id: 38, name: 34, platform: 16, url: 55, views: 18, uses: 18, scope: 18, observedAt: 16, notes: 48, createdAt: 24, updatedAt: 24 }), 'Social trends');
@@ -9160,13 +9723,14 @@
       if (!applicationsSheet || !activeClientsSheet) throw new Error('invalid');
       const applications = XLSX.utils.sheet_to_json(applicationsSheet, { defval: '' }).map(rowToApplication);
       const activeClients = XLSX.utils.sheet_to_json(activeClientsSheet, { defval: '' }).map(rowToApplication).map(item => ({ ...item, status: 'Active client', activePendingDocument: false }));
-      const invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }).map(rowToInvoice) : data.invoices || [];
+      let invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }).map(rowToInvoice) : data.invoices || [];
       const toApply = workbook.Sheets['To apply'] ? XLSX.utils.sheet_to_json(workbook.Sheets['To apply'], { defval: '' }) : data.toApply || [];
       const dailyTasks = workbook.Sheets['Daily tasks'] ? XLSX.utils.sheet_to_json(workbook.Sheets['Daily tasks'], { defval: '' }).map(rowToDailyTask) : data.dailyTasks || [];
       const socialTrends = workbook.Sheets['Social trends'] ? XLSX.utils.sheet_to_json(workbook.Sheets['Social trends'], { defval: '' }).map(row => ({ ...row, views: Number(row.views) || 0, uses: Number(row.uses) || 0 })) : data.socialTrends || [];
       const workLinks = workbook.Sheets.Links ? XLSX.utils.sheet_to_json(workbook.Sheets.Links, { defval: '' }) : data.workLinks || [];
       const scripts = workbook.Sheets.Scripts ? XLSX.utils.sheet_to_json(workbook.Sheets.Scripts, { defval: '' }) : data.scripts || [];
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
+      if(workbook.Sheets['Invoice check'])invoices=invoices.filter(invoice=>!invoice.invoiceDraft).concat(readInvoiceCheckBackup(XLSX.utils.sheet_to_json(workbook.Sheets['Invoice check'],{defval:''}),restoredApplications));
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
       data = { applications: restoredApplications, toApply, dailyTasks, socialTrends, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], clearedNotificationKeys: data.clearedNotificationKeys || [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks, walletEntries: data.walletEntries || [], subscriptions: data.subscriptions || [] };
       persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });
@@ -9440,7 +10004,11 @@
         renderAlerts();
       }
       closeNotifications();
-      if (alert?.type?.startsWith('task-') && alert.taskId) {
+      if (alert?.type === 'invoice-ready' && alert.invoiceDraftId) {
+        const client = data.applications.find(item => item.id === alert.applicationId);
+        if (client) { showView('hired'); renderHiredDetail(client); selectClientDetailTab('invoices'); openInvoiceDraftPreview(alert.invoiceDraftId); }
+        else toast('The client for this invoice is no longer available.');
+      } else if (alert?.type?.startsWith('task-') && alert.taskId) {
         showView('daily-task');
         const taskDate = $('#dailyTaskDate');
         if (taskDate && alert.taskDate) taskDate.value = alert.taskDate;
@@ -9549,8 +10117,10 @@
   $('#exportFullWorkspaceBackup').addEventListener('click', exportFullWorkspaceBackup);
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
   $('#settingsButton').addEventListener('click', openWorkspaceSettings);
+  $('#toggleAccountUserId').addEventListener('click', () => setAccountIdVisibility(!accountIdVisible));
   $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
   $('#settingsModal').addEventListener('close', () => {
+    setAccountIdVisibility(false);
     lockWorkspaceDataControls();
     const mobileMenu = $('#mobileMenu');
     const focusTarget = mobileMenu && getComputedStyle(mobileMenu).display !== 'none'
@@ -11031,17 +11601,17 @@
 
   function activeClientDrawerFormChanged(view) {
     const baseline = activeClientDrawerBaselines.get(view);
-    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const form = activeClientDrawerForm(view);
     return Boolean(baseline && form && activeClientDrawerFormSnapshot(form) !== baseline);
   }
 
   function markActiveClientDrawerFormClean(view) {
-    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const form = activeClientDrawerForm(view);
     if (form) activeClientDrawerBaselines.set(view, activeClientDrawerFormSnapshot(form));
   }
 
   function resetActiveClientDrawerForm(view) {
-    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const form = activeClientDrawerForm(view);
     const baseline = activeClientDrawerBaselines.get(view);
     if (!form || !baseline) return;
     const values = JSON.parse(baseline);
@@ -11055,6 +11625,10 @@
       if (field.type === 'checkbox' || field.type === 'radio') field.checked = initial.value;
       else field.value = initial.value;
     });
+  }
+
+  function activeClientDrawerForm(view) {
+    return ({'invoice-check':$('#invoiceCheckForm'),'invoice-upload':$('#invoiceUploadForm'),email:$('#emailComposeForm'),edit:$('#clientForm')})[view] || null;
   }
 
   function mountActiveClientDrawerForm(formId, slotId) {
@@ -11071,11 +11645,13 @@
   function restoreActiveClientDrawerForms() {
     [
       ['emailComposeForm', 'emailComposeModal'],
-      ['clientForm', 'clientModal']
+      ['clientForm', 'clientModal'],
+      ['invoiceUploadForm','invoiceDocumentPickerModal']
     ].forEach(([formId, modalId]) => {
       const form = $(`#${formId}`);
       const modal = $(`#${modalId}`);
       if (!form || !modal || !form.dataset.drawerOriginalMethod) return;
+      if(formId==='invoiceUploadForm')clearInvoiceUploadDraft();
       form.setAttribute('method', form.dataset.drawerOriginalMethod);
       delete form.dataset.drawerOriginalMethod;
       modal.append(form);
@@ -11101,12 +11677,19 @@
     $('#activeClientDrawerEmailView').hidden = view !== 'email';
     $('#activeClientDrawerOnboardingView').hidden = view !== 'onboarding';
     $('#activeClientDrawerEditView').hidden = view !== 'edit';
+    $('#activeClientDrawerInvoiceView').hidden = view !== 'invoice-check';
+    $('#activeClientDrawerInvoiceHome').hidden = view !== 'invoice-home';
+    $('#activeClientDrawerInvoiceUploadView').hidden = view !== 'invoice-upload';
     back.hidden = view === 'list';
     if (close) close.hidden = view === 'email';
     title.textContent = view === 'list'
       ? client.clientName || 'Active client'
+      : view === 'invoice-home' ? 'Invoice'
+      : view === 'invoice-upload' ? 'Upload invoice'
+      : view === 'invoice-check'
+        ? 'Generate invoice'
       : view === 'email'
-        ? 'Send email'
+        ? (composeInvoiceDraft ? 'Invoice email' : 'Send email')
         : view === 'onboarding'
           ? 'Request corrected onboarding details'
           : 'Edit details';
@@ -11115,6 +11698,7 @@
       : client.clientName || 'Active client';
     if (view === 'email') mountActiveClientDrawerForm('emailComposeForm', 'activeClientDrawerEmailSlot');
     if (view === 'edit') mountActiveClientDrawerForm('clientForm', 'activeClientDrawerClientFormSlot');
+    if(view==='invoice-upload')mountActiveClientDrawerForm('invoiceUploadForm','activeClientDrawerInvoiceUploadSlot');
     layer.dataset.view = view;
     document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
   }
@@ -11139,7 +11723,6 @@
     $('#activeClientOnboardingUrl').value = '';
     $('#activeClientOnboardingStatus').textContent = '';
     $('#activeClientDrawerList [data-active-client-action="contract-email"]').hidden = isContractEnded(client);
-    $('#activeClientDrawerList [data-active-client-action="send-invoice"]').hidden = isContractEnded(client);
     $('#activeClientDrawerList [data-active-client-action="new-task"]').hidden = isContractEnded(client);
     showActiveClientDrawerView('list');
     requestAnimationFrame(() => {
@@ -11160,10 +11743,15 @@
       onClosed?.();
       return;
     }
-    const changedViews = ['email', 'edit'].filter(activeClientDrawerFormChanged);
+    if (!force && invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
+    const changedViews = ['email', 'edit', 'invoice-check','invoice-upload'].filter(activeClientDrawerFormChanged);
     if (!force && changedViews.length
       && !window.confirm('Discard unsaved changes and close client actions?')) return;
     if (!force) changedViews.forEach(resetActiveClientDrawerForm);
+    if(typeof browserDrafts!=='undefined'){
+      for(const id of ['invoiceCheckForm','invoiceUploadForm','emailComposeForm','clientForm'])if($('#'+id)?.closest('#activeClientDrawer'))browserDrafts.clearForm(id);
+    }
+    invoiceCheckSequence++;
     activeClientDrawerOpen = false;
     const layer = $('#activeClientDrawerLayer');
     layer.classList.add('closing');
@@ -11196,15 +11784,21 @@
   $('#closeActiveClientDrawer')?.addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBack').addEventListener('click', () => {
+    if (invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
     if (activeClientDrawerFormChanged(activeClientDrawerView)) {
       if (!window.confirm('Discard unsaved changes and return to actions?')) return;
       resetActiveClientDrawerForm(activeClientDrawerView);
+      markActiveClientDrawerFormClean(activeClientDrawerView);
     }
-    showActiveClientDrawerView('list');
-    $('#activeClientDrawerList [data-active-client-action]')?.focus();
+    if(['invoice-check','invoice-upload'].includes(activeClientDrawerView) || activeClientDrawerView==='email' && composeInvoiceDraft){
+      openClientInvoiceHub(hiredEditingId);
+    }else{
+      showActiveClientDrawerView('list');
+      $('#activeClientDrawerList [data-active-client-action]')?.focus();
+    }
   });
   document.addEventListener('keydown', event => {
-    if (!activeClientDrawerOpen) return;
+    if (!activeClientDrawerOpen || document.querySelector('dialog[open]')) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -11278,9 +11872,8 @@
       } else if (actionRow.dataset.activeClientAction === 'email') {
         const item = data.applications.find(application => application.id === hiredEditingId);
         if (item) openPlainClientEmailComposer(item, true);
-      } else if (actionRow.dataset.activeClientAction === 'send-invoice') {
-        const client = data.applications.find(application => application.id === hiredEditingId);
-        if (client) closeActiveClientActionsDrawer(false, () => openInvoiceDocumentPicker(client));
+      } else if (actionRow.dataset.activeClientAction === 'invoices') {
+        openClientInvoiceHub(hiredEditingId);
       } else if (actionRow.dataset.activeClientAction === 'contract-email') {
         const clientId = hiredEditingId;
         const client = data.applications.find(application => application.id === clientId);
@@ -15159,6 +15752,199 @@
     $('#subscriptionEditor').close(); renderAll(); toast('Subscription deleted');
   });
 
+  // Unfinished work stays in this tab, separate from committed account records.
+  const browserDrafts = (() => {
+    const prefix='jeff-va-unfinished-v1:',tabKey=prefix+'tab';
+    const allowed=new Set(['invoiceCheckForm','invoiceUploadForm','emailComposeForm','clientForm','clientTaskForm','dailyTaskForm','toApplyForm','scriptForm','workLinkForm','walletEntryForm','subscriptionForm','socialTrendForm','invoicePaymentForm']);
+    const copy=value=>JSON.parse(JSON.stringify(value));
+    let restoring=false,leaving=false,timer=null,lastVisible=new Map(),clean=new Map(),warned=false,initializedOwner='',restoreGeneration=0;
+    const fileIds=new WeakMap();let database=null,memoryTabId=crypto.randomUUID();
+    function tabId(){try{let id=sessionStorage.getItem(tabKey);if(!id){id=memoryTabId;sessionStorage.setItem(tabKey,id);}return id;}catch{return memoryTabId;}}
+    const owner=()=>currentUser?.id || '';
+    const ready=()=>Boolean(owner() && dataReady && supabaseDataLoaded);
+    const storeKey=()=>prefix+owner();
+    function read(){try{const saved=JSON.parse(sessionStorage.getItem(storeKey()) || 'null');return saved?.version===1 && saved.owner===owner() && saved.forms && typeof saved.forms==='object' && !Array.isArray(saved.forms)?saved:{version:1,owner:owner(),forms:{},navigation:{}};}catch{return {version:1,owner:owner(),forms:{},navigation:{}};}}
+    function write(saved){try{sessionStorage.setItem(storeKey(),JSON.stringify(saved));return true;}catch{if(!warned){warned=true;toast('This browser could not save the unfinished form. Keep this tab open until you save.');}return false;}}
+    function db(){
+      if(!database)database=new Promise((resolve,reject)=>{
+        const request=indexedDB.open('jeff-va-unfinished-files-v1',1);
+        request.onupgradeneeded=()=>request.result.createObjectStore('files',{keyPath:'id'});
+        request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+      }).catch(()=>null);
+      return database;
+    }
+    async function saveFile(file,id,user){
+      try{const database=await db();if(!database)return;
+        await new Promise((resolve,reject)=>{const transaction=database.transaction('files','readwrite');transaction.objectStore('files').put({id,owner:user,tab:tabId(),file,at:Date.now()});transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);});
+      }catch{/* Text recovery remains available if the browser refuses file storage. */}
+    }
+    function rememberFile(file){if(!file || file.size>25*1024*1024)return null;let id=fileIds.get(file);if(!id){id=owner()+':'+tabId()+':'+crypto.randomUUID();fileIds.set(file,id);void saveFile(file,id,owner());}return {id,name:file.name,type:file.type,size:file.size};}
+    async function loadFile(reference,user){
+      if(!reference?.id)return null;
+      try{const database=await db();if(!database)return null;
+        const record=await new Promise((resolve,reject)=>{const request=database.transaction('files').objectStore('files').get(reference.id);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+        if(owner()!==user || record?.owner!==user || record.tab!==tabId())return null;
+        const file=record.file instanceof File?record.file:new File([record.file],reference.name,{type:reference.type});fileIds.set(file,reference.id);return file;
+      }catch{return null;}
+    }
+    function fields(form){return [...form.elements].filter(field=>['INPUT','SELECT','TEXTAREA'].includes(field.tagName) && !['password','file','submit','button'].includes(field.type) && !/password|token|secret|one.time/i.test(field.id+' '+field.name+' '+field.autocomplete));}
+    function values(form){return fields(form).map((field,index)=>({id:field.id,index,type:field.type,name:field.name,value:field.type==='checkbox' || field.type==='radio'?field.checked:field.multiple?[...field.selectedOptions].map(option=>option.value):field.value}));}
+    function visible(form){return !form.closest('[hidden],.hidden') && Boolean(form.getClientRects().length);}
+    function context(form){
+      const id=form.id,c={clientId:activeView==='hired'?hiredEditingId || '':''};
+      if(id==='invoiceCheckForm')Object.assign(c,{clientId:invoiceCheckClientId,invoice:invoiceCheckDraft?copy(invoiceCheckDraft):null,logo:invoiceCheckLogo,paymentOptions:copy(invoicePaymentOptions),lines:invoiceCheckDraft?invoiceReadLines():[],pending:invoiceHourlyCalculationPending,billingChanged:invoiceHourlyBillingChanged});
+      else if(id==='emailComposeForm')Object.assign(c,{clientId:composeInvoiceDraft?.clientId || composeClientId || composeActivationClientId || composeDocumentUpdateClientId || c.clientId,drawer:activeClientDrawerOpen && activeClientDrawerView==='email',composeClientId,composeActivationClientId,composeDocumentUpdateClientId,composeContractEmailMode,composeRequiresConfirmation,invoice:composeInvoiceDraft?copy(composeInvoiceDraft):null,attachment:composeAttachment?copy(composeAttachment):null,file:rememberFile(composeAttachmentFile)});
+      else if(id==='invoiceUploadForm')Object.assign(c,{clientId:pendingInvoiceClientId,drawer:activeClientDrawerOpen && activeClientDrawerView==='invoice-upload',file:rememberFile(pendingInvoiceFile)});
+      else if(id==='clientForm')Object.assign(c,{recordId:editingId || '',drawer:activeClientDrawerOpen && activeClientDrawerView==='edit',socialLinks:readClientSocialLinks({includeEmpty:true})});
+      else if(id==='clientTaskForm')Object.assign(c,{recordId:clientTaskEditingId,entries:copy(clientTaskDraftEntries),oneOff:clientTaskOneOffMode});
+      else if(id==='dailyTaskForm')c.checklist=copy(pendingDailyTaskChecklist);
+      else if(id==='workLinkForm')c.recordId=form.dataset.editingId || '';
+      else if(id==='invoicePaymentForm')c.recordId=form.dataset.invoiceId || '';
+      else {const ids={toApplyForm:'toApplyId',scriptForm:'scriptId',walletEntryForm:'walletEntryId',subscriptionForm:'subscriptionId',socialTrendForm:'socialTrendId'};c.recordId=ids[id]?$('#'+ids[id]).value:'';}
+      return c;
+    }
+    function key(id,c){return JSON.stringify([id,c.clientId || '',c.recordId || c.invoice?.id || c.invoice?.sourceDraftId || 'new']);}
+    function navigation(){return {view:activeView,clientId:activeView==='hired' && !showingHiredClientList?hiredEditingId:'',clientTab:$('#hiredDetailPanel [data-client-detail-tab].active')?.dataset.clientDetailTab || 'overview',dashboardTab:activeDashboardTab,previewId:$('#invoiceDraftPreviewModal')?.open?invoicePreviewSnapshot?.id || '':''};}
+    function status(form,message){let note=form.querySelector(':scope > .form-draft-status');if(!note){note=document.createElement('p');note.className='form-draft-status';note.setAttribute('role','status');form.append(note);}if(note.textContent!==message)note.textContent=message;}
+    function capture(){
+      if(!ready() || restoring || initializedOwner!==owner() || typeof passwordRecoveryMode!=='undefined' && passwordRecoveryMode)return;
+      const saved=read(),open=new Map();let active='';
+      for(const id of allowed){const form=$('#'+id);if(!form || !visible(form))continue;
+        const c=context(form),idKey=key(id,c),snapshot=values(form),fingerprint=JSON.stringify(snapshot);
+        open.set(id,idKey);
+        if(clean.get(idKey)===fingerprint || clean.get('form:'+id)===fingerprint)continue;
+        const entry={form:id,context:c,values:snapshot,at:Date.now(),fileInputs:[...form.querySelectorAll('input[type="file"]')].filter(field=>field.id).map(field=>({id:field.id,files:[...(field.files || [])].map(rememberFile).filter(Boolean)})),details:[...form.querySelectorAll('details[id]')].map(item=>({id:item.id,open:item.open})),scroll:form.querySelector('.invoice-check-content')?.scrollTop || form.closest('.active-client-drawer-view')?.scrollTop || form.scrollTop || 0,focus:form.contains(document.activeElement)?document.activeElement.id:''};
+        saved.forms[idKey]=entry;active=idKey;
+        if(form.contains(document.activeElement))saved.active=idKey;
+        status(form,'Unfinished form saved in this browser tab.');
+      }
+      for(const [id,oldKey] of lastVisible)if(!open.has(id) && !leaving){delete saved.forms[oldKey];if(saved.active===oldKey)saved.active='';}
+      lastVisible=open;
+      saved.navigation=navigation();
+      if(!saved.active || ![...open.values()].includes(saved.active) || !saved.forms[saved.active])saved.active=active;
+      const entries=Object.entries(saved.forms).sort((a,b)=>b[1].at-a[1].at);saved.forms=Object.fromEntries(entries.slice(0,30));write(saved);
+    }
+    function schedule(){if(restoring || leaving)return;clearTimeout(timer);timer=setTimeout(capture,180);}
+    function clearForm(id){if(!ready() || restoring)return;const form=$('#'+id);if(!form)return;const c=context(form),idKey=key(id,c),saved=read();
+      for(const [entryKey,entry] of Object.entries(saved.forms))if(entryKey===idKey || id==='invoiceCheckForm' && entry.form===id && entry.context.clientId===c.clientId){delete saved.forms[entryKey];if(saved.active===entryKey)saved.active='';}
+      const fingerprint=JSON.stringify(values(form));clean.set(idKey,fingerprint);clean.set('form:'+id,fingerprint);write(saved);form.querySelector(':scope > .form-draft-status')?.remove();}
+    function client(id){return (data.applications || []).find(item=>item.id===id);}
+    function openClient(id){const record=client(id);if(!record)throw new Error('The client for this draft is no longer available.');if(activeView!=='hired')showView('hired');renderHiredDetail(record,false);hiredEditingId=id;}
+    async function open(entry,user){
+      const c=entry.context,id=entry.form;
+      const collections={scriptForm:'scripts',workLinkForm:'workLinks',toApplyForm:'toApply',walletEntryForm:'walletEntries',subscriptionForm:'subscriptions',socialTrendForm:'socialTrends',invoicePaymentForm:'invoices'};
+      if(c.recordId && collections[id] && !(data[collections[id]] || []).some(item=>item.id===c.recordId))throw new Error('The record for this unfinished form is no longer available.');
+      if(c.clientId && ['invoiceCheckForm','invoiceUploadForm','clientTaskForm'].includes(id))openClient(c.clientId);
+      if(id==='invoiceCheckForm'){
+        if(c.invoice && !(data.invoices || []).some(item=>item.id===c.invoice.id && item.draftStatus!=='sent'))throw new Error('This invoice is no longer an editable draft.');
+        openInvoiceCheck(c.clientId,c.invoice?.id || '');
+        // Finish private defaults before reapplying the user's unsaved fields.
+        invoiceCheckSequence++;
+        invoicePaymentOptions=window.JeffInvoiceEngine.settings({payment:{options:c.paymentOptions || []}}).payment.options;
+        renderInvoicePaymentMethods(entry.values.find(item=>item.id==='invoiceCheckPaymentMethod')?.value || '');
+        if(c.invoice)invoiceCheckDraft=copy(c.invoice);
+        if(c.invoice)renderInvoiceEditLines(c.lines);
+        invoiceCheckLogo=c.logo || '';renderInvoiceLogo();invoiceHourlyCalculationPending=Boolean(c.pending);invoiceHourlyBillingChanged=Boolean(c.billingChanged);
+      }else if(id==='emailComposeForm'){
+        if(c.clientId && !client(c.clientId))throw new Error('The client for this email is no longer available.');
+        let file=await loadFile(c.file,user);if(owner()!==user)return false;
+        if(!file && c.invoice?.sourceDraftId){const draft=(data.invoices || []).find(item=>item.id===c.invoice.sourceDraftId && item.updatedAt===c.invoice.sourceDraftUpdatedAt && item.draftStatus!=='sent');if(draft){try{file=new File([window.JeffInvoicePdf.create(draft.document,window.jspdf?.jsPDF,invoiceEngine).output('arraybuffer')],c.invoice.fileName,{type:'application/pdf'});}catch{}}}
+        composeClientId=c.composeClientId || null;composeActivationClientId=c.composeActivationClientId || null;composeDocumentUpdateClientId=c.composeDocumentUpdateClientId || null;composeContractEmailMode=Boolean(c.composeContractEmailMode);composeRequiresConfirmation=Boolean(c.composeRequiresConfirmation);composeInvoiceDraft=c.invoice || null;composeAttachment=c.attachment || null;composeAttachmentFile=file;
+        if(c.drawer && c.clientId){openClient(c.clientId);if(!activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));showActiveClientDrawerView('email');}
+        else if(!$('#emailComposeModal').open)$('#emailComposeModal').showModal();
+        updateComposeAttachmentDisplay();setEmailComposeStatus(!file && c.file?'Email text restored. Choose the attachment again before sending.':'Unfinished email restored. Review it before sending.');
+      }else if(id==='invoiceUploadForm'){
+        if(c.drawer && !activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));
+        openInvoiceDocumentPicker(client(c.clientId),c.drawer);
+        const file=await loadFile(c.file,user);if(owner()!==user)return false;
+        pendingInvoiceFile=file;$('#useInvoiceFileButton').disabled=!file;$('#invoiceUploadFileInfo').textContent=file?.name || 'Choose the invoice file again';
+      }else if(id==='clientForm'){
+        if(c.recordId && !client(c.recordId))throw new Error('This client or application no longer exists.');
+        openClientModal(c.recordId || null,false,Boolean(c.drawer),false,Boolean(c.drawer));renderClientSocialLinkEditor(c.socialLinks || []);
+      }else if(id==='clientTaskForm'){
+        const task=(data.clientTasks || []).find(item=>item.id===c.recordId && item.clientId===c.clientId);if(c.recordId && !task)throw new Error('This task no longer exists.');
+        openClientTaskDrawer(task || null);clientTaskDraftEntries=c.entries || [];clientTaskOneOffMode=Boolean(c.oneOff);renderClientTaskEntries();
+      }else if(id==='dailyTaskForm'){resetDailyTaskDraft();pendingDailyTaskChecklist=c.checklist || [];renderDailyTaskDraftChecklist();$('#dailyTaskAddModal').showModal();}
+      else if(id==='scriptForm')openScriptForm(c.recordId);
+      else if(id==='workLinkForm')openWorkLinkForm(c.recordId);
+      else if(id==='toApplyForm')openToApplyModal(c.recordId || null);
+      else if(id==='walletEntryForm')openWalletEntry((data.walletEntries || []).find(item=>item.id===c.recordId) || null);
+      else if(id==='subscriptionForm')openSubscriptionEditor(c.recordId);
+      else if(id==='socialTrendForm')openSocialTrendDrawer((data.socialTrends || []).find(item=>item.id===c.recordId) || null);
+      else if(id==='invoicePaymentForm')openInvoicePayment(c.recordId);
+      return true;
+    }
+    function apply(entry){
+      const form=$('#'+entry.form),inputs=fields(form);
+      for(const item of entry.values || []){const field=item.id?inputs.find(field=>field.id===item.id):inputs[item.index];if(!field || field.type!==item.type)continue;
+        if(field.type==='checkbox' || field.type==='radio')field.checked=item.value===true;
+        else if(field.multiple && Array.isArray(item.value))[...field.options].forEach(option=>{option.selected=item.value.includes(option.value);});
+        else field.value=String(item.value ?? '');
+      }
+      for(const item of entry.details || []){const element=[...form.querySelectorAll('details[id]')].find(element=>element.id===item.id);if(element)element.open=item.open;}
+      if(entry.form==='invoiceCheckForm'){invoiceCheckLogo=$('#invoiceCheckLogoData').value || entry.context.logo || '';renderInvoiceLogo();updateInvoiceBasis();updateInvoiceEditTotal();invoiceStatus('Unfinished invoice restored. Review and save when ready.');}
+      if(entry.form==='clientTaskForm'){updateClientTaskRepeatFields();updateClientTaskSchedule();}
+      if(entry.form==='dailyTaskForm'){dailyTaskRelatedOptions();$('#dailyTaskDestinationField').classList.toggle('hidden',$('#dailyTaskType').value!=='apply');}
+      if(entry.form==='clientForm'){
+        for(const id of ['clientPlatform','clientCountry','clientRegion']){
+          const field=inputs.find(field=>field.id===id);if(field){const saved=entry.values.find(item=>item.id===id);if(saved)field.value=String(saved.value ?? '');field.dispatchEvent(new Event('change'));}
+        }
+        for(const item of entry.values || []){const field=item.id?inputs.find(field=>field.id===item.id):null;if(field && field.tagName==='SELECT')field.value=String(item.value ?? '');}
+        updateSalaryFields();updateClientActionLabel();
+      }
+      if(entry.form==='walletEntryForm')syncWalletPayeeField();
+      status(form,'Unfinished form restored. Changes are not submitted automatically.');
+      requestAnimationFrame(()=>{const area=form.querySelector('.invoice-check-content') || form.closest('.active-client-drawer-view') || form;area.scrollTop=entry.scroll || 0;const focus=fields(form).find(field=>field.id===entry.focus);if(focus && focus.getClientRects().length)focus.focus({preventScroll:true});});
+    }
+    async function restoreFileInputs(entry,user){
+      for(const item of entry.fileInputs || []){
+        const form=$('#'+entry.form),input=[...form.querySelectorAll('input[type="file"]')].find(field=>field.id===item.id);
+        if(!input || !item.files?.length || typeof DataTransfer==='undefined')continue;
+        const files=await Promise.all(item.files.map(reference=>loadFile(reference,user)));if(owner()!==user)return;
+        const transfer=new DataTransfer();for(const file of files.filter(Boolean))transfer.items.add(file);input.files=transfer.files;
+        // Logo decoding is local; other change handlers can upload files, so do not replay them.
+        if(input.id==='invoiceCheckLogo' && !invoiceCheckLogo && files.some(Boolean))input.dispatchEvent(new Event('change',{bubbles:true}));
+      }
+    }
+    async function restore(){
+      if(typeof passwordRecoveryMode!=='undefined' && passwordRecoveryMode){initializedOwner=owner();return false;}
+      if(!ready())return false;const user=owner(),generation=++restoreGeneration,saved=read(),route=appViewFromLocation(),navigation=saved.navigation || {};
+      restoring=true;let restored=false;
+      try{
+        const view=route || (APP_VIEW_SET.has(navigation.view)?navigation.view:activeView);showView(view,{updateUrl:!route});
+        if(view==='dashboard' && ['client','application'].includes(navigation.dashboardTab)){
+          activeDashboardTab=navigation.dashboardTab;
+          $$('[data-dashboard-tab]').forEach(tab=>{const selected=tab.dataset.dashboardTab===activeDashboardTab;tab.classList.toggle('active',selected);tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});
+          $$('[data-dashboard-panel]').forEach(panel=>{panel.hidden=panel.dataset.dashboardPanel!==activeDashboardTab;});renderDashboard();
+        }
+        if(view==='hired' && navigation.clientId && client(navigation.clientId)){openClient(navigation.clientId);selectClientDetailTab(navigation.clientTab || 'overview');}
+        const entry=saved.forms[saved.active];
+        if(entry && allowed.has(entry.form) && (!navigation.view || navigation.view===view)){
+          if(await open(entry,user) && owner()===user){
+            apply(entry);
+            await restoreFileInputs(entry,user);if(owner()!==user)return false;
+            if(entry.form==='invoiceCheckForm'){await refreshInvoiceAutomaticStatus(invoiceCheckSequence,{fillProfile:false});if(owner()!==user)return false;}
+            restored=true;
+          }
+        }else if(view==='hired' && navigation.previewId){await openInvoiceDraftPreview(navigation.previewId);restored=true;}
+      }catch(error){if(owner()===user)toast(error.message || 'Your unfinished form is still saved, but could not be reopened.');}
+      finally{if(generation===restoreGeneration){restoring=false;lastVisible=new Map();initializedOwner=owner()===user?user:'';}}
+      if(owner()===user)schedule();return restored;
+    }
+    function signOut(){capture();restoreGeneration++;initializedOwner='';restoring=true;
+      for(const id of allowed){const form=$('#'+id);if(!form)continue;const dialog=form.closest('dialog');if(dialog?.open)dialog.close();form.reset();form.querySelector(':scope > .form-draft-status')?.remove();}
+      if(activeClientDrawerOpen)void closeActiveClientActionsDrawer(true);lastVisible=new Map();clean.clear();restoring=false;
+    }
+    function edited(form){clean.delete('form:'+form.id);clean.delete(key(form.id,context(form)));}
+    document.addEventListener('input',event=>{if(allowed.has(event.target.form?.id)){edited(event.target.form);schedule();}});
+    document.addEventListener('change',event=>{if(allowed.has(event.target.form?.id)){edited(event.target.form);event.target.type==='file'?capture():schedule();}});
+    document.addEventListener('click',()=>schedule());
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')capture();});
+    window.addEventListener('beforeunload',()=>{capture();leaving=true;});window.addEventListener('pagehide',()=>{capture();leaving=true;});window.addEventListener('pageshow',()=>{leaving=false;});
+    new MutationObserver(records=>{if(records.some(record=>record.type==='attributes' || record.addedNodes.length || record.removedNodes.length))schedule();}).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['open','hidden','data-view']});
+    return {capture,schedule,restore,clearForm,signOut};
+  })();
+
   // Login screen, explicit logout, and application startup.
   const loginForm = $('#loginForm');
   const loginError = $('#loginError');
@@ -15280,6 +16066,7 @@
     }
   });
   $('#logoutButton')?.addEventListener('click', async () => {
+    if(typeof browserDrafts!=='undefined')browserDrafts.signOut();
     startAuthTransition('Signing you out…', 'Ending your session securely.');
     if (gmailSyncTimer) {
       clearInterval(gmailSyncTimer);

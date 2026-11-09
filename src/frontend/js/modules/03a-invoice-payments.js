@@ -22,6 +22,7 @@
   }
 
   function invoicePaymentStatus(invoice) {
+    if (invoice.invoiceDraft) return 'Draft';
     if (invoice.paidAt) return 'Paid';
     const dueDate = parseInvoiceDate(invoice.dueDate);
     return dueDate && dueDate < today() ? 'Overdue' : 'Sent';
@@ -33,6 +34,7 @@
   }
 
   function invoicePaymentSummary(invoices) {
+    invoices = invoices.filter(invoice => !invoice.invoiceDraft);
     const totals = { invoiced: new Map(), received: new Map(), unpaid: new Map() };
     let paidCount = 0;
     invoices.forEach(invoice => {
@@ -69,7 +71,7 @@
 
   function openInvoicePayment(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice) return;
+    if (!invoice || invoice.invoiceDraft) return;
     const client = data.applications.find(item => item.id === invoice.clientId);
     const salaryAmount = Number(client?.salaryAmount);
     const amountPrefill = Number.isFinite(salaryAmount) && salaryAmount >= 0 && client?.salaryAmount !== '' ? String(salaryAmount) : '';
@@ -100,7 +102,7 @@
 
   async function markInvoiceUnpaid(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice) return;
+    if (!invoice || invoice.invoiceDraft) return;
     if (!(await appConfirm(`Mark invoice ${invoice.invoiceNumber || ''} as unpaid? Its payment details will be cleared.`, {
       title: 'Mark invoice as unpaid',
       confirmLabel: 'Mark as unpaid',

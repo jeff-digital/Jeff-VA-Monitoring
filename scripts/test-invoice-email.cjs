@@ -1,0 +1,45 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const engine=require('../src/frontend/js/invoice-engine.js');
+const gmail=fs.readFileSync('src/frontend/js/modules/04-gmail.js','utf8');
+const check=fs.readFileSync('src/frontend/js/modules/03c-invoice-check.js','utf8');
+const nodes=new Map();
+function $(selector){if(!nodes.has(selector))nodes.set(selector,{value:'',textContent:'',open:false,focus(){},showModal(){this.open=true;},close(){this.open=false;}});return nodes.get(selector);}
+let sent=0,saved=0,attachmentShown=0;
+const context=vm.createContext({console,window:{JeffInvoicePdf:{create:()=>({output:()=>new Uint8Array([37,80,68,70]).buffer})},jspdf:{jsPDF:()=>{}}},File,Date,JSON,Uint8Array,invoiceEngine:engine,$,
+ currentUser:{email:'billing@example.com',user_metadata:{name:'Example Services'}},
+ data:{applications:[{id:'client',status:'Active client',clientName:'Example Studio',email:'client@example.com',role:'Support'}],invoices:[],emails:[]},
+ composeAttachment:null,composeAttachmentFile:null,composeClientId:null,composeActivationClientId:null,composeDocumentUpdateClientId:null,composeContractEmailMode:false,composeRequiresConfirmation:false,composeInvoiceDraft:null,
+ invoicePreviewSnapshot:null,contractEmailSendPending:false,editingId:null,
+ today:()=> '2026-11-09',contractDuration:()=>'',renderEmailTemplateOptions(){},updateComposeAttachmentDisplay(){attachmentShown++;},setEmailComposeStatus(message){$('#emailComposeStatus').textContent=message;},
+ extractEmailAddress:value=>value,isEmailAddress:value=>value.includes('@'),setButtonLoading(){},wrapBase64:value=>value,encodeBase64:()=> 'PDF',buildRawEmailMessage:input=>input,
+ sendGmailRaw:async input=>{sent++;assert.equal(input.attachmentType,'application/pdf');return {id:'test-gmail-id'};},
+ uid:()=> 'sent-invoice',persist:async()=>{saved++;return true;},renderAll(){},isActiveClientDrawerOpen:()=>false,showEmailActionResult(){},appConfirm:async()=>{throw Error('Unexpected prompt');}});
+vm.runInContext(gmail.slice(gmail.indexOf('  const DOCUMENT_TEMPLATE_DEFINITIONS ='),gmail.indexOf('  let gmailAccessToken')),context);
+vm.runInContext(gmail.slice(gmail.indexOf('  function buildDocumentEmailTemplate('),gmail.indexOf('  function renderEmailTemplateOptions(')),context);
+vm.runInContext(gmail.slice(gmail.indexOf('  function openInvoiceComposer('),gmail.indexOf('  function openUpdatedDocumentEmailComposer(')),context);
+vm.runInContext(gmail.slice(gmail.indexOf('  async function runComposedEmail('),gmail.indexOf('  function gmailConfigured(')),context);
+const documents=fs.readFileSync('src/frontend/js/modules/03-documents.js','utf8');
+vm.runInContext(documents.slice(documents.indexOf('  function invoiceAlreadySent('),documents.indexOf('  function showInvoiceDuplicateAlert(')),context);
+vm.runInContext(check.slice(check.indexOf('  function prepareInvoiceDraftEmail('),check.indexOf("  $('#emailInvoiceDraft').addEventListener")),context);
+(async()=>{
+ const draft=await engine.generate(context.data.applications[0],[],{basis:'weekly',rate:'250',issuer:{name:'Example Services',email:'billing@example.com'},payment:{method:'Wise',details:'Example account'}},'2026-11-02','2026-11-09T01:00:00Z');
+ context.data.invoices.push(draft);context.invoicePreviewSnapshot=JSON.parse(JSON.stringify(draft));
+ context.prepareInvoiceDraftEmail();
+ assert.equal(sent,0,'Preparing never sends');assert.equal(saved,0,'Preparing never marks the invoice sent');
+ assert.equal($('#emailComposeModal').open,true);assert.equal(context.composeAttachmentFile.type,'application/pdf');assert.equal(attachmentShown,1);
+ assert.match($('#composeSubject').value,new RegExp(draft.document.invoiceNumber));assert.ok($('#composeBody').value.includes('Nov 2, 2026'));assert.ok(!$('#composeBody').value.includes('{{'));
+ assert.equal(context.composeInvoiceDraft.amountInvoiced,250);
+ const attachment=context.composeAttachmentFile;context.composeAttachmentFile=null;
+ await context.runComposedEmail();assert.equal(sent,0,'Missing generated invoice PDF blocks sending');
+ context.composeAttachmentFile=attachment;context.data.invoices[0].updatedAt='changed';
+ await context.runComposedEmail();assert.equal(sent,0,'Changed draft blocks stale email');
+ context.data.invoices[0].updatedAt=draft.createdAt;
+ await context.runComposedEmail();assert.equal(sent,1);assert.equal(saved,1);
+ assert.equal(context.data.invoices[0].amountInvoiced,250);assert.equal(context.data.invoices[1].draftStatus,'sent');assert.equal(context.data.emails[0].applicationId,'client');
+ context.invoicePreviewSnapshot=JSON.parse(JSON.stringify(draft));context.prepareInvoiceDraftEmail();assert.equal(sent,1);assert.match($('#invoiceDraftPreviewStatus').textContent,/already sent/);
+ const next=await engine.generate(context.data.applications[0],[],{basis:'weekly',rate:'250',issuer:{name:'Example Services',email:'billing@example.com'},payment:{method:'Wise',details:'Example account'}},'2026-11-09','2026-11-09T01:00:00Z',context.data.invoices);
+ context.data.invoices.push(next);context.invoicePreviewSnapshot=JSON.parse(JSON.stringify(next));
+ let drawerView='',cleaned='';context.isActiveClientDrawerOpen=()=>true;context.showActiveClientDrawerView=view=>{drawerView=view;};context.markActiveClientDrawerFormClean=view=>{cleaned=view;};$('#emailComposeModal').open=false;
+ context.prepareInvoiceDraftEmail();assert.equal(drawerView,'email');assert.equal(cleaned,'email');assert.equal($('#emailComposeModal').open,false,'Invoice email stays in the existing sidebar');assert.equal(sent,1);
+ console.log('PASS invoice email: existing template, PDF attachment, no send on preparation, missing attachment and stale draft guards, sent history/client link and duplicate protection.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

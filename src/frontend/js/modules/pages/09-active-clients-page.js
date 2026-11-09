@@ -27,17 +27,17 @@
 
   function activeClientDrawerFormChanged(view) {
     const baseline = activeClientDrawerBaselines.get(view);
-    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const form = activeClientDrawerForm(view);
     return Boolean(baseline && form && activeClientDrawerFormSnapshot(form) !== baseline);
   }
 
   function markActiveClientDrawerFormClean(view) {
-    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const form = activeClientDrawerForm(view);
     if (form) activeClientDrawerBaselines.set(view, activeClientDrawerFormSnapshot(form));
   }
 
   function resetActiveClientDrawerForm(view) {
-    const form = view === 'email' ? $('#emailComposeForm') : $('#clientForm');
+    const form = activeClientDrawerForm(view);
     const baseline = activeClientDrawerBaselines.get(view);
     if (!form || !baseline) return;
     const values = JSON.parse(baseline);
@@ -51,6 +51,10 @@
       if (field.type === 'checkbox' || field.type === 'radio') field.checked = initial.value;
       else field.value = initial.value;
     });
+  }
+
+  function activeClientDrawerForm(view) {
+    return ({'invoice-check':$('#invoiceCheckForm'),'invoice-upload':$('#invoiceUploadForm'),email:$('#emailComposeForm'),edit:$('#clientForm')})[view] || null;
   }
 
   function mountActiveClientDrawerForm(formId, slotId) {
@@ -67,11 +71,13 @@
   function restoreActiveClientDrawerForms() {
     [
       ['emailComposeForm', 'emailComposeModal'],
-      ['clientForm', 'clientModal']
+      ['clientForm', 'clientModal'],
+      ['invoiceUploadForm','invoiceDocumentPickerModal']
     ].forEach(([formId, modalId]) => {
       const form = $(`#${formId}`);
       const modal = $(`#${modalId}`);
       if (!form || !modal || !form.dataset.drawerOriginalMethod) return;
+      if(formId==='invoiceUploadForm')clearInvoiceUploadDraft();
       form.setAttribute('method', form.dataset.drawerOriginalMethod);
       delete form.dataset.drawerOriginalMethod;
       modal.append(form);
@@ -97,12 +103,19 @@
     $('#activeClientDrawerEmailView').hidden = view !== 'email';
     $('#activeClientDrawerOnboardingView').hidden = view !== 'onboarding';
     $('#activeClientDrawerEditView').hidden = view !== 'edit';
+    $('#activeClientDrawerInvoiceView').hidden = view !== 'invoice-check';
+    $('#activeClientDrawerInvoiceHome').hidden = view !== 'invoice-home';
+    $('#activeClientDrawerInvoiceUploadView').hidden = view !== 'invoice-upload';
     back.hidden = view === 'list';
     if (close) close.hidden = view === 'email';
     title.textContent = view === 'list'
       ? client.clientName || 'Active client'
+      : view === 'invoice-home' ? 'Invoice'
+      : view === 'invoice-upload' ? 'Upload invoice'
+      : view === 'invoice-check'
+        ? 'Generate invoice'
       : view === 'email'
-        ? 'Send email'
+        ? (composeInvoiceDraft ? 'Invoice email' : 'Send email')
         : view === 'onboarding'
           ? 'Request corrected onboarding details'
           : 'Edit details';
@@ -111,6 +124,7 @@
       : client.clientName || 'Active client';
     if (view === 'email') mountActiveClientDrawerForm('emailComposeForm', 'activeClientDrawerEmailSlot');
     if (view === 'edit') mountActiveClientDrawerForm('clientForm', 'activeClientDrawerClientFormSlot');
+    if(view==='invoice-upload')mountActiveClientDrawerForm('invoiceUploadForm','activeClientDrawerInvoiceUploadSlot');
     layer.dataset.view = view;
     document.body.style.setProperty('--active-client-drawer-width', `${$('#activeClientDrawer').getBoundingClientRect().width}px`);
   }
@@ -135,7 +149,6 @@
     $('#activeClientOnboardingUrl').value = '';
     $('#activeClientOnboardingStatus').textContent = '';
     $('#activeClientDrawerList [data-active-client-action="contract-email"]').hidden = isContractEnded(client);
-    $('#activeClientDrawerList [data-active-client-action="send-invoice"]').hidden = isContractEnded(client);
     $('#activeClientDrawerList [data-active-client-action="new-task"]').hidden = isContractEnded(client);
     showActiveClientDrawerView('list');
     requestAnimationFrame(() => {
@@ -156,10 +169,15 @@
       onClosed?.();
       return;
     }
-    const changedViews = ['email', 'edit'].filter(activeClientDrawerFormChanged);
+    if (!force && invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
+    const changedViews = ['email', 'edit', 'invoice-check','invoice-upload'].filter(activeClientDrawerFormChanged);
     if (!force && changedViews.length
       && !window.confirm('Discard unsaved changes and close client actions?')) return;
     if (!force) changedViews.forEach(resetActiveClientDrawerForm);
+    if(typeof browserDrafts!=='undefined'){
+      for(const id of ['invoiceCheckForm','invoiceUploadForm','emailComposeForm','clientForm'])if($('#'+id)?.closest('#activeClientDrawer'))browserDrafts.clearForm(id);
+    }
+    invoiceCheckSequence++;
     activeClientDrawerOpen = false;
     const layer = $('#activeClientDrawerLayer');
     layer.classList.add('closing');
@@ -192,15 +210,21 @@
   $('#closeActiveClientDrawer')?.addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBack').addEventListener('click', () => {
+    if (invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
     if (activeClientDrawerFormChanged(activeClientDrawerView)) {
       if (!window.confirm('Discard unsaved changes and return to actions?')) return;
       resetActiveClientDrawerForm(activeClientDrawerView);
+      markActiveClientDrawerFormClean(activeClientDrawerView);
     }
-    showActiveClientDrawerView('list');
-    $('#activeClientDrawerList [data-active-client-action]')?.focus();
+    if(['invoice-check','invoice-upload'].includes(activeClientDrawerView) || activeClientDrawerView==='email' && composeInvoiceDraft){
+      openClientInvoiceHub(hiredEditingId);
+    }else{
+      showActiveClientDrawerView('list');
+      $('#activeClientDrawerList [data-active-client-action]')?.focus();
+    }
   });
   document.addEventListener('keydown', event => {
-    if (!activeClientDrawerOpen) return;
+    if (!activeClientDrawerOpen || document.querySelector('dialog[open]')) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -274,9 +298,8 @@
       } else if (actionRow.dataset.activeClientAction === 'email') {
         const item = data.applications.find(application => application.id === hiredEditingId);
         if (item) openPlainClientEmailComposer(item, true);
-      } else if (actionRow.dataset.activeClientAction === 'send-invoice') {
-        const client = data.applications.find(application => application.id === hiredEditingId);
-        if (client) closeActiveClientActionsDrawer(false, () => openInvoiceDocumentPicker(client));
+      } else if (actionRow.dataset.activeClientAction === 'invoices') {
+        openClientInvoiceHub(hiredEditingId);
       } else if (actionRow.dataset.activeClientAction === 'contract-email') {
         const clientId = hiredEditingId;
         const client = data.applications.find(application => application.id === clientId);

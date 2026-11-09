@@ -19,6 +19,7 @@
   const emptyData = () => ({ applications: [], toApply: [], dailyTasks: [], clientTasks: [], socialTrends: [], emails: [], deletedGmailIds: [], alerts: [], clearedNotificationKeys: [], onboardingSubmissionIds: [], emailTemplates: [], personalDocuments: [], invoices: [], scripts: [], workLinks: [], walletEntries: [], subscriptions: [], accountSignInHistory: [], weeklyActivityGoal: null });
   let supabaseClient = null;
   let currentUser = null;
+  let accountIdVisible = false;
   let activeAuthProvider = null;
   let appStateChannel = null;
   let gmailSyncTimer = null;
@@ -254,6 +255,19 @@
     return true;
   }
 
+  function setAccountIdVisibility(visible = false) {
+    const id = currentUser?.id || '';
+    accountIdVisible = Boolean(visible && id);
+    $('#accountUserId').textContent = id ? (accountIdVisible ? id : '••••••••') : 'Not available';
+    const toggle = $('#toggleAccountUserId');
+    const label = accountIdVisible ? 'Hide account ID' : 'Show account ID';
+    toggle.disabled = !id;
+    toggle.setAttribute('aria-label', label);
+    toggle.setAttribute('aria-pressed', String(accountIdVisible));
+    toggle.title = label;
+    toggle.querySelector('i').className = `fa-solid ${accountIdVisible ? 'fa-eye-slash' : 'fa-eye'}`;
+  }
+
   function renderAccountPage() {
     if (typeof loadBackgroundFollowUpStatus === 'function') void loadBackgroundFollowUpStatus();
     if (!currentUser) return;
@@ -281,7 +295,7 @@
               ? 'Connected'
               : 'Not connected';
     $('#accountEmail').textContent = currentUser.email || 'Not available';
-    $('#accountUserId').textContent = currentUser.id || 'Not available';
+    setAccountIdVisibility(accountIdVisible);
     $('#accountSignInProvider').textContent = provider;
     $('#accountSupabaseStatus').textContent = supabaseStatus;
     $('#accountSupabaseProject').textContent = projectHost;
@@ -420,6 +434,7 @@
   });
 
   function openWorkspaceSettings() {
+    setAccountIdVisibility(false);
     lockWorkspaceDataControls();
     const accountView = $('#accountView');
     $('#settingsAccountContent').append(accountView);
@@ -836,7 +851,8 @@
       initializingUserId = null;
     }
     if (workspaceRenderFailed) return;
-    if (localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
+    const resumedDraft=typeof browserDrafts!=='undefined'?await browserDrafts.restore():false;
+    if (!passwordRecoveryMode && !resumedDraft && activeView==='applications' && localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
 
     // Everything below is useful refresh work, but none of it is required to
     // enter the dashboard. Keep it outside the login critical path.
@@ -922,6 +938,7 @@
     sessionStorage.setItem(AUTH_TAB_READY_KEY, '1');
     const callbackParams = new URLSearchParams(`${window.location.search}&${window.location.hash.slice(1)}`);
     const isPasswordRecovery = callbackParams.get('type') === 'recovery';
+    if(isPasswordRecovery)setPasswordRecoveryMode(true);
     const isAuthenticationCallback = callbackParams.has('code')
       || (callbackParams.has('access_token') && callbackParams.has('refresh_token'));
     const callbackKeys = ['error', 'error_description', 'access_token', 'refresh_token', 'code', 'type'];
@@ -977,12 +994,13 @@
         await initializeSupabaseForUser(sessionData.session.user, {
           showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
-          showOverview: !isPasswordRecovery
+          showOverview: isAuthenticationCallback && !isPasswordRecovery
         });
         if (isPasswordRecovery) openPasswordPage({ recovery: true });
       }
       client.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT' && currentUser) {
+          if(typeof browserDrafts!=='undefined')browserDrafts.signOut();
           dataReady = false;
           setAuthenticated(false);
           window.location.reload();
@@ -998,7 +1016,7 @@
           initializeSupabaseForUser(session.user, {
             showLoading: !isPasswordRecovery && isFirstLoadInTab,
             recordSignIn: !isPasswordRecovery,
-            showOverview: !isPasswordRecovery
+            showOverview: isAuthenticationCallback && !isPasswordRecovery
           });
         }, 0);
       });

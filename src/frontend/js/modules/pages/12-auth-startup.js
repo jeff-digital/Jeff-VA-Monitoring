@@ -119,6 +119,7 @@
     }
   });
   $('#logoutButton')?.addEventListener('click', async () => {
+    if(typeof browserDrafts!=='undefined')browserDrafts.signOut();
     startAuthTransition('Signing you out…', 'Ending your session securely.');
     if (gmailSyncTimer) {
       clearInterval(gmailSyncTimer);

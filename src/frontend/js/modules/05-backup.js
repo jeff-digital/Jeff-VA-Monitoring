@@ -65,6 +65,39 @@
     return sheet;
   }
 
+  // Chunk structured invoice records so embedded logos never exceed Excel's cell limit.
+  function invoiceCheckBackupRows() {
+    const rows=[];
+    const append=(kind,id,value)=>{
+      const json=JSON.stringify(value);
+      for(let offset=0;offset<json.length;offset+=30000) rows.push({kind,id,part:offset/30000,json:json.slice(offset,offset+30000)});
+    };
+    (data.applications || []).filter(client=>client.invoiceSettings).forEach(client=>append('setup',client.id,client.invoiceSettings));
+    (data.invoices || []).filter(invoice=>invoice.invoiceDraft).forEach(invoice=>append('draft',invoice.id,invoice));
+    return rows;
+  }
+
+  function readInvoiceCheckBackup(rows,clients) {
+    const groups=new Map(),drafts=[];
+    for(const row of rows){
+      if(!['setup','draft'].includes(row.kind) || !row.id || !Number.isInteger(Number(row.part)) || Number(row.part)<0)throw new Error('Invalid invoice backup.');
+      const key=JSON.stringify([row.kind,row.id]);if(!groups.has(key))groups.set(key,{kind:row.kind,id:row.id,parts:new Map()});
+      const group=groups.get(key);if(group.parts.has(Number(row.part)))throw new Error('Duplicate invoice backup part.');group.parts.set(Number(row.part),String(row.json));
+    }
+    for(const group of groups.values()){
+      const parts=[...group.parts].sort((a,b)=>a[0]-b[0]);if(parts.some(([part],index)=>part!==index))throw new Error('Incomplete invoice backup.');
+      const value=JSON.parse(parts.map(([,json])=>json).join(''));
+      if(group.kind==='setup'){
+        const client=clients.find(client=>client.id===group.id);
+        if(client)client.invoiceSettings=window.JeffInvoiceEngine.validateSettings(value);
+      }else{
+        if(value.id!==group.id || value.invoiceDraft!==true)throw new Error('Invalid invoice draft backup.');
+        value.document=window.JeffInvoiceEngine.validateDocument(value.document);drafts.push(value);
+      }
+    }
+    return drafts;
+  }
+
   function rowToApplication(row) {
     let documents = [];
     let socialLinks = [];
@@ -121,7 +154,8 @@
     const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];
     XLSX.utils.book_append_sheet(workbook, applicationsSheet, 'Applications');
     XLSX.utils.book_append_sheet(workbook, activeClientsSheet, 'Active clients');
-    XLSX.utils.book_append_sheet(workbook, createDataSheet(data.invoices || [], invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
+    XLSX.utils.book_append_sheet(workbook, createDataSheet((data.invoices || []).filter(invoice=>!invoice.invoiceDraft), invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
+    XLSX.utils.book_append_sheet(workbook,createDataSheet(invoiceCheckBackupRows(),['kind','id','part','json']), 'Invoice check');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.toApply || [], TO_APPLY_COLUMNS, { id: 38, title: 28, link: 48, dueDate: 16, notes: 48 }), 'To apply');
     XLSX.utils.book_append_sheet(workbook, createDataSheet((data.dailyTasks || []).map(dailyTaskToRow), DAILY_TASK_COLUMNS, { id: 38, title: 40, type: 18, taskDate: 16, relatedType: 18, relatedId: 38, relatedName: 28, destination: 40, notes: 60, checklist: 60, createdAt: 24, completedAt: 24 }), 'Daily tasks');
     XLSX.utils.book_append_sheet(workbook, createDataSheet(data.socialTrends || [], SOCIAL_TREND_COLUMNS, { id: 38, name: 34, platform: 16, url: 55, views: 18, uses: 18, scope: 18, observedAt: 16, notes: 48, createdAt: 24, updatedAt: 24 }), 'Social trends');
@@ -312,13 +346,14 @@
       if (!applicationsSheet || !activeClientsSheet) throw new Error('invalid');
       const applications = XLSX.utils.sheet_to_json(applicationsSheet, { defval: '' }).map(rowToApplication);
       const activeClients = XLSX.utils.sheet_to_json(activeClientsSheet, { defval: '' }).map(rowToApplication).map(item => ({ ...item, status: 'Active client', activePendingDocument: false }));
-      const invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }).map(rowToInvoice) : data.invoices || [];
+      let invoices = workbook.Sheets.Invoices ? XLSX.utils.sheet_to_json(workbook.Sheets.Invoices, { defval: '' }).map(rowToInvoice) : data.invoices || [];
       const toApply = workbook.Sheets['To apply'] ? XLSX.utils.sheet_to_json(workbook.Sheets['To apply'], { defval: '' }) : data.toApply || [];
       const dailyTasks = workbook.Sheets['Daily tasks'] ? XLSX.utils.sheet_to_json(workbook.Sheets['Daily tasks'], { defval: '' }).map(rowToDailyTask) : data.dailyTasks || [];
       const socialTrends = workbook.Sheets['Social trends'] ? XLSX.utils.sheet_to_json(workbook.Sheets['Social trends'], { defval: '' }).map(row => ({ ...row, views: Number(row.views) || 0, uses: Number(row.uses) || 0 })) : data.socialTrends || [];
       const workLinks = workbook.Sheets.Links ? XLSX.utils.sheet_to_json(workbook.Sheets.Links, { defval: '' }) : data.workLinks || [];
       const scripts = workbook.Sheets.Scripts ? XLSX.utils.sheet_to_json(workbook.Sheets.Scripts, { defval: '' }) : data.scripts || [];
       const restoredApplications = [...applications, ...activeClients.filter(active => !applications.some(application => application.id === active.id))];
+      if(workbook.Sheets['Invoice check'])invoices=invoices.filter(invoice=>!invoice.invoiceDraft).concat(readInvoiceCheckBackup(XLSX.utils.sheet_to_json(workbook.Sheets['Invoice check'],{defval:''}),restoredApplications));
       if (!(await appConfirm(`Replace the current application data with ${applications.length} applications and ${activeClients.length} active clients? Tool data and email history will also be restored.`, { title: 'Replace workspace data', confirmLabel: 'Replace data', danger: true }))) return;
       data = { applications: restoredApplications, toApply, dailyTasks, socialTrends, emails: data.emails, deletedGmailIds: data.deletedGmailIds || [], accountSignInHistory: data.accountSignInHistory || [], alerts: [], clearedNotificationKeys: data.clearedNotificationKeys || [], emailTemplates: data.emailTemplates || [], personalDocuments: data.personalDocuments || [], invoices, scripts, workLinks, walletEntries: data.walletEntries || [], subscriptions: data.subscriptions || [] };
       persist(); renderAll(); showActionResult({ title: 'Backup restored', message: 'Your workspace data was restored from the Excel file.' });

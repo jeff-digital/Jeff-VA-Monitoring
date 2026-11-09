@@ -13,6 +13,7 @@ import { sendFollowUp } from '../../functions/api/follow-up-send.js';
 import { backgroundFollowUps } from '../../functions/api/background-follow-ups.js';
 import { workspaceApi, workspaceOnboarding } from '../../functions/api/workspace.js';
 import { reviewApplicationProgress } from '../../functions/api/application-progress.js';
+import { invoiceDraftStatus, runInvoiceDrafts } from '../../functions/api/invoice-check.js';
 export { FollowUpDelivery } from '../../functions/api/follow-up-send.js';
 
 const reply = (error, status) => Response.json({ error }, { status, headers: { 'cache-control': 'no-store' } });
@@ -23,6 +24,12 @@ const sessionFailure = (expired = false) => Response.json({
 }, { status: expired ? 401 : 503, headers: { 'cache-control': 'no-store' } });
 
 export default {
+  async scheduled(controller, env, ctx) {
+    // Deliberately draft-only: no follow-up, Gmail or email-delivery function.
+    ctx.waitUntil(runInvoiceDrafts(env,new Date(controller.scheduledTime).toISOString()).then(result => {
+      if(result.failed) console.warn('Invoice draft check needs review:',result.failed);
+    }));
+  },
   async fetch(request, env, ctx) {
     if(env.WORKSPACE_FILES && !migrationStarted && ctx.waitUntil){migrationStarted=true;ctx.waitUntil(startFileMigration(env).catch(()=>{migrationStarted=false;}));}
     const path = new URL(request.url).pathname;
@@ -45,7 +52,8 @@ export default {
     const isResearch = path === '/api/research';
     const isResearchUsage = path === '/api/research/usage';
     const isProgressReview = path === '/api/application-progress';
-    if (!handler && !isFiles && !isWorkspace && !isLoginActivity && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isBackgroundFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage) return reply('Endpoint not found.', 404);
+    const isInvoiceDraftStatus = path === '/api/invoice-check';
+    if (!handler && !isFiles && !isWorkspace && !isLoginActivity && !isGmailRefresh && !isEmailClassification && !isFollowUp && !isBackgroundFollowUp && !isProgressReview && !isBackupReceipt && !isResearch && !isResearchUsage && !isInvoiceDraftStatus) return reply('Endpoint not found.', 404);
     if (isFiles ? !['GET','PUT','DELETE'].includes(request.method) : isWorkspace ? (isWorkspaceOnboarding ? request.method !== 'POST' : !['GET', 'PATCH', 'DELETE'].includes(request.method)) : isBackgroundFollowUp ? !['GET', 'POST', 'DELETE'].includes(request.method) : isLoginActivity ? !['GET', 'POST'].includes(request.method) : request.method !== (isGmailRefresh || isEmailClassification || isFollowUp || isProgressReview || isBackupReceipt || isResearch ? 'POST' : 'GET')) return reply('Method not allowed.', 405);
     const authorization = request.headers.get('authorization') || '';
     if (!/^Bearer \S+$/.test(authorization)) return reply('Sign in to continue.', 401);
@@ -59,6 +67,7 @@ export default {
       const user = await auth.json();
       if (!user.id) return sessionFailure(true);
       verified = true;
+      if (isInvoiceDraftStatus) return invoiceDraftStatus(request, env);
       if (isFiles) return await fileStorage(request, env, user);
       if (isWorkspaceOnboarding) return await workspaceOnboarding(request, env, user);
       if (isWorkspace) return await workspaceApi(request, env, user);

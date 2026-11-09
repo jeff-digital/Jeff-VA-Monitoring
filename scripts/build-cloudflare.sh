@@ -32,6 +32,8 @@ cp "$source_dir/images/news-remote-work.jpg" "$output_dir/images/news-remote-wor
 cp "$source_dir/images/news-technology.jpg" "$output_dir/images/news-technology.jpg"
 cp "$source_dir/js/gmail-config.js" "$output_dir/js/gmail-config.js"
 cp "$source_dir/js/theme.js" "$output_dir/js/theme.js"
+cp "$source_dir/js/invoice-engine.js" "$output_dir/js/invoice-engine.js"
+cp "$source_dir/js/invoice-pdf.js" "$output_dir/js/invoice-pdf.js"
 cp "$source_dir/js/supabase-config.js" "$output_dir/js/supabase-config.js"
 cp "$source_dir/onboarding/index.html" "$output_dir/onboarding/index.html"
 cp "$source_dir/onboarding/change-test.html" "$output_dir/onboarding/change-test.html"

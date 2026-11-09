@@ -3,6 +3,7 @@
   "name": "jeff-va-monitoring",
   "main": "src/backend/worker.mjs",
   "compatibility_date": "2026-10-08",
+  "triggers": { "crons": ["*/15 * * * *"] },
   "ai": {
     "binding": "AI"
   },
@@ -31,6 +32,7 @@
     ]
   },
   "vars": {
+    "INVOICE_DRAFTS_SCHEDULED": "true",
     "WORKSPACE_BACKEND": "d1",
     "BACKGROUND_FOLLOW_UPS_PAUSED": "true",
     "SUPABASE_URL": "https://oeooedwobhmpwwdohrcy.supabase.co",

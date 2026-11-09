@@ -301,7 +301,7 @@
     const clientName = application.clientName || 'Client';
     const contactName = application.contact || clientName;
     const contactPerson = application.contact || 'Client';
-    const roleName = String(application.role || '').trim() || (templateType === 'follow-up' ? 'position' : 'your project');
+    const roleName = String(additional.role || application.role || '').trim() || (templateType === 'follow-up' ? 'position' : 'your project');
     const platform = String(application.platform || '').trim();
     const applied = new Date(String(application.appliedDate || '').slice(0, 10) + 'T12:00:00');
     const applicationDate = Number.isFinite(applied.getTime()) ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(applied) : 'an earlier date';
@@ -359,10 +359,14 @@
     const label = $('#composeAttachmentName');
     const removeButton = $('#removeComposeAttachmentButton');
     if (label) label.textContent = fileName ? `Attachment: ${fileName}` : '';
+    if(label)label.title=fileName;
+    if(label?.dataset)label.dataset.fileType=(fileName.match(/\.([a-z0-9]{1,5})$/i)?.[1] || 'file').toUpperCase();
     if (removeButton) removeButton.hidden = !fileName;
   }
 
   function setEmailComposeStatus(message, type = 'info') {
+    const form=$('#emailComposeForm');if(form?.dataset)form.dataset.invoiceCompose=composeInvoiceDraft?'true':'false';
+    if($('#emailComposeTitle'))$('#emailComposeTitle').textContent=composeInvoiceDraft?'Invoice email':'Write an email';
     const status = $('#emailComposeStatus');
     if (!status) return;
     const classType = type === 'error' ? 'alert' : type;
@@ -492,7 +496,7 @@
     $('#composeBody').focus();
   }
 
-  function openInvoiceComposer(application, file, invoice) {
+  function openInvoiceComposer(application, file, invoice, preferDrawer=false) {
     composeClientId = null;
     composeActivationClientId = null;
     composeDocumentUpdateClientId = null;
@@ -502,6 +506,7 @@
     composeAttachmentFile = file;
     $('#composeAttachmentInput').value = '';
     composeInvoiceDraft = { ...invoice, clientId: application.id, fileName: file.name };
+    updateComposeAttachmentDisplay();
     const template = buildDocumentEmailTemplate('invoice', application, {
       invoiceNumber: invoice.invoiceNumber,
       billingPeriod: invoice.billingPeriod,
@@ -515,7 +520,9 @@
     $('#emailTemplateName').value = '';
     setEmailComposeStatus(`Review the invoice email, then send through Gmail. Attachment: ${file.name}`);
     renderEmailTemplateOptions();
-    $('#emailComposeModal').showModal();
+    if(preferDrawer && typeof isActiveClientDrawerOpen==='function' && isActiveClientDrawerOpen()){
+      showActiveClientDrawerView('email');markActiveClientDrawerFormClean('email');
+    }else $('#emailComposeModal').showModal();
     $('#composeBody').focus();
   }
 
@@ -911,6 +918,18 @@
     const contractEmailFile = contractEmailMode ? composeAttachmentFile : null;
     const attachment = composeAttachment;
     const attachmentFile = composeAttachmentFile;
+    const composedInvoice = composeInvoiceDraft ? {...composeInvoiceDraft} : null;
+    if(composedInvoice){
+      if(!attachment && !attachmentFile){setEmailComposeStatus('Attach the invoice file before sending.','error');return;}
+      if(invoiceAlreadySent(composedInvoice.clientId,composedInvoice.invoiceNumber)){
+        setEmailComposeStatus('This invoice was already sent. Review invoice history before sending again.','error');return;
+      }
+      if(composedInvoice.sourceDraftId){
+        const saved=(data.invoices || []).find(item=>item.id===composedInvoice.sourceDraftId);
+        if(!saved || saved.draftStatus==='sent' || saved.updatedAt!==composedInvoice.sourceDraftUpdatedAt){setEmailComposeStatus('This invoice changed. Reopen its preview and prepare the email again.','error');return;}
+        if(!attachmentFile || attachmentFile.name!==composedInvoice.fileName || (attachmentFile.type || documentContentType(attachmentFile))!==(composedInvoice.sourceAttachmentType || 'application/pdf')){setEmailComposeStatus('The invoice file must be attached. Reopen the invoice to prepare the email again.','error');return;}
+      }
+    }
     if (!to || !subject || !body || !isEmailAddress(to)) {
       setEmailComposeStatus('Enter a valid recipient, subject, and message.', 'error');
       return;
@@ -959,13 +978,14 @@
         : null;
       const gmailMessage = followUpDelivery ? { id: followUpDelivery.gmailId } : await sendGmailRaw(rawMessage);
       gmailAccepted = true;
+      if(typeof browserDrafts!=='undefined')browserDrafts.clearForm('emailComposeForm');
       const gmailId = gmailMessage?.id || '';
       const sentEmailRecord = {
         id: gmailId ? `gmail-${gmailId}` : uid(),
         gmailId,
         applicationId: contractEmailMode
           ? contractEmailApplication?.id || ''
-          : composeClientId || composeActivationClientId || composeDocumentUpdateClientId || '',
+          : composeClientId || composeActivationClientId || composeDocumentUpdateClientId || composedInvoice?.clientId || '',
         from: 'You',
         to,
         subject,
@@ -990,9 +1010,12 @@
         }
         reconcileSentFollowUpAlerts();
       }
-      if (composeInvoiceDraft) {
+      if (composedInvoice) {
         data.invoices = data.invoices || [];
-        data.invoices.unshift({ id: uid(), ...composeInvoiceDraft, sentAt: new Date().toISOString() });
+        const sentAt=new Date().toISOString(), sentInvoice={id:uid(),...composedInvoice,sentAt};
+        data.invoices.unshift(sentInvoice);
+        const source=data.invoices.find(item=>item.id===composedInvoice.sourceDraftId && item.invoiceDraft);
+        if(source){source.draftStatus='sent';source.sentInvoiceId=sentInvoice.id;source.sentAt=sentAt;source.updatedAt=sentAt;}
       }
       const activationCandidate = composeActivationClientId && data.applications.find(item => item.id === composeActivationClientId);
       const activatingClient = activationCandidate?.activePendingEmail
@@ -1024,7 +1047,7 @@
       } else if (updatingClient) {
         successMessage = 'Updated document email sent successfully.';
       }
-      if (composeInvoiceDraft) successMessage = 'Invoice sent successfully and added to this client\'s history.';
+      if (composedInvoice) successMessage = 'Invoice sent successfully and added to this client\'s history.';
       savePromise.catch(error => {
         console.error('Gmail accepted the email, but the app could not save its history:', error);
       });

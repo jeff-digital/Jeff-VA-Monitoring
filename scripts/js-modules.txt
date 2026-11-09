@@ -20,6 +20,7 @@ pages/07c-application-form.js
 03-documents.js
 03b-notifications-and-reminders.js
 03a-invoice-payments.js
+03c-invoice-check.js
 04-gmail.js
 04a-email-outcomes.js
 04b-background-follow-ups.js
@@ -40,5 +41,6 @@ pages/14-wallet-page.js
 pages/15-news-page.js
 pages/16-social-trends-page.js
 pages/17-subscriptions-page.js
+05a-browser-drafts.js
 pages/12-auth-startup.js
 pages/13-client-tasks-page.js

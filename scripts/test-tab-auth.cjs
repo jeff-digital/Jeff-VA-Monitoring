@@ -48,8 +48,8 @@ fallback.storage.removeItem('session');
 assert.equal(fallback.storage.getItem('session'), null);
 console.log('Remembered login checks passed: reopen, project isolation, logout, migration, and blocked-storage fallback.');
 
-// A remembered login must land on the dashboard even when reopened at
-// /applications. Recovery remains on its dedicated password flow.
+// Reloading a remembered session preserves its URL. A new OAuth callback
+// may select the dashboard; recovery retains its dedicated password flow.
 const restoreSource = source.slice(source.indexOf('  async function restoreSupabaseSession('), source.indexOf('  async function clearSupabaseData('));
 async function checkLanding({ recovery = false, callback = false, fallback = false } = {}) {
   let authListener;
@@ -75,13 +75,14 @@ async function checkLanding({ recovery = false, callback = false, fallback = fal
     resolveAuthProvider: () => 'google', showView() {},
     currentUser: null, initializingUserId: null,
     initializeSupabaseForUser: async (user, options) => initializations.push({ user, options }),
-    openPasswordPage: () => { recoveryOpened = true; }
+    openPasswordPage: () => { recoveryOpened = true; },
+    setPasswordRecoveryMode() {}
   });
   vm.runInContext(restoreSource, context);
   await context.restoreSupabaseSession();
   if (fallback) authListener('SIGNED_IN', session);
   assert.equal(initializations.length, 1);
-  assert.equal(initializations[0].options.showOverview, !recovery, 'ordinary login must explicitly select dashboard instead of retaining the Applications URL');
+  assert.equal(initializations[0].options.showOverview, callback && !recovery, 'Remembered-session reload must retain the current page');
   assert.equal(recoveryOpened, recovery);
 }
 (async () => {
@@ -89,5 +90,5 @@ async function checkLanding({ recovery = false, callback = false, fallback = fal
   await checkLanding({ callback: true });
   await checkLanding({ fallback: true });
   await checkLanding({ recovery: true });
-  console.log('Dashboard landing checks passed: saved session, Google callback, auth event fallback, and password recovery.');
+  console.log('Page restoration checks passed: saved-session reload and auth fallback retain the route; Google callback and password recovery retain their own flows.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

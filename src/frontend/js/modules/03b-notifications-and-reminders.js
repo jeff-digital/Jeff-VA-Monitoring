@@ -1,5 +1,5 @@
   const generatedNotificationTypes = new Set([
-    'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
+    'invoice-ready', 'task-due-today', 'task-overdue', 'client-task-due-today', 'client-task-overdue',
     'contract-ending-30', 'contract-ending-14', 'contract-ending-7', 'contract-ended',
     'wallet-payment-due-soon', 'wallet-payment-due-today', 'wallet-payment-overdue',
     'subscription-due-soon', 'subscription-due-today', 'subscription-expired'
@@ -93,6 +93,7 @@
         urgency: type.endsWith('overdue') ? 'overdue' : 'due-today'
       });
     };
+    if (globalThis.JeffInvoiceEngine) (data.invoices || []).filter(invoice => invoice.invoiceDraft && invoice.draftStatus!=='sent' && invoice.document?.billTo).forEach(invoice => add(globalThis.JeffInvoiceEngine.readyAlert(invoice)));
     const todayDate = today();
     (data.dailyTasks || []).forEach(task => {
       if (!task.id || task.completedAt || task.status === 'done' || !task.taskDate) return;
@@ -206,6 +207,7 @@
 
   function notificationCategory(alert) {
     if (alert.type?.startsWith('task-')) return 'daily-tasks';
+    if (alert.type === 'invoice-ready') return 'finance';
     if (alert.type?.startsWith('wallet-payment-') || alert.type?.startsWith('subscription-')) return 'finance';
     if (alert.type === 'to-apply' || alert.id?.startsWith('to-apply|due|')) return 'to-apply';
     if (alert.type?.startsWith('client-task-') || alert.type?.startsWith('contract-') || ['document-email-reminder', 'onboarding-submission', 'active-client-email', 'active-client-email-review'].includes(alert.type)) return 'active-clients';

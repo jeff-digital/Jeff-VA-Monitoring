@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261105-consistent-sidebar" />
+    <link rel="stylesheet" href="css/styles.css?v=20261109-reload-drafts" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
     <link rel="stylesheet" href="css/modern-workspace.css?v=20261105-dashboard-fit" />
@@ -876,7 +876,7 @@
             <dl class="account-detail-list">
               <div><dt>Last sign-in</dt><dd id="accountLastSignIn">Not available</dd></div>
               <div><dt>Account created</dt><dd id="accountCreatedAt">Not available</dd></div>
-              <div><dt>Account ID</dt><dd id="accountUserId">Not available</dd></div>
+              <div class="account-id-row"><dt>Account ID</dt><dd class="account-id-value"><span id="accountUserId">••••••••</span><button id="toggleAccountUserId" class="icon-button" type="button" aria-label="Show account ID" aria-pressed="false" aria-controls="accountUserId" title="Show account ID"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></dd></div>
             </dl>
           </section>
           </div>
@@ -1317,24 +1317,29 @@
     </dialog>
 
     <dialog class="modal small-modal" id="invoiceDocumentPickerModal" aria-labelledby="invoiceDocumentPickerTitle">
-      <form method="dialog">
+      <form id="invoiceUploadForm" method="dialog" novalidate>
         <div class="modal-heading">
           <div><p class="eyebrow">SEND INVOICE</p><h2 id="invoiceDocumentPickerTitle">Choose an invoice</h2></div>
         </div>
+        <div class="invoice-upload-file">
+          <p class="settings-copy" id="invoiceDocumentPickerDescription">Choose an existing invoice. Review the detected details, then prepare an email with your invoice template. Nothing sends automatically.</p>
+          <label class="button button-primary import-label picker-upload" for="invoicePickerUploadInput"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> Choose invoice file</label>
+          <input id="invoicePickerUploadInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+          <p class="invoice-upload-file-name" id="invoiceUploadFileInfo">No file selected</p>
+          <p class="compose-status" id="invoiceDocumentPickerStatus" role="status"></p>
+        </div>
         <div class="compose-fields invoice-fields">
           <label class="form-field">Invoice number <span class="required">*</span><input id="invoiceNumber" maxlength="60" required placeholder="Detected from the invoice" /></label>
-          <label class="form-field">Date of issue <span class="required">*</span><input id="invoiceIssueDate" maxlength="60" required placeholder="Detected from the invoice" /></label>
+          <label class="form-field">Date of issue <span class="required">*</span><input id="invoiceIssueDate" type="date" required /></label>
           <label class="form-field">Billing period <span class="required">*</span><input id="invoiceBillingPeriod" maxlength="120" required placeholder="Detected from the invoice" /></label>
-          <label class="form-field">Due date <span class="required">*</span><input id="invoiceDueDate" maxlength="60" required placeholder="Detected from the invoice" /></label>
+          <label class="form-field">Due date <span class="required">*</span><input id="invoiceDueDate" type="date" required /></label>
           <label class="form-field">Service <span class="required">*</span><input id="invoiceService" maxlength="120" required value="Social Media Management Services" /></label>
-          <label class="form-field">Task starts <span class="required">*</span><input id="invoiceStartDate" type="date" required /></label>
-          <label class="form-field">Task ends <span class="required">*</span><input id="invoiceEndDate" type="date" required /></label>
+          <label class="form-field">Billing starts <span class="required">*</span><input id="invoiceStartDate" type="date" required /></label>
+          <label class="form-field">Billing ends <span class="required">*</span><input id="invoiceEndDate" type="date" required /></label>
+          <label class="form-field">Invoice amount (optional)<input id="invoiceUploadAmount" type="number" min="0" step="0.01" /></label>
+          <label class="form-field">Currency<select id="invoiceUploadCurrency"><option>USD</option><option>PHP</option><option>EUR</option><option>GBP</option><option>AUD</option><option>CAD</option></select></label>
         </div>
-        <p class="settings-copy" id="invoiceDocumentPickerDescription">Upload the invoice you want to send. It will be used once and will not be saved to the Documents page.</p>
-        <label class="button button-primary import-label picker-upload" for="invoicePickerUploadInput">Choose invoice file</label>
-        <input id="invoicePickerUploadInput" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
-        <p class="compose-status" id="invoiceDocumentPickerStatus" role="status"></p>
-        <div class="modal-actions"><button class="button button-secondary" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="button" id="useInvoiceFileButton" disabled>Continue with this file</button></div>
+        <div class="modal-actions"><button class="button button-secondary" id="cancelInvoiceUpload" value="cancel" type="submit" formnovalidate>Cancel</button><button class="button button-primary" type="button" id="useInvoiceFileButton" disabled>Prepare email</button></div>
       </form>
     </dialog>
 
@@ -1692,9 +1697,9 @@
               <span class="active-client-action-row-copy"><strong>Send contract email</strong><small>Upload a contract and email it to this client.</small></span>
               <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
             </button>
-            <button class="active-client-action-row" type="button" data-active-client-action="send-invoice" hidden>
-              <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-regular fa-file-lines"></i></span>
-              <span class="active-client-action-row-copy"><strong>Send Invoice</strong><small>Choose an invoice file and send it to this client.</small></span>
+            <button class="active-client-action-row" type="button" data-active-client-action="invoices">
+              <span class="active-client-action-row-icon" aria-hidden="true"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+              <span class="active-client-action-row-copy"><strong>Invoice</strong><small>Generate an invoice or upload your own file.</small></span>
               <i class="fa-solid fa-chevron-right active-client-action-row-chevron" aria-hidden="true"></i>
             </button>
           <button class="active-client-action-row" type="button" data-active-client-action="onboarding">
@@ -1733,11 +1738,54 @@
             <button class="button button-primary" type="button" id="generateClientOnboardingLinkButton">Prepare email</button>
           </footer>
         </section>
+
+        <section class="active-client-drawer-view" id="activeClientDrawerInvoiceHome" hidden>
+          <div class="active-client-drawer-view-content invoice-hub">
+            <p class="active-client-drawer-description">Choose how to prepare this client's invoice. Review the details and email before sending.</p>
+            <div class="invoice-hub-options">
+              <button class="invoice-hub-option" id="generateClientInvoice" type="button"><span class="invoice-hub-icon"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i></span><span><strong>Generate invoice</strong><small>Use your logo, saved payment details and weekly billing.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+              <button class="invoice-hub-option" id="uploadClientInvoice" type="button"><span class="invoice-hub-icon"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i></span><span><strong>Upload invoice</strong><small>Choose a PDF or Word file and review its detected details.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+            </div>
+            <p class="settings-copy" id="invoiceHubStatus" role="status"></p>
+            <section class="invoice-check-section"><h3>Saved drafts</h3><div id="invoiceHubDrafts"></div></section>
+          </div>
+        </section>
+        <section class="active-client-drawer-view" id="activeClientDrawerInvoiceUploadView" hidden><div id="activeClientDrawerInvoiceUploadSlot"></div></section>
+        <section class="active-client-drawer-view invoice-check-view" id="activeClientDrawerInvoiceView" hidden>
+          <form id="invoiceCheckForm" novalidate>
+            <div class="invoice-check-content">
+              <div class="invoice-check-promise"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><div><strong>Preview first. Send only when you choose.</strong><p>Weekly automation creates drafts and notifications. It never sends an email.</p></div></div>
+              <p class="invoice-check-status" id="invoiceCheckStatus" role="status" aria-live="polite"></p>
+              <section class="invoice-check-section"><h3>Billing week</h3><label class="form-field">Week starting (Monday)<input type="date" id="invoiceCheckWeek" required /></label><p class="settings-copy" id="invoiceCheckPeriod"></p><button type="button" class="button button-secondary" id="invoiceCheckNewWeek" hidden>Choose another week</button></section>
+              <section class="invoice-check-section"><h3>Billing basis</h3><div class="invoice-check-grid"><label class="form-field">Calculate using<select id="invoiceCheckBasis"><option value="logged">Logged hours</option><option value="weekly">Fixed weekly fee</option><option value="agreed">Agreed weekly hours</option></select></label><label class="form-field">Currency<select id="invoiceCheckCurrency"><option>USD</option><option>PHP</option><option>EUR</option><option>GBP</option><option>AUD</option><option>CAD</option></select></label><label class="form-field"><span id="invoiceCheckRateLabel">Hourly rate</span><input id="invoiceCheckRate" type="number" min="0.01" step="0.01" required /></label><label class="form-field">Payment terms (days)<input id="invoiceCheckTerms" type="number" min="0" max="90" step="1" value="7" /></label></div><div class="invoice-duration-presets" aria-label="Weekly schedule presets"><button type="button" class="button button-secondary" data-invoice-weekly-hours="20">20 hours / 5 days</button><button type="button" class="button button-secondary" data-invoice-weekly-hours="40">40 hours / 5 days</button></div><div class="invoice-check-grid"><label class="form-field">Hours per week<input id="invoiceCheckWeeklyHours" type="number" min="0.01" max="168" step="0.01" placeholder="20 or 40" /></label><label class="form-field">Workdays per week<input id="invoiceCheckWorkdays" type="number" min="1" max="7" step="1" value="5" /></label></div><div id="invoiceCheckHourlyCalculation" class="invoice-hourly-calculation" hidden><span>Weekly total</span><strong id="invoiceCheckWeeklyTotal"></strong><small id="invoiceCheckHourlyBreakdown"></small><button type="button" class="button button-secondary" id="applyInvoiceHourlyCalculation" hidden>Apply hourly calculation — replace service lines</button></div><p class="settings-copy" id="invoiceCheckDurationSummary" role="status" aria-live="polite"></p><label class="form-field">Service description<input id="invoiceCheckService" maxlength="160" required /></label><p class="settings-copy">Entering hours or choosing a preset automatically calculates hours × your hourly rate. Fixed weekly fee uses the agreed total. Logged hours use saved client-task time entries in the selected week. Running timers are excluded. Monthly rates are not converted into weekly fees. For saved drafts, edit charges in the service lines below.</p></section>
+              <details class="invoice-check-section" id="invoiceCheckBusiness"><summary>Your business & branding</summary><div class="invoice-check-logo"><img id="invoiceCheckLogoPreview" alt="Your invoice logo" hidden /><label class="button button-secondary import-label" for="invoiceCheckLogo">Choose logo</label><input id="invoiceCheckLogoData" type="hidden" /><input id="invoiceCheckLogo" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button class="button button-secondary" id="invoiceCheckRemoveLogo" type="button">Remove logo</button></div><p class="settings-copy">PNG, JPG or WebP, up to 2 MB. Saved privately with this client's invoice setup.</p><div class="invoice-check-grid"><label class="form-field">Business / full name<input id="invoiceCheckBusinessName" maxlength="160" required /></label><label class="form-field">Business email<input id="invoiceCheckBusinessEmail" type="email" maxlength="200" required /></label></div><label class="form-field">Business address<textarea id="invoiceCheckBusinessAddress" maxlength="500" rows="2"></textarea></label><div class="invoice-check-grid"><label class="form-field">Phone (optional)<input id="invoiceCheckBusinessPhone" type="tel" maxlength="80" /></label><div class="form-field"><span>Invoice numbering</span><p class="settings-copy">Year + sequence, such as 2026-001. Assigned across your invoices.</p></div></div></details>
+              <details class="invoice-check-section" id="invoiceCheckPayment"><summary>Payment instructions</summary><label class="form-field">Payment method<select id="invoiceCheckPaymentMethod"><option value="">Choose a method</option><option>Wise</option><option>PayPal</option><option>Payoneer</option><option>Bank transfer</option><option>GCash</option><option>MariBank</option><option>Other</option></select></label><label class="form-field">Account / payment instructions<textarea id="invoiceCheckPaymentDetails" maxlength="1400" rows="4" placeholder="Account holder, payment email or account details, transfer reference, and any relevant instructions." required></textarea></label><label class="form-field">Notes & terms<textarea id="invoiceCheckNotes" maxlength="1400" rows="3" placeholder="Payment reference, agreed terms, and a short thank-you."></textarea></label></details>
+              <details class="invoice-check-section" id="invoiceCheckSchedule"><summary>Prepare automatically each week</summary><label class="invoice-check-toggle"><input id="invoiceCheckAutomatic" type="checkbox" /> Create a weekly draft and notify me</label><div class="invoice-check-grid"><label class="form-field">Preparation day<select id="invoiceCheckScheduleDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label><label class="form-field">Preparation hour<select id="invoiceCheckScheduleHour"></select></label></div><label class="form-field">Billing time zone<input id="invoiceCheckTimezone" maxlength="80" value="Asia/Manila" list="invoiceTimezones" /></label><datalist id="invoiceTimezones"><option value="Asia/Manila"><option value="Asia/Shanghai"><option value="America/New_York"><option value="America/Los_Angeles"><option value="Europe/London"><option value="Australia/Sydney"><option value="UTC"></datalist><p class="settings-copy">Prepares the last completed Monday–Sunday week, within about 15 minutes of the chosen time. Notifications appear in Jeff VA. No automatic email sending.</p><p class="settings-copy" id="invoiceCheckAutomationStatus">Checking weekly preparation availability…</p></details>
+              <section class="invoice-check-section" id="invoiceCheckEditFields" hidden><h3>Edit invoice</h3><div class="invoice-check-grid"><label class="form-field">Invoice number<input id="invoiceCheckNumber" maxlength="60" /></label><label class="form-field">Date issued<input id="invoiceCheckIssueDate" type="date" /></label><label class="form-field">Due date<input id="invoiceCheckDueDate" type="date" /></label><label class="form-field">Bill to<input id="invoiceCheckBillTo" maxlength="200" /></label><label class="form-field">Client email<input id="invoiceCheckClientEmail" type="email" maxlength="200" /></label><label class="form-field">Contact<input id="invoiceCheckClientContact" maxlength="200" /></label></div><label class="form-field">Client billing address<textarea id="invoiceCheckClientAddress" maxlength="500" rows="2"></textarea></label><div id="invoiceCheckLines" class="invoice-check-lines"></div><button id="invoiceCheckAddLine" type="button" class="button button-secondary">Add service line</button><div class="invoice-check-grid"><label class="form-field">Discount (%)<input id="invoiceCheckDiscount" type="number" min="0" max="100" step="0.01" value="0" /></label><label class="form-field">Tax (%) — only if applicable<input id="invoiceCheckTax" type="number" min="0" max="100" step="0.01" value="0" /></label></div><p id="invoiceCheckTotal" class="invoice-check-total" aria-live="polite"></p></section>
+              <section class="invoice-check-section"><h3>Saved drafts</h3><div id="invoiceCheckSavedDrafts"></div></section>
+            </div>
+            <footer class="active-client-drawer-footer invoice-check-footer"><button type="button" class="button button-secondary" id="saveInvoiceSetup">Save setup</button><button type="submit" class="button button-primary" id="generateInvoiceDraft">Generate preview</button></footer>
+          </form>
+        </section>
         <section class="active-client-drawer-view" id="activeClientDrawerEditView" hidden>
           <div id="activeClientDrawerClientFormSlot"></div>
         </section>
       </aside>
     </div>
+
+
+    <dialog class="modal invoice-preview-modal" id="invoiceDraftPreviewModal" aria-labelledby="invoiceDraftPreviewTitle">
+      <header class="modal-heading"><div><p class="eyebrow">INVOICE CHECK · NOT SENT</p><h2 id="invoiceDraftPreviewTitle">Invoice preview</h2><p class="settings-copy">Review the details before downloading or preparing your email.</p></div><button class="icon-button" id="closeInvoiceDraftPreview" type="button" aria-label="Close invoice preview">×</button></header>
+      <p class="invoice-check-status" id="invoiceDraftPreviewStatus" role="status"></p><div id="invoiceDraftWarnings" class="invoice-draft-warnings"></div>
+      <div class="invoice-preview-scroll" id="invoiceDraftPreviewContent"></div>
+      <footer class="modal-actions invoice-preview-actions">
+        <button class="button button-secondary invoice-edit-action" id="editInvoiceDraft" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5M4 20l4-1 13-13a2 2 0 0 0-5-5L3 14l-1 6Z"/></svg><span>Edit invoice</span></button>
+        <div class="invoice-share-actions">
+          <button class="button button-secondary" id="downloadInvoiceDraft" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg><span>Download PDF</span></button>
+          <button class="button button-primary" id="emailInvoiceDraft" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg><span>Prepare email</span></button>
+        </div>
+      </footer>
+    </dialog>
 
     <dialog class="modal document-viewer-modal" id="documentViewerModal" aria-labelledby="documentViewerTitle">
       <form method="dialog">
@@ -1767,9 +1815,11 @@
           <details class="compose-extra-options" id="composeExtraOptions" open><summary>Attachments &amp; templates</summary><div class="compose-extras-body">
           <div class="compose-attachment-row">
             <input id="composeAttachmentInput" type="file" accept=".pdf,.doc,.docx,.rtf,.txt,.odt,.png,.jpg,.jpeg" hidden />
-            <button class="button button-secondary" type="button" id="attachFileButton">Attach file</button>
-            <button class="button button-secondary" type="button" id="removeComposeAttachmentButton" hidden>Remove attachment</button>
             <span class="compose-attachment-name" id="composeAttachmentName"></span>
+            <div class="compose-attachment-actions" role="group" aria-label="Attachment actions">
+              <button class="button button-secondary" type="button" id="attachFileButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 12 7-7a3 3 0 0 1 4 4L9 19a5 5 0 0 1-7-7L13 1m-8 14 10-10"/></svg><span>Attach file</span></button>
+              <button class="button button-secondary" type="button" id="removeComposeAttachmentButton" aria-label="Remove attachment" title="Remove attachment" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5m4-5v5"/></svg><span>Remove</span></button>
+            </div>
           </div>
           <div class="compose-template-save">
             <input id="emailTemplateName" maxlength="80" placeholder="Template name" aria-label="Template name" />
@@ -1889,6 +1939,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
     <script src="js/gmail-config.js"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=20261105-compact-headers"></script>
+    <script src="js/invoice-engine.js?v=20261109-identity-align"></script>
+    <script src="js/invoice-pdf.js?v=20261109-identity-align"></script>
+    <script src="js/app.js?v=20261109-reload-drafts"></script>
   </body>
 </html>

@@ -255,7 +255,11 @@
         renderAlerts();
       }
       closeNotifications();
-      if (alert?.type?.startsWith('task-') && alert.taskId) {
+      if (alert?.type === 'invoice-ready' && alert.invoiceDraftId) {
+        const client = data.applications.find(item => item.id === alert.applicationId);
+        if (client) { showView('hired'); renderHiredDetail(client); selectClientDetailTab('invoices'); openInvoiceDraftPreview(alert.invoiceDraftId); }
+        else toast('The client for this invoice is no longer available.');
+      } else if (alert?.type?.startsWith('task-') && alert.taskId) {
         showView('daily-task');
         const taskDate = $('#dailyTaskDate');
         if (taskDate && alert.taskDate) taskDate.value = alert.taskDate;
@@ -364,8 +368,10 @@
   $('#exportFullWorkspaceBackup').addEventListener('click', exportFullWorkspaceBackup);
   $('#backupInput').addEventListener('change', event => restoreBackup(event.target.files[0]));
   $('#settingsButton').addEventListener('click', openWorkspaceSettings);
+  $('#toggleAccountUserId').addEventListener('click', () => setAccountIdVisibility(!accountIdVisible));
   $('#closeSettingsModal').addEventListener('click', () => $('#settingsModal').close());
   $('#settingsModal').addEventListener('close', () => {
+    setAccountIdVisibility(false);
     lockWorkspaceDataControls();
     const mobileMenu = $('#mobileMenu');
     const focusTarget = mobileMenu && getComputedStyle(mobileMenu).display !== 'none'

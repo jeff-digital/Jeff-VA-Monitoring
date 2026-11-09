@@ -355,7 +355,7 @@
     $('#hiredDetailContact').innerHTML = contactDetails.length
       ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
       : '';
-    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
     const sentEmails = sentEmailsForApplication(item);
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
@@ -432,6 +432,7 @@
       <section class="invoice-send-panel client-invoice-panel${contractEnded ? ' contract-ended-readonly' : ''}" aria-labelledby="clientInvoicesTitle">
         <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><div class="client-invoice-heading-actions"><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))}</span></div></div>
         ${contractEnded ? '<div class="client-invoice-actions"><p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p></div>' : ''}
+        ${renderInvoiceDraftQueue(item)}
         ${invoices.length ? `${invoicePaymentSummary(invoices)}<div class="client-invoice-table-wrap"><table class="client-invoice-table"><thead><tr><th scope="col">Invoice</th><th scope="col">Service</th><th scope="col">Period</th><th scope="col">Sent</th><th scope="col">Due</th><th scope="col">Payment</th></tr></thead><tbody>${invoices.map(invoice => {
           const status = invoicePaymentStatus(invoice);
           const paid = status === 'Paid';
