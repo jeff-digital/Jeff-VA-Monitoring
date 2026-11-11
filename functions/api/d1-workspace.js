@@ -115,12 +115,14 @@ export async function applyD1Changes(env,userId,changes,clientRevision=undefined
     const numbers=new Map(),previousNumbers=new Map();
     const numberKey=invoice=>String(invoice.document?.invoiceNumber || invoice.invoiceNumber || '').trim().replace(/^(\d{4})-0+(\d)/,'$1-$2');
     for(const invoice of loaded.data.invoices || []){
-      const key=numberKey(invoice);if(!previousNumbers.has(key))previousNumbers.set(key,new Set());previousNumbers.get(key).add(invoice.sourceDraftId || invoice.id);
+      if (invoice.deletedAt || invoice.invoiceDraft) continue;
+      const key=numberKey(invoice);if(!previousNumbers.has(key))previousNumbers.set(key,new Set());previousNumbers.get(key).add(invoice.id);
     }
     for(const invoice of state.invoices || []){
+      if (invoice.deletedAt || invoice.invoiceDraft) continue;
       const number=numberKey(invoice);
       if(!/^\d{4}-\d+$/.test(number))continue;
-      const identity=invoice.sourceDraftId || invoice.id;
+      const identity=invoice.id;
       const previous=previousNumbers.get(number);
       if(numbers.has(number) && numbers.get(number)!==identity && !(previous?.has(identity) && previous.has(numbers.get(number))))throw Object.assign(new Error('That invoice number is already in use. Refresh the workspace and generate the invoice again.'),{status:409});
       numbers.set(number,identity);

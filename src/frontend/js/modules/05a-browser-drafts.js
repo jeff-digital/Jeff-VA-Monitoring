@@ -35,11 +35,19 @@
     }
     function fields(form){return [...form.elements].filter(field=>['INPUT','SELECT','TEXTAREA'].includes(field.tagName) && !['password','file','submit','button'].includes(field.type) && !/password|token|secret|one.time/i.test(field.id+' '+field.name+' '+field.autocomplete));}
     function values(form){return fields(form).map((field,index)=>({id:field.id,index,type:field.type,name:field.name,value:field.type==='checkbox' || field.type==='radio'?field.checked:field.multiple?[...field.selectedOptions].map(option=>option.value):field.value}));}
-    function visible(form){return !form.closest('[hidden],.hidden') && Boolean(form.getClientRects().length);}
+    function visible(form){return !form.matches('.view-details-form') && !form.closest('[hidden],.hidden') && Boolean(form.getClientRects().length);}
     function context(form){
       const id=form.id,c={clientId:activeView==='hired'?hiredEditingId || '':''};
       if(id==='invoiceCheckForm')Object.assign(c,{clientId:invoiceCheckClientId,invoice:invoiceCheckDraft?copy(invoiceCheckDraft):null,logo:invoiceCheckLogo,paymentOptions:copy(invoicePaymentOptions),lines:invoiceCheckDraft?invoiceReadLines():[],pending:invoiceHourlyCalculationPending,billingChanged:invoiceHourlyBillingChanged});
-      else if(id==='emailComposeForm')Object.assign(c,{clientId:composeInvoiceDraft?.clientId || composeClientId || composeActivationClientId || composeDocumentUpdateClientId || c.clientId,drawer:activeClientDrawerOpen && activeClientDrawerView==='email',composeClientId,composeActivationClientId,composeDocumentUpdateClientId,composeContractEmailMode,composeRequiresConfirmation,invoice:composeInvoiceDraft?copy(composeInvoiceDraft):null,attachment:composeAttachment?copy(composeAttachment):null,file:rememberFile(composeAttachmentFile)});
+      else if(id==='emailComposeForm')Object.assign(c,{
+        clientId:composeInvoiceDraft?.clientId || composeClientId || composeActivationClientId || composeDocumentUpdateClientId || c.clientId,
+        drawer:activeClientDrawerOpen && activeClientDrawerView==='email',
+        sidePanel:$('#emailComposeModal').classList.contains('email-compose-side-panel'),
+        composeClientId,composeActivationClientId,composeDocumentUpdateClientId,composeContractEmailMode,composeRequiresConfirmation,
+        invoice:composeInvoiceDraft?copy(composeInvoiceDraft):null,
+        attachment:composeAttachment?copy(composeAttachment):null,
+        file:rememberFile(composeAttachmentFile)
+      });
       else if(id==='invoiceUploadForm')Object.assign(c,{clientId:pendingInvoiceClientId,drawer:activeClientDrawerOpen && activeClientDrawerView==='invoice-upload',file:rememberFile(pendingInvoiceFile)});
       else if(id==='clientForm')Object.assign(c,{recordId:editingId || '',drawer:activeClientDrawerOpen && activeClientDrawerView==='edit',socialLinks:readClientSocialLinks({includeEmpty:true})});
       else if(id==='clientTaskForm')Object.assign(c,{recordId:clientTaskEditingId,entries:copy(clientTaskDraftEntries),oneOff:clientTaskOneOffMode});
@@ -52,6 +60,7 @@
     function key(id,c){return JSON.stringify([id,c.clientId || '',c.recordId || c.invoice?.id || c.invoice?.sourceDraftId || 'new']);}
     function navigation(){return {view:activeView,clientId:activeView==='hired' && !showingHiredClientList?hiredEditingId:'',clientTab:$('#hiredDetailPanel [data-client-detail-tab].active')?.dataset.clientDetailTab || 'overview',dashboardTab:activeDashboardTab,previewId:$('#invoiceDraftPreviewModal')?.open?invoicePreviewSnapshot?.id || '':''};}
     function statusHost(form){
+      if (form.closest('#clientModal.application-detail-panel')) return form.querySelector(':scope > .modal-actions') || form;
       return form.querySelector(':scope > .invoice-check-footer') || form;
     }
     function status(form,message){
@@ -66,12 +75,23 @@
       }
       if(note.textContent!==message)note.textContent=message;
     }
+    function hasEmailDraftContent(snapshot,c){
+      return Boolean(c.invoice || c.attachment || c.file || snapshot?.some(field=>
+        ['composeSubject','composeBody','emailTemplateName'].includes(field.id) && String(field.value ?? '').trim()
+      ));
+    }
     function capture(){
       if(!ready() || restoring || initializedOwner!==owner() || typeof passwordRecoveryMode!=='undefined' && passwordRecoveryMode)return;
       const saved=read(),open=new Map();let active='';
       for(const id of allowed){const form=$('#'+id);if(!form || !visible(form))continue;
         const c=context(form),idKey=key(id,c),snapshot=values(form),fingerprint=JSON.stringify(snapshot);
         open.set(id,idKey);
+        if(id==='emailComposeForm' && !hasEmailDraftContent(snapshot,c)){
+          delete saved.forms[idKey];
+          if(saved.active===idKey)saved.active='';
+          statusHost(form).querySelector(':scope > .form-draft-status')?.remove();
+          continue;
+        }
         if(clean.get(idKey)===fingerprint || clean.get('form:'+id)===fingerprint)continue;
         const entry={form:id,context:c,values:snapshot,at:Date.now(),fileInputs:[...form.querySelectorAll('input[type="file"]')].filter(field=>field.id).map(field=>({id:field.id,files:[...(field.files || [])].map(rememberFile).filter(Boolean)})),details:[...form.querySelectorAll('details[id]')].map(item=>({id:item.id,open:item.open})),scroll:form.querySelector('.invoice-check-content')?.scrollTop || form.closest('.active-client-drawer-view')?.scrollTop || form.scrollTop || 0,focus:form.contains(document.activeElement)?document.activeElement.id:''};
         saved.forms[idKey]=entry;active=idKey;
@@ -96,8 +116,18 @@
       if(c.recordId && collections[id] && !(data[collections[id]] || []).some(item=>item.id===c.recordId))throw new Error('The record for this unfinished form is no longer available.');
       if(c.clientId && ['invoiceCheckForm','invoiceUploadForm','clientTaskForm'].includes(id))openClient(c.clientId);
       if(id==='invoiceCheckForm'){
-        if(c.invoice && !(data.invoices || []).some(item=>item.id===c.invoice.id && item.draftStatus!=='sent'))throw new Error('This invoice is no longer an editable draft.');
+        const latest = c.invoice && (data.invoices || []).find(item => item.id === c.invoice.id && item.invoiceDraft && item.clientId === c.clientId && item.draftStatus !== 'sent');
+        if (c.invoice && !latest) throw new Error('This invoice is no longer an editable draft.');
         openInvoiceCheck(c.clientId,c.invoice?.id || '');
+        if (latest && (latest.updatedAt !== c.invoice.updatedAt || latest.document?.invoiceNumber !== c.invoice.document?.invoiceNumber)) {
+          const saved = read();
+          const staleKey = key(id, c);
+          delete saved.forms[staleKey];
+          if (saved.active === staleKey) saved.active = '';
+          write(saved);
+          invoiceStatus(`Opened the latest saved draft (${latest.document.invoiceNumber}). The unfinished copy was based on an older version.`);
+          return false;
+        }
         // Finish private defaults before reapplying the user's unsaved fields.
         invoiceCheckSequence++;
         invoicePaymentOptions=window.JeffInvoiceEngine.settings({payment:{options:c.paymentOptions || []}}).payment.options;
@@ -111,7 +141,11 @@
         if(!file && c.invoice?.sourceDraftId){const draft=(data.invoices || []).find(item=>item.id===c.invoice.sourceDraftId && item.updatedAt===c.invoice.sourceDraftUpdatedAt && item.draftStatus!=='sent');if(draft){try{file=new File([window.JeffInvoicePdf.create(draft.document,window.jspdf?.jsPDF,invoiceEngine).output('arraybuffer')],c.invoice.fileName,{type:'application/pdf'});}catch{}}}
         composeClientId=c.composeClientId || null;composeActivationClientId=c.composeActivationClientId || null;composeDocumentUpdateClientId=c.composeDocumentUpdateClientId || null;composeContractEmailMode=Boolean(c.composeContractEmailMode);composeRequiresConfirmation=Boolean(c.composeRequiresConfirmation);composeInvoiceDraft=c.invoice || null;composeAttachment=c.attachment || null;composeAttachmentFile=file;
         if(c.drawer && c.clientId){openClient(c.clientId);if(!activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));showActiveClientDrawerView('email');}
-        else if(!$('#emailComposeModal').open)$('#emailComposeModal').showModal();
+        else{
+          const modal=$('#emailComposeModal');
+          modal.classList.toggle('email-compose-side-panel',c.sidePanel ?? activeView==='applications');
+          if(!modal.open)modal.showModal();
+        }
         updateComposeAttachmentDisplay();setEmailComposeStatus(!file && c.file?'Email text restored. Choose the attachment again before sending.':'Unfinished email restored. Review it before sending.');
       }else if(id==='invoiceUploadForm'){
         if(c.drawer && !activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));
@@ -178,7 +212,13 @@
           $$('[data-dashboard-panel]').forEach(panel=>{panel.hidden=panel.dataset.dashboardPanel!==activeDashboardTab;});renderDashboard();
         }
         if(view==='hired' && navigation.clientId && client(navigation.clientId)){openClient(navigation.clientId);selectClientDetailTab(navigation.clientTab || 'overview');}
-        const entry=saved.forms[saved.active];
+        let entry=saved.forms[saved.active];
+        if(entry?.form==='emailComposeForm' && !hasEmailDraftContent(entry.values,entry.context)){
+          delete saved.forms[saved.active];
+          saved.active='';
+          write(saved);
+          entry=null;
+        }
         if(entry && allowed.has(entry.form) && (!navigation.view || navigation.view===view)){
           if(await open(entry,user) && owner()===user){
             apply(entry);

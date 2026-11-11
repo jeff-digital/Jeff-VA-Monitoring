@@ -299,13 +299,7 @@
   function invoiceAlreadySent(clientId, invoiceNumber) {
     const normalized = String(invoiceNumber || '').trim().toLowerCase();
     const numbered=/^\d{4}-\d+$/.test(normalized),key=value=>String(value || '').trim().toLowerCase().replace(/^(\d{4})-0+(\d)/,'$1-$2');
-    return Boolean(normalized && (data.invoices || []).some(invoice => !invoice.invoiceDraft && (numbered || invoice.clientId === clientId) && key(invoice.invoiceNumber) === key(normalized)));
-  }
-
-  function showInvoiceDuplicateAlert(invoiceNumber) {
-    const message = `Invoice ${invoiceNumber} was already sent to this client. Choose a different invoice number.`;
-    $('#invoiceDuplicateAlertMessage').textContent = message;
-    $('#invoiceDuplicateAlertModal').showModal();
+    return Boolean(normalized && (data.invoices || []).some(invoice => !invoice.invoiceDraft && !invoice.deletedAt && (numbered || invoice.clientId === clientId) && key(invoice.invoiceNumber) === key(normalized)));
   }
 
   async function extractInvoiceText(file) {
@@ -376,12 +370,7 @@
       $('#invoiceStartDate').value=pendingInvoiceDetails.startDate;$('#invoiceEndDate').value=pendingInvoiceDetails.endDate;
       $('#invoiceUploadAmount').value=pendingInvoiceDetails.amountInvoiced;
       if(pendingInvoiceDetails.currency)$('#invoiceUploadCurrency').value=pendingInvoiceDetails.currency;
-      if (invoiceAlreadySent(pendingInvoiceClientId, pendingInvoiceDetails.invoiceNumber)) {
-        showInvoiceDuplicateAlert(pendingInvoiceDetails.invoiceNumber);
-        $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
-      } else {
-        $('#invoiceDocumentPickerStatus').textContent = content ? 'Invoice details loaded from the file. Empty fields were left blank.' : 'The file text could not be read. Invoice detail fields were left blank.';
-      }
+      $('#invoiceDocumentPickerStatus').textContent = content ? 'Invoice details loaded from the file. Empty fields were left blank.' : 'The file text could not be read. Invoice detail fields were left blank.';
     } catch (error) {
       if(pendingInvoiceFile!==file)return;
       console.error('Could not read invoice content:', error);
@@ -409,12 +398,10 @@
     if(!parseInvoiceDate(issueDate) || !parseInvoiceDate(dueDate) || dueDate<issueDate || !parseInvoiceDate(startDate) || !parseInvoiceDate(endDate) || endDate<startDate){$('#invoiceDocumentPickerStatus').textContent='Check the dates: due date must follow issue date, and billing end must follow billing start.';return;}
     const amount=$('#invoiceUploadAmount').value.trim();
     if(amount && (!/^\d+(?:\.\d{1,2})?$/.test(amount) || !Number.isFinite(Number(amount)))){$('#invoiceDocumentPickerStatus').textContent='Enter a valid invoice amount with at most two decimals.';return;}
-    const source=(data.invoices || []).find(item=>item.invoiceDraft && item.draftStatus!=='sent' && item.clientId===application.id && String(item.document?.invoiceNumber || '').toLowerCase()===invoiceNumber.toLowerCase());
-    if (invoiceAlreadySent(application.id, invoiceNumber)) {
-      showInvoiceDuplicateAlert(invoiceNumber);
-      $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
-      return;
-    }
+    const matchingDrafts = (data.invoices || []).filter(item => item.invoiceDraft && item.draftStatus !== 'sent'
+      && item.clientId === application.id && item.document?.periodStart === startDate && item.document?.periodEnd === endDate
+      && String(item.document?.invoiceNumber || '').toLowerCase() === invoiceNumber.toLowerCase());
+    const source = matchingDrafts.length === 1 ? matchingDrafts[0] : null;
     const file = pendingInvoiceFile;
     if(typeof isActiveClientDrawerView==='function' && isActiveClientDrawerView('invoice-upload'))markActiveClientDrawerFormClean('invoice-upload');
     $('#invoiceDocumentPickerModal').close();

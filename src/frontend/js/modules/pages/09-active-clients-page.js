@@ -172,7 +172,7 @@
     if (!force && invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
     const changedViews = ['email', 'edit', 'invoice-check','invoice-upload'].filter(activeClientDrawerFormChanged);
     if (!force && changedViews.length
-      && !window.confirm('Discard unsaved changes and close client actions?')) return;
+      && !(await appConfirm('Close client actions and discard your unsaved changes?', { title: 'Discard changes?', confirmLabel: 'Discard changes', danger: true }))) return;
     if (!force) changedViews.forEach(resetActiveClientDrawerForm);
     if(typeof browserDrafts!=='undefined'){
       for(const id of ['invoiceCheckForm','invoiceUploadForm','emailComposeForm','clientForm'])if($('#'+id)?.closest('#activeClientDrawer'))browserDrafts.clearForm(id);
@@ -209,10 +209,10 @@
 
   $('#closeActiveClientDrawer')?.addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
-  $('#activeClientDrawerBack').addEventListener('click', () => {
+  $('#activeClientDrawerBack').addEventListener('click', async () => {
     if (invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
     if (activeClientDrawerFormChanged(activeClientDrawerView)) {
-      if (!window.confirm('Discard unsaved changes and return to actions?')) return;
+      if (!(await appConfirm('Return to actions and discard your unsaved changes?', { title: 'Discard changes?', confirmLabel: 'Discard changes', danger: true }))) return;
       resetActiveClientDrawerForm(activeClientDrawerView);
       markActiveClientDrawerFormClean(activeClientDrawerView);
     }

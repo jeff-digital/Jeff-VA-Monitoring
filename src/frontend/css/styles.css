@@ -3817,7 +3817,9 @@ body.client-task-drawer-open { overflow: hidden; }
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--workspace-line);
 }
 
 #hiredView .active-client-onboarding-heading .eyebrow { margin-bottom: 3px; }
@@ -3825,14 +3827,16 @@ body.client-task-drawer-open { overflow: hidden; }
 #hiredView .active-document-box-head h3,
 #hiredView .invoice-send-heading h3 { margin: 0; color: var(--workspace-ink); font-size: 17px; font-weight: 650; }
 #hiredView .active-client-onboarding-parts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-#hiredView .active-client-onboarding-part { min-width: 0; padding: 16px; border: 1px solid var(--workspace-line); border-radius: 10px; background: var(--theme-surface, #fff); }
-#hiredView .active-client-onboarding-part h4 { margin: 0 0 14px; color: var(--workspace-ink); font-size: 13px; font-weight: 650; }
-#hiredView .active-client-onboarding-details { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 0; }
-#hiredView .active-client-onboarding-details > div { min-width: 0; padding-bottom: 10px; border-bottom: 1px solid var(--theme-border, #edf0ed); }
-#hiredView .active-client-onboarding-details > div:last-child { padding-bottom: 0; border-bottom: 0; }
+#hiredView .active-client-onboarding-part { min-width: 0; padding: 14px; border: 1px solid var(--workspace-line); border-radius: 10px; background: var(--theme-surface, #fff); }
+#hiredView .active-client-onboarding-part h4 { margin: 0 0 10px; color: var(--workspace-ink); font-size: 13px; font-weight: 650; }
+#hiredView .active-client-onboarding-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; margin: 0; }
+#hiredView .active-client-onboarding-details > div { min-width: 0; padding: 7px 10px; border-radius: 6px; background: var(--theme-raised, #f6f8f6); }
+#hiredView .active-client-onboarding-details > .onboarding-answer-wide { grid-column: 1 / -1; }
 #hiredView .active-client-onboarding-details dt { margin-bottom: 4px; color: var(--workspace-muted); font-size: 11px; font-weight: 500; }
 #hiredView .active-client-onboarding-details dd { margin: 0; color: var(--workspace-ink); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
-#hiredView .active-client-onboarding-submitted { margin: 0 0 18px; color: var(--workspace-muted); font-size: 12px; }
+#hiredView .active-client-onboarding-details .onboarding-answer-empty dd { color: var(--workspace-muted); }
+#hiredView .active-client-onboarding-submitted { margin: 4px 0 0; color: var(--workspace-muted); font-size: 12px; }
+#hiredView .active-client-onboarding-heading .client-onboarding-status { flex-shrink: 0; }
 #hiredView .client-onboarding-status { display: inline-flex; align-items: center; width: fit-content; padding: 4px 8px; border-radius: 4px; background: var(--theme-raised, #f2f4f2); color: var(--theme-muted, #56615a); font-size: 11px; font-weight: 600; }
 #hiredView .client-onboarding-status.complete { background: var(--theme-raised, #e8f4eb); color: var(--theme-success-text, #33764e); }
 #hiredView .client-onboarding-status.empty { background: var(--theme-raised, #f5f1e9); color: var(--theme-warning-text, #80653d); }
@@ -3845,6 +3849,30 @@ body.client-task-drawer-open { overflow: hidden; }
 #hiredView .client-section-empty h4 { margin: 0 0 5px; color: var(--workspace-ink); font-size: 14px; font-weight: 650; }
 #hiredView .client-section-empty p { margin: 0; color: var(--workspace-muted); font-size: 12px; line-height: 1.5; }
 #hiredView .client-section-empty .button { margin-top: 13px; }
+#hiredView .client-onboarding-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 176px;
+  padding: 24px 16px;
+  border: 1px dashed var(--workspace-line);
+  border-radius: 10px;
+  background: var(--theme-raised, #f6f8f6);
+  text-align: center;
+}
+#hiredView .client-onboarding-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 10px;
+  border: 1px solid var(--workspace-line);
+  border-radius: 10px;
+  background: var(--theme-surface, #fff);
+  color: var(--workspace-accent);
+  font-size: 17px;
+}
 
 #hiredView .client-contract-facts {
   display: grid;
@@ -3996,7 +4024,7 @@ body.client-task-drawer-open { overflow: hidden; }
   #hiredView #hiredDetailGrid .hired-detail-timeline,
   #hiredView #hiredDetailGrid .hired-detail-notes { grid-column: auto; }
   #hiredView #hiredDetailGrid .hired-detail-timeline dl { grid-template-columns: minmax(0, 1fr); }
-  #hiredView .active-client-onboarding-details { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  #hiredView .active-client-onboarding-details { grid-template-columns: minmax(0, 1fr); }
   #hiredView #clientContractsPanel .client-contract-section,
   #hiredView #clientContractsPanel #clientDocumentBox { padding: 14px; }
   #hiredView .client-invoice-item { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; }
@@ -4877,6 +4905,26 @@ html:has(#applicationActionsPanel[open]) { scrollbar-gutter: auto; }
 .email-compose-side-panel #emailComposeForm .modal-actions { flex: 0 0 auto; }
 .email-compose-side-panel #emailComposeForm .modal-actions { margin-top: auto; }
 .email-compose-side-panel::backdrop { background: rgba(20, 24, 20, .43); }
+@media (min-width: 721px) and (min-height: 540px) {
+  .email-compose-side-panel #emailComposeForm { min-height: 0; gap: 9px; padding: 16px 20px; }
+  .email-compose-side-panel #emailComposeForm > .modal-heading { margin: 0; }
+  .email-compose-side-panel #emailComposeForm > .modal-heading .eyebrow { display: none; }
+  .email-compose-side-panel #emailComposeForm > .modal-heading h2 { font-size: 22px; }
+  .email-compose-side-panel #emailComposeForm .compose-template-row { margin: 0; }
+  .email-compose-side-panel #emailComposeForm .compose-fields { flex: 1; min-height: 0; grid-template-rows: auto minmax(95px, 1fr) auto; gap: 9px 12px; }
+  .email-compose-side-panel #emailComposeForm .form-field { min-width: 0; margin: 0; gap: 4px; }
+  .email-compose-side-panel #emailComposeForm .form-field:has(#composeBody) { grid-template-rows: auto minmax(0, 1fr); }
+  .email-compose-side-panel #emailComposeForm #composeBody { height: 100%; min-height: 0; resize: none; }
+  .email-compose-side-panel #emailComposeForm .compose-extra-options { grid-column: 1 / -1; min-width: 0; }
+  .email-compose-side-panel #emailComposeForm .compose-extras-body { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 10px; }
+  .email-compose-side-panel #emailComposeForm .compose-attachment-row { flex: 1 1 160px; min-width: 0; padding: 5px 7px; }
+  .email-compose-side-panel #emailComposeForm .compose-template-save { flex: 0 1 auto; gap: 6px; }
+  .email-compose-side-panel #emailComposeForm .compose-template-save input { width: 128px; min-width: 0; }
+  .email-compose-side-panel #emailComposeForm .compose-template-save .button { white-space: nowrap; }
+  .email-compose-side-panel #emailComposeForm .compose-status { min-height: 0; margin: 0; }
+  .email-compose-side-panel #emailComposeForm .modal-actions { margin: 0; }
+  .email-compose-side-panel #emailComposeForm > .form-draft-status { margin: 0; }
+}
 .application-board-mode { overflow-x: auto; }
 .application-board { display: grid; grid-auto-columns: minmax(220px, 1fr); grid-auto-flow: column; gap: 12px; min-height: 320px; padding: 12px; }
 .application-board-column { min-width: 0; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-neutral-50); transition: background-color .15s ease, border-color .15s ease; }
@@ -4895,6 +4943,92 @@ html:has(#applicationActionsPanel[open]) { scrollbar-gutter: auto; }
 #applicationsView .application-list-head { display: none; }
 #clientModal.application-detail-panel[open] { position: fixed; inset: 0 0 0 auto; width: min(1000px, 90vw); height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 12px 0 0 12px; }
 #clientModal.application-detail-panel #clientForm { height: 100dvh; max-height: 100dvh; }
+
+/* Application forms share a drawer with a fixed title and footer. */
+#clientModal.application-detail-panel[open] { width: min(900px, 92vw); box-sizing: border-box; }
+#clientModal.application-detail-panel #clientForm {
+  height: 100%;
+  max-height: 100%;
+  padding: 0;
+  background: var(--theme-surface, #fff);
+}
+#clientModal.application-detail-panel #clientForm > .modal-heading {
+  margin: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--theme-border, #e0e4e0);
+}
+#clientModal.application-detail-panel #clientForm > .modal-heading .eyebrow { display: none; }
+#clientModal.application-detail-panel #clientForm > .modal-heading h2 { font-size: 22px; }
+#clientModal.application-detail-panel #clientForm .client-form-layout {
+  padding: 14px 20px;
+  gap: 12px;
+  border-radius: 0;
+  background: var(--theme-raised, #f4f6f8);
+}
+#clientModal.application-detail-panel #clientForm .client-form-column {
+  gap: 9px 10px;
+  padding: 12px;
+  border: 1px solid var(--theme-border, #e0e4e0);
+  border-radius: 8px;
+  background: var(--theme-surface, #fff);
+}
+#clientForm :is(#applicationDetailViews, #applicationDetailsContent, #applicationEmailContent)[hidden] { display: none; }
+.application-detail-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.application-detail-views .button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.application-detail-views .button[aria-pressed="true"] {
+  border-color: var(--theme-info-border, #b9c2d3);
+  background: var(--theme-raised, #eef2f8);
+}
+#applicationEmailContent {
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+  padding: 14px 20px;
+  overflow-y: auto;
+  background: var(--theme-raised, #f4f6f8);
+}
+@media (min-width: 901px) {
+  #clientModal.application-detail-panel #clientForm.view-details-form .client-form-layout {
+    flex: 1;
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
+  #clientModal.application-detail-panel #clientForm.view-details-form .client-form-column {
+    max-height: 100%;
+    box-sizing: border-box;
+    overflow: auto;
+    align-content: start;
+  }
+}
+#clientModal.application-detail-panel #clientForm .form-field { margin: 0; gap: 4px; font-size: 11px; }
+#clientModal.application-detail-panel .form-field :is(input:not([type="checkbox"]), select, textarea) { padding: 6px 8px; font-size: 12px; }
+#clientModal.application-detail-panel #clientForm .form-subsection-label { margin: 3px 0 0; padding-top: 7px; }
+#clientModal.application-detail-panel .form-field:has(:is(#hiredEmail, #hiredWebsiteLink, #hiredSocialLink)) { grid-column: 1 / -1; }
+#clientModal.application-detail-panel .form-field a.form-field-link { padding: 6px 8px; font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+#clientModal.application-detail-panel #clientForm > .modal-actions {
+  margin: 0;
+  padding: 10px 20px;
+  border-top: 1px solid var(--theme-border, #e0e4e0);
+}
+#clientModal.application-detail-panel .modal-actions > .form-draft-status { margin: 0 auto 0 0; }
+#clientModal.application-detail-panel .modal-actions :is(#closeClientDetailsButton, #saveClientButton) {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+#clientModal.application-detail-panel .view-details-form .form-draft-status { display: none; }
+#clientModal.application-detail-panel #clientForm > .form-draft-status { display: none; }
 .form-field a.form-field-link { display: block; width: 100%; overflow: hidden; border: 1px solid var(--theme-border, #e0e4e0); border-radius: 6px; background: var(--theme-surface, #fafbfa); color: var(--theme-text, #343a35); padding: 9px 10px; font-weight: 450; font-size: 13px; line-height: normal; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .form-field a.form-field-link:hover, .form-field a.form-field-link:focus-visible { border-color: var(--navy); text-decoration: underline; }
 
@@ -6865,6 +6999,19 @@ body.client-dashboard-drawer-open { overflow: hidden; }
   body:has(#hiredView.active):has(#hiredView.client-focused) .client-detail-tab { min-height: 36px; padding: 0; font-size: 11px; }
   body:has(#hiredView.active):has(#hiredView.client-focused) .client-detail-panels { min-height: 0; overflow: auto; scrollbar-width: thin; }
   body:has(#hiredView.active):has(#hiredView.client-focused) .client-detail-panel { min-height: 0; padding: 10px 2px 16px; }
+  #hiredView.active.client-focused #clientOnboardingPanel:not([hidden]):has(.client-onboarding-empty) {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-height: 100%;
+  }
+  #clientOnboardingPanel:has(.client-onboarding-empty) .active-client-onboarding,
+  #activeOnboardingResponse:has(.client-onboarding-empty) {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+  #activeOnboardingResponse > .client-onboarding-empty { flex: 1; }
   body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-card { gap: 10px 16px; padding: 9px 11px; }
   body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-photo { width: 38px; height: 38px; flex-basis: 38px; }
   body:has(#hiredView.active):has(#hiredView.client-focused) .client-overview-profile-avatar { width: 38px; height: 38px; border-radius: 10px; font-size: 11px; }
@@ -8760,7 +8907,7 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap
 .invoice-paper-lines th{background:#f0f4f7;color:#46596d;font-size:10px;letter-spacing:.5px;padding:11px 9px;text-align:right;font-weight:700}
 .invoice-paper-lines th:first-child{width:47%;text-align:left}.invoice-paper-lines td{padding:16px 9px;border-bottom:1px solid #e2e8ee;vertical-align:top;text-align:right;overflow-wrap:anywhere}
 .invoice-paper-lines td:first-child{text-align:left}.invoice-paper-lines td strong{font-weight:500;white-space:pre-line}.invoice-paper-lines td small{display:block;color:#647281;font-size:10px;margin-top:3px}
-.invoice-paper-totals{display:flex;justify-content:flex-end;padding:18px 0 20px}.invoice-paper-totals dl{width:260px}.invoice-paper-totals dt,.invoice-paper-totals dd{font-size:11px}
+.invoice-paper-totals{display:flex;justify-content:flex-end;padding:18px 0 20px}.invoice-paper-totals dl{width:min(100%,210px)}.invoice-paper-totals dt,.invoice-paper-totals dd{font-size:11px}
 .invoice-paper .invoice-total{margin:16px 0 0;padding:14px;background:#162b41;color:#fff;align-items:center}.invoice-paper .invoice-total dt{color:#fff;font-size:12px}.invoice-paper .invoice-total dd{font-size:18px}
 .invoice-paper-payment{border-top:1px solid #dfe6ed;padding-top:16px}.invoice-paper-payment>strong{font-size:12px}.invoice-paper .invoice-reference{font-weight:600;color:#46596d}
 .invoice-paper>footer{margin-top:18px;padding-top:16px;border-top:1px solid #dfe6ed}.invoice-paper>footer>span{display:block;margin-top:14px;font-size:10px;color:#647281}
@@ -8782,7 +8929,7 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap
 .invoice-payment-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .invoice-payment-choice{background:#f5f7fa;border:1px solid #e4e9ef;border-radius:8px;padding:12px;min-width:0}
 .invoice-payment-choice>strong{font-size:11px;display:block}.invoice-paper .invoice-payment-choice p{font-size:10px;line-height:1.5}
-.invoice-paper .invoice-total{padding:11px;margin-top:12px}.invoice-paper .invoice-total dd{font-size:16px}
+.invoice-paper .invoice-total{padding:7px 10px;margin-top:8px}.invoice-paper .invoice-total dt{font-size:11px}.invoice-paper .invoice-total dd{font-size:14px;overflow-wrap:anywhere;text-align:right}
 @media(max-width:600px){
   .invoice-paper{padding:20px 18px;font-size:11px}
   .invoice-paper-header{gap:12px}.invoice-brand{gap:8px}.invoice-brand img{width:36px;height:36px}.invoice-brand strong{font-size:13px}
@@ -8834,17 +8981,9 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap
 .invoice-paper>footer{margin-top:12px;padding-top:12px}
 @media(max-width:600px){.invoice-payment-table th,.invoice-payment-table td{padding:6px;font-size:9px}.invoice-payment-logo{width:48px}.invoice-paper-parties{gap:10px}}
 
-/* Aligned, compact recipient and invoice metadata table. */
 .invoice-paper-parties{display:block;padding:12px 0}
-.invoice-party-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px;line-height:1.35}
-.invoice-party-table th,.invoice-party-table td{border:1px solid #dfe6ed;padding:5px 8px;vertical-align:top;overflow-wrap:anywhere;text-align:left}
-.invoice-party-table thead th{background:#f4f7fa;color:#5f6c78;font-size:9px;text-transform:uppercase;letter-spacing:.3px}
-.invoice-party-table tbody th{font-size:9px;font-weight:400;color:#5f6c78}
-.invoice-party-table tbody td:last-child{text-align:right}
-.invoice-party-table tbody strong{font-size:11px;font-weight:700}
 .invoice-payment-table th,.invoice-payment-table td{padding:5px 7px}
 .invoice-payment-table tbody th{padding-top:9px}
-@media(max-width:600px){.invoice-party-table th,.invoice-party-table td{padding:5px;font-size:9px}.invoice-party-table tbody strong{font-size:10px}}
 
 /* Keep terms at the foot of the invoice and reduce only the Wise mark. */
 .invoice-paper{display:flex;flex-direction:column;min-height:960px}
@@ -8865,25 +9004,29 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap
 /* Quiet rules, clear type and generous spacing for the final invoice design. */
 .invoice-paper-parties{padding:18px 0 16px}
 .invoice-paper .invoice-paper-parties>h3{margin:0 0 8px;color:#162b41}
-.invoice-party-table{font-size:12px;line-height:1.5}
-.invoice-party-table th,.invoice-party-table td{border:0;padding:7px 8px}
-.invoice-party-table thead th{background:transparent;border-bottom:1px solid #dfe6ed;font-size:10px;padding-bottom:10px}
-.invoice-party-table tbody th{font-size:11px}
-.invoice-party-table tbody strong{font-size:14px}
+.invoice-summary-groups { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:24px; }
+.invoice-summary-group h4 { margin:0 0 8px; color:#5f6c78; font-size:10px; text-transform:uppercase; letter-spacing:.3px; }
+.invoice-summary-group dl { display:grid; gap:7px; font-size:12px; line-height:1.45; }
+.invoice-paper .invoice-summary-group dl > div { display:grid; grid-template-columns:minmax(0, 88px) minmax(0, 1fr); gap:10px; margin:0; }
+.invoice-summary-group dt { color:#5f6c78; font-size:11px; }
+.invoice-summary-group dd { margin:0; overflow-wrap:anywhere; }
+@media(max-width:600px) { .invoice-summary-groups { grid-template-columns:minmax(0, 1fr); gap:14px; } }
 .invoice-paper-lines th{padding:12px 9px;background:#f4f7fa;font-size:10px}
 .invoice-paper-lines td{padding:18px 9px;font-size:12px;border-bottom:1px solid #dfe6ed}
 .invoice-paper-lines td small{display:none}
 .invoice-paper-totals{padding:22px 0 16px}
 .invoice-paper-payment{border-top:0;margin-top:18px;padding-top:0}
-.invoice-payment-table{font-size:11px;line-height:1.5}
-.invoice-payment-table th,.invoice-payment-table td{border:0;padding:9px 8px}
-.invoice-payment-table thead th{font-size:9px}
+.invoice-payment-table{font-size:10px;line-height:1.35}
+.invoice-payment-table th,.invoice-payment-table td{border:0;padding:5px 7px}
+.invoice-payment-table thead th{font-size:8.5px}
 .invoice-payment-table tbody tr:has(th) > *{border-top:1px solid #dfe6ed}
-.invoice-payment-table tbody th{padding-top:12px}
-@media(max-width:600px){.invoice-party-table th,.invoice-party-table td{font-size:10px;padding:6px 4px}.invoice-party-table tbody strong{font-size:12px}.invoice-payment-table th,.invoice-payment-table td{font-size:10px;padding:7px 5px}}
+.invoice-payment-table tbody th{padding-top:6px}
+.invoice-payment-table tbody th:has(.invoice-payment-logo) { vertical-align: middle; padding-block: 4px; }
+.invoice-payment-table .invoice-payment-logo { margin-inline: auto; }
+@media(max-width:600px){.invoice-payment-table th,.invoice-payment-table td{padding:4px 5px}}
 
 /* Preserve visible tables with the more readable spacing. */
-.invoice-party-table th,.invoice-party-table td,.invoice-payment-table th,.invoice-payment-table td{border:1px solid #dfe6ed}
+.invoice-payment-table th,.invoice-payment-table td{border:1px solid #dfe6ed}
 .invoice-paper-lines th,.invoice-paper-lines td{border:1px solid #dfe6ed}
 
 /* Match service headers and data cells, with balanced row padding. */
@@ -8977,8 +9120,6 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary-overdue { gap
 .invoice-paper-payment{margin-top:auto;padding-top:18px;margin-bottom:32px}
 .invoice-paper>footer{margin-top:0}
 
-.invoice-party-label{width:17%}
-.invoice-party-value{width:33%}
 .invoice-paper>footer.invoice-paper-terms{margin:0;padding:16px 0 0;text-align:center;border-top-color:#1a2340}
 .invoice-paper-terms h3{margin:0 0 6px;font-size:9px}
 .invoice-paper-terms span{display:block;margin-top:5px;font-size:10px;color:#5f6c78}

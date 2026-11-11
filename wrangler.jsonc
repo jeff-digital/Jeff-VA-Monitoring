@@ -34,7 +34,7 @@
   "vars": {
     "INVOICE_DRAFTS_SCHEDULED": "true",
     "WORKSPACE_BACKEND": "d1",
-    "BACKGROUND_FOLLOW_UPS_PAUSED": "true",
+    "BACKGROUND_FOLLOW_UPS_PAUSED": "false",
     "SUPABASE_URL": "https://oeooedwobhmpwwdohrcy.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_avqScHW52sfzxgl_e1aqEQ_Wk6FRGAU"
   },

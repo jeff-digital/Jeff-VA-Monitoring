@@ -44,6 +44,16 @@
     return true;
   }
 
+  function showApplicationDetailsView(showHistory = false) {
+    $('#applicationDetailsContent').hidden = showHistory;
+    $('#applicationEmailContent').hidden = !showHistory;
+    $('#applicationDetailsViewButton').setAttribute('aria-pressed', String(!showHistory));
+    $('#applicationEmailViewButton').setAttribute('aria-pressed', String(showHistory));
+  }
+
+  $('#applicationDetailsViewButton').addEventListener('click', () => showApplicationDetailsView());
+  $('#applicationEmailViewButton').addEventListener('click', () => showApplicationDetailsView(true));
+
   function openClientModal(id = null, viewOnly = false, activeClientOnly = false, drawerEdit = false, activeClientDetailsEdit = false) {
     const form = $('#clientForm');
     form.reset();
@@ -52,7 +62,10 @@
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
     viewingClientDetails = viewOnly;
-    $('#clientModal').classList.toggle('application-detail-panel', viewOnly && activeView === 'applications');
+    const applicationPanel = !activeClientOnly && !drawerEdit && !activeClientDetailsEdit && (!viewOnly || activeView === 'applications');
+    $('#clientModal').classList.toggle('application-detail-panel', applicationPanel);
+    $('#applicationDetailViews').hidden = !viewOnly;
+    showApplicationDetailsView();
     $('#clientId').value = id || '';
     $('#appliedDate').value = id ? '' : today();
     $('#automaticFollowUp').checked = false;
@@ -72,7 +85,7 @@
       const item = data.applications.find(application => application.id === id);
       if (!item) return;
       $('#modalEyebrow').textContent = viewOnly ? 'VIEW DETAILS' : 'EDIT RECORD';
-      $('#clientModalTitle').textContent = viewOnly ? 'Application details' : 'Update client application';
+      $('#clientModalTitle').textContent = viewOnly ? 'Application details' : applicationPanel ? 'Edit application' : 'Update client application';
       $('#saveClientButton').textContent = 'Save changes';
       $('#clientName').value = item.clientName;
       $('#contactName').value = item.contact || '';
@@ -116,7 +129,7 @@
       }
     } else {
       $('#modalEyebrow').textContent = 'NEW RECORD';
-      $('#clientModalTitle').textContent = 'Add a client application';
+      $('#clientModalTitle').textContent = applicationPanel ? 'Add application' : 'Add a client application';
       $('#saveClientButton').textContent = 'Save application';
       $('#salaryType').value = '';
       $('#salaryCurrency').value = 'USD';
@@ -176,21 +189,24 @@
     updateClientActionLabel();
     updateApplicationDuplicateNotice();
     if (drawerEdit) $('#clientName').focus();
+    else if (applicationPanel) {
+      form.querySelector('.client-form-layout').scrollTop = 0;
+      if (!viewOnly) $('#clientName').focus({ preventScroll: true });
+    }
     else setTimeout(() => $('#clientName').focus(), 30);
   }
 
   function renderClientFollowUpHistory(item, viewOnly) {
     const target = $('#clientFollowUpHistory');
     if (!target || !viewOnly) return;
-    const clientEmail = String(item.email || '').trim().toLowerCase();
-    const followUps = data.emails.filter(email => isSentEmail(email)
-      && (email.applicationId === item.id || (clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail && (/^follow(?:ing)?[\s-]*up\b/i.test(email.subject || '') || /I wanted to follow up on my application/i.test(email.body || '')))))
-      .sort((first, second) => new Date(second.date) - new Date(first.date));
+    const followUps = sentEmailsForApplication(item).filter(email => email.emailType === 'follow-up'
+      || /^follow(?:ing)?[\s-]*up\b/i.test(email.subject || '')
+      || /I wanted to follow up on my application/i.test(email.body || ''));
     const historicalFollowUp = !followUps.length && item.followUpSentAt
       ? [{ date: item.followUpSentAt, subject: `Follow-up: ${item.clientName}`, historical: true }]
       : followUps;
     target.classList.remove('hidden');
-    target.innerHTML = `<div class="client-follow-up-history-head"><span>Follow Up</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
+    target.innerHTML = `<div class="client-follow-up-history-head"><span>Follow-up List</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
       ? `<div class="client-follow-up-history-list">${historicalFollowUp.map(email => `<div><span title="${escapeHtml(email.subject || 'Follow-up')}">${escapeHtml(email.subject || 'Follow-up')}</span><small>${escapeHtml(emailDate(email.date))}</small></div>`).join('')}</div>`
       : '<p>No follow-up emails have been sent to this application.</p>'}`;
   }

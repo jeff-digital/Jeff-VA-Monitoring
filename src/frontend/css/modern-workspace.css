@@ -144,6 +144,13 @@ body:not(:has(#hiredView.active)) .dashboard-switcher .dashboard-switcher-tab { 
 .content > .view:not(#hiredView):not(#accountView) :is(.application-filter-field select, .application-filter-field input) { min-height: 40px; height: auto; }
 .content > .view:not(#hiredView):not(#accountView) :is(th, .application-list-head) { background: var(--modern-canvas); color: var(--modern-muted); font-size: 11px; font-weight: 600; }
 .content > .view:not(#hiredView):not(#accountView) :is(td, th) { padding-top: 15px; padding-bottom: 15px; }
+.content > #applicationsView #applicationList .application-data-table th { padding-block: 9px; }
+.content > #applicationsView #applicationList .application-data-table td { padding-block: 5px; }
+.content > #applicationsView #applicationList .application-data-table td.application-table-muted { color: var(--modern-muted); }
+.content > #applicationsView #applicationList .application-table-muted .application-salary-period { color: inherit; }
+@media (max-width: 640px) {
+  .content > #applicationsView #applicationList .application-data-table td { padding-block: 1px; }
+}
 .content > .view:not(#hiredView):not(#accountView) :is(.application-empty, .to-apply-empty, .daily-task-empty, .daily-task-history-empty, .wallet-empty, .subscriptions-empty, .news-empty, .documents-empty) {
   min-height: 180px; padding: 36px 22px; border-radius: 10px; color: var(--modern-muted); font-size: 13px; line-height: 1.7;
 }
@@ -227,6 +234,50 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
 #walletView .wallet-accounts { gap: 14px; overflow: visible; }
 #walletView .wallet-account { padding: 20px; border-radius: 10px; background: var(--modern-canvas); }
 #walletView .wallet-transactions { padding: 22px; overflow: visible; }
+#walletView :is(
+  .wallet-stat:not(.wallet-stat-balance) > span,
+  .wallet-stat:not(.wallet-stat-balance) > small,
+  .wallet-account > span,
+  .wallet-filter,
+  .wallet-table td[data-label="Date"],
+  .wallet-table td[data-label="Account"],
+  .wallet-table td small:not(.wallet-deadline-overdue)
+) {
+  color: var(--modern-muted);
+  font-weight: 400;
+}
+#walletView .wallet-table td[data-label="Date"] > strong { font-weight: inherit; }
+
+@media (min-width: 901px) and (min-height: 600px) {
+  body:not(:has(#hiredView.active)):has(#walletView.active) .content {
+    box-sizing: border-box;
+    height: 100dvh;
+    min-height: 0;
+    padding-bottom: 16px;
+    overflow: hidden;
+  }
+  body:has(#walletView.active) .content > #walletView.active {
+    display: grid;
+    flex: 1;
+    grid-template-rows: 38px auto auto minmax(138px, auto) minmax(0, 1fr);
+    gap: 10px 14px;
+    overflow: hidden;
+  }
+  #walletView .wallet-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  #walletView .wallet-stat { min-height: 0; padding: 10px 12px; gap: 5px; }
+  #walletView .wallet-stat strong { font-size: 22px; }
+  #walletView .wallet-stat :is(span, small) { line-height: 1.35; }
+  #walletView .wallet-section { padding: 11px; }
+  #walletView .wallet-section-heading { margin-bottom: 0; }
+  #walletView .wallet-section-heading h3 { font-size: 14px; }
+  #walletView .wallet-accounts { gap: 8px; overflow-y: auto; }
+  #walletView .wallet-section[aria-labelledby="walletClientRatesTitle"] { max-height: 138px; }
+  #walletView #walletAccounts { overflow: visible; }
+  #walletView #walletAccounts .wallet-account { gap: 5px; }
+  #walletView .wallet-transactions { padding: 10px 12px; overflow: hidden; }
+  .content > #walletView .wallet-transactions .wallet-table :is(th, td) { padding-block: 7px; }
+  #walletView #walletTransactionList { overscroll-behavior: contain; }
+}
 #walletView #walletTransactionList { max-height: none; overflow: visible; }
 #subscriptionsView.active { display: flex; flex-direction: column; gap: 12px; }
 #subscriptionsView .subscriptions-toolbar { margin-bottom: 0; }
@@ -240,7 +291,6 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
 #subscriptionsView .subscription-card { padding: 24px; }
 
 /* Career Tools: grouped navigation, an explicit mobile picker, and focused content. */
-body:has(#documentsView.active #coverLetterPanel:not(.hidden)) .content { height: auto; }
 #documentsView.active .documents-page-panel { display: block; height: auto; min-height: 650px; padding: 0; overflow: visible; }
 #documentsView .career-tools-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 650px; }
 #documentsView .career-tools-navigation { min-width: 0; padding: 18px 12px; border-right: 1px solid var(--modern-border); }
@@ -280,10 +330,54 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
 #documentsView .salary-calculator-result { border: 0; border-radius: 0; background: transparent; overflow: visible; }
 #documentsView .salary-calculator-result > div { padding: 22px; border-radius: 10px; background: var(--modern-canvas); border: 1px solid var(--modern-border); }
 #documentsView .template-tester { gap: 20px; }
+#documentsView .career-tool-content:has(#templatesPanel:not([hidden]):not(.hidden)) > .career-tool-description { display: none; }
 #documentsView :is(.form-field input, .form-field select) { min-height: 42px; padding: 10px 12px; }
 
-@media (min-width: 1250px) {
+@media (min-width: 901px) {
+  body:not(:has(#hiredView.active)):has(#documentsView.active) .content {
+    box-sizing: border-box;
+    height: 100dvh;
+    min-height: 0;
+    padding-bottom: 16px;
+    overflow: hidden;
+  }
+  #documentsView.active { flex: 1; min-height: 0; }
+  #documentsView.active .documents-page-panel { display: block; height: 100%; min-height: 0; overflow: hidden; }
+  #documentsView .career-tools-layout { height: 100%; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+  #documentsView :is(.career-tools-navigation, .career-tool-content) { min-height: 0; overflow: auto; }
+  #documentsView .career-tools-navigation { padding-block: 12px; }
+  #documentsView .career-tool-group { margin-top: 12px; }
+  body:has(#documentsView.active) #documentsView .documents-tab { min-height: 46px; padding: 7px 10px; }
+  #documentsView .documents-tab small { margin-top: 2px; }
+  #documentsView .career-tool-description { margin-bottom: 14px; padding-bottom: 10px; }
+  #documentsView :is(.cover-letter-heading, .documents-subsection-head) { margin-bottom: 14px; }
+  #documentsView #coverLetterPanel .cover-letter-workspace { gap: 14px; }
+  #documentsView .cover-letter-editor { padding: 14px; }
+  #documentsView .cover-letter-editor-heading { margin-bottom: 10px; }
+  #documentsView #coverLetterPanel .cover-letter-editor-fields { gap: 9px; }
+  #documentsView #coverLetterPanel .cover-letter-editor-fields input { min-height: 34px; padding: 6px 9px; }
+  #documentsView #coverLetterPanel .cover-letter-body-field textarea { height: clamp(115px, 22dvh, 215px); min-height: 115px; padding: 8px 10px; line-height: 1.5; }
+  #documentsView .cover-letter-preview-stage { height: clamp(300px, 54dvh, 530px); }
+  #documentsView #templatesPanel:not([hidden]):not(.hidden) { display: flex; flex-direction: column; height: 100%; }
+  #documentsView #templatesPanel .template-tester {
+    flex: 1;
+    min-height: 0;
+    margin-top: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 8px 12px;
+    align-items: end;
+  }
+  #documentsView #templatesPanel .form-field { min-width: 0; margin: 0; }
+  #documentsView #templatesPanel .form-field select { min-height: 36px; padding: 6px 9px; }
+  #documentsView #templatesPanel :is(.template-tester-actions, .template-preview-note, .template-preview) { grid-column: 1 / -1; }
+  #documentsView #templatesPanel .template-preview { align-self: stretch; min-height: 0; overflow: auto; padding: 0; }
+  #documentsView #templatesPanel .template-preview-subject { position: sticky; top: 0; z-index: 1; padding: 10px 14px; }
+}
+@media (min-width: 1120px) {
   #documentsView #coverLetterPanel .cover-letter-workspace { grid-template-columns: minmax(300px, 1fr) minmax(0, 1fr); align-items: start; }
+  #documentsView #templatesPanel .template-tester { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; grid-template-rows: auto auto minmax(0, 1fr); }
+  #documentsView #templatesPanel .template-tester-actions { grid-column: auto; }
 }
 @media (max-width: 1100px) {
   body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #applicationsView, #toApplyView, #inboxView, #documentsView, #newsView, #socialTrendsView, #subscriptionsView, #walletView).active) .content { padding: 14px 20px 28px; }

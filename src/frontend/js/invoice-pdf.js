@@ -44,7 +44,7 @@
     const reference=wrap(d.invoiceNumber,55,9.5,true);text(reference,right,30,9.5,true,ink,{align:'right'});
     y=Math.max(37,businessY+3,30+reference.length*4);rule(y,left,right,brandNavy);y+=6;
 
-    // Light table rules and comfortable type keep billing information easy to scan.
+    // Keep the two sets of billing details aligned without drawing a table.
     const clientRows=engine.billToRows(d.billTo);
     const metadata=[['Issued',engine.formatDate(d.issueDate)],['Due date',engine.formatDate(d.dueDate)],['Billing period',`${engine.formatDate(d.periodStart)} - ${engine.formatDate(d.periodEnd)}`],['Currency',d.currency]];
     const partyRows=metadata.map(([label,value],index)=>{
@@ -60,14 +60,12 @@
     space(partyHeight+14);
     text('INVOICE SUMMARY',left,y+3.2,8.5,true);
     y+=7;
-    pdf.setDrawColor(...border);pdf.setLineWidth(.2);pdf.rect(left,y,width,partyHeight,'S');pdf.line(105,y,105,y+partyHeight);
-    text('BILL TO',left+3,y+4.7,7.5,true,muted);text('INVOICE DETAILS',108,y+4.7,7.5,true,muted);
-    rule(y+7);y+=7;
+    text('BILL TO',left,y+4.7,7.5,true,muted);text('INVOICE DETAILS',108,y+4.7,7.5,true,muted);
+    y+=7;
     for(const row of partyRows){
-      rule(y);pdf.setDrawColor(...border);pdf.line(48,y,48,y+row.height);pdf.line(136,y,136,y+row.height);
-      text(row.clientHeading,left+3,y+4.8,8.5,false,muted,{lineHeightFactor:1.2});
-      text(row.client,51,y+4.8,row.bold?10:9,row.bold,ink,{lineHeightFactor:1.2});
-      text(row.detailLabel,108,y+4.8,8.5,false,muted,{lineHeightFactor:1.2});text(row.detailValue,189,y+4.8,9,false,ink,{align:'right',lineHeightFactor:1.2});
+      text(row.clientHeading,left,y+4.8,8.5,false,muted,{lineHeightFactor:1.2});
+      text(row.client,47,y+4.8,row.bold?10:9,row.bold,ink,{lineHeightFactor:1.2});
+      text(row.detailLabel,108,y+4.8,8.5,false,muted,{lineHeightFactor:1.2});text(row.detailValue,right,y+4.8,9,false,ink,{align:'right',lineHeightFactor:1.2});
       y+=row.height;
     }
     y+=7;
@@ -108,9 +106,16 @@
       text(String(line.quantity),113,baseline,9.5,false,ink,{align:'center'});text(rate,rateRight,rateBaseline,9,false,ink,{align:'right',lineHeightFactor:1.25});fitText(money(line.amountCents),amountRight,baseline,23,10,true);y+=height;
     });
     const adjustments=[...(totals.discountCents || totals.taxCents ? [['Subtotal',totals.subtotalCents]] : []),...(totals.discountCents?[[`Discount (${d.discountPercent}%)`,-totals.discountCents]]:[]),...(totals.taxCents?[[`Tax (${d.taxPercent}%)`,totals.taxCents]]:[])];
-    y+=9;space(adjustments.length*6.5+22);
-    for(const [label,value] of adjustments){text(label,110,y,9,false,muted);fitText(money(value),amountRight,y,36,9.5,true);y+=6.5;}
-    pdf.setFillColor(...ink);pdf.roundedRect(106,y-1,86,13,1.5,1.5,'F');text('TOTAL DUE',110,y+7,9,true,[255,255,255]);fitText(money(totals.totalCents),amountRight,y+7,40,11,true,[255,255,255]);y+=17;
+    const totalWidth = 68, totalHeight = 10, totalLeft = right - totalWidth;
+    const totalLabelX = totalLeft + 4;
+    y+=8;space(adjustments.length*6.5+totalHeight+7);
+    for(const [label,value] of adjustments){text(label,totalLabelX,y,9,false,muted);fitText(money(value),amountRight,y,32,9.5,true);y+=6.5;}
+    const white = [255,255,255];
+    pdf.setFillColor(...ink);
+    pdf.roundedRect(totalLeft,y-1,totalWidth,totalHeight,1.5,1.5,'F');
+    text('TOTAL DUE',totalLabelX,y+5.4,8,true,white);
+    fitText(money(totals.totalCents),amountRight,y+5.4,34,10,true,white);
+    y+=14;
 
     // A little breathing room separates payment instructions from the total.
     y+=4;
@@ -119,20 +124,23 @@
       if(bank){pdf.triangle(x,baseline-2.3,x+2.3,baseline-4,x+4.6,baseline-2.3,'S');for(const shift of [.8,2.3,3.8])pdf.line(x+shift,baseline-2,x+shift,baseline+.2);pdf.line(x,baseline+.6,x+4.6,baseline+.6);}
       else{pdf.roundedRect(x,baseline-3.2,4.8,3.7,.5,.5,'S');pdf.line(x,baseline-2,x+4.8,baseline-2);}
     }
+    const paymentLineHeight = 3.6, paymentRowPadding = 3, paymentHeaderHeight = 12;
+    const paymentMethodRight = 56;
+    const paymentRowHeight = row => Math.max(row.labelLines.length, row.valueLines.length, 1) * paymentLineHeight + paymentRowPadding;
     const paymentGroups=engine.paymentRows(d.payment).map(group=>{
-      const rows=(group.rows.length?group.rows:[{label:'Instructions',value:''}]).map(row=>({...row,labelLines:wrap(row.label,40,8.5),valueLines:wrap(row.value,80,9)}));
-      rows.forEach(row=>{row.height=Math.max(9,row.labelLines.length*4+4,row.valueLines.length*4+4);});
-      const method=wrap(group.method,23,9,true),minimum=method.length*4+9,total=rows.reduce((sum,row)=>sum+row.height,0);
+      const rows=(group.rows.length?group.rows:[{label:'Instructions',value:''}]).map(row=>({...row,labelLines:wrap(row.label,40,8),valueLines:wrap(row.value,80,8.5)}));
+      rows.forEach(row=>{row.height=paymentRowHeight(row);});
+      const method=wrap(group.method,23,8,true),minimum=method.length*paymentLineHeight+4,total=rows.reduce((sum,row)=>sum+row.height,0);
       if(total<minimum)rows[rows.length-1].height+=minimum-total;
       const brand=paymentBrands?.[String(group.method).trim().toLowerCase()];
-      return {brand,method,bank:/wise|bank/i.test(group.method),rows,height:rows.reduce((sum,row)=>sum+row.height,0)};
+      return {brand,method,minimum,bank:/wise|bank/i.test(group.method),rows,height:rows.reduce((sum,row)=>sum+row.height,0)};
     });
     function paymentHeader(){
-      space(29);paymentIcon(left,y+3);text('PAYMENT OPTIONS',left+7,y+3.2,8.5,true);y+=7;
-      pdf.setFillColor(...tint);pdf.rect(left,y,width,7,'F');
-      pdf.setDrawColor(...border);pdf.setLineWidth(.2);pdf.rect(left,y,width,7,'S');
-      pdf.line(56,y,56,y+7);pdf.line(104,y,104,y+7);
-      text('METHOD',left+4,y+4.7,7.5,true,muted);text('ACCOUNT / DETAIL',60,y+4.7,7.5,true,muted);text('INFORMATION',108,y+4.7,7.5,true,muted);y+=7;
+      paymentIcon(left,y+3);text('PAYMENT OPTIONS',left+7,y+3.2,8,true);y+=6;
+      pdf.setFillColor(...tint);pdf.rect(left,y,width,6,'F');
+      pdf.setDrawColor(...border);pdf.setLineWidth(.2);pdf.rect(left,y,width,6,'S');
+      pdf.line(paymentMethodRight,y,paymentMethodRight,y+6);pdf.line(104,y,104,y+6);
+      text('METHOD',left+4,y+4,7,true,muted);text('ACCOUNT / DETAIL',60,y+4,7,true,muted);text('INFORMATION',108,y+4,7,true,muted);y+=6;
     }
     const notes=[];
     if(!/payment\s+is\s+due|payment\s+due/i.test(d.notes || ''))notes.push(`Payment due ${engine.formatDate(d.dueDate)}.`);
@@ -142,7 +150,7 @@
     const terms=wrap(notes.join('\n') || 'Thank you for your business.',width-10,8);
     const footerBottom=284,footerGap=10,termsLineHeight=3.8,termsPadding=12;
     const termsHeight=terms.length*termsLineHeight+termsPadding;
-    const paymentHeight=14+paymentGroups.reduce((sum,group)=>sum+group.height,0);
+    const paymentHeight=paymentHeaderHeight+paymentGroups.reduce((sum,group)=>sum+group.height,0);
     const paymentTop=footerBottom-termsHeight-footerGap-paymentHeight-0.1;
     let noteOffset=0;
     function drawTerms(lines, top, continued) {
@@ -152,29 +160,35 @@
     }
     // Keep payment close to the footer when both fit after the invoice body.
     if(paymentTop>=y)y=paymentTop;
-    space(16+(paymentGroups[0]?.height || 10));paymentHeader();
+    space(paymentHeaderHeight + (paymentGroups[0]?.minimum || 0));paymentHeader();
     for(const group of paymentGroups){
       let offset=0;
       while(offset<group.rows.length){
-        const methodHeight=group.method.length*4+9;
+        const methodHeight=group.minimum;
         if(y+Math.max(group.rows[offset].height,methodHeight)>bottom){nextPage();paymentHeader();}
         if(group.rows[offset].height>bottom-y){
-          const row=group.rows[offset],count=Math.max(1,Math.floor((bottom-y-5)/4));
+          const row=group.rows[offset],count=Math.max(1,Math.floor((bottom-y-paymentRowPadding)/paymentLineHeight));
           const first={...row,labelLines:row.labelLines.slice(0,count),valueLines:row.valueLines.slice(0,count)};
-          first.height=Math.max(9,first.labelLines.length*4+4,first.valueLines.length*4+4);
-          const remainder={...row,labelLines:row.labelLines.length>count?row.labelLines.slice(count):wrap(`${row.label} (continued)`,40,8.5),valueLines:row.valueLines.slice(count)};
-          remainder.height=Math.max(9,remainder.labelLines.length*4+4,remainder.valueLines.length*4+4);
+          first.height=paymentRowHeight(first);
+          const remainder={...row,labelLines:row.labelLines.length>count?row.labelLines.slice(count):wrap(`${row.label} (continued)`,40,8),valueLines:row.valueLines.slice(count)};
+          remainder.height=paymentRowHeight(remainder);
           group.rows.splice(offset,1,first,remainder);
         }
         const segment=[];let height=0;
         while(offset<group.rows.length && y+Math.max(height+group.rows[offset].height,methodHeight)<=bottom){const row={...group.rows[offset++]};segment.push(row);height+=row.height;}
         const segmentHeight=Math.max(height,methodHeight);segment[segment.length-1].height+=segmentHeight-height;
-        const top=y;pdf.setDrawColor(...border);pdf.setLineWidth(.2);pdf.rect(left,top,width,segmentHeight,'S');pdf.line(56,top,56,top+segmentHeight);pdf.line(104,top,104,top+segmentHeight);
-        if(group.brand){const logoWidth=group.brand===paymentBrands.wise?11:15,logoHeight=logoWidth/group.brand.ratio;pdf.addImage(group.brand.image,'PNG',left+4,top+3.5,logoWidth,logoHeight,undefined,'FAST');}
-        else{paymentIcon(left+4,top+7,group.bank);text(group.method,left+11,top+7,9,true);}
+        const top=y;pdf.setDrawColor(...border);pdf.setLineWidth(.2);pdf.rect(left,top,width,segmentHeight,'S');pdf.line(paymentMethodRight,top,paymentMethodRight,top+segmentHeight);pdf.line(104,top,104,top+segmentHeight);
+        if(group.brand){
+          const logoWidth = group.brand === paymentBrands.wise ? 10 : 13;
+          const logoHeight = logoWidth / group.brand.ratio;
+          const logoX = (left + paymentMethodRight - logoWidth) / 2;
+          const logoY = top + (segmentHeight - logoHeight) / 2;
+          pdf.addImage(group.brand.image, 'PNG', logoX, logoY, logoWidth, logoHeight, undefined, 'FAST');
+        }
+        else{paymentIcon(left+4,top+4.8,group.bank);text(group.method,left+11,top+4.8,8,true);}
         for(let index=0;index<segment.length;index++){
-          const row=segment[index];if(index)rule(y,56,right);
-          text(row.labelLines,60,y+5.5,8.5,false,muted,{lineHeightFactor:1.25});text(row.valueLines,108,y+5.5,9,false,ink,{lineHeightFactor:1.25});
+          const row=segment[index];if(index)rule(y,paymentMethodRight,right);
+          text(row.labelLines,60,y+4.4,8,false,muted,{lineHeightFactor:1.2});text(row.valueLines,108,y+4.4,8.5,false,ink,{lineHeightFactor:1.2});
           if(/^https?:\/\//i.test(row.value))pdf.link(108,y+2,80,row.height-3,{url:row.value});y+=row.height;
         }
       }

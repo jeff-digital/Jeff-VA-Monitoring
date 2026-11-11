@@ -344,7 +344,7 @@
       title: 'Invoice deleted',
       message: correction
         ? `Draft ${correction.document.invoiceNumber} is ready to edit and send from the Drafts tab.`
-        : 'Use the client’s invoice actions to generate or upload the corrected invoice with a new number.'
+        : 'Use the client’s invoice actions to generate or upload the corrected invoice. You can reuse the deleted invoice number.'
     });
   }
 
@@ -371,8 +371,6 @@
         const current=(data.invoices || []).find(item=>item.id===invoiceCheckDraft.id);
         if(!current || current.updatedAt!==invoiceCheckDraft.updatedAt)throw new Error('This invoice changed on another device. Reopen it before saving.');
         draft={...current,document:invoiceReadDocument(),updatedAt:new Date().toISOString()};
-        const duplicate=(data.invoices || []).some(item=>item.id!==draft.id && (item.deletedAt || item.sourceDraftId!==draft.id) && (item.invoiceNumber || item.document?.invoiceNumber)===draft.document.invoiceNumber);
-        if(duplicate)throw new Error('Another invoice already uses that invoice number.');
         const changes=[{key:'invoices',value:draft}];
         if(invoiceHourlyBillingChanged && draft.document.basis==='agreed'){
           const config=invoiceEngine.validateSettings({...invoiceEngine.settings(client.invoiceSettings || {}),basis:'agreed',rate:invoiceField('Rate').value,weeklyHours:invoiceField('WeeklyHours').value,workdays:invoiceField('Workdays').value,currency:invoiceField('Currency').value,
@@ -382,7 +380,7 @@
         await commitInvoiceRecords(changes);
       } else {
         const config=invoiceReadSettings(),start=invoiceEngine.weekStart(invoiceField('Week').value),id=await invoiceEngine.draftId(clientId,start);
-        const existing=(data.invoices || []).find(item=>item.id===id);
+        const existing = clientInvoiceDrafts(clientId).find(item => item.id === id || item.document?.periodStart === start);
         if(existing){
           markActiveClientDrawerFormClean('invoice-check');
           if(existing.draftStatus!=='sent' && config.basis==='agreed'){
@@ -404,10 +402,10 @@
           }else{invoiceStatus('This week already has an invoice. Existing edits were preserved.');openInvoiceDraftPreview(existing.id);}
           return;
         }
-        if((data.invoices || []).some(item=>!item.invoiceDraft && !item.deletedAt && item.clientId===clientId && item.startDate===start && item.endDate===invoiceEngine.addDays(start,6)))throw new Error('A sent invoice already exists for this billing week. Review invoice history before preparing another.');
         draft=await invoiceEngine.generate(client,data.clientTasks || [],config,start,new Date().toISOString(),data.invoices || []);
         if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)throw new Error('The account or client changed. Reopen Invoice check.');
-        if(invoiceClient()!==client || (data.invoices || []).some(item=>item.id===id))throw new Error('The client or invoice changed while preparing this draft. Reopen Invoice check before continuing.');
+        if(invoiceClient()!==client || clientInvoiceDrafts(clientId).some(item=>item.id===id || item.document?.periodStart===start))throw new Error('The client or invoice changed while preparing this draft. Reopen Invoice check before continuing.');
+        if ((data.invoices || []).some(item => item.id === draft.id)) draft.id = uid();
         await commitInvoiceRecords([{key:'applications',value:{...client,invoiceSettings:config}},{key:'invoices',value:draft},{key:'alerts',value:invoiceEngine.readyAlert(draft)}]);
       }
       if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)return;
@@ -508,7 +506,7 @@
       const client=(data.applications || []).find(item=>item.id===draft.clientId);
       if(!client)throw new Error('The client is no longer available.');
       const d=invoiceEngine.validateDocument(draft.document);
-      if(draft.draftStatus==='sent' || invoiceAlreadySent(client.id,d.invoiceNumber))throw new Error('This invoice was already sent. Review invoice history.');
+      if(draft.draftStatus==='sent')throw new Error('This draft was already sent. Review invoice history.');
       const filename=d.invoiceNumber.replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf';
       const pdf=window.JeffInvoicePdf.create(d,window.jspdf?.jsPDF,invoiceEngine);
       const file=new File([pdf.output('arraybuffer')],filename,{type:'application/pdf'});

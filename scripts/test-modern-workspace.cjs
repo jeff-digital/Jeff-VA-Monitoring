@@ -165,6 +165,11 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
               assert.equal(await page.locator('#careerToolSelect').inputValue(), tool);
               const overflow = await page.locator('.career-tool-content').evaluate(el => el.scrollWidth > el.clientWidth + 1);
               assert.equal(overflow, false, `Tool overflow: ${tool} at ${width}/${theme}`);
+              if (width > 900) {
+                const fits = await page.locator('.career-tool-content').evaluate(el =>
+                  el.getBoundingClientRect().bottom <= innerHeight + 1 && document.documentElement.scrollHeight <= innerHeight + 1);
+                assert.ok(fits, `${tool} fits the desktop viewport at ${width}/${theme}`);
+              }
             }
           }
         }

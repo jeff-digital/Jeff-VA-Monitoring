@@ -7,7 +7,7 @@ let composer=null,view='',readContent=content;
 const context=vm.createContext({console,$,MAX_DOCUMENT_SIZE_BYTES:25*1024*1024,pendingInvoiceClientId:null,pendingInvoiceFile:null,pendingInvoiceDetails:{},
  data:{applications:[{id:'client',clientName:'Example',role:'Client support'}],invoices:[]},toast(){},
  showActiveClientDrawerView:value=>{view=value;},markActiveClientDrawerFormClean(){},isActiveClientDrawerView:value=>view===value,
- openInvoiceComposer(...args){composer=args;},showInvoiceDuplicateAlert(){},documentContentType:()=> 'application/pdf'});
+ openInvoiceComposer(...args){composer=args;},documentContentType:()=> 'application/pdf'});
 vm.runInContext(payments.slice(payments.indexOf('  function parseInvoiceDate('),payments.indexOf('  function invoicePaymentStatus(')),context);
 vm.runInContext(source.slice(source.indexOf('  function extractInvoiceField('),source.indexOf('  function openClientDocumentPicker(')),context);
 context.extractInvoiceText=async()=>readContent;
@@ -24,5 +24,9 @@ context.extractInvoiceText=async()=>readContent;
  context.extractInvoiceText=()=>new Promise(resolve=>{context.finishRead=resolve;});
  const pending=context.stageInvoiceFile(file);context.clearInvoiceUploadDraft();context.finishRead(content);await pending;assert.equal(context.pendingInvoiceFile,null);assert.equal($('#useInvoiceFileButton').disabled,true,'A cancelled read cannot enable the old attachment');
  context.data.invoices=[{id:'sent',clientId:'another-client',invoiceNumber:'2026-001',sentAt:'2026-11-09'}];assert.equal(context.invoiceAlreadySent('client','2026-1'),true,'Year sequence numbers cannot be reused for another client');
+ context.data.invoices[0].invoiceNumber = '2026-015';
+ context.extractInvoiceText = async () => content;
+ context.openInvoiceDocumentPicker(context.data.applications[0],true);await context.stageInvoiceFile(file);
+ context.continueInvoicePicker();assert.equal(composer[2].invoiceNumber,'2026-015','Upload can proceed to review with a previously sent number');
  console.log('PASS invoice upload: generated-PDF labels, ISO dates, billing boundaries, total/currency, placeholders, same-sidebar review, correct attachment, invalid dates/files, stale reads and duplicate numbers.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

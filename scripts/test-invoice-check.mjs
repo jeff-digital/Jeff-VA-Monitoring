@@ -94,9 +94,19 @@ try {
  assert.deepEqual(await runInvoiceDrafts(env,now),{created:1,skipped:2,failed:0});
  state=await readD1Workspace(env,'11111111-1111-4111-8111-111111111111');
  assert.equal(state.data.invoices.find(item=>item.clientId==='second-client').document.invoiceNumber,'2026-002','All clients share one account/year sequence');
- await assert.rejects(applyD1Changes(env,'11111111-1111-4111-8111-111111111111',[{key:'invoices',type:'put',id:'collision',base:null,value:{...fixed,id:'collision',document:{...fixed.document,invoiceNumber:'2026-002'}}}]),{status:409});
+ await applyD1Changes(env,'11111111-1111-4111-8111-111111111111',[{key:'invoices',type:'put',id:'matching-draft',base:null,value:{...fixed,id:'matching-draft',document:{...fixed.document,invoiceNumber:'2026-002'}}}]);
  const sentCopy={id:'sent-copy',sourceDraftId:fixed.id,clientId:'client',invoiceNumber:'2026-001',sentAt:now};
  await applyD1Changes(env,'11111111-1111-4111-8111-111111111111',[{key:'invoices',type:'put',id:sentCopy.id,base:null,value:sentCopy}]);
- assert.equal((await readD1Workspace(env,'11111111-1111-4111-8111-111111111111')).data.invoices.length,3,'A sent history entry may share its own source draft number');
+ assert.equal((await readD1Workspace(env,'11111111-1111-4111-8111-111111111111')).data.invoices.length,4,'Drafts may share a number with other drafts or a sent invoice');
+ const savedDraft = state.data.invoices.find(invoice => invoice.id === fixed.id);
+ const replacement = { ...sentCopy, id:'replacement', sourceDraftId:undefined };
+ await applyD1Changes(env,'11111111-1111-4111-8111-111111111111',[
+   { key:'invoices', type:'put', id:sentCopy.id, base:sentCopy, value:{ ...sentCopy, deletedAt:now } },
+   { key:'invoices', type:'remove', id:savedDraft.id, base:savedDraft },
+   { key:'invoices', type:'put', id:replacement.id, base:null, value:replacement }
+ ]);
+ await assert.rejects(applyD1Changes(env,'11111111-1111-4111-8111-111111111111',[
+   { key:'invoices', type:'put', id:'another-replacement', base:null, value:{ ...replacement, id:'another-replacement' } }
+ ]), { status:409 }, 'Deleted history does not exempt two active invoices with the same number');
  console.log('PASS invoice billing: integer totals, weekly boundaries, DST, opt-in schedule, no timers, tenant isolation, edit preservation, atomic revision guard, duplicate protection and no external sending.');
 }finally{globalThis.fetch=originalFetch;db.sqlite.close();}

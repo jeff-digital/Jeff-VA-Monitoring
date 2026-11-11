@@ -356,6 +356,8 @@
       ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
       : '';
     const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft && !invoice.deletedAt).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    const deletedInvoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft && invoice.deletedAt)
+      .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
     const sentEmails = sentEmailsForApplication(item);
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
@@ -434,7 +436,8 @@
     const previousList = invoiceWorkspace.dataset.invoiceClient === item.id
       ? invoiceWorkspace.querySelector('[data-client-invoice-list][aria-pressed="true"]')?.dataset.clientInvoiceList
       : '';
-    const activeList = previousList || (!invoices.length && drafts.length ? 'drafts' : 'sent');
+    const activeList = (previousList === 'deleted' && !deletedInvoices.length ? '' : previousList)
+      || (!invoices.length && drafts.length ? 'drafts' : 'sent');
     invoiceWorkspace.dataset.invoiceClient = item.id;
     invoiceWorkspace.innerHTML = `
       <section class="invoice-send-panel client-invoice-panel" aria-labelledby="clientInvoicesTitle">
@@ -446,9 +449,13 @@
           <button type="button" data-client-invoice-list="unpaid" aria-controls="clientInvoiceSentList" aria-pressed="false">Unpaid <span>${invoices.length - paidCount}</span></button>
           <button type="button" data-client-invoice-list="paid" aria-controls="clientInvoiceSentList" aria-pressed="false">Paid <span>${paidCount}</span></button>
           <button type="button" data-client-invoice-list="drafts" aria-controls="clientInvoiceDraftList" aria-pressed="false">Drafts <span>${drafts.length}</span></button>
+          ${deletedInvoices.length ? `<button type="button" data-client-invoice-list="deleted" aria-controls="clientInvoiceDeletedList" aria-pressed="false">Deleted <span>${deletedInvoices.length}</span></button>` : ''}
         </div>
         <div id="clientInvoiceDraftList" class="client-invoice-draft-list" hidden>
           ${drafts.length ? invoiceDraftRows(item.id, drafts) : '<div class="client-section-empty client-invoice-empty"><h4>No invoice drafts</h4></div>'}
+        </div>
+        <div id="clientInvoiceDeletedList" class="client-invoice-draft-list" hidden>
+          ${deletedInvoices.map(invoice => `<article class="invoice-ready-row"><div><strong>${escapeHtml(invoice.invoiceNumber || 'Invoice')}</strong><span>${invoice.sentAt ? `Sent ${escapeHtml(emailDate(invoice.sentAt))} · ` : ''}Deleted ${escapeHtml(emailDate(invoice.deletedAt))}</span></div></article>`).join('')}
         </div>
         <div id="clientInvoiceSentList" hidden>
         ${invoices.length ? invoicePaymentSummary(invoices) : ''}
@@ -530,6 +537,9 @@
   async function loadClientOnboardingSubmission(item) {
     const target = $('#activeOnboardingResponse');
     if (!target) return;
+    const submittedAt = $('#activeClientOnboardingDate');
+    submittedAt.hidden = true;
+    submittedAt.textContent = '';
     target.dataset.clientId = item.id;
     updateClientOnboardingStatus('Checking status', 'pending');
     target.innerHTML = '<p class="client-onboarding-loading">Loading onboarding details…</p>';
@@ -542,7 +552,12 @@
         clientTimeZones.delete(item.id);
         updateClientOnlineIndicators();
         updateClientOnboardingStatus('Not submitted', 'empty');
-        target.innerHTML = '<div class="client-section-empty"><h4>No onboarding submission yet</h4><p>Use Actions → Send onboarding form to invite this client.</p></div>';
+        target.innerHTML = `
+          <div class="client-section-empty client-onboarding-empty">
+            <span class="client-onboarding-empty-icon" aria-hidden="true"><i class="fa-regular fa-clipboard"></i></span>
+            <h4>No onboarding submission yet</h4>
+            <p>Invite this client from <strong>Actions → Send onboarding form</strong>.</p>
+          </div>`;
         return;
       }
       const submissionTimestamp = String(submission.submitted_at || '');
@@ -575,13 +590,14 @@
         }
         if (submittedPhone) updateHiredClientPhoneDisplay(item);
         await persist();
+        if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
       }
       if (submission.timezone) clientTimeZones.set(item.id, submission.timezone);
       else clientTimeZones.delete(item.id);
       updateClientOnlineIndicators();
       const onboardingParts = [
         {
-          title: 'Part 1: About you',
+          title: 'Contact and company',
           details: [
             ['Client contact', submission.contact_name],
             ['Email', submission.client_email],
@@ -591,7 +607,7 @@
           ]
         },
         {
-          title: 'Part 2: Services and communication',
+          title: 'Services and communication',
           details: [
             ['Services needed', Array.isArray(submission.details?.services) ? submission.details.services.join(', ') : ''],
             ['Expected hours per week', submission.details?.hoursPerWeek],
@@ -601,7 +617,7 @@
           ]
         },
         {
-          title: 'Part 3: Schedule',
+          title: 'Schedule',
           details: [
             ['Time zone', submission.timezone],
             ['Availability and preferred working hours', submission.availability],
@@ -609,7 +625,7 @@
           ]
         },
         {
-          title: 'Part 4: Tools and contacts',
+          title: 'Tools, access, and backup contacts',
           details: [
             ['Tools or platforms', submission.tools],
             ['First-week priorities', submission.priorities],
@@ -624,9 +640,11 @@
       ];
       target.replaceChildren();
       updateClientOnboardingStatus('Submitted', 'complete');
-      const submittedAt = document.createElement('p');
-      submittedAt.className = 'active-client-onboarding-submitted';
-      submittedAt.textContent = `Submitted ${new Date(submission.submitted_at).toLocaleString()}`;
+      const submittedDate = new Date(submissionTimestamp);
+      if (Number.isFinite(submittedDate.getTime())) {
+        submittedAt.textContent = submittedDate.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        submittedAt.hidden = false;
+      }
       const parts = document.createElement('div');
       parts.className = 'active-client-onboarding-parts';
       onboardingParts.forEach(part => {
@@ -638,17 +656,20 @@
         list.className = 'active-client-onboarding-details';
         part.details.forEach(([label, value]) => {
           const wrapper = document.createElement('div');
+          const answer = String(value ?? '').trim();
+          if (answer.length > 100 || answer.includes('\n')) wrapper.classList.add('onboarding-answer-wide');
+          if (!answer) wrapper.classList.add('onboarding-answer-empty');
           const term = document.createElement('dt');
           const description = document.createElement('dd');
           term.textContent = label;
-          description.textContent = value || 'Not provided';
+          description.textContent = answer || 'Not provided';
           wrapper.append(term, description);
           list.append(wrapper);
         });
         section.append(heading, list);
         parts.append(section);
       });
-      target.append(submittedAt, parts);
+      target.append(parts);
     } catch (error) {
       console.error('Could not load client onboarding response:', error);
       if (target.dataset.clientId === item.id && hiredEditingId === item.id) {
@@ -673,10 +694,12 @@
       button.setAttribute('aria-pressed', String(button.dataset.clientInvoiceList === list));
     });
     const draftsSelected = list === 'drafts';
+    const deletedSelected = list === 'deleted';
     const sentList = $('#clientInvoiceSentList');
     $('#clientInvoiceDraftList').hidden = !draftsSelected;
-    sentList.hidden = draftsSelected;
-    if (draftsSelected) return;
+    $('#clientInvoiceDeletedList').hidden = !deletedSelected;
+    sentList.hidden = draftsSelected || deletedSelected;
+    if (sentList.hidden) return;
 
     let hasMatches = false;
     sentList.querySelectorAll('[data-client-invoice-payment]').forEach(row => {

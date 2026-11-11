@@ -20,7 +20,7 @@ vm.runInContext(gmail.slice(gmail.indexOf('  function buildDocumentEmailTemplate
 vm.runInContext(gmail.slice(gmail.indexOf('  function openInvoiceComposer('),gmail.indexOf('  function openUpdatedDocumentEmailComposer(')),context);
 vm.runInContext(gmail.slice(gmail.indexOf('  async function runComposedEmail('),gmail.indexOf('  function gmailConfigured(')),context);
 const documents=fs.readFileSync('src/frontend/js/modules/03-documents.js','utf8');
-vm.runInContext(documents.slice(documents.indexOf('  function invoiceAlreadySent('),documents.indexOf('  function showInvoiceDuplicateAlert(')),context);
+vm.runInContext(documents.slice(documents.indexOf('  function invoiceAlreadySent('),documents.indexOf('  async function extractInvoiceText(')),context);
 vm.runInContext(check.slice(check.indexOf('  function prepareInvoiceDraftEmail('),check.indexOf("  $('#emailInvoiceDraft').addEventListener")),context);
 vm.runInContext(check.slice(check.indexOf('  async function commitInvoiceRecords('),check.indexOf('  async function invoiceCheckOperation(')),context);
 const payments=fs.readFileSync('src/frontend/js/modules/03a-invoice-payments.js','utf8');
@@ -47,9 +47,14 @@ context.toast=()=>{};
  assert.equal(context.data.invoices[0].amountInvoiced,250);assert.equal(context.data.invoices[1].draftStatus,'sent');assert.equal(context.data.emails[0].applicationId,'client');
  context.invoicePreviewSnapshot=JSON.parse(JSON.stringify(draft));context.prepareInvoiceDraftEmail();assert.equal(sent,1);assert.match($('#invoiceDraftPreviewStatus').textContent,/already sent/);
  const next=await engine.generate(context.data.applications[0],[],{basis:'weekly',rate:'250',issuer:{name:'Example Services',email:'billing@example.com'},payment:{method:'Wise',details:'Example account'}},'2026-11-09','2026-11-09T01:00:00Z',context.data.invoices);
+ next.document.invoiceNumber = draft.document.invoiceNumber;
  context.data.invoices.push(next);context.invoicePreviewSnapshot=JSON.parse(JSON.stringify(next));
  let drawerView='',cleaned='';context.isActiveClientDrawerOpen=()=>true;context.showActiveClientDrawerView=view=>{drawerView=view;};context.markActiveClientDrawerFormClean=view=>{cleaned=view;};$('#emailComposeModal').open=false;
  context.prepareInvoiceDraftEmail();assert.equal(drawerView,'email');assert.equal(cleaned,'email');assert.equal($('#emailComposeModal').open,false,'Invoice email stays in the existing sidebar');assert.equal(sent,1);
+ await context.runComposedEmail();
+ assert.equal(sent,1,'Only the actual Send action rejects a number already sent');
+ assert.match($('#emailComposeStatus').textContent,/already sent/);
+ next.document.invoiceNumber = '2026-002';
 
  const original = context.data.invoices.find(invoice => invoice.id === 'sent-invoice');
  original.paidAt = '2026-11-10';
@@ -71,7 +76,7 @@ context.toast=()=>{};
  const deleted = context.data.invoices.find(invoice => invoice.id === original.id);
  const correction = context.data.invoices.find(invoice => invoice.id === draft.id);
  assert.equal(context.invoicePaymentStatus(deleted), 'Deleted');
- assert.equal(context.invoiceAlreadySent('client', original.invoiceNumber), true, 'The old number stays reserved');
+ assert.equal(context.invoiceAlreadySent('client', original.invoiceNumber), false, 'Deleting releases the old number');
  assert.equal(correction.draftStatus, 'ready');
  assert.equal(correction.document.periodStart, draft.document.periodStart);
  assert.equal(correction.document.invoiceNumber, '2026-003');
@@ -79,6 +84,7 @@ context.toast=()=>{};
  assert.equal(context.data.emails.length, 1, 'Original email history remains intact');
  assert.equal(sent, 1, 'Deleting does not send email');
 
+ correction.document.invoiceNumber = original.invoiceNumber;
  context.invoicePreviewSnapshot = JSON.parse(JSON.stringify(correction));
  context.prepareInvoiceDraftEmail();
  assert.equal(context.composeInvoiceDraft.invoiceNumber, correction.document.invoiceNumber);
@@ -87,6 +93,7 @@ context.toast=()=>{};
  await context.runComposedEmail();
  assert.equal(sent, 2, 'The corrected invoice can be sent explicitly');
  assert.equal(context.data.invoices.find(invoice => invoice.id === draft.id).sentInvoiceId, 'sent-correction');
+ assert.equal(context.invoiceAlreadySent('client', original.invoiceNumber), true, 'The active replacement blocks a second send');
 
  const upload = { id: 'sent-upload', clientId: 'client', invoiceNumber: '2026-004' };
  context.data.invoices.push(upload);

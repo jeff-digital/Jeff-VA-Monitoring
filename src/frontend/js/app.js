@@ -3215,7 +3215,7 @@
       const salary = Number.isFinite(salaryAmount) && salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `<span class="application-salary-value"><span class="application-salary-amount"><span class="application-salary-currency">${escapeHtml(salaryCurrencySymbol(item.salaryCurrency))}</span><span class="application-salary-number">${escapeHtml(Math.round(salaryAmount).toLocaleString())}</span></span><span class="application-salary-period">/ ${item.salaryType === 'hourly' ? 'hour' : 'month'}</span></span>`
         : '—';
-      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td>${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td class="application-salary-cell">${salary}</td><td>${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
+      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td class="application-table-muted">${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td class="application-salary-cell application-table-muted">${salary}</td><td class="application-table-muted">${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
@@ -3791,6 +3791,8 @@
       ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
       : '';
     const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft && !invoice.deletedAt).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    const deletedInvoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft && invoice.deletedAt)
+      .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
     const sentEmails = sentEmailsForApplication(item);
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
@@ -3869,7 +3871,8 @@
     const previousList = invoiceWorkspace.dataset.invoiceClient === item.id
       ? invoiceWorkspace.querySelector('[data-client-invoice-list][aria-pressed="true"]')?.dataset.clientInvoiceList
       : '';
-    const activeList = previousList || (!invoices.length && drafts.length ? 'drafts' : 'sent');
+    const activeList = (previousList === 'deleted' && !deletedInvoices.length ? '' : previousList)
+      || (!invoices.length && drafts.length ? 'drafts' : 'sent');
     invoiceWorkspace.dataset.invoiceClient = item.id;
     invoiceWorkspace.innerHTML = `
       <section class="invoice-send-panel client-invoice-panel" aria-labelledby="clientInvoicesTitle">
@@ -3881,9 +3884,13 @@
           <button type="button" data-client-invoice-list="unpaid" aria-controls="clientInvoiceSentList" aria-pressed="false">Unpaid <span>${invoices.length - paidCount}</span></button>
           <button type="button" data-client-invoice-list="paid" aria-controls="clientInvoiceSentList" aria-pressed="false">Paid <span>${paidCount}</span></button>
           <button type="button" data-client-invoice-list="drafts" aria-controls="clientInvoiceDraftList" aria-pressed="false">Drafts <span>${drafts.length}</span></button>
+          ${deletedInvoices.length ? `<button type="button" data-client-invoice-list="deleted" aria-controls="clientInvoiceDeletedList" aria-pressed="false">Deleted <span>${deletedInvoices.length}</span></button>` : ''}
         </div>
         <div id="clientInvoiceDraftList" class="client-invoice-draft-list" hidden>
           ${drafts.length ? invoiceDraftRows(item.id, drafts) : '<div class="client-section-empty client-invoice-empty"><h4>No invoice drafts</h4></div>'}
+        </div>
+        <div id="clientInvoiceDeletedList" class="client-invoice-draft-list" hidden>
+          ${deletedInvoices.map(invoice => `<article class="invoice-ready-row"><div><strong>${escapeHtml(invoice.invoiceNumber || 'Invoice')}</strong><span>${invoice.sentAt ? `Sent ${escapeHtml(emailDate(invoice.sentAt))} · ` : ''}Deleted ${escapeHtml(emailDate(invoice.deletedAt))}</span></div></article>`).join('')}
         </div>
         <div id="clientInvoiceSentList" hidden>
         ${invoices.length ? invoicePaymentSummary(invoices) : ''}
@@ -3965,6 +3972,9 @@
   async function loadClientOnboardingSubmission(item) {
     const target = $('#activeOnboardingResponse');
     if (!target) return;
+    const submittedAt = $('#activeClientOnboardingDate');
+    submittedAt.hidden = true;
+    submittedAt.textContent = '';
     target.dataset.clientId = item.id;
     updateClientOnboardingStatus('Checking status', 'pending');
     target.innerHTML = '<p class="client-onboarding-loading">Loading onboarding details…</p>';
@@ -3977,7 +3987,12 @@
         clientTimeZones.delete(item.id);
         updateClientOnlineIndicators();
         updateClientOnboardingStatus('Not submitted', 'empty');
-        target.innerHTML = '<div class="client-section-empty"><h4>No onboarding submission yet</h4><p>Use Actions → Send onboarding form to invite this client.</p></div>';
+        target.innerHTML = `
+          <div class="client-section-empty client-onboarding-empty">
+            <span class="client-onboarding-empty-icon" aria-hidden="true"><i class="fa-regular fa-clipboard"></i></span>
+            <h4>No onboarding submission yet</h4>
+            <p>Invite this client from <strong>Actions → Send onboarding form</strong>.</p>
+          </div>`;
         return;
       }
       const submissionTimestamp = String(submission.submitted_at || '');
@@ -4010,13 +4025,14 @@
         }
         if (submittedPhone) updateHiredClientPhoneDisplay(item);
         await persist();
+        if (target.dataset.clientId !== item.id || hiredEditingId !== item.id) return;
       }
       if (submission.timezone) clientTimeZones.set(item.id, submission.timezone);
       else clientTimeZones.delete(item.id);
       updateClientOnlineIndicators();
       const onboardingParts = [
         {
-          title: 'Part 1: About you',
+          title: 'Contact and company',
           details: [
             ['Client contact', submission.contact_name],
             ['Email', submission.client_email],
@@ -4026,7 +4042,7 @@
           ]
         },
         {
-          title: 'Part 2: Services and communication',
+          title: 'Services and communication',
           details: [
             ['Services needed', Array.isArray(submission.details?.services) ? submission.details.services.join(', ') : ''],
             ['Expected hours per week', submission.details?.hoursPerWeek],
@@ -4036,7 +4052,7 @@
           ]
         },
         {
-          title: 'Part 3: Schedule',
+          title: 'Schedule',
           details: [
             ['Time zone', submission.timezone],
             ['Availability and preferred working hours', submission.availability],
@@ -4044,7 +4060,7 @@
           ]
         },
         {
-          title: 'Part 4: Tools and contacts',
+          title: 'Tools, access, and backup contacts',
           details: [
             ['Tools or platforms', submission.tools],
             ['First-week priorities', submission.priorities],
@@ -4059,9 +4075,11 @@
       ];
       target.replaceChildren();
       updateClientOnboardingStatus('Submitted', 'complete');
-      const submittedAt = document.createElement('p');
-      submittedAt.className = 'active-client-onboarding-submitted';
-      submittedAt.textContent = `Submitted ${new Date(submission.submitted_at).toLocaleString()}`;
+      const submittedDate = new Date(submissionTimestamp);
+      if (Number.isFinite(submittedDate.getTime())) {
+        submittedAt.textContent = submittedDate.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        submittedAt.hidden = false;
+      }
       const parts = document.createElement('div');
       parts.className = 'active-client-onboarding-parts';
       onboardingParts.forEach(part => {
@@ -4073,17 +4091,20 @@
         list.className = 'active-client-onboarding-details';
         part.details.forEach(([label, value]) => {
           const wrapper = document.createElement('div');
+          const answer = String(value ?? '').trim();
+          if (answer.length > 100 || answer.includes('\n')) wrapper.classList.add('onboarding-answer-wide');
+          if (!answer) wrapper.classList.add('onboarding-answer-empty');
           const term = document.createElement('dt');
           const description = document.createElement('dd');
           term.textContent = label;
-          description.textContent = value || 'Not provided';
+          description.textContent = answer || 'Not provided';
           wrapper.append(term, description);
           list.append(wrapper);
         });
         section.append(heading, list);
         parts.append(section);
       });
-      target.append(submittedAt, parts);
+      target.append(parts);
     } catch (error) {
       console.error('Could not load client onboarding response:', error);
       if (target.dataset.clientId === item.id && hiredEditingId === item.id) {
@@ -4108,10 +4129,12 @@
       button.setAttribute('aria-pressed', String(button.dataset.clientInvoiceList === list));
     });
     const draftsSelected = list === 'drafts';
+    const deletedSelected = list === 'deleted';
     const sentList = $('#clientInvoiceSentList');
     $('#clientInvoiceDraftList').hidden = !draftsSelected;
-    sentList.hidden = draftsSelected;
-    if (draftsSelected) return;
+    $('#clientInvoiceDeletedList').hidden = !deletedSelected;
+    sentList.hidden = draftsSelected || deletedSelected;
+    if (sentList.hidden) return;
 
     let hasMatches = false;
     sentList.querySelectorAll('[data-client-invoice-payment]').forEach(row => {
@@ -4381,6 +4404,16 @@
     return true;
   }
 
+  function showApplicationDetailsView(showHistory = false) {
+    $('#applicationDetailsContent').hidden = showHistory;
+    $('#applicationEmailContent').hidden = !showHistory;
+    $('#applicationDetailsViewButton').setAttribute('aria-pressed', String(!showHistory));
+    $('#applicationEmailViewButton').setAttribute('aria-pressed', String(showHistory));
+  }
+
+  $('#applicationDetailsViewButton').addEventListener('click', () => showApplicationDetailsView());
+  $('#applicationEmailViewButton').addEventListener('click', () => showApplicationDetailsView(true));
+
   function openClientModal(id = null, viewOnly = false, activeClientOnly = false, drawerEdit = false, activeClientDetailsEdit = false) {
     const form = $('#clientForm');
     form.reset();
@@ -4389,7 +4422,10 @@
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
     viewingClientDetails = viewOnly;
-    $('#clientModal').classList.toggle('application-detail-panel', viewOnly && activeView === 'applications');
+    const applicationPanel = !activeClientOnly && !drawerEdit && !activeClientDetailsEdit && (!viewOnly || activeView === 'applications');
+    $('#clientModal').classList.toggle('application-detail-panel', applicationPanel);
+    $('#applicationDetailViews').hidden = !viewOnly;
+    showApplicationDetailsView();
     $('#clientId').value = id || '';
     $('#appliedDate').value = id ? '' : today();
     $('#automaticFollowUp').checked = false;
@@ -4409,7 +4445,7 @@
       const item = data.applications.find(application => application.id === id);
       if (!item) return;
       $('#modalEyebrow').textContent = viewOnly ? 'VIEW DETAILS' : 'EDIT RECORD';
-      $('#clientModalTitle').textContent = viewOnly ? 'Application details' : 'Update client application';
+      $('#clientModalTitle').textContent = viewOnly ? 'Application details' : applicationPanel ? 'Edit application' : 'Update client application';
       $('#saveClientButton').textContent = 'Save changes';
       $('#clientName').value = item.clientName;
       $('#contactName').value = item.contact || '';
@@ -4453,7 +4489,7 @@
       }
     } else {
       $('#modalEyebrow').textContent = 'NEW RECORD';
-      $('#clientModalTitle').textContent = 'Add a client application';
+      $('#clientModalTitle').textContent = applicationPanel ? 'Add application' : 'Add a client application';
       $('#saveClientButton').textContent = 'Save application';
       $('#salaryType').value = '';
       $('#salaryCurrency').value = 'USD';
@@ -4513,21 +4549,24 @@
     updateClientActionLabel();
     updateApplicationDuplicateNotice();
     if (drawerEdit) $('#clientName').focus();
+    else if (applicationPanel) {
+      form.querySelector('.client-form-layout').scrollTop = 0;
+      if (!viewOnly) $('#clientName').focus({ preventScroll: true });
+    }
     else setTimeout(() => $('#clientName').focus(), 30);
   }
 
   function renderClientFollowUpHistory(item, viewOnly) {
     const target = $('#clientFollowUpHistory');
     if (!target || !viewOnly) return;
-    const clientEmail = String(item.email || '').trim().toLowerCase();
-    const followUps = data.emails.filter(email => isSentEmail(email)
-      && (email.applicationId === item.id || (clientEmail && String(email.to || '').trim().toLowerCase() === clientEmail && (/^follow(?:ing)?[\s-]*up\b/i.test(email.subject || '') || /I wanted to follow up on my application/i.test(email.body || '')))))
-      .sort((first, second) => new Date(second.date) - new Date(first.date));
+    const followUps = sentEmailsForApplication(item).filter(email => email.emailType === 'follow-up'
+      || /^follow(?:ing)?[\s-]*up\b/i.test(email.subject || '')
+      || /I wanted to follow up on my application/i.test(email.body || ''));
     const historicalFollowUp = !followUps.length && item.followUpSentAt
       ? [{ date: item.followUpSentAt, subject: `Follow-up: ${item.clientName}`, historical: true }]
       : followUps;
     target.classList.remove('hidden');
-    target.innerHTML = `<div class="client-follow-up-history-head"><span>Follow Up</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
+    target.innerHTML = `<div class="client-follow-up-history-head"><span>Follow-up List</span><strong>${plural(historicalFollowUp.length, 'email')}</strong></div>${historicalFollowUp.length
       ? `<div class="client-follow-up-history-list">${historicalFollowUp.map(email => `<div><span title="${escapeHtml(email.subject || 'Follow-up')}">${escapeHtml(email.subject || 'Follow-up')}</span><small>${escapeHtml(emailDate(email.date))}</small></div>`).join('')}</div>`
       : '<p>No follow-up emails have been sent to this application.</p>'}`;
   }
@@ -5278,13 +5317,7 @@
   function invoiceAlreadySent(clientId, invoiceNumber) {
     const normalized = String(invoiceNumber || '').trim().toLowerCase();
     const numbered=/^\d{4}-\d+$/.test(normalized),key=value=>String(value || '').trim().toLowerCase().replace(/^(\d{4})-0+(\d)/,'$1-$2');
-    return Boolean(normalized && (data.invoices || []).some(invoice => !invoice.invoiceDraft && (numbered || invoice.clientId === clientId) && key(invoice.invoiceNumber) === key(normalized)));
-  }
-
-  function showInvoiceDuplicateAlert(invoiceNumber) {
-    const message = `Invoice ${invoiceNumber} was already sent to this client. Choose a different invoice number.`;
-    $('#invoiceDuplicateAlertMessage').textContent = message;
-    $('#invoiceDuplicateAlertModal').showModal();
+    return Boolean(normalized && (data.invoices || []).some(invoice => !invoice.invoiceDraft && !invoice.deletedAt && (numbered || invoice.clientId === clientId) && key(invoice.invoiceNumber) === key(normalized)));
   }
 
   async function extractInvoiceText(file) {
@@ -5355,12 +5388,7 @@
       $('#invoiceStartDate').value=pendingInvoiceDetails.startDate;$('#invoiceEndDate').value=pendingInvoiceDetails.endDate;
       $('#invoiceUploadAmount').value=pendingInvoiceDetails.amountInvoiced;
       if(pendingInvoiceDetails.currency)$('#invoiceUploadCurrency').value=pendingInvoiceDetails.currency;
-      if (invoiceAlreadySent(pendingInvoiceClientId, pendingInvoiceDetails.invoiceNumber)) {
-        showInvoiceDuplicateAlert(pendingInvoiceDetails.invoiceNumber);
-        $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
-      } else {
-        $('#invoiceDocumentPickerStatus').textContent = content ? 'Invoice details loaded from the file. Empty fields were left blank.' : 'The file text could not be read. Invoice detail fields were left blank.';
-      }
+      $('#invoiceDocumentPickerStatus').textContent = content ? 'Invoice details loaded from the file. Empty fields were left blank.' : 'The file text could not be read. Invoice detail fields were left blank.';
     } catch (error) {
       if(pendingInvoiceFile!==file)return;
       console.error('Could not read invoice content:', error);
@@ -5388,12 +5416,10 @@
     if(!parseInvoiceDate(issueDate) || !parseInvoiceDate(dueDate) || dueDate<issueDate || !parseInvoiceDate(startDate) || !parseInvoiceDate(endDate) || endDate<startDate){$('#invoiceDocumentPickerStatus').textContent='Check the dates: due date must follow issue date, and billing end must follow billing start.';return;}
     const amount=$('#invoiceUploadAmount').value.trim();
     if(amount && (!/^\d+(?:\.\d{1,2})?$/.test(amount) || !Number.isFinite(Number(amount)))){$('#invoiceDocumentPickerStatus').textContent='Enter a valid invoice amount with at most two decimals.';return;}
-    const source=(data.invoices || []).find(item=>item.invoiceDraft && item.draftStatus!=='sent' && item.clientId===application.id && String(item.document?.invoiceNumber || '').toLowerCase()===invoiceNumber.toLowerCase());
-    if (invoiceAlreadySent(application.id, invoiceNumber)) {
-      showInvoiceDuplicateAlert(invoiceNumber);
-      $('#invoiceDocumentPickerStatus').textContent = 'Duplicate invoice number detected. Choose a different invoice number.';
-      return;
-    }
+    const matchingDrafts = (data.invoices || []).filter(item => item.invoiceDraft && item.draftStatus !== 'sent'
+      && item.clientId === application.id && item.document?.periodStart === startDate && item.document?.periodEnd === endDate
+      && String(item.document?.invoiceNumber || '').toLowerCase() === invoiceNumber.toLowerCase());
+    const source = matchingDrafts.length === 1 ? matchingDrafts[0] : null;
     const file = pendingInvoiceFile;
     if(typeof isActiveClientDrawerView==='function' && isActiveClientDrawerView('invoice-upload'))markActiveClientDrawerFormClean('invoice-upload');
     $('#invoiceDocumentPickerModal').close();
@@ -7544,7 +7570,7 @@
       title: 'Invoice deleted',
       message: correction
         ? `Draft ${correction.document.invoiceNumber} is ready to edit and send from the Drafts tab.`
-        : 'Use the client’s invoice actions to generate or upload the corrected invoice with a new number.'
+        : 'Use the client’s invoice actions to generate or upload the corrected invoice. You can reuse the deleted invoice number.'
     });
   }
 
@@ -7571,8 +7597,6 @@
         const current=(data.invoices || []).find(item=>item.id===invoiceCheckDraft.id);
         if(!current || current.updatedAt!==invoiceCheckDraft.updatedAt)throw new Error('This invoice changed on another device. Reopen it before saving.');
         draft={...current,document:invoiceReadDocument(),updatedAt:new Date().toISOString()};
-        const duplicate=(data.invoices || []).some(item=>item.id!==draft.id && (item.deletedAt || item.sourceDraftId!==draft.id) && (item.invoiceNumber || item.document?.invoiceNumber)===draft.document.invoiceNumber);
-        if(duplicate)throw new Error('Another invoice already uses that invoice number.');
         const changes=[{key:'invoices',value:draft}];
         if(invoiceHourlyBillingChanged && draft.document.basis==='agreed'){
           const config=invoiceEngine.validateSettings({...invoiceEngine.settings(client.invoiceSettings || {}),basis:'agreed',rate:invoiceField('Rate').value,weeklyHours:invoiceField('WeeklyHours').value,workdays:invoiceField('Workdays').value,currency:invoiceField('Currency').value,
@@ -7582,7 +7606,7 @@
         await commitInvoiceRecords(changes);
       } else {
         const config=invoiceReadSettings(),start=invoiceEngine.weekStart(invoiceField('Week').value),id=await invoiceEngine.draftId(clientId,start);
-        const existing=(data.invoices || []).find(item=>item.id===id);
+        const existing = clientInvoiceDrafts(clientId).find(item => item.id === id || item.document?.periodStart === start);
         if(existing){
           markActiveClientDrawerFormClean('invoice-check');
           if(existing.draftStatus!=='sent' && config.basis==='agreed'){
@@ -7604,10 +7628,10 @@
           }else{invoiceStatus('This week already has an invoice. Existing edits were preserved.');openInvoiceDraftPreview(existing.id);}
           return;
         }
-        if((data.invoices || []).some(item=>!item.invoiceDraft && !item.deletedAt && item.clientId===clientId && item.startDate===start && item.endDate===invoiceEngine.addDays(start,6)))throw new Error('A sent invoice already exists for this billing week. Review invoice history before preparing another.');
         draft=await invoiceEngine.generate(client,data.clientTasks || [],config,start,new Date().toISOString(),data.invoices || []);
         if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)throw new Error('The account or client changed. Reopen Invoice check.');
-        if(invoiceClient()!==client || (data.invoices || []).some(item=>item.id===id))throw new Error('The client or invoice changed while preparing this draft. Reopen Invoice check before continuing.');
+        if(invoiceClient()!==client || clientInvoiceDrafts(clientId).some(item=>item.id===id || item.document?.periodStart===start))throw new Error('The client or invoice changed while preparing this draft. Reopen Invoice check before continuing.');
+        if ((data.invoices || []).some(item => item.id === draft.id)) draft.id = uid();
         await commitInvoiceRecords([{key:'applications',value:{...client,invoiceSettings:config}},{key:'invoices',value:draft},{key:'alerts',value:invoiceEngine.readyAlert(draft)}]);
       }
       if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)return;
@@ -7708,7 +7732,7 @@
       const client=(data.applications || []).find(item=>item.id===draft.clientId);
       if(!client)throw new Error('The client is no longer available.');
       const d=invoiceEngine.validateDocument(draft.document);
-      if(draft.draftStatus==='sent' || invoiceAlreadySent(client.id,d.invoiceNumber))throw new Error('This invoice was already sent. Review invoice history.');
+      if(draft.draftStatus==='sent')throw new Error('This draft was already sent. Review invoice history.');
       const filename=d.invoiceNumber.replace(/[^A-Za-z0-9_-]/g,'_')+'.pdf';
       const pdf=window.JeffInvoicePdf.create(d,window.jspdf?.jsPDF,invoiceEngine);
       const file=new File([pdf.output('arraybuffer')],filename,{type:'application/pdf'});
@@ -11869,7 +11893,7 @@
     if (!force && invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
     const changedViews = ['email', 'edit', 'invoice-check','invoice-upload'].filter(activeClientDrawerFormChanged);
     if (!force && changedViews.length
-      && !window.confirm('Discard unsaved changes and close client actions?')) return;
+      && !(await appConfirm('Close client actions and discard your unsaved changes?', { title: 'Discard changes?', confirmLabel: 'Discard changes', danger: true }))) return;
     if (!force) changedViews.forEach(resetActiveClientDrawerForm);
     if(typeof browserDrafts!=='undefined'){
       for(const id of ['invoiceCheckForm','invoiceUploadForm','emailComposeForm','clientForm'])if($('#'+id)?.closest('#activeClientDrawer'))browserDrafts.clearForm(id);
@@ -11906,10 +11930,10 @@
 
   $('#closeActiveClientDrawer')?.addEventListener('click', () => closeActiveClientActionsDrawer());
   $('#activeClientDrawerBackdrop').addEventListener('click', () => closeActiveClientActionsDrawer());
-  $('#activeClientDrawerBack').addEventListener('click', () => {
+  $('#activeClientDrawerBack').addEventListener('click', async () => {
     if (invoiceCheckBusy && activeClientDrawerView === 'invoice-check') { toast('Wait for the invoice to finish saving.'); return; }
     if (activeClientDrawerFormChanged(activeClientDrawerView)) {
-      if (!window.confirm('Discard unsaved changes and return to actions?')) return;
+      if (!(await appConfirm('Return to actions and discard your unsaved changes?', { title: 'Discard changes?', confirmLabel: 'Discard changes', danger: true }))) return;
       resetActiveClientDrawerForm(activeClientDrawerView);
       markActiveClientDrawerFormClean(activeClientDrawerView);
     }
@@ -15922,11 +15946,19 @@
     }
     function fields(form){return [...form.elements].filter(field=>['INPUT','SELECT','TEXTAREA'].includes(field.tagName) && !['password','file','submit','button'].includes(field.type) && !/password|token|secret|one.time/i.test(field.id+' '+field.name+' '+field.autocomplete));}
     function values(form){return fields(form).map((field,index)=>({id:field.id,index,type:field.type,name:field.name,value:field.type==='checkbox' || field.type==='radio'?field.checked:field.multiple?[...field.selectedOptions].map(option=>option.value):field.value}));}
-    function visible(form){return !form.closest('[hidden],.hidden') && Boolean(form.getClientRects().length);}
+    function visible(form){return !form.matches('.view-details-form') && !form.closest('[hidden],.hidden') && Boolean(form.getClientRects().length);}
     function context(form){
       const id=form.id,c={clientId:activeView==='hired'?hiredEditingId || '':''};
       if(id==='invoiceCheckForm')Object.assign(c,{clientId:invoiceCheckClientId,invoice:invoiceCheckDraft?copy(invoiceCheckDraft):null,logo:invoiceCheckLogo,paymentOptions:copy(invoicePaymentOptions),lines:invoiceCheckDraft?invoiceReadLines():[],pending:invoiceHourlyCalculationPending,billingChanged:invoiceHourlyBillingChanged});
-      else if(id==='emailComposeForm')Object.assign(c,{clientId:composeInvoiceDraft?.clientId || composeClientId || composeActivationClientId || composeDocumentUpdateClientId || c.clientId,drawer:activeClientDrawerOpen && activeClientDrawerView==='email',composeClientId,composeActivationClientId,composeDocumentUpdateClientId,composeContractEmailMode,composeRequiresConfirmation,invoice:composeInvoiceDraft?copy(composeInvoiceDraft):null,attachment:composeAttachment?copy(composeAttachment):null,file:rememberFile(composeAttachmentFile)});
+      else if(id==='emailComposeForm')Object.assign(c,{
+        clientId:composeInvoiceDraft?.clientId || composeClientId || composeActivationClientId || composeDocumentUpdateClientId || c.clientId,
+        drawer:activeClientDrawerOpen && activeClientDrawerView==='email',
+        sidePanel:$('#emailComposeModal').classList.contains('email-compose-side-panel'),
+        composeClientId,composeActivationClientId,composeDocumentUpdateClientId,composeContractEmailMode,composeRequiresConfirmation,
+        invoice:composeInvoiceDraft?copy(composeInvoiceDraft):null,
+        attachment:composeAttachment?copy(composeAttachment):null,
+        file:rememberFile(composeAttachmentFile)
+      });
       else if(id==='invoiceUploadForm')Object.assign(c,{clientId:pendingInvoiceClientId,drawer:activeClientDrawerOpen && activeClientDrawerView==='invoice-upload',file:rememberFile(pendingInvoiceFile)});
       else if(id==='clientForm')Object.assign(c,{recordId:editingId || '',drawer:activeClientDrawerOpen && activeClientDrawerView==='edit',socialLinks:readClientSocialLinks({includeEmpty:true})});
       else if(id==='clientTaskForm')Object.assign(c,{recordId:clientTaskEditingId,entries:copy(clientTaskDraftEntries),oneOff:clientTaskOneOffMode});
@@ -15939,6 +15971,7 @@
     function key(id,c){return JSON.stringify([id,c.clientId || '',c.recordId || c.invoice?.id || c.invoice?.sourceDraftId || 'new']);}
     function navigation(){return {view:activeView,clientId:activeView==='hired' && !showingHiredClientList?hiredEditingId:'',clientTab:$('#hiredDetailPanel [data-client-detail-tab].active')?.dataset.clientDetailTab || 'overview',dashboardTab:activeDashboardTab,previewId:$('#invoiceDraftPreviewModal')?.open?invoicePreviewSnapshot?.id || '':''};}
     function statusHost(form){
+      if (form.closest('#clientModal.application-detail-panel')) return form.querySelector(':scope > .modal-actions') || form;
       return form.querySelector(':scope > .invoice-check-footer') || form;
     }
     function status(form,message){
@@ -15953,12 +15986,23 @@
       }
       if(note.textContent!==message)note.textContent=message;
     }
+    function hasEmailDraftContent(snapshot,c){
+      return Boolean(c.invoice || c.attachment || c.file || snapshot?.some(field=>
+        ['composeSubject','composeBody','emailTemplateName'].includes(field.id) && String(field.value ?? '').trim()
+      ));
+    }
     function capture(){
       if(!ready() || restoring || initializedOwner!==owner() || typeof passwordRecoveryMode!=='undefined' && passwordRecoveryMode)return;
       const saved=read(),open=new Map();let active='';
       for(const id of allowed){const form=$('#'+id);if(!form || !visible(form))continue;
         const c=context(form),idKey=key(id,c),snapshot=values(form),fingerprint=JSON.stringify(snapshot);
         open.set(id,idKey);
+        if(id==='emailComposeForm' && !hasEmailDraftContent(snapshot,c)){
+          delete saved.forms[idKey];
+          if(saved.active===idKey)saved.active='';
+          statusHost(form).querySelector(':scope > .form-draft-status')?.remove();
+          continue;
+        }
         if(clean.get(idKey)===fingerprint || clean.get('form:'+id)===fingerprint)continue;
         const entry={form:id,context:c,values:snapshot,at:Date.now(),fileInputs:[...form.querySelectorAll('input[type="file"]')].filter(field=>field.id).map(field=>({id:field.id,files:[...(field.files || [])].map(rememberFile).filter(Boolean)})),details:[...form.querySelectorAll('details[id]')].map(item=>({id:item.id,open:item.open})),scroll:form.querySelector('.invoice-check-content')?.scrollTop || form.closest('.active-client-drawer-view')?.scrollTop || form.scrollTop || 0,focus:form.contains(document.activeElement)?document.activeElement.id:''};
         saved.forms[idKey]=entry;active=idKey;
@@ -15983,8 +16027,18 @@
       if(c.recordId && collections[id] && !(data[collections[id]] || []).some(item=>item.id===c.recordId))throw new Error('The record for this unfinished form is no longer available.');
       if(c.clientId && ['invoiceCheckForm','invoiceUploadForm','clientTaskForm'].includes(id))openClient(c.clientId);
       if(id==='invoiceCheckForm'){
-        if(c.invoice && !(data.invoices || []).some(item=>item.id===c.invoice.id && item.draftStatus!=='sent'))throw new Error('This invoice is no longer an editable draft.');
+        const latest = c.invoice && (data.invoices || []).find(item => item.id === c.invoice.id && item.invoiceDraft && item.clientId === c.clientId && item.draftStatus !== 'sent');
+        if (c.invoice && !latest) throw new Error('This invoice is no longer an editable draft.');
         openInvoiceCheck(c.clientId,c.invoice?.id || '');
+        if (latest && (latest.updatedAt !== c.invoice.updatedAt || latest.document?.invoiceNumber !== c.invoice.document?.invoiceNumber)) {
+          const saved = read();
+          const staleKey = key(id, c);
+          delete saved.forms[staleKey];
+          if (saved.active === staleKey) saved.active = '';
+          write(saved);
+          invoiceStatus(`Opened the latest saved draft (${latest.document.invoiceNumber}). The unfinished copy was based on an older version.`);
+          return false;
+        }
         // Finish private defaults before reapplying the user's unsaved fields.
         invoiceCheckSequence++;
         invoicePaymentOptions=window.JeffInvoiceEngine.settings({payment:{options:c.paymentOptions || []}}).payment.options;
@@ -15998,7 +16052,11 @@
         if(!file && c.invoice?.sourceDraftId){const draft=(data.invoices || []).find(item=>item.id===c.invoice.sourceDraftId && item.updatedAt===c.invoice.sourceDraftUpdatedAt && item.draftStatus!=='sent');if(draft){try{file=new File([window.JeffInvoicePdf.create(draft.document,window.jspdf?.jsPDF,invoiceEngine).output('arraybuffer')],c.invoice.fileName,{type:'application/pdf'});}catch{}}}
         composeClientId=c.composeClientId || null;composeActivationClientId=c.composeActivationClientId || null;composeDocumentUpdateClientId=c.composeDocumentUpdateClientId || null;composeContractEmailMode=Boolean(c.composeContractEmailMode);composeRequiresConfirmation=Boolean(c.composeRequiresConfirmation);composeInvoiceDraft=c.invoice || null;composeAttachment=c.attachment || null;composeAttachmentFile=file;
         if(c.drawer && c.clientId){openClient(c.clientId);if(!activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));showActiveClientDrawerView('email');}
-        else if(!$('#emailComposeModal').open)$('#emailComposeModal').showModal();
+        else{
+          const modal=$('#emailComposeModal');
+          modal.classList.toggle('email-compose-side-panel',c.sidePanel ?? activeView==='applications');
+          if(!modal.open)modal.showModal();
+        }
         updateComposeAttachmentDisplay();setEmailComposeStatus(!file && c.file?'Email text restored. Choose the attachment again before sending.':'Unfinished email restored. Review it before sending.');
       }else if(id==='invoiceUploadForm'){
         if(c.drawer && !activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));
@@ -16065,7 +16123,13 @@
           $$('[data-dashboard-panel]').forEach(panel=>{panel.hidden=panel.dataset.dashboardPanel!==activeDashboardTab;});renderDashboard();
         }
         if(view==='hired' && navigation.clientId && client(navigation.clientId)){openClient(navigation.clientId);selectClientDetailTab(navigation.clientTab || 'overview');}
-        const entry=saved.forms[saved.active];
+        let entry=saved.forms[saved.active];
+        if(entry?.form==='emailComposeForm' && !hasEmailDraftContent(entry.values,entry.context)){
+          delete saved.forms[saved.active];
+          saved.active='';
+          write(saved);
+          entry=null;
+        }
         if(entry && allowed.has(entry.form) && (!navigation.view || navigation.view===view)){
           if(await open(entry,user) && owner()===user){
             apply(entry);
