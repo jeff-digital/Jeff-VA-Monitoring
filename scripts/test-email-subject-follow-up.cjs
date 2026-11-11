@@ -43,6 +43,9 @@ vm.runInContext(matching.slice(matching.indexOf('  function confirmedApplication
 vm.runInContext(matching.slice(matching.indexOf('  function renderEmails('), matching.indexOf('  function hiredClients(')), context);
 const documents = read('03-documents.js');
 vm.runInContext(documents.slice(documents.indexOf('  async function processDueFollowUps('), documents.indexOf('  function markAlertsRead(')), context);
+const notifications = read('03b-notifications-and-reminders.js');
+vm.runInContext(notifications.slice(notifications.indexOf('  function notificationDeletionKey('), notifications.indexOf('  function limitAlertHistory(')), context);
+vm.runInContext(notifications.slice(notifications.indexOf('  function visibleNotificationAlerts('), notifications.indexOf('  function notificationCategory(')), context);
 
 const due = { id: 'app', location: 'Philippines', followUpDate: '2026-10-23', status: 'Applied', email: 'client@example.com', automaticFollowUp: true };
 assert.equal(context.applicationFollowUpState(due), 'due');
@@ -93,12 +96,39 @@ assert.equal(context.applicationFollowUpState(context.data.applications[1]), 'du
   assert.equal(sends, 0, 'Automatic follow-up must not resend a confirmed sent follow-up');
   context.data.applications = [{ ...due }];
   context.data.emails = [];
+  const modals = [];
+  context.showActionResult = result => modals.push(result);
   context.sendGmailRaw = async () => { throw new Error('Network failed'); };
   await context.processDueFollowUps();
   const item = context.data.applications[0];
   assert.equal(context.applicationFollowUpState(item), 'due', 'Failed Gmail send retains due highlight');
   assert.equal(context.data.alerts.find(alert => alert.id === 'follow-up|app|2026-10-23').deliveryStatus, 'retry', 'A pre-send failure automatically retries rather than requiring approval');
   assert.match(context.data.alerts.find(alert => alert.id === 'follow-up|app|2026-10-23').deliveryReason, /Network failed/);
+  assert.equal(modals.length, 0, 'An automatic retry error belongs in Notifications, without a modal');
+  item.followUpDate = '2026-10-26';
+  item.followUpProcessedAt = '';
+  assert.equal(context.visibleNotificationAlerts().length, 0, 'A rescheduled reminder hides the old retry alert');
+  await context.processDueFollowUps();
+  assert.equal(modals.length, 0);
+
+  item.followUpDate = due.followUpDate;
+  context.data.alerts = [];
+  context.sendGmailRaw = async () => {
+    item.followUpDate = '2026-10-26';
+    throw new Error('Old send attempt finished after rescheduling');
+  };
+  await context.processDueFollowUps();
+  assert.equal(item.followUpProcessedAt, '', 'An old failure cannot mark the new schedule processed');
+  assert.equal(context.data.alerts.length, 0, 'An old failure cannot recreate the obsolete alert');
+  assert.equal(modals.length, 0);
+
+  item.followUpDate = due.followUpDate;
+  context.data.clearedNotificationKeys = ['follow-up|app|2026-10-23'];
+  context.sendGmailRaw = async () => { throw new Error('Still offline'); };
+  await context.processDueFollowUps();
+  assert.equal(context.data.alerts.length, 0, 'A cleared retry alert stays cleared');
+  assert.equal(modals.length, 0);
+  context.data.clearedNotificationKeys = [];
   context.sendGmailRaw = async () => {};
   await context.processDueFollowUps();
   assert.equal(item.followUpDate, '', 'Existing successful-send cleanup is preserved');

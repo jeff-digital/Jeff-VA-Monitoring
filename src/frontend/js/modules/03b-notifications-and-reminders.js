@@ -202,7 +202,13 @@
 
   function visibleNotificationAlerts() {
     const now = Date.now();
-    return (data.alerts || []).filter(alert => !isNotificationCleared(alert) && !alert.dismissedAt && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
+    const activeFollowUps = new Map((data.applications || [])
+      .filter(item => item.followUpDate && !['Active client', 'Not selected'].includes(item.status))
+      .map(item => [`follow-up|${item.id}|${item.followUpDate}`, item]));
+    return (data.alerts || []).filter(alert => !isNotificationCleared(alert) && !alert.dismissedAt
+      && (!alert.id?.startsWith('follow-up|') || alert.deliveryStatus === 'sent' || (activeFollowUps.has(alert.id)
+        && (!alert.deliveryStatus || alert.deliveryStatus === 'due' || activeFollowUps.get(alert.id).automaticFollowUp)))
+      && (!alert.snoozedUntil || new Date(alert.snoozedUntil).getTime() <= now));
   }
 
   function notificationCategory(alert) {
@@ -739,7 +745,7 @@
   async function runDueFollowUps() {
     const userId = currentUser?.id;
     if (reconcileSentFollowUpAlerts()) {
-      await persist();
+      await persist({ notifyOnError: false });
       if (currentUser?.id !== userId) return;
       if (activeView === 'applications') renderApplications();
       if (activeView === 'dashboard') renderDashboard();
@@ -748,11 +754,8 @@
     const due = data.applications.filter(item => item.followUpDate && isFollowUpSendTime(item, item.followUpDate) && item.status !== 'Active client' && item.status !== 'Not selected' && applicationFollowUpState(item) !== 'sent' && (!item.followUpProcessedAt || (item.automaticFollowUp && applicationFollowUpState(item) !== 'sent' && followUpGmailAvailable())));
     if (!due.length) return;
     data.alerts = data.alerts || [];
-    let followUpAlertsAdded = 0;
     let automaticEmailsSent = 0;
-    let automaticEmailsFailed = 0;
     let followUpsNeedingReview = 0;
-    let lastFailure = '';
     for (const candidate of due) {
       if (currentUser?.id !== userId) return;
       let item = data.applications.find(app => app.id === candidate.id);
@@ -769,7 +772,10 @@
       let delivery = null;
       if (item.automaticFollowUp && followUpGmailAvailable() && isEmailAddress(item.email)) {
         try {
-          if ((await persist()) === false) throw new Error('Waiting for the follow-up schedule to save to your account. The app will retry automatically.');
+          if ((await persist({ notifyOnError: false })) === false) throw new Error('Waiting for the follow-up schedule to save to your account. The app will retry automatically.');
+          if (currentUser?.id !== userId) return;
+          item = data.applications.find(app => app.id === candidate.id);
+          if (!item?.automaticFollowUp || item.followUpDate !== scheduledFollowUpDate || ['Active client', 'Not selected'].includes(item.status)) continue;
           delivery = await sendAutomaticFollowUpOnce(item, scheduledFollowUpDate, subject, body);
           sent = true;
           automaticEmailsSent += 1;
@@ -778,8 +784,6 @@
           deliveryState = error.followUpDeliveryState || 'retry';
           deliveryReason = error.message || 'The app will retry automatically.';
           console.error('Automatic follow-up failed:', error);
-          automaticEmailsFailed += 1;
-          lastFailure = error.message || 'Follow-up delivery could not be confirmed.';
         }
       }
       if (currentUser?.id !== userId) return;
@@ -787,12 +791,12 @@
       // Write the receipt to the current record, never an abandoned object.
       item = data.applications.find(app => app.id === candidate.id);
       if (!item) continue;
-      item.followUpProcessedAt = new Date().toISOString();
-      if (sent) {
+      const sameSchedule = item.followUpDate === scheduledFollowUpDate;
+      if (!sent && (!sameSchedule || ['Active client', 'Not selected'].includes(item.status) || (deliveryFailed && !item.automaticFollowUp))) continue;
+      if (sameSchedule && !item.followUpProcessedAt) item.followUpProcessedAt = new Date().toISOString();
+      if (sent && sameSchedule) {
         item.followUpSentAt = delivery.sentAt;
         item.followUpGmailId = delivery.gmailId || '';
-      }
-      if (sent && item.followUpDate === scheduledFollowUpDate) {
         item.followUpDate = '';
         item.automaticFollowUp = false;
         if (editingId === item.id) {
@@ -812,40 +816,34 @@
         date: new Date().toISOString(),
         unread: true
       };
-      if (existingAlert) {
-        if (existingAlert.deliveryStatus !== 'sent') {
-          const statusChanged = existingAlert.subject !== followUpAlert.subject;
-          Object.assign(existingAlert, followUpAlert, { unread: statusChanged || existingAlert.unread });
-        }
-      }
-      else {
+      if (existingAlert && existingAlert.deliveryStatus !== 'sent'
+        && (existingAlert.deliveryStatus !== followUpAlert.deliveryStatus || existingAlert.deliveryReason !== followUpAlert.deliveryReason)) {
+        Object.assign(existingAlert, followUpAlert);
+      } else if (!existingAlert && !isNotificationCleared(followUpAlert)) {
         data.alerts.unshift(followUpAlert);
-        followUpAlertsAdded += 1;
+        if (!sent && !deliveryFailed) followUpsNeedingReview += 1;
       }
       if (sent) {
         if (!delivery.gmailId || !data.emails.some(email => email.gmailId === delivery.gmailId)) {
           data.emails.unshift({ id: delivery.gmailId ? `gmail-${delivery.gmailId}` : uid(), gmailId: delivery.gmailId || '', applicationId: item.id, emailType: 'follow-up', from: 'You', to: item.email, subject, body, date: delivery.sentAt, importedAt: new Date().toISOString(), source: delivery.gmailId ? 'gmail' : 'sent', direction: 'sent' });
         }
-        await persist();
-      } else if (!item.automaticFollowUp || !followUpGmailAvailable() || !isEmailAddress(item.email)) {
-        followUpsNeedingReview += 1;
+        await persist({ notifyOnError: false });
       }
     }
     limitAlertHistory();
-    persist();
+    persist({ notifyOnError: false });
     if (automaticEmailsSent && activeView === 'applications') renderApplications();
     if (automaticEmailsSent && activeView === 'dashboard') renderDashboard();
     renderAlerts();
-    if (followUpAlertsAdded || automaticEmailsSent) {
+    if (followUpsNeedingReview || automaticEmailsSent) {
       const summary = [
         automaticEmailsSent ? `${plural(automaticEmailsSent, 'automatic follow-up email')} sent` : '',
-          automaticEmailsFailed ? `${plural(automaticEmailsFailed, 'automatic follow-up email')} need review. ${lastFailure}` : '',
         followUpsNeedingReview ? `${plural(followUpsNeedingReview, 'follow-up')} need your attention in Applications` : ''
       ].filter(Boolean).join('. ');
       showActionResult({
-        title: automaticEmailsFailed ? 'Follow-ups need attention' : automaticEmailsSent ? 'Automatic follow-ups sent' : 'Follow-ups due',
+        title: automaticEmailsSent ? 'Automatic follow-ups sent' : 'Follow-ups due',
         message: summary,
-        status: automaticEmailsFailed ? 'error' : automaticEmailsSent ? 'success' : 'info',
+        status: automaticEmailsSent ? 'success' : 'info',
         label: 'FOLLOW-UP STATUS',
         actionLabel: 'Open applications',
         onAction: () => showView('applications')

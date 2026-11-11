@@ -659,7 +659,7 @@
     }
   }
 
-  function persist() {
+  function persist({ notifyOnError = true } = {}) {
     if (!currentUser || !supabaseClient || !dataReady || !supabaseDataLoaded) {
       console.warn('Skipped cloud save because the workspace is not ready.');
       if (currentUser) updateSaveIndicator('error');
@@ -687,7 +687,7 @@
         if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 350 * (attempt + 1)));
       }
       console.error('Workspace save failed:', lastError);
-      showActionResult({ title: 'Cloud save failed', message: lastError?.message || 'Your change could not be saved. Check your connection and try again.', status: 'error' });
+      if (notifyOnError) showActionResult({ title: 'Cloud save failed', message: lastError?.message || 'Your change could not be saved. Check your connection and try again.', status: 'error' });
       throw lastError || new Error('Cloud save failed.');
     });
     const result = write.then(() => true).catch(() => false).finally(() => {
