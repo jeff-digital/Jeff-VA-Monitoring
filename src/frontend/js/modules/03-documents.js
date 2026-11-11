@@ -214,7 +214,7 @@
   function renderInvoiceList() {
     const target = $('#invoiceList');
     if (!target) return;
-    const invoices = (data.invoices || []).filter(invoice => !invoice.invoiceDraft).sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => !invoice.invoiceDraft && !invoice.deletedAt).sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
     target.innerHTML = invoices.length ? invoices.map(invoice => {
       const client = data.applications.find(application => application.id === invoice.clientId);
       const dueDate = parseInvoiceDate(invoice.dueDate);

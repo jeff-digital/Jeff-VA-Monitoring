@@ -51,7 +51,21 @@
     }
     function key(id,c){return JSON.stringify([id,c.clientId || '',c.recordId || c.invoice?.id || c.invoice?.sourceDraftId || 'new']);}
     function navigation(){return {view:activeView,clientId:activeView==='hired' && !showingHiredClientList?hiredEditingId:'',clientTab:$('#hiredDetailPanel [data-client-detail-tab].active')?.dataset.clientDetailTab || 'overview',dashboardTab:activeDashboardTab,previewId:$('#invoiceDraftPreviewModal')?.open?invoicePreviewSnapshot?.id || '':''};}
-    function status(form,message){let note=form.querySelector(':scope > .form-draft-status');if(!note){note=document.createElement('p');note.className='form-draft-status';note.setAttribute('role','status');form.append(note);}if(note.textContent!==message)note.textContent=message;}
+    function statusHost(form){
+      return form.querySelector(':scope > .invoice-check-footer') || form;
+    }
+    function status(form,message){
+      const host=statusHost(form);
+      let note=host.querySelector(':scope > .form-draft-status');
+      if(!note){
+        note=document.createElement('p');
+        note.className='form-draft-status';
+        note.setAttribute('role','status');
+        if(host===form)form.append(note);
+        else host.prepend(note);
+      }
+      if(note.textContent!==message)note.textContent=message;
+    }
     function capture(){
       if(!ready() || restoring || initializedOwner!==owner() || typeof passwordRecoveryMode!=='undefined' && passwordRecoveryMode)return;
       const saved=read(),open=new Map();let active='';
@@ -62,7 +76,7 @@
         const entry={form:id,context:c,values:snapshot,at:Date.now(),fileInputs:[...form.querySelectorAll('input[type="file"]')].filter(field=>field.id).map(field=>({id:field.id,files:[...(field.files || [])].map(rememberFile).filter(Boolean)})),details:[...form.querySelectorAll('details[id]')].map(item=>({id:item.id,open:item.open})),scroll:form.querySelector('.invoice-check-content')?.scrollTop || form.closest('.active-client-drawer-view')?.scrollTop || form.scrollTop || 0,focus:form.contains(document.activeElement)?document.activeElement.id:''};
         saved.forms[idKey]=entry;active=idKey;
         if(form.contains(document.activeElement))saved.active=idKey;
-        status(form,'Unfinished form saved in this browser tab.');
+        status(form,'Saved in this tab.');
       }
       for(const [id,oldKey] of lastVisible)if(!open.has(id) && !leaving){delete saved.forms[oldKey];if(saved.active===oldKey)saved.active='';}
       lastVisible=open;
@@ -73,7 +87,7 @@
     function schedule(){if(restoring || leaving)return;clearTimeout(timer);timer=setTimeout(capture,180);}
     function clearForm(id){if(!ready() || restoring)return;const form=$('#'+id);if(!form)return;const c=context(form),idKey=key(id,c),saved=read();
       for(const [entryKey,entry] of Object.entries(saved.forms))if(entryKey===idKey || id==='invoiceCheckForm' && entry.form===id && entry.context.clientId===c.clientId){delete saved.forms[entryKey];if(saved.active===entryKey)saved.active='';}
-      const fingerprint=JSON.stringify(values(form));clean.set(idKey,fingerprint);clean.set('form:'+id,fingerprint);write(saved);form.querySelector(':scope > .form-draft-status')?.remove();}
+      const fingerprint=JSON.stringify(values(form));clean.set(idKey,fingerprint);clean.set('form:'+id,fingerprint);write(saved);statusHost(form).querySelector(':scope > .form-draft-status')?.remove();}
     function client(id){return (data.applications || []).find(item=>item.id===id);}
     function openClient(id){const record=client(id);if(!record)throw new Error('The client for this draft is no longer available.');if(activeView!=='hired')showView('hired');renderHiredDetail(record,false);hiredEditingId=id;}
     async function open(entry,user){
@@ -128,7 +142,7 @@
         else field.value=String(item.value ?? '');
       }
       for(const item of entry.details || []){const element=[...form.querySelectorAll('details[id]')].find(element=>element.id===item.id);if(element)element.open=item.open;}
-      if(entry.form==='invoiceCheckForm'){invoiceCheckLogo=$('#invoiceCheckLogoData').value || entry.context.logo || '';renderInvoiceLogo();updateInvoiceBasis();updateInvoiceEditTotal();invoiceStatus('Unfinished invoice restored. Review and save when ready.');}
+      if(entry.form==='invoiceCheckForm'){invoiceCheckLogo=$('#invoiceCheckLogoData').value || entry.context.logo || '';renderInvoiceLogo();updateInvoiceBasis();updateInvoiceEditTotal();invoiceStatus('Draft restored.');}
       if(entry.form==='clientTaskForm'){updateClientTaskRepeatFields();updateClientTaskSchedule();}
       if(entry.form==='dailyTaskForm'){dailyTaskRelatedOptions();$('#dailyTaskDestinationField').classList.toggle('hidden',$('#dailyTaskType').value!=='apply');}
       if(entry.form==='clientForm'){
@@ -139,7 +153,7 @@
         updateSalaryFields();updateClientActionLabel();
       }
       if(entry.form==='walletEntryForm')syncWalletPayeeField();
-      status(form,'Unfinished form restored. Changes are not submitted automatically.');
+      status(form,entry.form==='invoiceCheckForm'?'Saved in this tab.':'Unfinished form restored. Changes are not submitted automatically.');
       requestAnimationFrame(()=>{const area=form.querySelector('.invoice-check-content') || form.closest('.active-client-drawer-view') || form;area.scrollTop=entry.scroll || 0;const focus=fields(form).find(field=>field.id===entry.focus);if(focus && focus.getClientRects().length)focus.focus({preventScroll:true});});
     }
     async function restoreFileInputs(entry,user){
@@ -178,7 +192,7 @@
       if(owner()===user)schedule();return restored;
     }
     function signOut(){capture();restoreGeneration++;initializedOwner='';restoring=true;
-      for(const id of allowed){const form=$('#'+id);if(!form)continue;const dialog=form.closest('dialog');if(dialog?.open)dialog.close();form.reset();form.querySelector(':scope > .form-draft-status')?.remove();}
+      for(const id of allowed){const form=$('#'+id);if(!form)continue;const dialog=form.closest('dialog');if(dialog?.open)dialog.close();form.reset();statusHost(form).querySelector(':scope > .form-draft-status')?.remove();}
       if(activeClientDrawerOpen)void closeActiveClientActionsDrawer(true);lastVisible=new Map();clean.clear();restoring=false;
     }
     function edited(form){clean.delete('form:'+form.id);clean.delete(key(form.id,context(form)));}

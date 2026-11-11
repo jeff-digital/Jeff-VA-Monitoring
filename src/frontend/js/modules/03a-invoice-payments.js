@@ -22,6 +22,7 @@
   }
 
   function invoicePaymentStatus(invoice) {
+    if (invoice.deletedAt) return 'Deleted';
     if (invoice.invoiceDraft) return 'Draft';
     if (invoice.paidAt) return 'Paid';
     const dueDate = parseInvoiceDate(invoice.dueDate);
@@ -34,7 +35,7 @@
   }
 
   function invoicePaymentSummary(invoices) {
-    invoices = invoices.filter(invoice => !invoice.invoiceDraft);
+    invoices = invoices.filter(invoice => !invoice.invoiceDraft && !invoice.deletedAt);
     const totals = { invoiced: new Map(), received: new Map(), unpaid: new Map() };
     let paidCount = 0;
     invoices.forEach(invoice => {
@@ -52,7 +53,7 @@
     const formatTotals = map => [...map].map(([currency, amount]) => `${invoiceAmount(amount)} ${escapeHtml(currency)}`).join(' · ');
     return `
       <div class="client-invoice-payment-summary" aria-label="Invoice payment summary">
-        <div><strong>Billed</strong><span>${formatTotals(totals.invoiced) || '—'}</span><small>${invoices.length} ${plural(invoices.length, 'invoice')}</small></div>
+        <div><strong>Billed</strong><span>${formatTotals(totals.invoiced) || '—'}</span><small>${plural(invoices.length, 'invoice')}</small></div>
         <div><strong>Received</strong><span>${formatTotals(totals.received) || '—'}</span><small>${paidCount} paid</small></div>
         <div><strong>Outstanding</strong><span>${formatTotals(totals.unpaid) || '—'}</span><small>${invoices.length - paidCount} unpaid${invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Overdue').length ? ` · <span class="client-invoice-overdue-copy">${invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Overdue').length} overdue</span>` : ''}</small></div>
         ${invoices.some(invoice => invoice.amountInvoiced === '' || invoice.amountInvoiced == null) ? '<small class="client-invoice-payment-hint">Some invoices have no amount</small>' : ''}
@@ -71,7 +72,7 @@
 
   function openInvoicePayment(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice || invoice.invoiceDraft) return;
+    if (!invoice || invoice.invoiceDraft || invoice.deletedAt) return;
     const client = data.applications.find(item => item.id === invoice.clientId);
     const salaryAmount = Number(client?.salaryAmount);
     const amountPrefill = Number.isFinite(salaryAmount) && salaryAmount >= 0 && client?.salaryAmount !== '' ? String(salaryAmount) : '';
@@ -102,7 +103,7 @@
 
   async function markInvoiceUnpaid(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice || invoice.invoiceDraft) return;
+    if (!invoice || invoice.invoiceDraft || invoice.deletedAt) return;
     if (!(await appConfirm(`Mark invoice ${invoice.invoiceNumber || ''} as unpaid? Its payment details will be cleared.`, {
       title: 'Mark invoice as unpaid',
       confirmLabel: 'Mark as unpaid',
@@ -123,7 +124,7 @@
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
     const invoice = (data.invoices || []).find(item => item.id === form.dataset.invoiceId);
-    if (!invoice) {
+    if (!invoice || invoice.deletedAt) {
       $('#invoicePaymentModal').close();
       showActionResult({ title: 'Invoice not found', message: 'The invoice could not be found. Refresh the client details and try again.', status: 'error' });
       return;

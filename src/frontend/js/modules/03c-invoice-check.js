@@ -12,6 +12,29 @@
   const invoiceField = name => $(`#invoiceCheck${name}`);
   const invoiceClient = () => (data.applications || []).find(item => item.id === invoiceCheckClientId);
   const invoiceCopy = value => JSON.parse(JSON.stringify(value));
+  function selectInvoiceSection(section, focus=false) {
+    const editAvailable=!$('#invoiceCheckEditFields').hidden;
+    if(section==='edit' && !editAvailable)section='billing';
+    document.querySelectorAll('[data-invoice-tab]').forEach(button=>{
+      const active=button.dataset.invoiceTab===section;
+      button.hidden=button.dataset.invoiceTab==='edit' && !editAvailable;
+      button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
+      if(active && focus)button.focus();
+    });
+    document.querySelectorAll('[data-invoice-panel]').forEach(panel=>{panel.hidden=panel.dataset.invoicePanel!==section;});
+    $('#invoiceCheckForm .invoice-check-content').scrollTop=0;
+    if(section==='payment')$('#invoiceCheckPaymentDetails').scrollTop=0;
+  }
+  document.querySelectorAll('[data-invoice-tab]').forEach(button=>{
+    button.addEventListener('click',()=>selectInvoiceSection(button.dataset.invoiceTab));
+    button.addEventListener('keydown',event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+      event.preventDefault();
+      const buttons=Array.from(document.querySelectorAll('[data-invoice-tab]')).filter(item=>!item.hidden);
+      const index=buttons.indexOf(button),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;
+      selectInvoiceSection(buttons[next].dataset.invoiceTab,true);
+    });
+  });
   function openClientInvoiceHub(clientId) {
     const client=(data.applications || []).find(item=>item.id===clientId);if(!client)return;
     if(invoiceCheckBusy){toast('Wait for the invoice to finish saving.');return;}
@@ -23,7 +46,7 @@
     hiredEditingId=clientId;
     if(!activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));
     $('#generateClientInvoice').disabled=isContractEnded(client);
-    $('#invoiceHubStatus').textContent=isContractEnded(client)?'This contract has ended. You can review existing drafts or upload a final invoice.':'Nothing sends automatically. Both options open an email for your review.';
+    $('#invoiceHubStatus').textContent=isContractEnded(client)?'Contract ended. Review drafts or upload a final invoice.':'';
     $('#invoiceHubDrafts').innerHTML=invoiceDraftRows(clientId);
     showActiveClientDrawerView('invoice-home');
     $('#activeClientDrawerInvoiceHome').scrollTop=0;
@@ -159,17 +182,11 @@
   function clientInvoiceDrafts(clientId) {
     return (data.invoices || []).filter(item=>item.invoiceDraft && item.draftStatus!=='sent' && item.clientId===clientId).sort((a,b)=>String(b.document?.periodStart || '').localeCompare(String(a.document?.periodStart || '')));
   }
-  function invoiceDraftRows(clientId) {
-    const rows=clientInvoiceDrafts(clientId);
+  function invoiceDraftRows(clientId, rows=clientInvoiceDrafts(clientId)) {
     return rows.length?rows.map(draft=>{
       let amount='Needs review';try{amount=invoiceEngine.money(invoiceEngine.calculate(draft.document).totalCents,draft.document.currency);}catch{}
       return `<article class="invoice-ready-row"><div><strong>${escapeHtml(draft.document?.invoiceNumber || 'Invoice draft')}</strong><span>${escapeHtml(invoiceEngine.formatDate(draft.document?.periodStart))} – ${escapeHtml(invoiceEngine.formatDate(draft.document?.periodEnd))}</span><small>${escapeHtml(amount)} · Not sent</small></div><div><button type="button" class="button button-secondary" data-invoice-draft-edit="${escapeHtml(draft.id)}">Edit</button><button type="button" class="button button-primary" data-invoice-draft-preview="${escapeHtml(draft.id)}">Preview</button></div></article>`;
-    }).join(''):'<p class="settings-copy">No generated drafts yet. Choose a billing week and generate your first preview.</p>';
-  }
-  function renderInvoiceDraftQueue(client) {
-    if(!invoiceEngine) return '';
-    const count=clientInvoiceDrafts(client.id).length;
-    return `<section class="invoice-check-queue"><div class="invoice-check-queue-heading"><div><p class="eyebrow">PREVIEW QUEUE</p><h4>Weekly invoice drafts${count?` · ${count}`:''}</h4><p>Editable invoices prepared for review. None are sent automatically.</p></div><button type="button" class="button button-secondary" data-invoice-check-client="${escapeHtml(client.id)}"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Invoice</button></div>${invoiceDraftRows(client.id)}</section>`;
+    }).join(''):'<p class="settings-copy">No saved drafts.</p>';
   }
   async function refreshInvoiceAutomaticStatus(sequence,{fillProfile=true}={}) {
     invoiceAutomaticReady=false;
@@ -197,14 +214,13 @@
           }
           if(!invoiceCheckLogo && invoiceField('LogoData').value===initialProfileFields.LogoData){invoiceCheckLogo=invoiceProfile.issuer.logo;renderInvoiceLogo();}
           $('#invoiceCheckPayment').open=false;
-          if(!$('#invoiceCheckStatus').textContent)invoiceStatus('Your saved payment options and logo are ready. Review the billing week and amount.');
         }
         invoiceAutomaticReady=result.automaticReady===true && result.draftOnly===true;break;
       }
     } catch { /* Manual generation remains available on an older/local server. */ }
     if(sequence!==invoiceCheckSequence || currentUser?.id!==owner) return;
     invoiceField('Automatic').disabled=!invoiceAutomaticReady || Boolean(invoiceCheckDraft);
-    $('#invoiceCheckAutomationStatus').textContent=invoiceAutomaticReady?'Weekly draft preparation is available. Enable it and save your setup to start.':'Manual generation is available. Closed-app weekly preparation requires deployment of the updated Cloudflare Worker and its cron trigger.';
+    $('#invoiceCheckAutomationStatus').textContent=invoiceAutomaticReady?'Available':'Weekly preparation unavailable.';
   }
   function openInvoiceCheck(clientId, draftId='') {
     const client=(data.applications || []).find(item=>item.id===clientId);
@@ -237,6 +253,7 @@
     invoiceStatus(isContractEnded(client)?'Existing drafts can be edited. New invoices cannot be generated for an ended contract.':'');
     $('#generateInvoiceDraft').disabled=isContractEnded(client) && !invoiceCheckDraft;
     $('#invoiceCheckSavedDrafts').innerHTML=invoiceDraftRows(clientId);updateInvoiceBasis();
+    selectInvoiceSection(invoiceCheckDraft?'edit':'billing');
     showActiveClientDrawerView('invoice-check');
     $('#invoiceCheckForm .invoice-check-content').scrollTop=0;
     markActiveClientDrawerFormClean('invoice-check');
@@ -279,6 +296,58 @@
     if(currentUser?.id===owner)for(const change of changes){const index=data[change.key].findIndex(item=>item.id===change.value.id);if(index>=0 && JSON.stringify(data[change.key][index])===change.serialized){if(change.previous)data[change.key][index]=change.previous;else data[change.key].splice(index,1);}}
     throw new Error('The invoice was not saved. Reconnect or refresh before trying again.');
   }
+
+  async function deleteSentInvoice(invoiceId) {
+    const owner = currentUser?.id;
+    const invoice = data.invoices.find(item => item.id === invoiceId && !item.invoiceDraft && !item.deletedAt);
+    if (!invoice) return;
+    const original = JSON.stringify(invoice);
+    const number = invoice.invoiceNumber || 'this invoice';
+    const paymentNotice = invoice.paidAt ? ' Its recorded payment will also be removed from your totals.' : '';
+    const confirmed = await appConfirm(`Delete ${number} from your workspace? The original email will remain in the recipient’s inbox.${paymentNotice}`, {
+      title: 'Delete sent invoice', confirmLabel: 'Delete invoice', danger: true
+    });
+    if (!confirmed || currentUser?.id !== owner) return;
+    const current = data.invoices.find(item => item.id === invoiceId);
+    if (JSON.stringify(current) !== original) {
+      toast('This invoice changed. Review it before deleting.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const changes = [{ key: 'invoices', value: { ...current, deletedAt: now } }];
+    const source = data.invoices.find(item => item.invoiceDraft && item.draftStatus === 'sent'
+      && item.clientId === current.clientId
+      && (item.sentInvoiceId ? item.sentInvoiceId === current.id : item.id === current.sourceDraftId));
+    let correction;
+    try {
+      if (source?.document && invoiceEngine) {
+        const { sentAt, sentInvoiceId, ...draft } = source;
+        const year = (parseInvoiceDate(draft.document.issueDate) || today()).slice(0, 4);
+        const invoiceNumber = invoiceEngine.nextInvoiceNumber(data.invoices, year);
+        correction = { ...draft, draftStatus: 'ready', updatedAt: now, document: { ...draft.document, invoiceNumber } };
+        changes.push({ key: 'invoices', value: correction });
+      }
+      await commitInvoiceRecords(changes);
+    } catch (error) {
+      if (currentUser?.id === owner) toast(error.message || 'The invoice could not be deleted.');
+      return;
+    }
+
+    renderAlerts();
+    const client = data.applications.find(item => item.id === current.clientId);
+    if (client && activeView === 'hired' && hiredEditingId === client.id && !showingHiredClientList) {
+      renderHiredDetail(client, false);
+      if (correction) selectClientInvoiceList('drafts');
+    }
+    showActionResult({
+      title: 'Invoice deleted',
+      message: correction
+        ? `Draft ${correction.document.invoiceNumber} is ready to edit and send from the Drafts tab.`
+        : 'Use the client’s invoice actions to generate or upload the corrected invoice with a new number.'
+    });
+  }
+
   async function invoiceCheckOperation(work) {
     if(invoiceCheckBusy) return;
     invoiceCheckBusy=true;const owner=currentUser?.id, clientId=invoiceCheckClientId;
@@ -292,7 +361,7 @@
     if(isContractEnded(client) && config.schedule.enabled) throw new Error('Disable weekly preparation for an ended contract.');
     await commitInvoiceRecords([{key:'applications',value:{...client,invoiceSettings:config}}]);
     if(typeof browserDrafts!=='undefined')browserDrafts.clearForm('invoiceCheckForm');
-    markActiveClientDrawerFormClean('invoice-check');invoiceStatus('Setup saved. Your business, payment details and billing basis will be reused.');
+    markActiveClientDrawerFormClean('invoice-check');invoiceStatus('Setup saved.');
   }));
   $('#invoiceCheckForm').addEventListener('submit',event=>{
     event.preventDefault();
@@ -302,7 +371,7 @@
         const current=(data.invoices || []).find(item=>item.id===invoiceCheckDraft.id);
         if(!current || current.updatedAt!==invoiceCheckDraft.updatedAt)throw new Error('This invoice changed on another device. Reopen it before saving.');
         draft={...current,document:invoiceReadDocument(),updatedAt:new Date().toISOString()};
-        const duplicate=(data.invoices || []).some(item=>item.id!==draft.id && item.sourceDraftId!==draft.id && (item.invoiceNumber || item.document?.invoiceNumber)===draft.document.invoiceNumber);
+        const duplicate=(data.invoices || []).some(item=>item.id!==draft.id && (item.deletedAt || item.sourceDraftId!==draft.id) && (item.invoiceNumber || item.document?.invoiceNumber)===draft.document.invoiceNumber);
         if(duplicate)throw new Error('Another invoice already uses that invoice number.');
         const changes=[{key:'invoices',value:draft}];
         if(invoiceHourlyBillingChanged && draft.document.basis==='agreed'){
@@ -335,7 +404,7 @@
           }else{invoiceStatus('This week already has an invoice. Existing edits were preserved.');openInvoiceDraftPreview(existing.id);}
           return;
         }
-        if((data.invoices || []).some(item=>!item.invoiceDraft && item.clientId===clientId && item.startDate===start && item.endDate===invoiceEngine.addDays(start,6)))throw new Error('A sent invoice already exists for this billing week. Review invoice history before preparing another.');
+        if((data.invoices || []).some(item=>!item.invoiceDraft && !item.deletedAt && item.clientId===clientId && item.startDate===start && item.endDate===invoiceEngine.addDays(start,6)))throw new Error('A sent invoice already exists for this billing week. Review invoice history before preparing another.');
         draft=await invoiceEngine.generate(client,data.clientTasks || [],config,start,new Date().toISOString(),data.invoices || []);
         if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)throw new Error('The account or client changed. Reopen Invoice check.');
         if(invoiceClient()!==client || (data.invoices || []).some(item=>item.id===id))throw new Error('The client or invoice changed while preparing this draft. Reopen Invoice check before continuing.');
@@ -351,6 +420,7 @@
       openInvoiceDraftPreview(draft.id);
     });
   });
+  $('#invoiceCheckChooseLogo').addEventListener('click',()=>$('#invoiceCheckLogo').click());
   $('#invoiceCheckLogo').addEventListener('change',async event=>{
     const file=event.target.files?.[0],sequence=invoiceCheckSequence;if(!file)return;
     invoiceLogoSequence++;
@@ -361,7 +431,7 @@
       const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
       const scale=Math.min(256/bitmap.width,256/bitmap.height);const context=canvas.getContext('2d');context.drawImage(bitmap,(256-bitmap.width*scale)/2,(256-bitmap.height*scale)/2,bitmap.width*scale,bitmap.height*scale);bitmap.close();
       const logo=canvas.toDataURL('image/png');if(logo.length>180000)throw new Error('Choose a simpler or smaller logo image.');
-      if(sequence!==invoiceCheckSequence)return;invoiceCheckLogo=logo;renderInvoiceLogo();invoiceStatus('Logo loaded. Save the setup or invoice to keep it.');
+      if(sequence!==invoiceCheckSequence)return;invoiceCheckLogo=logo;renderInvoiceLogo();invoiceStatus('Logo loaded.');
     }catch(error){invoiceStatus(error.message,true);}finally{event.target.value='';}
   });
   $('#invoiceCheckRemoveLogo').addEventListener('click',()=>{invoiceLogoSequence++;invoiceCheckLogo='';renderInvoiceLogo();});
@@ -449,8 +519,7 @@
   }
   $('#emailInvoiceDraft').addEventListener('click',prepareInvoiceDraftEmail);
   document.addEventListener('click',event=>{
-    const open=event.target.closest('[data-invoice-check-client]'),preview=event.target.closest('[data-invoice-draft-preview]'),edit=event.target.closest('[data-invoice-draft-edit]');
-      if(open)openClientInvoiceHub(open.dataset.invoiceCheckClient);
-    else if(preview)openInvoiceDraftPreview(preview.dataset.invoiceDraftPreview);
+    const preview=event.target.closest('[data-invoice-draft-preview]'),edit=event.target.closest('[data-invoice-draft-edit]');
+    if(preview)openInvoiceDraftPreview(preview.dataset.invoiceDraftPreview);
     else if(edit){const draft=(data.invoices || []).find(item=>item.id===edit.dataset.invoiceDraftEdit);if(draft)openInvoiceCheck(draft.clientId,draft.id);}
   });

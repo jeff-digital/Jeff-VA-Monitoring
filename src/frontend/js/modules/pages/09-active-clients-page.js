@@ -267,6 +267,11 @@
   }, true);
 
   document.addEventListener('click', async event => {
+    const invoiceList = event.target.closest('#clientInvoiceWorkspace [data-client-invoice-list]');
+    if (invoiceList) {
+      selectClientInvoiceList(invoiceList.dataset.clientInvoiceList);
+      return;
+    }
     const clientDetailTab = event.target.closest('#hiredDetailPanel [data-client-detail-tab]');
     if (clientDetailTab) {
       selectClientDetailTab(clientDetailTab.dataset.clientDetailTab);
@@ -274,6 +279,7 @@
     }
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
+    const invoiceDeleteButton = event.target.closest('#clientInvoiceWorkspace [data-invoice-delete]');
     const invoicePaymentButton = event.target.closest('[data-invoice-mark-paid], [data-invoice-edit-payment], [data-invoice-mark-unpaid]');
     const actionRow = event.target.closest('[data-active-client-action]');
     const generateOnboardingLinkButton = event.target.closest('#generateClientOnboardingLinkButton');
@@ -342,6 +348,10 @@
 
     if (deleteActiveButton) {
       deleteClient(hiredEditingId, true);
+      return;
+    }
+    if (invoiceDeleteButton) {
+      await deleteSentInvoice(invoiceDeleteButton.dataset.invoiceDelete);
       return;
     }
     if (invoicePaymentButton) {

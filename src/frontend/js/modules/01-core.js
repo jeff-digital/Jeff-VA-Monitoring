@@ -773,6 +773,8 @@
       return;
     }
     initializingUserId = user.id;
+    const startupMessage = $('#workspaceStartup:not([hidden]) #workspaceStartupMessage');
+    if (startupMessage) startupMessage.textContent = 'Loading workspace data…';
     if (showLoading) startWelcomeTransition(user);
     currentUser = user;
     clientTimeZones.clear();
@@ -851,6 +853,11 @@
       initializingUserId = null;
     }
     if (workspaceRenderFailed) return;
+    if (startupMessage) {
+      startupMessage.textContent = 'Restoring your workspace…';
+      // Let recovered fields receive focus while the loader still covers the page.
+      $$('#workspaceShell > .content > .view').forEach(view => { view.inert = false; });
+    }
     const resumedDraft=typeof browserDrafts!=='undefined'?await browserDrafts.restore():false;
     if (!passwordRecoveryMode && !resumedDraft && activeView==='applications' && localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
 
@@ -992,7 +999,7 @@
           showView(callbackView, { updateUrl: false });
         }
         await initializeSupabaseForUser(sessionData.session.user, {
-          showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
+          showLoading: !isPasswordRecovery && isAuthenticationCallback,
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
           showOverview: isAuthenticationCallback && !isPasswordRecovery
         });

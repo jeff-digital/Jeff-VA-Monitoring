@@ -776,6 +776,8 @@
       return;
     }
     initializingUserId = user.id;
+    const startupMessage = $('#workspaceStartup:not([hidden]) #workspaceStartupMessage');
+    if (startupMessage) startupMessage.textContent = 'Loading workspace data…';
     if (showLoading) startWelcomeTransition(user);
     currentUser = user;
     clientTimeZones.clear();
@@ -854,6 +856,11 @@
       initializingUserId = null;
     }
     if (workspaceRenderFailed) return;
+    if (startupMessage) {
+      startupMessage.textContent = 'Restoring your workspace…';
+      // Let recovered fields receive focus while the loader still covers the page.
+      $$('#workspaceShell > .content > .view').forEach(view => { view.inert = false; });
+    }
     const resumedDraft=typeof browserDrafts!=='undefined'?await browserDrafts.restore():false;
     if (!passwordRecoveryMode && !resumedDraft && activeView==='applications' && localStorage.getItem(`${APPLICATION_DRAFT_KEY}:${user.id}`)) openClientModal();
 
@@ -995,7 +1002,7 @@
           showView(callbackView, { updateUrl: false });
         }
         await initializeSupabaseForUser(sessionData.session.user, {
-          showLoading: !isPasswordRecovery && (isAuthenticationCallback || isFirstLoadInTab),
+          showLoading: !isPasswordRecovery && isAuthenticationCallback,
           recordSignIn: isAuthenticationCallback && !isPasswordRecovery,
           showOverview: isAuthenticationCallback && !isPasswordRecovery
         });
@@ -3783,7 +3790,7 @@
     $('#hiredDetailContact').innerHTML = contactDetails.length
       ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
       : '';
-    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft && !invoice.deletedAt).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
     const sentEmails = sentEmailsForApplication(item);
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
@@ -3856,33 +3863,58 @@
         ${item.contractEndDate && contractDuration(item) ? `<div><dt>Duration</dt><dd>${escapeHtml(contractDuration(item))}</dd></div>` : ''}
         ${contractEnded ? `<div><dt>Contract ended email</dt><dd><span class="status-pill ${item.contractEndedEmailSentAt ? 'contract-active' : 'not-active'}">${item.contractEndedEmailSentAt ? 'Sent' : 'Not sent'}</span></dd></div>` : ''}
       </dl>`;
-    $('#clientInvoiceWorkspace').innerHTML = `
-      <section class="invoice-send-panel client-invoice-panel${contractEnded ? ' contract-ended-readonly' : ''}" aria-labelledby="clientInvoicesTitle">
-        <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><div class="client-invoice-heading-actions"><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))}</span></div></div>
-        ${contractEnded ? '<div class="client-invoice-actions"><p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p></div>' : ''}
-        ${renderInvoiceDraftQueue(item)}
-        ${invoices.length ? `${invoicePaymentSummary(invoices)}<div class="client-invoice-table-wrap"><table class="client-invoice-table"><thead><tr><th scope="col">Invoice</th><th scope="col">Service</th><th scope="col">Period</th><th scope="col">Sent</th><th scope="col">Due</th><th scope="col">Payment</th></tr></thead><tbody>${invoices.map(invoice => {
+    const invoiceWorkspace = $('#clientInvoiceWorkspace');
+    const drafts = clientInvoiceDrafts(item.id);
+    const paidCount = invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Paid').length;
+    const previousList = invoiceWorkspace.dataset.invoiceClient === item.id
+      ? invoiceWorkspace.querySelector('[data-client-invoice-list][aria-pressed="true"]')?.dataset.clientInvoiceList
+      : '';
+    const activeList = previousList || (!invoices.length && drafts.length ? 'drafts' : 'sent');
+    invoiceWorkspace.dataset.invoiceClient = item.id;
+    invoiceWorkspace.innerHTML = `
+      <section class="invoice-send-panel client-invoice-panel" aria-labelledby="clientInvoicesTitle">
+        <div class="invoice-send-heading">
+          <h3 id="clientInvoicesTitle">Invoices</h3>
+        </div>
+        <div class="client-invoice-switch" role="group" aria-label="Invoice lists">
+          <button type="button" data-client-invoice-list="sent" aria-controls="clientInvoiceSentList" aria-pressed="false">All sent <span>${invoices.length}</span></button>
+          <button type="button" data-client-invoice-list="unpaid" aria-controls="clientInvoiceSentList" aria-pressed="false">Unpaid <span>${invoices.length - paidCount}</span></button>
+          <button type="button" data-client-invoice-list="paid" aria-controls="clientInvoiceSentList" aria-pressed="false">Paid <span>${paidCount}</span></button>
+          <button type="button" data-client-invoice-list="drafts" aria-controls="clientInvoiceDraftList" aria-pressed="false">Drafts <span>${drafts.length}</span></button>
+        </div>
+        <div id="clientInvoiceDraftList" class="client-invoice-draft-list" hidden>
+          ${drafts.length ? invoiceDraftRows(item.id, drafts) : '<div class="client-section-empty client-invoice-empty"><h4>No invoice drafts</h4></div>'}
+        </div>
+        <div id="clientInvoiceSentList" hidden>
+        ${invoices.length ? invoicePaymentSummary(invoices) : ''}
+        <div class="client-invoice-table-wrap"><table class="client-invoice-table"><thead><tr><th scope="col">Invoice</th><th scope="col">Service</th><th scope="col">Period</th><th scope="col">Sent</th><th scope="col">Due</th><th scope="col">Payment</th></tr></thead><tbody>${invoices.map(invoice => {
           const status = invoicePaymentStatus(invoice);
           const paid = status === 'Paid';
           const dueDate = parseInvoiceDate(invoice.dueDate);
           const invoiceNumber = invoice.invoiceNumber || 'Invoice';
-          const displayedStatus = paid ? 'Paid' : status === 'Overdue' ? 'Overdue' : 'Unpaid';
+          const displayedStatus = status === 'Sent' ? 'Unpaid' : status;
+          const statusIcon = { Paid: 'fa-check', Overdue: 'fa-circle-exclamation', Unpaid: 'fa-clock' }[displayedStatus];
           const dueDays = dueDate ? Math.round((new Date(`${dueDate}T00:00:00Z`) - new Date(`${today()}T00:00:00Z`)) / 86400000) : null;
           const dueCopy = dueDays === null ? '' : dueDays < 0 ? `overdue by ${plural(Math.abs(dueDays), 'day')}` : dueDays === 0 ? 'due today' : `in ${plural(dueDays, 'day')}`;
           const paidDate = parseInvoiceDate(invoice.paidAt);
           const paidAmount = invoice.amountReceived === '' || invoice.amountReceived == null ? '' : Number(invoice.amountReceived);
           const paidInfo = [Number.isFinite(paidAmount) ? `${paidAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}${invoice.paymentCurrency ? ` ${String(invoice.paymentCurrency).toUpperCase()}` : ''}` : '', invoice.paymentMethod || ''].filter(Boolean).join(' · ');
           return `
-          <tr>
-            <td data-label="Invoice"><div class="client-invoice-reference" title="${escapeHtml(invoice.fileName || 'Invoice document')}"><strong>${escapeHtml(invoiceNumber)}</strong><span class="status-pill ${paid ? 'contract-active' : status === 'Overdue' ? 'not-active' : 'applied'}">${escapeHtml(displayedStatus)}</span><span class="client-invoice-table-file">${escapeHtml(invoice.fileName || 'Invoice document')}</span></div></td>
+          <tr data-client-invoice-payment="${paid ? 'paid' : 'unpaid'}">
+            <td data-label="Invoice"><div class="client-invoice-reference" title="${escapeHtml(invoice.fileName || 'Invoice document')}"><strong>${escapeHtml(invoiceNumber)}</strong><span class="status-pill client-invoice-status ${displayedStatus.toLowerCase()}"><i class="fa-solid ${statusIcon}" aria-hidden="true"></i>${escapeHtml(displayedStatus)}</span><span class="client-invoice-table-file">${escapeHtml(invoice.fileName || 'Invoice document')}</span></div></td>
             <td data-label="Service"><span class="client-invoice-cell-text" title="${escapeHtml(invoice.service || '')}">${escapeHtml(invoice.service || '—')}</span></td>
             <td data-label="Period"><span class="client-invoice-cell-text" title="${escapeHtml(invoice.billingPeriod || '')}">${escapeHtml(invoice.billingPeriod || '—')}</span></td>
             <td data-label="Sent">${invoice.sentAt ? escapeHtml(emailDate(invoice.sentAt)) : '—'}</td>
             <td data-label="Due" class="${dueDays !== null && dueDays < 0 && !paid ? 'client-invoice-overdue-copy' : ''}" title="${escapeHtml(!paid ? dueCopy : '')}">${dueDate ? escapeHtml(formatDate(dueDate)) : '—'}</td>
-            <td data-label="Payment"><div class="client-invoice-table-payment">${paid ? `<span class="client-invoice-cell-text" title="${escapeHtml(paidInfo)}">${escapeHtml(paidDate ? formatDate(paidDate) : emailDate(invoice.paidAt))}</span><button class="button button-secondary" type="button" data-invoice-edit-payment="${escapeHtml(invoice.id)}" aria-label="Edit payment for invoice ${escapeHtml(invoiceNumber)}" title="Edit payment">Edit</button><button class="button button-secondary" type="button" data-invoice-mark-unpaid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as unpaid" title="Mark as unpaid">Unpaid</button>` : `<button class="button button-secondary" type="button" data-invoice-mark-paid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as paid">Mark as paid</button>`}</div></td>
+            <td data-label="Payment"><div class="client-invoice-table-payment">${paid ? `<span class="client-invoice-cell-text" title="${escapeHtml(paidInfo)}">${escapeHtml(paidDate ? formatDate(paidDate) : emailDate(invoice.paidAt))}</span><button class="button button-secondary" type="button" data-invoice-edit-payment="${escapeHtml(invoice.id)}" aria-label="Edit payment for invoice ${escapeHtml(invoiceNumber)}" title="Edit payment">Edit</button><button class="button button-secondary" type="button" data-invoice-mark-unpaid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as unpaid" title="Mark as unpaid">Mark unpaid</button>` : `<button class="button button-secondary" type="button" data-invoice-mark-paid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as paid">Mark as paid</button>`}
+              <button class="button button-secondary client-invoice-delete" type="button" data-invoice-delete="${escapeHtml(invoice.id)}" aria-label="Delete invoice ${escapeHtml(invoiceNumber)}">Delete</button>
+            </div></td>
           </tr>`;
-        }).join('')}</tbody></table></div>` : `<div class="client-section-empty client-invoice-empty"><h4>No invoices yet</h4><p>${contractEnded ? 'No invoices have been sent to this client.' : 'Send an invoice to keep billing history together.'}</p></div>`}
+        }).join('')}</tbody></table></div>
+        <div class="client-section-empty client-invoice-empty" hidden><h4></h4></div>
+        </div>
       </section>`;
+    selectClientInvoiceList(activeList);
     $('#clientEmailHistoryWorkspace').innerHTML = renderHiredEmailHistory(item);
     $('#clientDocumentActions').innerHTML = contractEnded
       ? '<span class="details-readonly-label">Read only</span>'
@@ -4068,6 +4100,29 @@
       status.className = `client-onboarding-status ${state}`;
       status.textContent = label;
     });
+  }
+
+  function selectClientInvoiceList(list) {
+    const workspace = $('#clientInvoiceWorkspace');
+    workspace.querySelectorAll('[data-client-invoice-list]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.clientInvoiceList === list));
+    });
+    const draftsSelected = list === 'drafts';
+    const sentList = $('#clientInvoiceSentList');
+    $('#clientInvoiceDraftList').hidden = !draftsSelected;
+    sentList.hidden = draftsSelected;
+    if (draftsSelected) return;
+
+    let hasMatches = false;
+    sentList.querySelectorAll('[data-client-invoice-payment]').forEach(row => {
+      const matches = list === 'sent' || row.dataset.clientInvoicePayment === list;
+      row.hidden = !matches;
+      if (matches) hasMatches = true;
+    });
+    sentList.querySelector('.client-invoice-table-wrap').hidden = !hasMatches;
+    const empty = sentList.querySelector('.client-invoice-empty');
+    empty.hidden = hasMatches;
+    empty.querySelector('h4').textContent = `No ${list} invoices`;
   }
 
   function selectClientDetailTab(tabName, focus = false) {
@@ -5138,7 +5193,7 @@
   function renderInvoiceList() {
     const target = $('#invoiceList');
     if (!target) return;
-    const invoices = (data.invoices || []).filter(invoice => !invoice.invoiceDraft).sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => !invoice.invoiceDraft && !invoice.deletedAt).sort((first, second) => new Date(second.sentAt) - new Date(first.sentAt));
     target.innerHTML = invoices.length ? invoices.map(invoice => {
       const client = data.applications.find(application => application.id === invoice.clientId);
       const dueDate = parseInvoiceDate(invoice.dueDate);
@@ -6992,6 +7047,7 @@
   }
 
   function invoicePaymentStatus(invoice) {
+    if (invoice.deletedAt) return 'Deleted';
     if (invoice.invoiceDraft) return 'Draft';
     if (invoice.paidAt) return 'Paid';
     const dueDate = parseInvoiceDate(invoice.dueDate);
@@ -7004,7 +7060,7 @@
   }
 
   function invoicePaymentSummary(invoices) {
-    invoices = invoices.filter(invoice => !invoice.invoiceDraft);
+    invoices = invoices.filter(invoice => !invoice.invoiceDraft && !invoice.deletedAt);
     const totals = { invoiced: new Map(), received: new Map(), unpaid: new Map() };
     let paidCount = 0;
     invoices.forEach(invoice => {
@@ -7022,7 +7078,7 @@
     const formatTotals = map => [...map].map(([currency, amount]) => `${invoiceAmount(amount)} ${escapeHtml(currency)}`).join(' · ');
     return `
       <div class="client-invoice-payment-summary" aria-label="Invoice payment summary">
-        <div><strong>Billed</strong><span>${formatTotals(totals.invoiced) || '—'}</span><small>${invoices.length} ${plural(invoices.length, 'invoice')}</small></div>
+        <div><strong>Billed</strong><span>${formatTotals(totals.invoiced) || '—'}</span><small>${plural(invoices.length, 'invoice')}</small></div>
         <div><strong>Received</strong><span>${formatTotals(totals.received) || '—'}</span><small>${paidCount} paid</small></div>
         <div><strong>Outstanding</strong><span>${formatTotals(totals.unpaid) || '—'}</span><small>${invoices.length - paidCount} unpaid${invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Overdue').length ? ` · <span class="client-invoice-overdue-copy">${invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Overdue').length} overdue</span>` : ''}</small></div>
         ${invoices.some(invoice => invoice.amountInvoiced === '' || invoice.amountInvoiced == null) ? '<small class="client-invoice-payment-hint">Some invoices have no amount</small>' : ''}
@@ -7041,7 +7097,7 @@
 
   function openInvoicePayment(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice || invoice.invoiceDraft) return;
+    if (!invoice || invoice.invoiceDraft || invoice.deletedAt) return;
     const client = data.applications.find(item => item.id === invoice.clientId);
     const salaryAmount = Number(client?.salaryAmount);
     const amountPrefill = Number.isFinite(salaryAmount) && salaryAmount >= 0 && client?.salaryAmount !== '' ? String(salaryAmount) : '';
@@ -7072,7 +7128,7 @@
 
   async function markInvoiceUnpaid(invoiceId) {
     const invoice = (data.invoices || []).find(item => item.id === invoiceId);
-    if (!invoice || invoice.invoiceDraft) return;
+    if (!invoice || invoice.invoiceDraft || invoice.deletedAt) return;
     if (!(await appConfirm(`Mark invoice ${invoice.invoiceNumber || ''} as unpaid? Its payment details will be cleared.`, {
       title: 'Mark invoice as unpaid',
       confirmLabel: 'Mark as unpaid',
@@ -7093,7 +7149,7 @@
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
     const invoice = (data.invoices || []).find(item => item.id === form.dataset.invoiceId);
-    if (!invoice) {
+    if (!invoice || invoice.deletedAt) {
       $('#invoicePaymentModal').close();
       showActionResult({ title: 'Invoice not found', message: 'The invoice could not be found. Refresh the client details and try again.', status: 'error' });
       return;
@@ -7158,6 +7214,29 @@
   const invoiceField = name => $(`#invoiceCheck${name}`);
   const invoiceClient = () => (data.applications || []).find(item => item.id === invoiceCheckClientId);
   const invoiceCopy = value => JSON.parse(JSON.stringify(value));
+  function selectInvoiceSection(section, focus=false) {
+    const editAvailable=!$('#invoiceCheckEditFields').hidden;
+    if(section==='edit' && !editAvailable)section='billing';
+    document.querySelectorAll('[data-invoice-tab]').forEach(button=>{
+      const active=button.dataset.invoiceTab===section;
+      button.hidden=button.dataset.invoiceTab==='edit' && !editAvailable;
+      button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
+      if(active && focus)button.focus();
+    });
+    document.querySelectorAll('[data-invoice-panel]').forEach(panel=>{panel.hidden=panel.dataset.invoicePanel!==section;});
+    $('#invoiceCheckForm .invoice-check-content').scrollTop=0;
+    if(section==='payment')$('#invoiceCheckPaymentDetails').scrollTop=0;
+  }
+  document.querySelectorAll('[data-invoice-tab]').forEach(button=>{
+    button.addEventListener('click',()=>selectInvoiceSection(button.dataset.invoiceTab));
+    button.addEventListener('keydown',event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+      event.preventDefault();
+      const buttons=Array.from(document.querySelectorAll('[data-invoice-tab]')).filter(item=>!item.hidden);
+      const index=buttons.indexOf(button),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;
+      selectInvoiceSection(buttons[next].dataset.invoiceTab,true);
+    });
+  });
   function openClientInvoiceHub(clientId) {
     const client=(data.applications || []).find(item=>item.id===clientId);if(!client)return;
     if(invoiceCheckBusy){toast('Wait for the invoice to finish saving.');return;}
@@ -7169,7 +7248,7 @@
     hiredEditingId=clientId;
     if(!activeClientDrawerOpen)openActiveClientActionsDrawer($('#activeClientActionsButton'));
     $('#generateClientInvoice').disabled=isContractEnded(client);
-    $('#invoiceHubStatus').textContent=isContractEnded(client)?'This contract has ended. You can review existing drafts or upload a final invoice.':'Nothing sends automatically. Both options open an email for your review.';
+    $('#invoiceHubStatus').textContent=isContractEnded(client)?'Contract ended. Review drafts or upload a final invoice.':'';
     $('#invoiceHubDrafts').innerHTML=invoiceDraftRows(clientId);
     showActiveClientDrawerView('invoice-home');
     $('#activeClientDrawerInvoiceHome').scrollTop=0;
@@ -7305,17 +7384,11 @@
   function clientInvoiceDrafts(clientId) {
     return (data.invoices || []).filter(item=>item.invoiceDraft && item.draftStatus!=='sent' && item.clientId===clientId).sort((a,b)=>String(b.document?.periodStart || '').localeCompare(String(a.document?.periodStart || '')));
   }
-  function invoiceDraftRows(clientId) {
-    const rows=clientInvoiceDrafts(clientId);
+  function invoiceDraftRows(clientId, rows=clientInvoiceDrafts(clientId)) {
     return rows.length?rows.map(draft=>{
       let amount='Needs review';try{amount=invoiceEngine.money(invoiceEngine.calculate(draft.document).totalCents,draft.document.currency);}catch{}
       return `<article class="invoice-ready-row"><div><strong>${escapeHtml(draft.document?.invoiceNumber || 'Invoice draft')}</strong><span>${escapeHtml(invoiceEngine.formatDate(draft.document?.periodStart))} – ${escapeHtml(invoiceEngine.formatDate(draft.document?.periodEnd))}</span><small>${escapeHtml(amount)} · Not sent</small></div><div><button type="button" class="button button-secondary" data-invoice-draft-edit="${escapeHtml(draft.id)}">Edit</button><button type="button" class="button button-primary" data-invoice-draft-preview="${escapeHtml(draft.id)}">Preview</button></div></article>`;
-    }).join(''):'<p class="settings-copy">No generated drafts yet. Choose a billing week and generate your first preview.</p>';
-  }
-  function renderInvoiceDraftQueue(client) {
-    if(!invoiceEngine) return '';
-    const count=clientInvoiceDrafts(client.id).length;
-    return `<section class="invoice-check-queue"><div class="invoice-check-queue-heading"><div><p class="eyebrow">PREVIEW QUEUE</p><h4>Weekly invoice drafts${count?` · ${count}`:''}</h4><p>Editable invoices prepared for review. None are sent automatically.</p></div><button type="button" class="button button-secondary" data-invoice-check-client="${escapeHtml(client.id)}"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Invoice</button></div>${invoiceDraftRows(client.id)}</section>`;
+    }).join(''):'<p class="settings-copy">No saved drafts.</p>';
   }
   async function refreshInvoiceAutomaticStatus(sequence,{fillProfile=true}={}) {
     invoiceAutomaticReady=false;
@@ -7343,14 +7416,13 @@
           }
           if(!invoiceCheckLogo && invoiceField('LogoData').value===initialProfileFields.LogoData){invoiceCheckLogo=invoiceProfile.issuer.logo;renderInvoiceLogo();}
           $('#invoiceCheckPayment').open=false;
-          if(!$('#invoiceCheckStatus').textContent)invoiceStatus('Your saved payment options and logo are ready. Review the billing week and amount.');
         }
         invoiceAutomaticReady=result.automaticReady===true && result.draftOnly===true;break;
       }
     } catch { /* Manual generation remains available on an older/local server. */ }
     if(sequence!==invoiceCheckSequence || currentUser?.id!==owner) return;
     invoiceField('Automatic').disabled=!invoiceAutomaticReady || Boolean(invoiceCheckDraft);
-    $('#invoiceCheckAutomationStatus').textContent=invoiceAutomaticReady?'Weekly draft preparation is available. Enable it and save your setup to start.':'Manual generation is available. Closed-app weekly preparation requires deployment of the updated Cloudflare Worker and its cron trigger.';
+    $('#invoiceCheckAutomationStatus').textContent=invoiceAutomaticReady?'Available':'Weekly preparation unavailable.';
   }
   function openInvoiceCheck(clientId, draftId='') {
     const client=(data.applications || []).find(item=>item.id===clientId);
@@ -7383,6 +7455,7 @@
     invoiceStatus(isContractEnded(client)?'Existing drafts can be edited. New invoices cannot be generated for an ended contract.':'');
     $('#generateInvoiceDraft').disabled=isContractEnded(client) && !invoiceCheckDraft;
     $('#invoiceCheckSavedDrafts').innerHTML=invoiceDraftRows(clientId);updateInvoiceBasis();
+    selectInvoiceSection(invoiceCheckDraft?'edit':'billing');
     showActiveClientDrawerView('invoice-check');
     $('#invoiceCheckForm .invoice-check-content').scrollTop=0;
     markActiveClientDrawerFormClean('invoice-check');
@@ -7425,6 +7498,58 @@
     if(currentUser?.id===owner)for(const change of changes){const index=data[change.key].findIndex(item=>item.id===change.value.id);if(index>=0 && JSON.stringify(data[change.key][index])===change.serialized){if(change.previous)data[change.key][index]=change.previous;else data[change.key].splice(index,1);}}
     throw new Error('The invoice was not saved. Reconnect or refresh before trying again.');
   }
+
+  async function deleteSentInvoice(invoiceId) {
+    const owner = currentUser?.id;
+    const invoice = data.invoices.find(item => item.id === invoiceId && !item.invoiceDraft && !item.deletedAt);
+    if (!invoice) return;
+    const original = JSON.stringify(invoice);
+    const number = invoice.invoiceNumber || 'this invoice';
+    const paymentNotice = invoice.paidAt ? ' Its recorded payment will also be removed from your totals.' : '';
+    const confirmed = await appConfirm(`Delete ${number} from your workspace? The original email will remain in the recipient’s inbox.${paymentNotice}`, {
+      title: 'Delete sent invoice', confirmLabel: 'Delete invoice', danger: true
+    });
+    if (!confirmed || currentUser?.id !== owner) return;
+    const current = data.invoices.find(item => item.id === invoiceId);
+    if (JSON.stringify(current) !== original) {
+      toast('This invoice changed. Review it before deleting.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const changes = [{ key: 'invoices', value: { ...current, deletedAt: now } }];
+    const source = data.invoices.find(item => item.invoiceDraft && item.draftStatus === 'sent'
+      && item.clientId === current.clientId
+      && (item.sentInvoiceId ? item.sentInvoiceId === current.id : item.id === current.sourceDraftId));
+    let correction;
+    try {
+      if (source?.document && invoiceEngine) {
+        const { sentAt, sentInvoiceId, ...draft } = source;
+        const year = (parseInvoiceDate(draft.document.issueDate) || today()).slice(0, 4);
+        const invoiceNumber = invoiceEngine.nextInvoiceNumber(data.invoices, year);
+        correction = { ...draft, draftStatus: 'ready', updatedAt: now, document: { ...draft.document, invoiceNumber } };
+        changes.push({ key: 'invoices', value: correction });
+      }
+      await commitInvoiceRecords(changes);
+    } catch (error) {
+      if (currentUser?.id === owner) toast(error.message || 'The invoice could not be deleted.');
+      return;
+    }
+
+    renderAlerts();
+    const client = data.applications.find(item => item.id === current.clientId);
+    if (client && activeView === 'hired' && hiredEditingId === client.id && !showingHiredClientList) {
+      renderHiredDetail(client, false);
+      if (correction) selectClientInvoiceList('drafts');
+    }
+    showActionResult({
+      title: 'Invoice deleted',
+      message: correction
+        ? `Draft ${correction.document.invoiceNumber} is ready to edit and send from the Drafts tab.`
+        : 'Use the client’s invoice actions to generate or upload the corrected invoice with a new number.'
+    });
+  }
+
   async function invoiceCheckOperation(work) {
     if(invoiceCheckBusy) return;
     invoiceCheckBusy=true;const owner=currentUser?.id, clientId=invoiceCheckClientId;
@@ -7438,7 +7563,7 @@
     if(isContractEnded(client) && config.schedule.enabled) throw new Error('Disable weekly preparation for an ended contract.');
     await commitInvoiceRecords([{key:'applications',value:{...client,invoiceSettings:config}}]);
     if(typeof browserDrafts!=='undefined')browserDrafts.clearForm('invoiceCheckForm');
-    markActiveClientDrawerFormClean('invoice-check');invoiceStatus('Setup saved. Your business, payment details and billing basis will be reused.');
+    markActiveClientDrawerFormClean('invoice-check');invoiceStatus('Setup saved.');
   }));
   $('#invoiceCheckForm').addEventListener('submit',event=>{
     event.preventDefault();
@@ -7448,7 +7573,7 @@
         const current=(data.invoices || []).find(item=>item.id===invoiceCheckDraft.id);
         if(!current || current.updatedAt!==invoiceCheckDraft.updatedAt)throw new Error('This invoice changed on another device. Reopen it before saving.');
         draft={...current,document:invoiceReadDocument(),updatedAt:new Date().toISOString()};
-        const duplicate=(data.invoices || []).some(item=>item.id!==draft.id && item.sourceDraftId!==draft.id && (item.invoiceNumber || item.document?.invoiceNumber)===draft.document.invoiceNumber);
+        const duplicate=(data.invoices || []).some(item=>item.id!==draft.id && (item.deletedAt || item.sourceDraftId!==draft.id) && (item.invoiceNumber || item.document?.invoiceNumber)===draft.document.invoiceNumber);
         if(duplicate)throw new Error('Another invoice already uses that invoice number.');
         const changes=[{key:'invoices',value:draft}];
         if(invoiceHourlyBillingChanged && draft.document.basis==='agreed'){
@@ -7481,7 +7606,7 @@
           }else{invoiceStatus('This week already has an invoice. Existing edits were preserved.');openInvoiceDraftPreview(existing.id);}
           return;
         }
-        if((data.invoices || []).some(item=>!item.invoiceDraft && item.clientId===clientId && item.startDate===start && item.endDate===invoiceEngine.addDays(start,6)))throw new Error('A sent invoice already exists for this billing week. Review invoice history before preparing another.');
+        if((data.invoices || []).some(item=>!item.invoiceDraft && !item.deletedAt && item.clientId===clientId && item.startDate===start && item.endDate===invoiceEngine.addDays(start,6)))throw new Error('A sent invoice already exists for this billing week. Review invoice history before preparing another.');
         draft=await invoiceEngine.generate(client,data.clientTasks || [],config,start,new Date().toISOString(),data.invoices || []);
         if(currentUser?.id!==owner || invoiceCheckClientId!==clientId)throw new Error('The account or client changed. Reopen Invoice check.');
         if(invoiceClient()!==client || (data.invoices || []).some(item=>item.id===id))throw new Error('The client or invoice changed while preparing this draft. Reopen Invoice check before continuing.');
@@ -7497,6 +7622,7 @@
       openInvoiceDraftPreview(draft.id);
     });
   });
+  $('#invoiceCheckChooseLogo').addEventListener('click',()=>$('#invoiceCheckLogo').click());
   $('#invoiceCheckLogo').addEventListener('change',async event=>{
     const file=event.target.files?.[0],sequence=invoiceCheckSequence;if(!file)return;
     invoiceLogoSequence++;
@@ -7507,7 +7633,7 @@
       const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
       const scale=Math.min(256/bitmap.width,256/bitmap.height);const context=canvas.getContext('2d');context.drawImage(bitmap,(256-bitmap.width*scale)/2,(256-bitmap.height*scale)/2,bitmap.width*scale,bitmap.height*scale);bitmap.close();
       const logo=canvas.toDataURL('image/png');if(logo.length>180000)throw new Error('Choose a simpler or smaller logo image.');
-      if(sequence!==invoiceCheckSequence)return;invoiceCheckLogo=logo;renderInvoiceLogo();invoiceStatus('Logo loaded. Save the setup or invoice to keep it.');
+      if(sequence!==invoiceCheckSequence)return;invoiceCheckLogo=logo;renderInvoiceLogo();invoiceStatus('Logo loaded.');
     }catch(error){invoiceStatus(error.message,true);}finally{event.target.value='';}
   });
   $('#invoiceCheckRemoveLogo').addEventListener('click',()=>{invoiceLogoSequence++;invoiceCheckLogo='';renderInvoiceLogo();});
@@ -7595,9 +7721,8 @@
   }
   $('#emailInvoiceDraft').addEventListener('click',prepareInvoiceDraftEmail);
   document.addEventListener('click',event=>{
-    const open=event.target.closest('[data-invoice-check-client]'),preview=event.target.closest('[data-invoice-draft-preview]'),edit=event.target.closest('[data-invoice-draft-edit]');
-      if(open)openClientInvoiceHub(open.dataset.invoiceCheckClient);
-    else if(preview)openInvoiceDraftPreview(preview.dataset.invoiceDraftPreview);
+    const preview=event.target.closest('[data-invoice-draft-preview]'),edit=event.target.closest('[data-invoice-draft-edit]');
+    if(preview)openInvoiceDraftPreview(preview.dataset.invoiceDraftPreview);
     else if(edit){const draft=(data.invoices || []).find(item=>item.id===edit.dataset.invoiceDraftEdit);if(draft)openInvoiceCheck(draft.clientId,draft.id);}
   });
 
@@ -9528,7 +9653,7 @@
     const applicationWidths = { id: 38, clientName: 24, status: 16, contractStatus: 16, contractEndDate: 16, contractEndedEmailSentAt: 24, platform: 18, employmentType: 16, salaryType: 16, salaryAmount: 18, hoursPerWeek: 18, contact: 22, role: 24, appliedDate: 16, createdAt: 24, activeAt: 24, activePendingDocument: 20, activePendingEmail: 18, documentEmailPending: 20, documentEmailReminderDate: 20, documentEmailReminderAlertedDate: 24, interviewPriority: 18, interviewDate: 16, interviewLink: 36, interviewAlertDate: 24, followUpDate: 16, automaticFollowUp: 18, followUpProcessedAt: 24, followUpSentAt: 24, notes: 48, email: 30, phone: 18, website: 32, socialMedia: 24, socialLinks: 52, location: 24, documents: 48, updatedAt: 24 };
     const applicationsSheet = createDataSheet(pipelineApplications().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
     const activeClientsSheet = createDataSheet(hiredClients().map(applicationToRow), APPLICATION_COLUMNS, applicationWidths);
-    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];
+    const invoiceColumns = ['id', 'clientId', 'invoiceNumber', 'issueDate', 'billingPeriod', 'dueDate', 'service', 'startDate', 'endDate', 'fileName', 'sentAt', 'deletedAt', 'sourceDraftId', 'paymentStatus', 'paidAt', 'amountInvoiced', 'amountReceived', 'paymentCurrency', 'paymentFee', 'amountReceivedPhp', 'paymentMethod', 'paymentNote', 'walletAccount'];
     XLSX.utils.book_append_sheet(workbook, applicationsSheet, 'Applications');
     XLSX.utils.book_append_sheet(workbook, activeClientsSheet, 'Active clients');
     XLSX.utils.book_append_sheet(workbook, createDataSheet((data.invoices || []).filter(invoice=>!invoice.invoiceDraft), invoiceColumns, { id: 38, clientId: 38, invoiceNumber: 18, issueDate: 18, billingPeriod: 24, dueDate: 18, service: 34, startDate: 16, endDate: 16, fileName: 34, sentAt: 24, paymentStatus: 16, paidAt: 18, amountInvoiced: 18, amountReceived: 18, paymentCurrency: 18, paymentFee: 16, amountReceivedPhp: 20, paymentMethod: 20, paymentNote: 40 }), 'Invoices');
@@ -11841,6 +11966,11 @@
   }, true);
 
   document.addEventListener('click', async event => {
+    const invoiceList = event.target.closest('#clientInvoiceWorkspace [data-client-invoice-list]');
+    if (invoiceList) {
+      selectClientInvoiceList(invoiceList.dataset.clientInvoiceList);
+      return;
+    }
     const clientDetailTab = event.target.closest('#hiredDetailPanel [data-client-detail-tab]');
     if (clientDetailTab) {
       selectClientDetailTab(clientDetailTab.dataset.clientDetailTab);
@@ -11848,6 +11978,7 @@
     }
     const deleteActiveButton = event.target.closest('#deleteActiveClient');
     const activeClientActionsButton = event.target.closest('#activeClientActionsButton');
+    const invoiceDeleteButton = event.target.closest('#clientInvoiceWorkspace [data-invoice-delete]');
     const invoicePaymentButton = event.target.closest('[data-invoice-mark-paid], [data-invoice-edit-payment], [data-invoice-mark-unpaid]');
     const actionRow = event.target.closest('[data-active-client-action]');
     const generateOnboardingLinkButton = event.target.closest('#generateClientOnboardingLinkButton');
@@ -11916,6 +12047,10 @@
 
     if (deleteActiveButton) {
       deleteClient(hiredEditingId, true);
+      return;
+    }
+    if (invoiceDeleteButton) {
+      await deleteSentInvoice(invoiceDeleteButton.dataset.invoiceDelete);
       return;
     }
     if (invoicePaymentButton) {
@@ -14158,7 +14293,7 @@
       ...data.applications.filter(item => item.status === 'Active client').map(item => item.activeAt),
       ...data.applications.map(item => item.interviewDate),
       ...data.applications.map(item => item.followUpDate),
-      ...(data.invoices || []).map(item => item.sentAt),
+      ...(data.invoices || []).filter(item => !item.deletedAt).map(item => item.sentAt),
       ...data.emails.map(item => item.date)
     ].map(dateKey).filter(date => date && date < currentRange.start);
     const offsets = activityDates.map(date => {
@@ -14196,7 +14331,7 @@
   function weeklyReportData(offset = weeklyReportOffset) {
     const range = weekRange(offset);
     const applications = data.applications.filter(item => isInWeeklyRange(item.appliedDate, range));
-    const invoices = (data.invoices || []).filter(item => isInWeeklyRange(item.sentAt, range));
+    const invoices = (data.invoices || []).filter(item => !item.deletedAt && isInWeeklyRange(item.sentAt, range));
     const clients = data.applications.filter(item => item.status === 'Active client' && isInWeeklyRange(item.activeAt, range));
     const emails = data.emails.filter(item => item.direction === 'sent' && isInWeeklyRange(item.date, range));
     const applicationEmails = emails.filter(email => {
@@ -15805,7 +15940,21 @@
     }
     function key(id,c){return JSON.stringify([id,c.clientId || '',c.recordId || c.invoice?.id || c.invoice?.sourceDraftId || 'new']);}
     function navigation(){return {view:activeView,clientId:activeView==='hired' && !showingHiredClientList?hiredEditingId:'',clientTab:$('#hiredDetailPanel [data-client-detail-tab].active')?.dataset.clientDetailTab || 'overview',dashboardTab:activeDashboardTab,previewId:$('#invoiceDraftPreviewModal')?.open?invoicePreviewSnapshot?.id || '':''};}
-    function status(form,message){let note=form.querySelector(':scope > .form-draft-status');if(!note){note=document.createElement('p');note.className='form-draft-status';note.setAttribute('role','status');form.append(note);}if(note.textContent!==message)note.textContent=message;}
+    function statusHost(form){
+      return form.querySelector(':scope > .invoice-check-footer') || form;
+    }
+    function status(form,message){
+      const host=statusHost(form);
+      let note=host.querySelector(':scope > .form-draft-status');
+      if(!note){
+        note=document.createElement('p');
+        note.className='form-draft-status';
+        note.setAttribute('role','status');
+        if(host===form)form.append(note);
+        else host.prepend(note);
+      }
+      if(note.textContent!==message)note.textContent=message;
+    }
     function capture(){
       if(!ready() || restoring || initializedOwner!==owner() || typeof passwordRecoveryMode!=='undefined' && passwordRecoveryMode)return;
       const saved=read(),open=new Map();let active='';
@@ -15816,7 +15965,7 @@
         const entry={form:id,context:c,values:snapshot,at:Date.now(),fileInputs:[...form.querySelectorAll('input[type="file"]')].filter(field=>field.id).map(field=>({id:field.id,files:[...(field.files || [])].map(rememberFile).filter(Boolean)})),details:[...form.querySelectorAll('details[id]')].map(item=>({id:item.id,open:item.open})),scroll:form.querySelector('.invoice-check-content')?.scrollTop || form.closest('.active-client-drawer-view')?.scrollTop || form.scrollTop || 0,focus:form.contains(document.activeElement)?document.activeElement.id:''};
         saved.forms[idKey]=entry;active=idKey;
         if(form.contains(document.activeElement))saved.active=idKey;
-        status(form,'Unfinished form saved in this browser tab.');
+        status(form,'Saved in this tab.');
       }
       for(const [id,oldKey] of lastVisible)if(!open.has(id) && !leaving){delete saved.forms[oldKey];if(saved.active===oldKey)saved.active='';}
       lastVisible=open;
@@ -15827,7 +15976,7 @@
     function schedule(){if(restoring || leaving)return;clearTimeout(timer);timer=setTimeout(capture,180);}
     function clearForm(id){if(!ready() || restoring)return;const form=$('#'+id);if(!form)return;const c=context(form),idKey=key(id,c),saved=read();
       for(const [entryKey,entry] of Object.entries(saved.forms))if(entryKey===idKey || id==='invoiceCheckForm' && entry.form===id && entry.context.clientId===c.clientId){delete saved.forms[entryKey];if(saved.active===entryKey)saved.active='';}
-      const fingerprint=JSON.stringify(values(form));clean.set(idKey,fingerprint);clean.set('form:'+id,fingerprint);write(saved);form.querySelector(':scope > .form-draft-status')?.remove();}
+      const fingerprint=JSON.stringify(values(form));clean.set(idKey,fingerprint);clean.set('form:'+id,fingerprint);write(saved);statusHost(form).querySelector(':scope > .form-draft-status')?.remove();}
     function client(id){return (data.applications || []).find(item=>item.id===id);}
     function openClient(id){const record=client(id);if(!record)throw new Error('The client for this draft is no longer available.');if(activeView!=='hired')showView('hired');renderHiredDetail(record,false);hiredEditingId=id;}
     async function open(entry,user){
@@ -15882,7 +16031,7 @@
         else field.value=String(item.value ?? '');
       }
       for(const item of entry.details || []){const element=[...form.querySelectorAll('details[id]')].find(element=>element.id===item.id);if(element)element.open=item.open;}
-      if(entry.form==='invoiceCheckForm'){invoiceCheckLogo=$('#invoiceCheckLogoData').value || entry.context.logo || '';renderInvoiceLogo();updateInvoiceBasis();updateInvoiceEditTotal();invoiceStatus('Unfinished invoice restored. Review and save when ready.');}
+      if(entry.form==='invoiceCheckForm'){invoiceCheckLogo=$('#invoiceCheckLogoData').value || entry.context.logo || '';renderInvoiceLogo();updateInvoiceBasis();updateInvoiceEditTotal();invoiceStatus('Draft restored.');}
       if(entry.form==='clientTaskForm'){updateClientTaskRepeatFields();updateClientTaskSchedule();}
       if(entry.form==='dailyTaskForm'){dailyTaskRelatedOptions();$('#dailyTaskDestinationField').classList.toggle('hidden',$('#dailyTaskType').value!=='apply');}
       if(entry.form==='clientForm'){
@@ -15893,7 +16042,7 @@
         updateSalaryFields();updateClientActionLabel();
       }
       if(entry.form==='walletEntryForm')syncWalletPayeeField();
-      status(form,'Unfinished form restored. Changes are not submitted automatically.');
+      status(form,entry.form==='invoiceCheckForm'?'Saved in this tab.':'Unfinished form restored. Changes are not submitted automatically.');
       requestAnimationFrame(()=>{const area=form.querySelector('.invoice-check-content') || form.closest('.active-client-drawer-view') || form;area.scrollTop=entry.scroll || 0;const focus=fields(form).find(field=>field.id===entry.focus);if(focus && focus.getClientRects().length)focus.focus({preventScroll:true});});
     }
     async function restoreFileInputs(entry,user){
@@ -15932,7 +16081,7 @@
       if(owner()===user)schedule();return restored;
     }
     function signOut(){capture();restoreGeneration++;initializedOwner='';restoring=true;
-      for(const id of allowed){const form=$('#'+id);if(!form)continue;const dialog=form.closest('dialog');if(dialog?.open)dialog.close();form.reset();form.querySelector(':scope > .form-draft-status')?.remove();}
+      for(const id of allowed){const form=$('#'+id);if(!form)continue;const dialog=form.closest('dialog');if(dialog?.open)dialog.close();form.reset();statusHost(form).querySelector(':scope > .form-draft-status')?.remove();}
       if(activeClientDrawerOpen)void closeActiveClientActionsDrawer(true);lastVisible=new Map();clean.clear();restoring=false;
     }
     function edited(form){clean.delete('form:'+form.id);clean.delete(key(form.id,context(form)));}
@@ -15951,6 +16100,8 @@
   const loginUsername = $('#loginUsername');
   const loginPassword = $('#loginPassword');
   const loginSubmitButton = $('.login-submit', loginForm);
+  const startupViews = $$('#workspaceShell > .content > .view');
+  startupViews.forEach(view => { view.inert = true; });
   setAuthenticated(false);
   loginSubmitButton.disabled = true;
   $('#loginGoogleButton').disabled = true;
@@ -16144,7 +16295,16 @@
     showView(appViewFromLocation() || 'dashboard', { updateUrl: false });
   });
   // Restore the remembered session, including a Google callback or refresh.
-  restoreSupabaseSession().finally(() => {
+  restoreSupabaseSession().catch(error => {
+    console.error('Workspace startup failed:', error);
+    loginError.textContent = 'Could not restore your session. Try signing in again.';
+  }).finally(() => {
+    startupViews.forEach(view => { view.inert = false; });
+    $('#mainSidebar').inert = false;
+    $('#workspaceShell > .content > .topbar').inert = false;
+    document.body.classList.remove('workspace-starting');
+    $('#loginScreen').inert = false;
+    $('#workspaceStartup').hidden = true;
     loginSubmitButton.disabled = Boolean(currentUser);
     initGmail();
   });

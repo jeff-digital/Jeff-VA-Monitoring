@@ -39,11 +39,11 @@ body:has(#hiredView.active:not(.client-focused)) .topbar-title-area { flex: 1 1 
 body:has(#hiredView.active:not(.client-focused)) .hired-header-summary { flex-wrap: wrap; gap: 6px; }
 body:has(#hiredView.active:not(.client-focused)) .hired-header-summary > span { padding: 4px 7px; font-size: 10px; }
 body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar {
-  display: flex; flex-wrap: wrap; gap: 10px; padding: 12px; margin: 0 0 16px;
+  display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 10px; margin: 0 0 12px;
   border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-surface);
 }
-body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar .search-field { flex: 1 1 220px; max-width: 440px; min-width: 0; height: 36px; border-radius: 7px; }
-body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar select { height: 36px; min-height: 36px; border-radius: 7px; font-size: 12px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar .search-field { flex: 1 1 220px; max-width: 400px; min-width: 0; height: var(--workspace-filter-height); min-height: var(--workspace-filter-height); border-radius: 7px; }
+body:has(#hiredView.active:not(.client-focused)) #hiredView > .toolbar select { height: var(--workspace-filter-height); min-height: var(--workspace-filter-height); border-radius: 7px; font-size: 12px; }
 body:has(#hiredView.active:not(.client-focused)) #hiredView > .hired-panel { padding: 0; border: 0; background: transparent; box-shadow: none; }
 body:has(#hiredView.active:not(.client-focused)) #hiredList { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 16px; }
 body:has(#hiredView.active:not(.client-focused)) #hiredList .hired-card {
@@ -139,7 +139,7 @@ body:not(:has(#hiredView.active)) .dashboard-switcher .dashboard-switcher-tab { 
 }
 .content > .view:not(#hiredView):not(#accountView) .search-field input { border: 0; background: transparent; }
 .content > .view:not(#hiredView):not(#accountView) :is(.application-filters, .subscriptions-toolbar, .social-trend-toolbar) {
-  padding: 16px; margin: 0 0 18px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); gap: 12px;
+  padding: 9px 10px; margin: 0 0 12px; border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-surface); gap: 8px;
 }
 .content > .view:not(#hiredView):not(#accountView) :is(.application-filter-field select, .application-filter-field input) { min-height: 40px; height: auto; }
 .content > .view:not(#hiredView):not(#accountView) :is(th, .application-list-head) { background: var(--modern-canvas); color: var(--modern-muted); font-size: 11px; font-weight: 600; }
@@ -200,8 +200,9 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
 #inboxView .inbox-panel { padding: 0; overflow: visible; }
 #inboxView .email-panel-header { padding: 22px; border-bottom: 1px solid var(--modern-border); border-radius: 13px 13px 0 0; }
 #inboxView .email-panel-header .email-filters { margin: 18px 0 0; padding: 0; border: 0; box-shadow: none; }
-#inboxView .email-summary { padding: 4px; gap: 4px; border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-canvas); }
-#inboxView .email-summary-item { min-height: 40px; padding: 9px 18px; border-radius: 7px; font-size: 13px; }
+#inboxView .email-summary { padding: 3px; gap: 3px; border: 1px solid var(--modern-border); border-radius: 8px; background: var(--modern-canvas); }
+#inboxView .email-summary-item { min-height: 30px; gap: 5px; padding: 4px 10px; border-radius: 5px; font-size: 11px; line-height: 1.3; }
+#inboxView .email-summary-item strong { font-size: 11px; line-height: inherit; }
 #inboxView .email-summary-item.active { background: var(--modern-surface); box-shadow: 0 1px 3px #1423430a; }
 #inboxView .email-list { max-height: none; }
 #inboxView .email-item { padding: 20px 22px; }
@@ -227,12 +228,13 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
 #walletView .wallet-account { padding: 20px; border-radius: 10px; background: var(--modern-canvas); }
 #walletView .wallet-transactions { padding: 22px; overflow: visible; }
 #walletView #walletTransactionList { max-height: none; overflow: visible; }
-#subscriptionsView.active { display: flex; flex-direction: column; gap: 18px; }
+#subscriptionsView.active { display: flex; flex-direction: column; gap: 12px; }
+#subscriptionsView .subscriptions-toolbar { margin-bottom: 0; }
 #subscriptionsView .subscriptions-intro { margin: 0; }
 #subscriptionsView .subscriptions-intro h2 { font-size: 18px; }
 #subscriptionsView .subscriptions-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; border: 0; }
-#subscriptionsView .subscriptions-summary article { display: grid; gap: 8px; padding: 22px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); }
-#subscriptionsView .subscriptions-summary strong { font-size: 28px; }
+#subscriptionsView .subscriptions-summary article { display: grid; gap: 5px; padding: 14px 16px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); }
+#subscriptionsView .subscriptions-summary strong { font-size: 21px; }
 #subscriptionsView .subscriptions-summary small { display: block; color: var(--modern-muted); font-size: 11px; line-height: 1.6; }
 #subscriptionsView .subscriptions-grid { gap: 20px; overflow: visible; }
 #subscriptionsView .subscription-card { padding: 24px; }
@@ -314,9 +316,9 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
   .content > .view:not(#hiredView):not(#accountView) :is(.application-filters, .subscriptions-toolbar) { padding: 12px; }
   #inboxView .email-panel-header, #newsView .news-live-section { padding: 16px; }
   #subscriptionsView .subscriptions-summary { gap: 8px; }
-  #subscriptionsView .subscriptions-summary article { padding: 14px 10px; }
+  #subscriptionsView .subscriptions-summary article { padding: 10px; }
   #subscriptionsView .subscriptions-summary small { display: none; }
-  #subscriptionsView .subscriptions-summary strong { font-size: 24px; }
+  #subscriptionsView .subscriptions-summary strong { font-size: 18px; }
   #walletView .wallet-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #walletView :is(.wallet-section, .wallet-transactions) { padding: 16px; }
   #documentsView .career-tool-content { padding: 20px 16px; }
@@ -373,8 +375,8 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
   body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-chart-wrap { flex: 1; min-height: 0; overflow: hidden; }
   body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-chart-wrap svg { height: 100%; min-height: 0; max-height: 100%; }
   body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-table :is(td, th) { padding: 9px 8px; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-search { min-height: 32px; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-filters :is(input, select) { min-height: 32px; height: 32px; }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-search { min-height: var(--workspace-filter-height); }
+  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-filters :is(input, select) { min-height: var(--workspace-filter-height); height: var(--workspace-filter-height); }
 
   body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel {
     display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -402,4 +404,39 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
   body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-heading h2 { font-size: 13px; }
   body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-heading .button { min-height: 30px; padding: 6px 8px; font-size: 11px; }
   body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-note { font-size: 11px; line-height: 1.5; }
+}
+
+/* Shared sizing for search, filter and sort controls outside editing forms. */
+#workspaceShell { --workspace-filter-height: 30px; }
+#workspaceShell .content > .view:not(#accountView, #hiredView.client-focused) :is(.search-field, .daily-task-search, .client-dashboard-search) {
+  box-sizing: border-box;
+  height: var(--workspace-filter-height);
+  min-height: var(--workspace-filter-height);
+  padding-block: 0;
+}
+#workspaceShell .content > .view:not(#accountView, #hiredView.client-focused) :is(.search-field, .daily-task-search, .client-dashboard-search) input[type="search"] {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding-block: 0;
+  font-size: 12px;
+}
+#workspaceShell .content > .view:not(#accountView, #hiredView.client-focused) :is(.application-filter-field, .toolbar, .daily-task-filter-field, .client-dashboard-filters, .news-category-select, .social-trend-toolbar, .subscriptions-toolbar, .wallet-filter) select,
+#workspaceShell .content > .view:not(#accountView, #hiredView.client-focused) .application-filter-field input[type="date"] {
+  box-sizing: border-box;
+  height: var(--workspace-filter-height);
+  min-height: var(--workspace-filter-height);
+  padding-block: 0;
+  font-size: 12px;
+}
+#workspaceShell #hiredView:not(.client-focused) > .toolbar > .select-field { height: var(--workspace-filter-height); min-height: var(--workspace-filter-height); }
+#workspaceShell #newsView #refreshNews { height: var(--workspace-filter-height); min-height: var(--workspace-filter-height); }
+#clientDashboardPanel [data-client-sort] { min-height: 24px; padding-block: 2px; }
+.quick-search-input { gap: 8px; padding: 10px 14px; }
+.quick-search-input input { font-size: 14px; }
+.world-clock-toolbar :is(input, select) { min-height: 32px; padding-block: 4px; }
+.daily-task-related-search input { min-height: 32px; padding-block: 4px; }
+@media (max-width: 720px) {
+  #workspaceShell { --workspace-filter-height: 32px; }
+  .content > .view:not(#hiredView):not(#accountView) :is(.application-filters, .subscriptions-toolbar) { padding: 8px; }
 }

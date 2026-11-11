@@ -355,7 +355,7 @@
     $('#hiredDetailContact').innerHTML = contactDetails.length
       ? `<span class="hired-detail-contact-separator" aria-hidden="true">·</span>${contactDetails.join('<span class="hired-detail-contact-separator" aria-hidden="true">·</span>')}`
       : '';
-    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+    const invoices = (data.invoices || []).filter(invoice => invoice.clientId === item.id && !invoice.invoiceDraft && !invoice.deletedAt).sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
     const sentEmails = sentEmailsForApplication(item);
     const latestInvoice = invoices[0];
     const latestEmail = sentEmails[0];
@@ -428,33 +428,58 @@
         ${item.contractEndDate && contractDuration(item) ? `<div><dt>Duration</dt><dd>${escapeHtml(contractDuration(item))}</dd></div>` : ''}
         ${contractEnded ? `<div><dt>Contract ended email</dt><dd><span class="status-pill ${item.contractEndedEmailSentAt ? 'contract-active' : 'not-active'}">${item.contractEndedEmailSentAt ? 'Sent' : 'Not sent'}</span></dd></div>` : ''}
       </dl>`;
-    $('#clientInvoiceWorkspace').innerHTML = `
-      <section class="invoice-send-panel client-invoice-panel${contractEnded ? ' contract-ended-readonly' : ''}" aria-labelledby="clientInvoicesTitle">
-        <div class="invoice-send-heading"><div><p class="eyebrow">BILLING</p><h3 id="clientInvoicesTitle">Invoices</h3></div><div class="client-invoice-heading-actions"><span class="invoice-sent-count">${escapeHtml(plural(invoices.length, 'invoice'))}</span></div></div>
-        ${contractEnded ? '<div class="client-invoice-actions"><p class="client-invoice-notice">Invoice sending is unavailable while this contract is ended.</p></div>' : ''}
-        ${renderInvoiceDraftQueue(item)}
-        ${invoices.length ? `${invoicePaymentSummary(invoices)}<div class="client-invoice-table-wrap"><table class="client-invoice-table"><thead><tr><th scope="col">Invoice</th><th scope="col">Service</th><th scope="col">Period</th><th scope="col">Sent</th><th scope="col">Due</th><th scope="col">Payment</th></tr></thead><tbody>${invoices.map(invoice => {
+    const invoiceWorkspace = $('#clientInvoiceWorkspace');
+    const drafts = clientInvoiceDrafts(item.id);
+    const paidCount = invoices.filter(invoice => invoicePaymentStatus(invoice) === 'Paid').length;
+    const previousList = invoiceWorkspace.dataset.invoiceClient === item.id
+      ? invoiceWorkspace.querySelector('[data-client-invoice-list][aria-pressed="true"]')?.dataset.clientInvoiceList
+      : '';
+    const activeList = previousList || (!invoices.length && drafts.length ? 'drafts' : 'sent');
+    invoiceWorkspace.dataset.invoiceClient = item.id;
+    invoiceWorkspace.innerHTML = `
+      <section class="invoice-send-panel client-invoice-panel" aria-labelledby="clientInvoicesTitle">
+        <div class="invoice-send-heading">
+          <h3 id="clientInvoicesTitle">Invoices</h3>
+        </div>
+        <div class="client-invoice-switch" role="group" aria-label="Invoice lists">
+          <button type="button" data-client-invoice-list="sent" aria-controls="clientInvoiceSentList" aria-pressed="false">All sent <span>${invoices.length}</span></button>
+          <button type="button" data-client-invoice-list="unpaid" aria-controls="clientInvoiceSentList" aria-pressed="false">Unpaid <span>${invoices.length - paidCount}</span></button>
+          <button type="button" data-client-invoice-list="paid" aria-controls="clientInvoiceSentList" aria-pressed="false">Paid <span>${paidCount}</span></button>
+          <button type="button" data-client-invoice-list="drafts" aria-controls="clientInvoiceDraftList" aria-pressed="false">Drafts <span>${drafts.length}</span></button>
+        </div>
+        <div id="clientInvoiceDraftList" class="client-invoice-draft-list" hidden>
+          ${drafts.length ? invoiceDraftRows(item.id, drafts) : '<div class="client-section-empty client-invoice-empty"><h4>No invoice drafts</h4></div>'}
+        </div>
+        <div id="clientInvoiceSentList" hidden>
+        ${invoices.length ? invoicePaymentSummary(invoices) : ''}
+        <div class="client-invoice-table-wrap"><table class="client-invoice-table"><thead><tr><th scope="col">Invoice</th><th scope="col">Service</th><th scope="col">Period</th><th scope="col">Sent</th><th scope="col">Due</th><th scope="col">Payment</th></tr></thead><tbody>${invoices.map(invoice => {
           const status = invoicePaymentStatus(invoice);
           const paid = status === 'Paid';
           const dueDate = parseInvoiceDate(invoice.dueDate);
           const invoiceNumber = invoice.invoiceNumber || 'Invoice';
-          const displayedStatus = paid ? 'Paid' : status === 'Overdue' ? 'Overdue' : 'Unpaid';
+          const displayedStatus = status === 'Sent' ? 'Unpaid' : status;
+          const statusIcon = { Paid: 'fa-check', Overdue: 'fa-circle-exclamation', Unpaid: 'fa-clock' }[displayedStatus];
           const dueDays = dueDate ? Math.round((new Date(`${dueDate}T00:00:00Z`) - new Date(`${today()}T00:00:00Z`)) / 86400000) : null;
           const dueCopy = dueDays === null ? '' : dueDays < 0 ? `overdue by ${plural(Math.abs(dueDays), 'day')}` : dueDays === 0 ? 'due today' : `in ${plural(dueDays, 'day')}`;
           const paidDate = parseInvoiceDate(invoice.paidAt);
           const paidAmount = invoice.amountReceived === '' || invoice.amountReceived == null ? '' : Number(invoice.amountReceived);
           const paidInfo = [Number.isFinite(paidAmount) ? `${paidAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}${invoice.paymentCurrency ? ` ${String(invoice.paymentCurrency).toUpperCase()}` : ''}` : '', invoice.paymentMethod || ''].filter(Boolean).join(' · ');
           return `
-          <tr>
-            <td data-label="Invoice"><div class="client-invoice-reference" title="${escapeHtml(invoice.fileName || 'Invoice document')}"><strong>${escapeHtml(invoiceNumber)}</strong><span class="status-pill ${paid ? 'contract-active' : status === 'Overdue' ? 'not-active' : 'applied'}">${escapeHtml(displayedStatus)}</span><span class="client-invoice-table-file">${escapeHtml(invoice.fileName || 'Invoice document')}</span></div></td>
+          <tr data-client-invoice-payment="${paid ? 'paid' : 'unpaid'}">
+            <td data-label="Invoice"><div class="client-invoice-reference" title="${escapeHtml(invoice.fileName || 'Invoice document')}"><strong>${escapeHtml(invoiceNumber)}</strong><span class="status-pill client-invoice-status ${displayedStatus.toLowerCase()}"><i class="fa-solid ${statusIcon}" aria-hidden="true"></i>${escapeHtml(displayedStatus)}</span><span class="client-invoice-table-file">${escapeHtml(invoice.fileName || 'Invoice document')}</span></div></td>
             <td data-label="Service"><span class="client-invoice-cell-text" title="${escapeHtml(invoice.service || '')}">${escapeHtml(invoice.service || '—')}</span></td>
             <td data-label="Period"><span class="client-invoice-cell-text" title="${escapeHtml(invoice.billingPeriod || '')}">${escapeHtml(invoice.billingPeriod || '—')}</span></td>
             <td data-label="Sent">${invoice.sentAt ? escapeHtml(emailDate(invoice.sentAt)) : '—'}</td>
             <td data-label="Due" class="${dueDays !== null && dueDays < 0 && !paid ? 'client-invoice-overdue-copy' : ''}" title="${escapeHtml(!paid ? dueCopy : '')}">${dueDate ? escapeHtml(formatDate(dueDate)) : '—'}</td>
-            <td data-label="Payment"><div class="client-invoice-table-payment">${paid ? `<span class="client-invoice-cell-text" title="${escapeHtml(paidInfo)}">${escapeHtml(paidDate ? formatDate(paidDate) : emailDate(invoice.paidAt))}</span><button class="button button-secondary" type="button" data-invoice-edit-payment="${escapeHtml(invoice.id)}" aria-label="Edit payment for invoice ${escapeHtml(invoiceNumber)}" title="Edit payment">Edit</button><button class="button button-secondary" type="button" data-invoice-mark-unpaid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as unpaid" title="Mark as unpaid">Unpaid</button>` : `<button class="button button-secondary" type="button" data-invoice-mark-paid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as paid">Mark as paid</button>`}</div></td>
+            <td data-label="Payment"><div class="client-invoice-table-payment">${paid ? `<span class="client-invoice-cell-text" title="${escapeHtml(paidInfo)}">${escapeHtml(paidDate ? formatDate(paidDate) : emailDate(invoice.paidAt))}</span><button class="button button-secondary" type="button" data-invoice-edit-payment="${escapeHtml(invoice.id)}" aria-label="Edit payment for invoice ${escapeHtml(invoiceNumber)}" title="Edit payment">Edit</button><button class="button button-secondary" type="button" data-invoice-mark-unpaid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as unpaid" title="Mark as unpaid">Mark unpaid</button>` : `<button class="button button-secondary" type="button" data-invoice-mark-paid="${escapeHtml(invoice.id)}" aria-label="Mark invoice ${escapeHtml(invoiceNumber)} as paid">Mark as paid</button>`}
+              <button class="button button-secondary client-invoice-delete" type="button" data-invoice-delete="${escapeHtml(invoice.id)}" aria-label="Delete invoice ${escapeHtml(invoiceNumber)}">Delete</button>
+            </div></td>
           </tr>`;
-        }).join('')}</tbody></table></div>` : `<div class="client-section-empty client-invoice-empty"><h4>No invoices yet</h4><p>${contractEnded ? 'No invoices have been sent to this client.' : 'Send an invoice to keep billing history together.'}</p></div>`}
+        }).join('')}</tbody></table></div>
+        <div class="client-section-empty client-invoice-empty" hidden><h4></h4></div>
+        </div>
       </section>`;
+    selectClientInvoiceList(activeList);
     $('#clientEmailHistoryWorkspace').innerHTML = renderHiredEmailHistory(item);
     $('#clientDocumentActions').innerHTML = contractEnded
       ? '<span class="details-readonly-label">Read only</span>'
@@ -640,6 +665,29 @@
       status.className = `client-onboarding-status ${state}`;
       status.textContent = label;
     });
+  }
+
+  function selectClientInvoiceList(list) {
+    const workspace = $('#clientInvoiceWorkspace');
+    workspace.querySelectorAll('[data-client-invoice-list]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.clientInvoiceList === list));
+    });
+    const draftsSelected = list === 'drafts';
+    const sentList = $('#clientInvoiceSentList');
+    $('#clientInvoiceDraftList').hidden = !draftsSelected;
+    sentList.hidden = draftsSelected;
+    if (draftsSelected) return;
+
+    let hasMatches = false;
+    sentList.querySelectorAll('[data-client-invoice-payment]').forEach(row => {
+      const matches = list === 'sent' || row.dataset.clientInvoicePayment === list;
+      row.hidden = !matches;
+      if (matches) hasMatches = true;
+    });
+    sentList.querySelector('.client-invoice-table-wrap').hidden = !hasMatches;
+    const empty = sentList.querySelector('.client-invoice-empty');
+    empty.hidden = hasMatches;
+    empty.querySelector('h4').textContent = `No ${list} invoices`;
   }
 
   function selectClientDetailTab(tabName, focus = false) {

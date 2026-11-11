@@ -13,14 +13,50 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
+    const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const workspaceRoutes = [...index.matchAll(/data-view-panel="([^"]+)"/g)].map(match => `/${match[1]}`);
+    const previewMarkup = index.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
     await page.route('**/*', route => {
       const url = new URL(route.request().url());
       if (url.hostname !== 'workspace-preview.test') return route.abort();
-      const file = path.join(root, url.pathname === '/' ? 'index.html' : url.pathname);
+      if (url.pathname === '/' || workspaceRoutes.includes(url.pathname)) {
+        return route.fulfill({ contentType: 'text/html', body: previewMarkup });
+      }
+      const file = path.join(root, url.pathname);
       if (!fs.existsSync(file)) return route.abort();
       if (file.endsWith('.html')) return route.fulfill({ contentType: 'text/html', body: fs.readFileSync(file, 'utf8').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '') });
       return route.fulfill({ body: fs.readFileSync(file), contentType: file.endsWith('.css') ? 'text/css' : file.endsWith('.png') ? 'image/png' : 'application/octet-stream' });
     });
+    // Exercise loading with the production entrance animations still enabled.
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const route of workspaceRoutes) {
+        await page.goto(`https://workspace-preview.test${route}`, { waitUntil: 'domcontentloaded' });
+        const loading = await page.evaluate(async () => {
+          const view = [...document.querySelectorAll('.content > .view')].find(panel => `/${panel.dataset.viewPanel}` === location.pathname);
+          document.querySelector('.content > .view.active')?.classList.remove('active');
+          view.classList.add('active');
+          const spinner = document.querySelector('.workspace-startup-spinner');
+          const area = document.querySelector('#workspaceStartup').getBoundingClientRect();
+          const bounds = spinner.getBoundingClientRect();
+          const sidebar = document.querySelector('#mainSidebar').getBoundingClientRect();
+          const header = document.querySelector('.topbar').getBoundingClientRect();
+          const label = document.querySelector('#workspaceStartupMessage').getBoundingClientRect();
+          await Promise.all(view.getAnimations().map(animation => animation.finished));
+          return {
+            centered: Math.abs(bounds.x + bounds.width / 2 - (area.x + area.width / 2)) < 2
+              && Math.abs(bounds.y + bounds.height / 2 - (area.y + area.height / 2)) < 2,
+            scoped: header.height > 0 && area.top >= header.bottom - 1
+              && (innerWidth < 721 || (sidebar.width > 0 && area.left >= sidebar.right - 1)),
+            animated: getComputedStyle(spinner).animationName !== 'none',
+            hiddenData: getComputedStyle(view).opacity === '0',
+            hiddenLabel: label.width <= 1 && label.height <= 1
+          };
+        });
+        assert.ok(Object.values(loading).every(Boolean), `${route} at ${width}px: ${JSON.stringify(loading)}`);
+      }
+    }
+    console.log(`PASS startup spinner on all ${workspaceRoutes.length} workspace routes at desktop and mobile widths.`);
     await page.goto('https://workspace-preview.test/', { waitUntil: 'domcontentloaded' });
     await page.addStyleTag({ content: '*, *::before, *::after { animation: none !important; transition: none !important; }' });
     await page.addScriptTag({ content: `
@@ -38,6 +74,10 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
       function previewView(id) {
         $$('.content > .view').forEach(el=>el.classList.toggle('active',el.id===id));
         $('#loginScreen').hidden=true;
+        $('#workspaceStartup').hidden=true;
+        $('#mainSidebar').inert=false;
+        $('.topbar').inert=false;
+        document.body.classList.remove('workspace-starting');
         document.body.classList.add('authenticated');
         document.body.classList.remove('auth-loading');
         $('#pageTitle').textContent={documentsView:'Career Tools',dashboardView:'Dashboard',dailyTaskView:'Daily Tasks',applicationsView:'Applications',toApplyView:'To Apply',inboxView:'Email',walletView:'Wallet',subscriptionsView:'Account subscriptions',newsView:'News',socialTrendsView:'Social Trends',hiredView:'Active Clients'}[id];
@@ -82,6 +122,12 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
         await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
         for (const view of views) {
           await page.evaluate(view => previewView(view), view);
+          if (view === 'subscriptionsView') {
+            const searchAboveCounts = await page.locator('.subscriptions-toolbar').evaluate(toolbar =>
+              toolbar.getBoundingClientRect().bottom <= document.querySelector('#subscriptionSummary').getBoundingClientRect().top
+            );
+            assert.ok(searchAboveCounts, 'Subscription search and filter sit above the summary cards.');
+          }
           const metrics = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth }));
           assert.ok(metrics.scroll <= metrics.width + 1, `${view} ${width}/${theme}: page overflow ${metrics.scroll}`);
           const header = await page.locator('.topbar').evaluate(el => {

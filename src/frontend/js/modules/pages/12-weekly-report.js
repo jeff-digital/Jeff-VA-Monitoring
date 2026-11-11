@@ -32,7 +32,7 @@
       ...data.applications.filter(item => item.status === 'Active client').map(item => item.activeAt),
       ...data.applications.map(item => item.interviewDate),
       ...data.applications.map(item => item.followUpDate),
-      ...(data.invoices || []).map(item => item.sentAt),
+      ...(data.invoices || []).filter(item => !item.deletedAt).map(item => item.sentAt),
       ...data.emails.map(item => item.date)
     ].map(dateKey).filter(date => date && date < currentRange.start);
     const offsets = activityDates.map(date => {
@@ -70,7 +70,7 @@
   function weeklyReportData(offset = weeklyReportOffset) {
     const range = weekRange(offset);
     const applications = data.applications.filter(item => isInWeeklyRange(item.appliedDate, range));
-    const invoices = (data.invoices || []).filter(item => isInWeeklyRange(item.sentAt, range));
+    const invoices = (data.invoices || []).filter(item => !item.deletedAt && isInWeeklyRange(item.sentAt, range));
     const clients = data.applications.filter(item => item.status === 'Active client' && isInWeeklyRange(item.activeAt, range));
     const emails = data.emails.filter(item => item.direction === 'sent' && isInWeeklyRange(item.date, range));
     const applicationEmails = emails.filter(email => {

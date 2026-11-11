@@ -4,6 +4,8 @@
   const loginUsername = $('#loginUsername');
   const loginPassword = $('#loginPassword');
   const loginSubmitButton = $('.login-submit', loginForm);
+  const startupViews = $$('#workspaceShell > .content > .view');
+  startupViews.forEach(view => { view.inert = true; });
   setAuthenticated(false);
   loginSubmitButton.disabled = true;
   $('#loginGoogleButton').disabled = true;
@@ -197,7 +199,16 @@
     showView(appViewFromLocation() || 'dashboard', { updateUrl: false });
   });
   // Restore the remembered session, including a Google callback or refresh.
-  restoreSupabaseSession().finally(() => {
+  restoreSupabaseSession().catch(error => {
+    console.error('Workspace startup failed:', error);
+    loginError.textContent = 'Could not restore your session. Try signing in again.';
+  }).finally(() => {
+    startupViews.forEach(view => { view.inert = false; });
+    $('#mainSidebar').inert = false;
+    $('#workspaceShell > .content > .topbar').inert = false;
+    document.body.classList.remove('workspace-starting');
+    $('#loginScreen').inert = false;
+    $('#workspaceStartup').hidden = true;
     loginSubmitButton.disabled = Boolean(currentUser);
     initGmail();
   });
