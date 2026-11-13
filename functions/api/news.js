@@ -1,7 +1,8 @@
 const CATEGORY_QUERIES = {
-  all: '(business AND ("United Kingdom" OR Australia OR "United States" OR Canada)) OR ("virtual assistant" AND (Philippines OR Filipino)) OR "remote work" OR "artificial intelligence" OR automation OR viral',
+  all: '"small business" OR "business tax" OR "business regulations" OR "industry outlook" OR "fastest growing industries" OR "AI for business" OR "workflow automation" OR ChatGPT OR Claude',
   'social-trends': '(marketing OR campaign OR product) AND ("social media" OR TikTok OR Instagram OR Facebook OR YouTube OR Twitter OR Reddit OR LinkedIn OR Snapchat OR Pinterest OR Threads OR Bluesky)',
   'business-markets': 'business AND ("United Kingdom" OR UK OR "United States" OR Canada OR Australia) AND (staffing OR hiring OR workload OR productivity OR "customer service" OR growth OR challenges OR costs)',
+  'industry-outlook': '("industry outlook" OR "growing industries" OR "business opportunities") AND (Philippines OR "United States" OR "United Kingdom" OR Canada OR Australia)',
   'va-philippines': '("virtual assistant" OR freelancing OR BPO) AND (Philippines OR Filipino)',
   'remote-work': '("remote work" OR "work from home" OR "digital jobs") AND (Philippines OR Filipino)',
   ai: 'artificial intelligence OR ChatGPT OR Claude OR Gemini',
@@ -19,12 +20,23 @@ const CATEGORY_QUERIES = {
 const CATEGORY_SEARCH_QUERIES = {
   'social-trends': '(marketing OR campaign OR product) AND "social media"',
   'business-markets': 'business AND (UK OR "United States" OR Canada OR Australia)',
+  'industry-outlook': '("industry outlook" OR "growing industries" OR "business opportunities")',
   chatgpt: '(ChatGPT OR OpenAI)',
   claude: '(Claude OR Anthropic OR Sonnet)'
 };
 
-const NEWS_CACHE_VERSION = '6';
+const NEWS_CACHE_VERSION = '8';
 const DEFAULT_GNEWS_DAILY_LIMIT = 100;
+const BUSINESS_RELEVANCE = /\b(?:small businesses?|business tax|tax (?:changes|rules|reforms?|deadlines|compliance)|business regulations?|industry outlook|(?:fastest |high )?growing industries|business opportunities|ai for business|workflow automation)\b/;
+const AI_PRODUCT = /\b(?:chatgpt|openai|claude|anthropic)\b/;
+const AI_UPDATE = /\b(?:models?|releases?|released|launch(?:es|ed)?|features?|updates?|enterprise|business|integrations?|automation)\b/;
+
+function isBusinessStory(article) {
+  const headline = articleTitleKey(article.title);
+  const summary = articleTitleKey(article.description);
+  return BUSINESS_RELEVANCE.test(headline) || BUSINESS_RELEVANCE.test(summary)
+    || (AI_PRODUCT.test(headline) && AI_UPDATE.test(headline + ' ' + summary));
+}
 
 function json(body, status = 200, extra = {}) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=3600, s-maxage=3600', ...extra } });
@@ -170,6 +182,7 @@ export async function onRequestGet({ request, env, caches = globalThis.caches })
   if (cached) return cached;
   const topicQuery = (query && CATEGORY_SEARCH_QUERIES[category]) || CATEGORY_QUERIES[category];
   const userQuery = query.replace(/["()]/g, ' ').replace(/\s+/g, ' ').trim();
+  const focusedFeed = category === 'all' && !userQuery;
   const availableUserLength = Math.max(1, 190 - topicQuery.length - 9);
   const selectedQuery = userQuery
     ? (category === 'all' ? userQuery : `(${topicQuery}) AND (${userQuery.slice(0, availableUserLength)})`)
@@ -178,15 +191,17 @@ export async function onRequestGet({ request, env, caches = globalThis.caches })
   const skip = () => Promise.resolve({ articles: [], error: null });
   const [gnewsResult, githubResult, youtubeResult, productHuntResult] = await Promise.all([
     gnews(env, selectedQuery, page, pageSize, category).catch(() => ({ articles: [], error: 'GNews is temporarily unavailable.', requested: Boolean(env.GNEWS_API_KEY) })),
-    page === 1 && !query && (category === 'all' || category === 'automation') ? safeProvider(githubReleases(pageSize)) : skip(),
-    page === 1 && env.YOUTUBE_API_KEY && (category === 'all' || category === 'virtual-assistants') ? safeProvider(youtubeVideos(env, query || 'virtual assistant tutorial', pageSize)) : skip(),
-    page === 1 && !query && env.PRODUCT_HUNT_TOKEN && (category === 'all' || category === 'ai-tools') ? safeProvider(productHunt(env, pageSize)) : skip()
+    page === 1 && !query && category === 'automation' ? safeProvider(githubReleases(pageSize)) : skip(),
+    page === 1 && env.YOUTUBE_API_KEY && category === 'virtual-assistants' ? safeProvider(youtubeVideos(env, query || 'virtual assistant tutorial', pageSize)) : skip(),
+    page === 1 && !query && env.PRODUCT_HUNT_TOKEN && category === 'ai-tools' ? safeProvider(productHunt(env, pageSize)) : skip()
   ]);
   const usage = gnewsResult.requested ? await recordGnewsRequest(caches, url.origin, env, gnewsResult.status === 403) : await currentGnewsUsage(caches, url.origin, env);
   gnewsResult.articles.forEach(article => { article.category = category; });
-  const articles = uniqueArticles([...gnewsResult.articles, ...githubResult.articles, ...youtubeResult.articles, ...productHuntResult.articles]).sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
+  const gathered = [...gnewsResult.articles, ...githubResult.articles, ...youtubeResult.articles, ...productHuntResult.articles];
+  const relevant = focusedFeed ? gathered.filter(isBusinessStory) : gathered;
+  const articles = uniqueArticles(relevant).sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
   const response = json({ articles, page, pageSize, hasMore: page < 10 && gnewsResult.articles.length === pageSize && gnewsResult.total > page * pageSize, updatedAt: new Date().toISOString(), usage: { gnews: { ...usage, configured: Boolean(env.GNEWS_API_KEY) } }, errors: [gnewsResult.error, githubResult.error, youtubeResult.error, productHuntResult.error].filter(Boolean) });
-  if (articles.length) await caches.default.put(cacheKey, response.clone());
+  if (articles.length || (focusedFeed && !gnewsResult.error)) await caches.default.put(cacheKey, response.clone());
   return response;
 }
 

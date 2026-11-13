@@ -25,10 +25,12 @@ globalThis.fetch = async input => {
     assert.equal(url.searchParams.get('sortby'), 'publishedAt');
     if (providerFails) throw new Error('timeout');
     return Response.json({ totalArticles: 4, articles: [
-      { title: 'Provider fixture', url: 'https://www.publisher.example/article?utm_source=newsletter', image: 'https://publisher.example/image.jpg', publishedAt: '2026-10-17T01:00:00Z', source: { name: 'Publisher' } },
-      { title: 'Provider mirror headline', url: 'https://publisher.example/article?fbclid=tracking', publishedAt: '2026-10-17T00:59:00Z', source: { name: 'Publisher duplicate' } },
-      { title: 'PROVIDER FIXTURE!', url: 'https://syndication.example/copy', publishedAt: '2026-10-17T00:58:00Z', source: { name: 'Syndication duplicate' } },
-      { title: 'A different story', url: 'https://publisher.example/different', publishedAt: '2026-10-17T00:57:00Z', source: { name: 'Publisher' } }
+      { title: 'Small business tax changes', url: 'https://www.publisher.example/article?utm_source=newsletter', image: 'https://publisher.example/image.jpg', publishedAt: '2026-10-17T01:00:00Z', source: { name: 'Publisher' } },
+      { title: 'Small business tax compliance checklist', url: 'https://publisher.example/article?fbclid=tracking', publishedAt: '2026-10-17T00:59:00Z', source: { name: 'Publisher duplicate' } },
+      { title: 'SMALL BUSINESS TAX CHANGES!', url: 'https://syndication.example/copy', publishedAt: '2026-10-17T00:58:00Z', source: { name: 'Syndication duplicate' } },
+      { title: 'Anthropic releases a new Claude model', url: 'https://publisher.example/different', publishedAt: '2026-10-17T00:57:00Z', source: { name: 'Publisher' } },
+      { title: 'Viral hotel fight', url: 'https://publisher.example/viral', publishedAt: '2026-10-17T00:56:00Z' },
+      { title: 'AI used in hospital MRI pilot', url: 'https://publisher.example/health', publishedAt: '2026-10-17T00:55:00Z' }
     ] });
   }
   if (url.hostname === 'api.github.com') throw new Error('unavailable');
@@ -45,13 +47,13 @@ assert.equal(response.headers.get('cache-control'), 'private, no-store');
 const payload = await response.json();
 assert.equal(payload.articles[0].url, 'https://www.publisher.example/article?utm_source=newsletter');
 assert.equal(payload.articles[0].image, 'https://publisher.example/image.jpg');
-assert.equal(payload.articles.length, 2, 'tracking-link and repeated-headline variants must be removed');
+assert.deepEqual(payload.articles.map(article => article.title), ['Small business tax changes', 'Anthropic releases a new Claude model'], 'the default feed removes duplicate and unrelated articles');
 assert.equal(payload.hasMore, false);
-assert.ok(payload.errors.length, 'one failed provider must not discard working results');
+assert.equal(payload.errors.length, 0);
 assert.ok(!JSON.stringify(payload).includes('test-only'), 'secret must not appear in response');
 assert.equal(payload.usage.gnews.used, 1, 'an upstream GNews request must increment daily usage');
 assert.equal(payload.usage.gnews.limit, 100);
-assert.ok(['United Kingdom', 'Australia', 'United States', 'Canada', 'Philippines', 'virtual assistant', 'artificial intelligence'].every(term => providerQueries[0].includes(term)), 'All news must cover the selected business markets and Philippine VA topics');
+assert.ok(['small business', 'business tax', 'industry outlook', 'workflow automation', 'ChatGPT', 'Claude'].every(term => providerQueries[0].includes(term)), 'the default query targets business and AI');
 await get('/api/news');
 assert.equal(newsRequests, 1, 'cached requests must not use provider quota');
 const usage = await (await get('/api/news/usage')).json();
@@ -61,11 +63,13 @@ providerFails = true;
 const unavailable = await (await get('/api/news?category=web')).json();
 assert.equal(unavailable.articles.length, 0);
 assert.ok(unavailable.errors.length);
-assert.ok(!cache.has('https://dashboard.example/api/news?v=5&category=web&q=&page=1&pageSize=10'), 'failure must not be cached');
+assert.ok(![...cache.keys()].some(key => key.includes('category=web')), 'failure must not be cached');
 providerFails = false;
 await get('/api/news?category=business-markets');
 assert.ok(['business', 'United Kingdom', 'United States', 'Canada', 'Australia', 'staffing', 'hiring', 'workload', 'productivity', 'customer service', 'growth', 'challenges', 'costs'].every(term => providerQueries.at(-1).includes(term)), 'business stories must focus on owner challenges and opportunities for VA support in target countries');
 await get('/api/news?category=va-philippines');
+await get('/api/news?category=industry-outlook');
+assert.ok(['industry outlook', 'Philippines', 'United Kingdom', 'United States', 'Canada', 'Australia'].every(term => providerQueries.at(-1).includes(term)));
 await get('/api/news?category=remote-work');
 assert.ok(providerQueries.some(query => ['United Kingdom', 'Australia', 'United States', 'Canada'].every(country => query.includes(country))), 'Business markets must cover the UK, Australia, US, and Canada');
 assert.ok(providerQueries.some(query => query.includes('virtual assistant') && query.includes('Filipino')), 'VA Philippines query must target Filipino virtual assistants');
@@ -92,7 +96,7 @@ assert.ok(providerQueries.at(-1).includes(longSearch), 'business searches must p
 assert.ok(providerQueries.at(-1).includes('Canada'));
 await get(`/api/news?category=social-trends&q=${encodeURIComponent(longSearch)}`);
 assert.ok(providerQueries.at(-1).includes(longSearch), 'social searches must not be truncated by the list of platform names');
-assert.ok(providerQueries[0].includes('viral'), 'All news must include viral coverage');
+assert.ok(!providerQueries[0].includes('viral'), 'the default query excludes general viral coverage');
 for (const [category, names] of [['chatgpt', ['ChatGPT', 'OpenAI']], ['claude', ['Claude', 'Anthropic']]]) {
   const before = newsRequests;
   const response = await get('/api/news?category=' + category);

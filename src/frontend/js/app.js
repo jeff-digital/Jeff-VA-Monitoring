@@ -16097,9 +16097,9 @@
   let newsRequest = 0;
   let newsLastLoaded = 0;
   let newsHasMore = false;
-  const gatheredNewsStorageKey = 'jeff-va-gathered-news-v1';
+  const gatheredNewsStorageKey = 'jeff-va-business-news-v1';
 
-  const newsCategoryNames = { all: 'All news', 'business-markets': 'Business: UK, AU, US & Canada', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', chatgpt: 'ChatGPT updates', claude: 'Claude updates', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing', 'social-trends': 'Social media trends' };
+  const newsCategoryNames = { all: 'Business & AI news', 'business-markets': 'Business: UK, AU, US & Canada', 'industry-outlook': 'Industry outlook by country', 'va-philippines': 'VA Philippines', 'remote-work': 'Remote work', ai: 'Artificial intelligence', chatgpt: 'ChatGPT updates', claude: 'Claude updates', 'ai-tools': 'AI tools', 'virtual-assistants': 'Virtual assistants', automation: 'Automation', 'crm-business': 'CRM & business tools', web: 'Web development', marketing: 'Digital marketing', 'social-trends': 'Social media trends' };
   const newsUrlKey = value => {
     try {
       const url = new URL(value);
@@ -16196,7 +16196,7 @@
     const loadMore = $('#loadMoreNews');
     if (!grid || !status) return;
     grid.setAttribute('aria-busy', 'false');
-    if (!newsArticles.length) { grid.innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Try another topic or check back later.</p></div>'; status.textContent = ''; loadMore.hidden = true; return; }
+    if (!newsArticles.length) { grid.innerHTML = '<div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>Try another topic or check back later.</p></div>'; status.textContent = ''; loadMore.hidden = !newsHasMore; return; }
     const [featured, ...rest] = newsArticles;
     const sideStories = rest.slice(0, 3);
     const highlights = rest.slice(3, 5);
@@ -16257,8 +16257,8 @@
       if (requestId !== newsRequest) return;
       if (!response.ok) throw new Error(payload.error || 'News could not be loaded.');
       const fetchedArticles = payload.articles || [];
-      rememberGatheredNews(fetchedArticles);
       const showGathered = $('#newsCategory').value === 'all' && !$('#newsSearch').value.trim();
+      if (showGathered) rememberGatheredNews(fetchedArticles);
       newsArticles = uniqueNewsArticles([...newsArticles, ...(showGathered ? gatheredNewsArticles : fetchedArticles)]);
       newsArticles.sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
       newsHasMore = Boolean(payload.hasMore);
