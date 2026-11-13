@@ -144,14 +144,7 @@
       hiredEditingId = null;
     }
     // perf: render the requested view on entry while renderAll skips inactive pages.
-    renderCurrentView();
-    if (view === 'account') {
-      renderPasswordPage();
-      renderAccountSignInHistory();
-      void loadLoginActivity();
-      void loadBackgroundFollowUpStatus();
-      void refreshAccountStorageUsage();
-    }
+    if (view !== 'inbox') renderCurrentView();
     const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['', 'News'], 'social-trends': ['', 'Social Trends'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['', 'Career Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
     labels.subscriptions = ['', 'Account subscriptions'];
@@ -182,7 +175,16 @@
     const gmailHeaderActions = $('#gmailHeaderActions');
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (view === 'inbox' && currentUser) syncGmail(true);
+    window.scrollTo({ top: 0, behavior: view === 'inbox' ? 'instant' : 'smooth' });
+    if (view === 'inbox') {
+      const userId = currentUser?.id;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (activeView !== 'inbox' || currentUser?.id !== userId) return;
+        renderCurrentView();
+        if (userId) requestAnimationFrame(() => {
+          if (activeView === 'inbox' && currentUser?.id === userId) void syncGmail(true);
+        });
+      }));
+    }
   }
 

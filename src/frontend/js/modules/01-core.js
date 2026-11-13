@@ -530,20 +530,24 @@
     lockWorkspaceDataControls();
     const accountView = $('#accountView');
     const content = $('#settingsAccountContent');
-    if (accountView.parentElement !== content) content.append(accountView);
-    for (const child of accountView.children) {
-      child.dataset.settingsPanel = child.matches('.account-identity-section, .account-overview-grid') ? 'account'
-        : child.matches('.account-storage-section') ? 'backups'
-        : child.querySelector('#backgroundFollowUpTitle') ? 'automations' : 'security';
+    if (accountView.parentElement !== content) {
+      for (const child of accountView.children) {
+        child.dataset.settingsPanel = child.matches('.account-identity-section, .account-overview-grid') ? 'account'
+          : child.matches('.account-storage-section') ? 'backups'
+          : child.querySelector('#backgroundFollowUpTitle') ? 'automations' : 'security';
+      }
+      content.append(accountView);
     }
     accountView.classList.add('active');
     renderPasswordPage();
     renderAccountPage();
     settingsStorageLoaded = false;
-    renderGmailSyncStatus();
-    renderEmailTaskAiStatus();
     selectWorkspaceSettingsSection(passwordRecoveryMode ? 'security' : 'account');
-    if (!$('#settingsModal').open) $('#settingsModal').showModal();
+    const modal = $('#settingsModal');
+    if (!modal.open) modal.showModal();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (modal.open) renderGmailSyncStatus();
+    }));
   }
 
   function setPasswordRecoveryMode(value) {
@@ -1203,16 +1207,19 @@
     return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
   }
 
+  const inboxDateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const inboxTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+
   function emailDate(value) {
     if (!value) return 'No date';
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    return Number.isNaN(date.getTime()) ? value : inboxDateFormatter.format(date);
   }
 
   function emailTime(value) {
     if (!value) return '';
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+    return Number.isNaN(date.getTime()) ? '' : inboxTimeFormatter.format(date);
   }
 
   function applicationAddedDate(item) {

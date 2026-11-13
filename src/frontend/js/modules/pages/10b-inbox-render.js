@@ -17,21 +17,18 @@
       button.setAttribute('aria-label', field.getAttribute('aria-label') + (field.value ? ', ' + text : ''));
     }
     const received = receivedEmails();
-    const sent = data.emails.filter(isSentEmail);
     $('#emailReceivedCount').textContent = received.length;
+    const sent = data.emails.filter(isSentEmail);
     $('#emailSentCount').textContent = sent.length;
-    const emails = data.emails
-      .filter(item => [item.from, item.to, item.subject, item.body, item.date].join(' ').toLowerCase().includes(query))
-      .filter(item => endDate
-        ? Boolean(dateKey(item.date)) && (!emailDateFilter || dateKey(item.date) >= emailDateFilter) && dateKey(item.date) <= endDate
-        : !emailDateFilter || dateKey(item.date) === emailDateFilter)
-      .filter(item => emailDateSort === 'all' || isInWeeklyRange(item.date, weekRangeFilter))
-      .filter(item => emailViewFilter === 'sent'
-        ? isSentEmail(item)
-        : !isSentEmail(item));
-    const clientEmails = emails.filter(item => !isSentEmail(item));
-    const sentEmails = emails.filter(item => isSentEmail(item));
-    const visibleEmails = sortByDate(emailViewFilter === 'sent' ? sentEmails : clientEmails, item => item.date);
+    const emails = emailViewFilter === 'sent' ? sent : data.emails.filter(item => !isSentEmail(item));
+    const visibleEmails = sortByDate(emails.filter(item => {
+      if (emailDateSort !== 'all' && !isInWeeklyRange(item.date, weekRangeFilter)) return false;
+      if (emailDateFilter || endDate) {
+        const date = dateKey(item.date);
+        if (endDate ? !date || (emailDateFilter && date < emailDateFilter) || date > endDate : date !== emailDateFilter) return false;
+      }
+      return !query || [item.from, item.to, item.subject, item.body, item.date].join(' ').toLowerCase().includes(query);
+    }), item => item.date);
     $$('.email-summary-item').forEach(button => {
       const selected = button.dataset.emailView === emailViewFilter;
       button.classList.toggle('active', selected);
@@ -69,8 +66,15 @@
         : rawSender);
       const initial = clientInitials(sender) || '?';
       const unread = !isSentEmail(item) && Array.isArray(item.labelIds) && item.labelIds.includes('UNREAD');
-      const bodyPreview = emailContentText(item.body).replace(/\s+/g, ' ').trim();
-      const preview = bodyPreview.length > 110 ? `${bodyPreview.slice(0, 110).trimEnd()}...` : bodyPreview;
+      const previewCache = renderEmails.previewCache ??= new WeakMap();
+      let cachedPreview = previewCache.get(item);
+      if (!cachedPreview || cachedPreview.body !== item.body) {
+        const bodyPreview = emailContentText(item.body).replace(/\s+/g, ' ').trim();
+        const preview = bodyPreview.length > 110 ? `${bodyPreview.slice(0, 110).trimEnd()}...` : bodyPreview;
+        cachedPreview = { body: item.body, preview };
+        previewCache.set(item, cachedPreview);
+      }
+      const { preview } = cachedPreview;
       const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
       const recipient = extractEmailAddress(isSentEmail(item) ? item.to : item.from);
       const canCompose = isEmailAddress(recipient) && (isSentEmail(item) || matches.length > 0);
