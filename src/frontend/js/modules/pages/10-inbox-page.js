@@ -1,16 +1,4 @@
   // Inbox and shared email composer controls.
-  let inboxPermissionDismissedFor = null;
-  function updateInboxPermissionBanner(state) {
-    const userId = currentUser?.id;
-    if (state !== 'permission' && state !== 'offline') inboxPermissionDismissedFor = null;
-    $('#inboxPermissionBanner').hidden = state !== 'permission' || !userId
-      || !gmailConfigured() || inboxPermissionDismissedFor === userId;
-  }
-  $('#dismissInboxPermission').addEventListener('click', () => {
-    inboxPermissionDismissedFor = currentUser?.id;
-    $('#inboxPermissionBanner').hidden = true;
-    $('#emailSearch').focus();
-  });
   function removeEmailsFromList(emails) {
     const emailIds = new Set(emails.map(email => email.id));
     const gmailIds = new Set(emails.map(email => email.gmailId).filter(Boolean));
@@ -95,7 +83,13 @@
       document.querySelectorAll('[data-email-action-trigger]').forEach(button => button.setAttribute('aria-expanded', 'false'));
       menu.classList.toggle('hidden', !willOpen);
       actionTrigger.setAttribute('aria-expanded', String(willOpen));
-      if (willOpen) menu.querySelector('button')?.focus();
+      if (willOpen) {
+        const listBounds = $('#emailList').getBoundingClientRect();
+        const triggerBounds = actionTrigger.getBoundingClientRect();
+        menu.classList.toggle('opens-up', listBounds.bottom - triggerBounds.bottom < menu.offsetHeight + 4
+          && triggerBounds.top - listBounds.top >= menu.offsetHeight + 4);
+        menu.querySelector('button')?.focus();
+      }
       return;
     }
 
@@ -141,6 +135,17 @@
   });
 
   $('#emailSearch').addEventListener('input', renderEmails);
+  for (const [id, step] of [['inboxPreviousPage', -1], ['inboxNextPage', 1]]) {
+    $('#' + id).addEventListener('click', event => {
+      $$('#emailList [data-email-select]:checked').forEach(input => { input.checked = false; });
+      inboxPage += step;
+      renderEmails();
+      $('#emailList').scrollTop = 0;
+      if (event.currentTarget.disabled) {
+        $(step > 0 ? '#inboxPreviousPage' : '#inboxNextPage').focus({ preventScroll: true });
+      }
+    });
+  }
   $('#emailDateFilter').addEventListener('change', event => {
     emailDateFilter = event.target.value;
     if ($('#emailDateEndFilter').value && emailDateFilter > $('#emailDateEndFilter').value) $('#emailDateEndFilter').value = emailDateFilter;

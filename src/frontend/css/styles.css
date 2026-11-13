@@ -9610,9 +9610,6 @@ body.workspace-starting:has(#applicationsView.active) .workspace-startup:not([hi
 }
 #inboxView .application-select-options { --drawer-surface: var(--inbox-surface); --drawer-line: var(--inbox-line); --drawer-hover: var(--inbox-hover); }
 #inboxView :is(#emailDateSort, [hidden]) { display: none; }
-#inboxView .inbox-permission-banner:not([hidden]) { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 16px; border-block: 1px solid var(--inbox-line); background: var(--theme-warning-soft, #fff7e6); color: var(--inbox-warning); }
-.inbox-permission-banner p { flex: 1 1 180px; margin: 0; }
-.inbox-permission-banner p > span { display: block; font-size: 12px; }
 #inboxView .email-list-header { display: none; }
 #inboxView #emailList .email-row {
   display: grid; grid-template-columns: 16px 32px minmax(0, 1fr) minmax(84px, auto) 30px; grid-template-rows: auto;

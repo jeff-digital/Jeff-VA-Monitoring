@@ -1,3 +1,39 @@
+  const inboxPageSize = 10;
+  let inboxPage = 0;
+  let inboxPageFilter = '';
+  let inboxOpenedAccount;
+  let inboxOpenedEmails = new Set();
+
+  function openedInboxEmails() {
+    const account = currentUser?.id;
+    if (inboxOpenedAccount !== account) {
+      inboxOpenedAccount = account;
+      inboxOpenedEmails = new Set();
+      if (account) try {
+        const saved = JSON.parse(localStorage.getItem(`jeff-va-opened-emails:${account}`));
+        if (Array.isArray(saved)) inboxOpenedEmails = new Set(saved);
+      } catch {}
+    }
+    return inboxOpenedEmails;
+  }
+
+  function markInboxEmailOpened(email) {
+    const key = email.gmailId || email.id;
+    const opened = openedInboxEmails();
+    if (opened.has(key)) return;
+    opened.add(key);
+    if (currentUser?.id) try {
+      localStorage.setItem(`jeff-va-opened-emails:${currentUser.id}`, JSON.stringify([...opened]));
+    } catch {}
+    const row = $('#emailList').querySelector(`[data-email-detail="${CSS.escape(email.id)}"]`);
+    row?.classList.remove('is-unread');
+    const status = row?.querySelector('.inbox-read-status');
+    if (status) {
+      status.className = 'inbox-read-status';
+      status.textContent = 'Opened';
+    }
+  }
+
   function renderEmails() {
     renderGmailSyncStatus();
     renderEmailTaskAiStatus();
@@ -29,6 +65,20 @@
       }
       return !query || [item.from, item.to, item.subject, item.body, item.date].join(' ').toLowerCase().includes(query);
     }), item => item.date);
+    const filterKey = JSON.stringify([currentUser?.id, emailViewFilter, query, emailDateSort, emailDateFilter, endDate]);
+    if (filterKey !== inboxPageFilter) {
+      inboxPage = 0;
+      $('#emailList').scrollTop = 0;
+    }
+    inboxPageFilter = filterKey;
+    const pageCount = Math.ceil(visibleEmails.length / inboxPageSize);
+    inboxPage = Math.max(0, Math.min(inboxPage, pageCount - 1));
+    const start = inboxPage * inboxPageSize;
+    const pageEmails = visibleEmails.slice(start, start + inboxPageSize);
+    $('#inboxPagination').hidden = pageCount <= 1;
+    $('#inboxPreviousPage').disabled = inboxPage === 0;
+    $('#inboxNextPage').disabled = inboxPage + 1 >= pageCount;
+    $('#inboxPageCount').textContent = visibleEmails.length ? `${start + 1}–${start + pageEmails.length} of ${visibleEmails.length}` : '';
     $$('.email-summary-item').forEach(button => {
       const selected = button.dataset.emailView === emailViewFilter;
       button.classList.toggle('active', selected);
@@ -56,6 +106,7 @@
       updateEmailSelectionControls();
       return;
     }
+    const opened = openedInboxEmails();
     const renderEmailRows = items => items.map(item => {
       const matches = applicationsRelatedToEmail(item);
       const matchTag = matches.length ? `<span class="client-match-tag" aria-label="${matches.length} application matches" title="Matched to ${matches.length} applications">${matches.length}</span>` : '';
@@ -65,7 +116,11 @@
         ? rawSender.slice(0, rawSender.indexOf('<')).replace(/["']/g, '').trim() || rawSender
         : rawSender);
       const initial = clientInitials(sender) || '?';
-      const unread = !isSentEmail(item) && Array.isArray(item.labelIds) && item.labelIds.includes('UNREAD');
+      const wasOpened = opened.has(item.gmailId || item.id);
+      const unread = !isSentEmail(item) && !wasOpened && item.labelIds?.includes('UNREAD');
+      const readStatus = unread
+        ? '<span class="inbox-read-status inbox-unread-dot" aria-label="Unread"></span>'
+        : `<span class="inbox-read-status">${wasOpened ? 'Opened' : !isSentEmail(item) && Array.isArray(item.labelIds) ? 'Read' : ''}</span>`;
       const previewCache = renderEmails.previewCache ??= new WeakMap();
       let cachedPreview = previewCache.get(item);
       if (!cachedPreview || cachedPreview.body !== item.body) {
@@ -85,9 +140,9 @@
       const selectionLabel = platformName ? `${platformName} email` : (item.subject || 'email');
       const selectionCheckbox = `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}"${selection.has(item.id) ? ' checked' : ''} />`;
       const previewMarkup = `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong><span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
-      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}${unread ? ' is-unread' : ''}" tabindex="0" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar" aria-hidden="true" style="--inbox-avatar-hue:${clientAvatarHue(sender) * 24}">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${unread ? '<span class="inbox-unread-dot" aria-label="Unread"></span>' : ''}${matchTag}${sentBadge}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions">${canCompose ? `<button class="inbox-compose-icon" type="button" data-email-action="compose" data-email-id="${escapeHtml(item.id)}" aria-label="Send email" title="Send email"><i class="fa-regular fa-envelope" aria-hidden="true"></i></button>` : ''}<div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-label="Actions for ${escapeHtml(item.subject || sender)}" aria-haspopup="menu" aria-expanded="false">⋯</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}${unread ? ' is-unread' : ''}" tabindex="0" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar" aria-hidden="true" style="--inbox-avatar-hue:${clientAvatarHue(sender) * 24}">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${readStatus}${matchTag}${sentBadge}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions">${canCompose ? `<button class="inbox-compose-icon" type="button" data-email-action="compose" data-email-id="${escapeHtml(item.id)}" aria-label="Send email" title="Send email"><i class="fa-regular fa-envelope" aria-hidden="true"></i></button>` : ''}<div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-label="Actions for ${escapeHtml(item.subject || sender)}" aria-haspopup="menu" aria-expanded="false">⋯</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
-    target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
+    target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(pageEmails)}</section>`;
     updateEmailSelectionControls();
     if (focusedRow) [...target.querySelectorAll(".email-row")].find(row => row.dataset.emailDetail === focusedRow)?.focus({ preventScroll: true });
   }

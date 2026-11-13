@@ -10,10 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261113-select-chevron-size" />
+    <link rel="stylesheet" href="css/styles.css?v=20261113-inbox-height" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-money-converter" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-inbox-height" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -625,6 +625,7 @@
                     <span class="email-status-dot" aria-hidden="true"></span>
                     <p id="gmailSyncStatusText" role="status" aria-live="polite"></p>
                     <time id="gmailSyncTime" hidden></time>
+                    <button class="text-button" type="button" id="gmailSyncConnectButton" hidden>Reconnect Gmail</button>
                   </div>
                   <div class="email-ai-summary" id="emailAiStatusSummary" hidden>
                     <button class="email-status-chip email-ai-trigger" id="emailAiStatusTrigger" type="button" aria-expanded="false" aria-controls="emailAiStatusDetails" aria-describedby="emailAiStatusDetails">
@@ -662,15 +663,13 @@
                 </div>
               </section>
             </header>
-            <div class="inbox-permission-banner" id="inboxPermissionBanner" hidden>
-              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-              <p><strong>Gmail permission needed</strong><span>Reconnect Gmail to resume syncing. Saved emails are still available.</span></p>
-              <button class="button button-primary" type="button" id="gmailSyncConnectButton">Reconnect Gmail</button>
-              <button class="icon-button" type="button" id="dismissInboxPermission" aria-label="Dismiss Gmail warning">×</button>
-            </div>
             <div class="email-list" id="emailList"></div>
+            <nav class="inbox-pagination" id="inboxPagination" aria-label="Email pages" hidden>
+              <span id="inboxPageCount" aria-live="polite"></span>
+              <button type="button" class="button button-secondary" id="inboxPreviousPage">Previous</button>
+              <button type="button" class="button button-secondary" id="inboxNextPage">Next</button>
+            </nav>
           </section>
-          <p class="privacy-note">Gmail syncs automatically through Google; Jeff VA never sees your password.</p>
         </section>
 
         <section class="view" id="documentsView" data-view-panel="documents" data-page="tools">
@@ -1994,6 +1993,6 @@
     <script src="js/invoice-engine.js?v=20261111-invoice-summary-layout"></script>
     <script src="js/invoice-payment-brands.js?v=20261111-terms-below-payment"></script>
     <script src="js/invoice-pdf.js?v=20261112-compact-invoice-total"></script>
-    <script src="js/app.js?v=20261113-inbox-performance"></script>
+    <script src="js/app.js?v=20261113-inbox-height"></script>
   </body>
 </html>

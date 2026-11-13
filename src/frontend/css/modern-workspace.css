@@ -756,3 +756,31 @@ body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsVi
   #workspaceShell #dashboardView :is(.client-dashboard-main-grid, .client-dashboard-bottom-grid) { grid-template-columns: minmax(0, 1fr); }
   #workspaceShell #dashboardView .dashboard-weekly-actions { margin-inline-start: 0; }
 }
+.inbox-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--theme-border, #e5e7eb); }
+.inbox-pagination span, .inbox-read-status:not(.inbox-unread-dot) { font-size: 11px; color: var(--theme-muted, #667085); }
+.inbox-pagination .button { min-height: 32px; padding: 4px 10px; }
+.inbox-read-status:empty { display: none; }
+
+body:has(#inboxView.active) #workspaceShell,
+body:has(#inboxView.active) #workspaceShell > .content {
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: clip;
+}
+body:has(#inboxView.active) #workspaceShell > .content { padding-bottom: 12px; }
+#workspaceShell #inboxView.active { display: flex; flex-direction: column; min-height: 0; gap: 6px; }
+#workspaceShell #inboxView.active .inbox-panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+}
+#workspaceShell #inboxView :is(.email-panel-header, .inbox-pagination) { flex: none; }
+#workspaceShell #inboxView #emailList {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+#workspaceShell #inboxView .email-actions-menu.opens-up { top: auto; bottom: calc(100% + 4px); }

@@ -617,6 +617,7 @@
     composeButton.hidden = isSent || !isEmailAddress(recipient);
     composeButton.dataset.composeEmail = emailItem.id;
     $('#emailDetailModal').showModal();
+    markInboxEmailOpened(emailItem);
   }
 
   function applyEmailTemplate(templateId) {
@@ -1178,7 +1179,6 @@
     connectButton.hidden = state !== 'permission' || !gmailConfigured();
     connectButton.textContent = gmailReconnectRequired ? 'Reconnect Gmail' : 'Connect Gmail';
     connectButton.onclick = reconnectGmailWithGoogle;
-    if (typeof updateInboxPermissionBanner === 'function') updateInboxPermissionBanner(state);
   }
 
   function setGmailStatus(message) {

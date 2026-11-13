@@ -117,7 +117,7 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
     await page.addScriptTag({content: `
       const isContractEnded = item => item.contractStatus === 'Contract Ended';
       const contractEndingLabel = () => '', activeSinceDate = () => '2026-10-01', emailDate = value => value;
-      const matchingEmailsForApplication = () => [], isSentEmail = () => false, clientTimeZones = new Map();
+      const matchingEmailsForApplication = () => [], isSentEmail = item => item.direction === 'sent', clientTimeZones = new Map();
       const getClientTasks = () => [];
       ${clientsSource.slice(clientsSource.indexOf('  function normalizeUrl('), clientsSource.indexOf('  const hiredClientAvatarUrls'))}
       ${clientsSource.slice(clientsSource.indexOf('  function renderActiveClientCard('), clientsSource.indexOf("  $('#backToHiredList').addEventListener"))}
@@ -127,6 +127,43 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
         {id:'client-c',clientName:'Bluebird Creative',role:'Marketing Assistant',contractStatus:'Contract Ended',email:'team@bluebird.example'}
       ].map(renderActiveClientCard).join('');
     `});
+    await page.addScriptTag({content: `
+      const currentUser = {id: 'inbox-test'};
+      let emailDateSort = 'all', emailDateFilter = '', emailViewFilter = 'client', emailSelectionMode = false;
+      const receivedEmails = () => data.emails.filter(item => !isSentEmail(item));
+      const renderGmailSyncStatus = () => {}, renderEmailTaskAiStatus = () => {}, emailWeekOptions = () => '<option value="all">All weeks</option>';
+      const applicationsRelatedToEmail = () => [], platformNameForSender = () => '', emailContentText = value => value, extractEmailAddress = () => '', isEmailAddress = () => false, emailTime = () => '', updateEmailSelectionControls = () => {};
+      ${fs.readFileSync(path.join(root, 'js/modules/pages/10b-inbox-render.js'), 'utf8')}
+      previewView('inboxView');
+      data.emails = ['client','sent'].flatMap(direction => Array.from({length: 23}, (_, i) => ({id: direction + i, direction, subject: 'Message ' + i, body: 'Preview', labelIds: ['UNREAD']})));
+      renderEmails();
+    `});
+    assert.equal(await page.locator('#emailList .email-row').count(), 10);
+    await page.evaluate(() => { inboxPage++; renderEmails(); markInboxEmailOpened(data.emails[10]); });
+    assert.equal(await page.locator('#inboxPageCount').textContent(), '11–20 of 23');
+    assert.equal(await page.locator('[data-email-detail="client10"] .inbox-read-status').textContent(), 'Opened');
+    await page.evaluate(() => { emailViewFilter = 'sent'; renderEmails(); markInboxEmailOpened(data.emails[23]); renderEmails(); });
+    assert.equal(await page.locator('#emailList .email-row').count(), 10);
+    assert.equal(await page.locator('#inboxPageCount').textContent(), '1–10 of 23');
+    assert.equal(await page.locator('[data-email-detail="sent0"] .inbox-read-status').textContent(), 'Opened');
+    for (const size of [{width:1440,height:600}, {width:390,height:640}]) {
+      await page.setViewportSize(size);
+      const scroll = await page.evaluate(() => {
+        const list = $('#emailList');
+        const header = $('.topbar');
+        const pagination = $('#inboxPagination');
+        const headerTop = header.getBoundingClientRect().top;
+        list.scrollTop = 100;
+        return {
+          listScrolls: list.scrollTop > 0,
+          headerStays: header.getBoundingClientRect().top === headerTop,
+          footerFits: pagination.getBoundingClientRect().bottom <= innerHeight,
+          pageFits: document.scrollingElement.scrollHeight <= innerHeight
+        };
+      });
+      assert.ok(Object.values(scroll).every(Boolean), JSON.stringify({ size, ...scroll }));
+    }
+    await page.setViewportSize({width:1440,height:900});
     await page.evaluate(() => { renderWallet(); renderSubscriptions(); });
     await page.evaluate(() => { previewView('walletView'); openWorkspaceCalculator(); });
     await page.getByText('1 USD = 60 PHP · 2026-11-13', {exact: true}).waitFor();
