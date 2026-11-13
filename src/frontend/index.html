@@ -10,10 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261112-application-history-views" />
+    <link rel="stylesheet" href="css/styles.css?v=20261113-select-chevron-size" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261112-wallet-muted-text" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-calculator-layout" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -82,7 +82,7 @@
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-toolbox"></i></span><span class="nav-label">Career tools</span>
             </a>
             <a class="nav-link" href="/subscriptions" data-view="subscriptions" title="Account subscriptions">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-credit-card"></i></span><span class="nav-label">Account subscriptions</span><span class="nav-count" id="navSubscriptionsCount">0</span>
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-credit-card"></i></span><span class="nav-label">Subscriptions</span><span class="nav-count" id="navSubscriptionsCount">0</span>
             </a>
           </div>
           <div class="nav-group">
@@ -135,7 +135,7 @@
           <div class="topbar-title-area">
             <div class="topbar-copy">
               <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
-              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" hidden><span>Active clients <strong id="hiredActiveSummary">0</strong></span><span>Ended contracts <strong id="hiredEndedSummary">0</strong></span><button class="client-world-clock-trigger" type="button" id="openClientWorldClock" aria-haspopup="dialog" aria-controls="worldClockModal"><i class="fa-regular fa-clock" aria-hidden="true"></i> World clock</button></span></div>
+              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="application-workspace-count-summary"><strong id="applicationListLabel" tabindex="0" aria-describedby="applicationPlatformCounts">0 applications</strong><span id="applicationPlatformCounts" role="tooltip"></span></span><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" role="group" aria-label="Filter clients by contract" hidden><button type="button" data-hired-filter="all" aria-pressed="true">All <strong id="hiredAllSummary">0</strong></button><button type="button" data-hired-filter="Active" aria-pressed="false">Active <strong id="hiredActiveSummary">0</strong></button><button type="button" data-hired-filter="Contract Ended" aria-pressed="false">Ended <strong id="hiredEndedSummary">0</strong></button></span></div>
               <p class="page-context" id="applicationWeekDate" hidden></p>
               <p class="page-context" id="toApplyHeaderContext" hidden>Keep your next opportunities organized and ready for action.</p>
               <p class="page-context" id="emailWeekDate" hidden></p>
@@ -146,7 +146,7 @@
             <button class="dashboard-switcher-tab active" id="clientDashboardTab" type="button" role="tab" tabindex="0" aria-selected="true" aria-controls="clientDashboardPanel" data-dashboard-tab="client">Client Dashboard</button>
             <button class="dashboard-switcher-tab" id="applicationDashboardTab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="applicationDashboardPanel" data-dashboard-tab="application">Application Dashboard</button>
           </div>
-          <div class="topbar-actions">
+          <div class="topbar-actions"><button class="client-world-clock-trigger hired-world-clock" type="button" id="openClientWorldClock" aria-label="World clock" aria-haspopup="dialog" aria-controls="worldClockModal"><i class="fa-regular fa-clock" aria-hidden="true"></i> World clock</button>
             <button class="button button-secondary global-search-trigger" type="button" id="openQuickSearch" aria-label="Open search and AI assistant" aria-haspopup="dialog" aria-controls="quickSearchModal"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search</span><kbd>Ctrl K</kbd></button>
             <p class="local-indicator" id="saveIndicator" role="status" aria-live="polite" hidden><span></span><span id="saveIndicatorText"></span></p>
             <div class="notification-menu" id="notificationMenu">
@@ -173,10 +173,15 @@
             </div>
             <button class="button button-secondary" type="button" id="openFollowUpTemplate" hidden aria-hidden="true">Follow-up template</button>
             <button class="button button-primary" type="button" id="openAddModal" hidden aria-hidden="true">Add application</button>
+            <button class="button button-primary wallet-add-entry-button" type="button" id="walletAddEntry" title="Add transaction (N)" hidden>Add transaction <kbd aria-hidden="true">N</kbd></button>
+            <button class="button button-primary" id="addSubscription" type="button" hidden>Add subscription</button>
           </div>
         </header>
         <div class="workspace-startup" id="workspaceStartup" role="status" aria-live="polite" aria-atomic="true">
           <span class="workspace-startup-spinner" aria-hidden="true"></span>
+          <div class="hired-loading-cards" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="application-loading-rows" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div class="workspace-refined-skeleton" aria-hidden="true"><span></span><span></span><span></span></div><div class="inbox-loading-rows" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <span class="sr-only" id="workspaceStartupMessage">Checking your session…</span>
         </div>
 
@@ -251,7 +256,7 @@
                 </section>
                 <section class="client-dashboard-panel" aria-labelledby="clientDashboardHoursTitle">
                   <header class="client-dashboard-panel-heading"><div><h2 id="clientDashboardHoursTitle">Logged hours</h2><span>Last 6 months</span></div></header>
-                  <div class="client-dashboard-chart-wrap"><svg id="clientDashboardHoursChart" viewBox="0 0 600 210" role="img" aria-label="Logged client hours over the last six months"></svg></div>
+                  <p class="dashboard-compact-empty" id="clientDashboardHoursEmpty" hidden><i class="fa-regular fa-clock" aria-hidden="true"></i> No logged hours yet.</p><div class="client-dashboard-chart-wrap"><svg id="clientDashboardHoursChart" viewBox="0 0 600 210" role="img" aria-label="Logged client hours over the last six months"></svg></div>
                 </section>
               </div>
             </div>
@@ -270,17 +275,17 @@
           </section>
           <section id="applicationDashboardPanel" class="dashboard-tab-panel" role="tabpanel" tabindex="0" aria-labelledby="applicationDashboardTab" data-dashboard-panel="application" hidden>
             <section class="weekly-report-banner" aria-label="Weekly report">
-              <div><h2>This week</h2><p id="weeklyReportPeriod">Current week: Oct 5 – Oct 9</p></div>
+              <div class="dashboard-weekly-period"><h2>This week</h2><p id="weeklyReportPeriod"></p></div>
               <div class="today-focus-items" aria-label="Today">
                 <span><strong id="todayFollowUps">0</strong> follow-ups due</span>
                 <span><strong id="todayInterviews">0</strong> interviews today</span>
                 <span><strong id="todayToApply">0</strong> reminders due</span>
-                <span class="dashboard-weekly-goal"><strong id="dashboardWeeklyActivity">0 applications</strong><small id="dashboardWeeklyGoalLabel">Weekly goal not set</small><progress id="dashboardWeeklyProgress" value="0" max="1" aria-label="Weekly application goal progress" hidden></progress><button class="dashboard-weekly-goal-action" type="button" id="openWeeklyGoalDialog">Set goal</button></span>
               </div>
-              <button class="text-button" type="button" id="openWeeklyReport">View weekly report</button>
+              <div class="dashboard-weekly-actions"><span class="dashboard-weekly-goal"><strong id="dashboardWeeklyActivity">0 applications</strong><small id="dashboardWeeklyGoalLabel">Weekly goal not set</small><progress id="dashboardWeeklyProgress" value="0" max="1" aria-label="Weekly application goal progress" hidden></progress><button class="dashboard-weekly-goal-action" type="button" id="openWeeklyGoalDialog">Set goal</button></span><button class="text-button" type="button" id="openWeeklyReport">View weekly report</button></div>
             </section>
+          <div class="application-dashboard-main">
           <section class="stat-grid" aria-label="Pipeline summary">
-            <article class="stat-card stat-card-primary">
+            <article class="stat-card">
               <div class="stat-label">Applications</div>
               <strong id="totalApplications">0</strong>
               <p id="applicationsDetail">No applications tracked yet</p>
@@ -321,7 +326,7 @@
                 </div>
               </div>
               <div class="status-donut-row">
-                <div class="donut" id="statusDonut" aria-label="Application status chart"><span id="donutValue">0</span></div>
+                <div class="donut" id="statusDonut" role="img" aria-label="Application status chart"><span id="donutValue">0</span></div>
                 <div class="status-legend" id="statusLegend"></div>
               </div>
             </article>
@@ -333,6 +338,21 @@
             </div></div>
           </section>
 
+          <section class="panel recent-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Recent applications</h2>
+              </div>
+              <button class="text-button" type="button" data-go-to="applications">View all</button>
+            </div>
+              <table>
+                <thead>
+                  <tr><th>Client / company</th><th>Platform</th><th>Status</th><th>Applied</th><th></th></tr>
+                </thead>
+                <tbody id="recentApplications"></tbody>
+              </table>
+          </section>
+          </div>
           <div class="application-dashboard-insights">
           <section class="panel interview-calendar-panel">
             <div class="panel-heading">
@@ -354,77 +374,61 @@
               <div id="applicationProgressAiResult" hidden></div>
             </section>
           </div>
-
-          <section class="panel recent-panel">
-            <div class="panel-heading">
-              <div>
-                <h2>Recent applications</h2>
-              </div>
-              <button class="text-button" type="button" data-go-to="applications">View all</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Client / company</th><th>Platform</th><th>Status</th><th>Applied</th><th></th></tr>
-                </thead>
-                <tbody id="recentApplications"></tbody>
-              </table>
-            </div>
-          </section>
           </section>
         </section>
 
         <section class="view daily-task-view" id="dailyTaskView" data-view-panel="daily-task" data-page="daily-task">
           <section class="daily-task-layout">
             <section class="panel daily-task-list-panel" aria-labelledby="dailyTaskListTitle">
-              <div class="daily-task-section-heading daily-task-list-heading">
-                <h3 id="dailyTaskListTitle">Tasks</h3>
-                <span class="daily-task-progress-label" id="dailyTaskProgressLabel" aria-live="polite">0 of 0 done</span>
-              </div>
+              <h3 class="sr-only" id="dailyTaskListTitle">Tasks</h3>
               <section class="daily-task-toolbar" aria-label="Daily task controls">
-                <div class="daily-task-date-navigation" aria-label="Task date">
-                  <label class="daily-task-calendar-field"><span class="sr-only">Task date</span><input id="dailyTaskDate" type="date" aria-label="Task date" title="Choose a date from the calendar" /></label>
-                  <button class="button button-secondary daily-task-today-button" id="dailyTaskToday" type="button">Today</button>
+                <strong id="dailyTaskSelectedDate" class="daily-task-selected-date"></strong>
+                <div class="daily-task-date-navigation" aria-label="Task date"><button class="button button-secondary daily-task-date-step" type="button" data-task-date-step="-1" aria-label="Previous day">‹</button>
+                  <label class="daily-task-calendar-field"><span class="sr-only">Task date</span><input id="dailyTaskDate" type="date" aria-label="Task date" hidden /><button class="inbox-date-trigger" type="button" data-follow-up-calendar="dailyTaskDate" aria-expanded="false" aria-label="Task date"><i class="fa-regular fa-calendar" aria-hidden="true"></i> <span>Task date</span></button></label>
+                  <button class="button button-secondary daily-task-today-button" id="dailyTaskToday" type="button">Today</button><button class="button button-secondary daily-task-date-step" type="button" data-task-date-step="1" aria-label="Next day">›</button>
                 </div>
-                <label class="daily-task-filter-field"><span class="sr-only">Show</span><select id="dailyTaskFilter" aria-label="Show tasks"><option value="all">All tasks</option><option value="remaining">Remaining</option><option value="completed">Completed</option><option value="overdue">Overdue</option></select></label>
-                <button class="button button-primary" type="button" id="openDailyTaskAddModal">Add Task</button>
+                <div class="daily-task-progress-group">
+                  <div class="daily-task-progress" role="progressbar" aria-label="Tasks completed" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0" id="dailyTaskProgress"><span></span></div>
+                  <span class="daily-task-progress-label" id="dailyTaskProgressLabel" aria-live="polite">0/0</span>
+                </div>
+                <div class="daily-task-filter-tabs" role="group" aria-label="Show tasks">
+                  <button type="button" data-task-filter="all" aria-pressed="true">All</button>
+                  <button type="button" data-task-filter="remaining" aria-pressed="false">Open</button>
+                  <button type="button" data-task-filter="completed" aria-pressed="false">Done</button>
+                </div>
+                <button class="button button-secondary" id="toggleDailyTaskSearch" type="button" aria-label="Search tasks" aria-expanded="false" aria-controls="dailyTaskSearch" hidden><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+                <button class="button button-secondary" type="button" id="openDailyTaskAddModal" title="Add a task with a date, linked record, notes or checklist">Task options</button>
               </section>
               <section class="daily-task-summary" aria-label="Task summary">
-                <div><span>Tasks</span><strong id="dailyTaskScheduledCount">0</strong></div>
-                <div><span>Done</span><strong id="dailyTaskCompletedCount">0</strong></div>
-                <div><span>Left</span><strong id="dailyTaskRemainingCount">0</strong></div>
                 <button class="daily-task-summary-overdue" type="button" id="dailyTaskOverdueFilter" aria-label="Filter to overdue tasks" hidden><span>Overdue</span><strong id="dailyTaskOverdueCount">0</strong></button>
               </section>
-              <div class="daily-task-progress" role="progressbar" aria-label="Tasks completed" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" id="dailyTaskProgress"><span></span></div>
               <div class="daily-task-list-tools">
-                <label class="daily-task-quick-add"><span class="sr-only">Add a task</span><input id="dailyTaskQuickAdd" type="text" maxlength="180" placeholder="Add a task and press Enter" autocomplete="off" /></label>
-                <label class="daily-task-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search tasks</span><input id="dailyTaskSearch" type="search" placeholder="Search tasks" autocomplete="off" /></label>
+                <label class="daily-task-quick-add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span class="sr-only">Add a task</span><input id="dailyTaskQuickAdd" type="text" maxlength="180" placeholder="Add a task and press Enter" autocomplete="off" /></label>
+                <label class="daily-task-search" hidden><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search tasks</span><input id="dailyTaskSearch" type="search" placeholder="Search tasks" autocomplete="off" /></label>
               </div>
               <div class="daily-task-list" id="dailyTaskList" aria-live="polite"></div>
             </section>
-            <section class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
-              <div class="daily-task-section-heading daily-task-history-heading"><div><h3 id="dailyTaskHistoryTitle">History</h3></div><span class="daily-task-count" id="dailyTaskHistoryCount">0</span></div>
+            <details class="panel daily-task-history-panel" aria-labelledby="dailyTaskHistoryTitle">
+              <summary class="daily-task-section-heading daily-task-history-heading"><span id="dailyTaskHistoryTitle">History</span><span class="daily-task-count" id="dailyTaskHistoryCount">0</span></summary>
               <div class="daily-task-history-controls">
                 <div class="daily-task-history-shortcuts" aria-label="History shortcuts"><button class="button button-secondary" type="button" data-task-history-offset="-1">Yesterday</button><button class="button button-secondary" type="button" data-task-history-offset="-7">Last week</button></div>
-                <label class="daily-task-date-field"><span class="sr-only">Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Filter completed tasks by date" title="Completed on" /></label>
+                <label class="daily-task-date-field"><span class="sr-only">Completed on</span><input id="dailyTaskHistoryDate" type="date" aria-label="Completed on" hidden /><button class="inbox-date-trigger" type="button" data-follow-up-calendar="dailyTaskHistoryDate" aria-expanded="false" aria-label="Completed on"><i class="fa-regular fa-calendar" aria-hidden="true"></i> <span>Completed on</span></button></label>
               </div>
               <div class="daily-task-history-list" id="dailyTaskHistoryList" aria-live="polite"></div>
-            </section>
+            </details>
           </section>
           <div class="daily-task-undo-toast" id="dailyTaskUndoToast" role="status" aria-live="polite" hidden><span>Task deleted</span><button type="button" id="undoDailyTaskDelete">Undo</button></div>
         </section>
 
         <section class="view" id="applicationsView" data-view-panel="applications" data-page="applications">
           <section class="application-workspace-head">
-            <div class="application-workspace-count">
-              <span class="application-workspace-count-summary"><strong id="applicationListLabel" tabindex="0" aria-describedby="applicationPlatformCounts">0 applications</strong><span id="applicationPlatformCounts" role="tooltip"></span></span>
-            </div>
+            <div id="applicationStatusChips" class="application-status-chips" role="group" aria-label="Filter by application status"></div>
             <div class="application-filter-footer application-workspace-actions">
               <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
               <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
               <div class="application-view-toggle" role="group" aria-label="Application view">
-                <button class="button button-secondary active" type="button" data-application-view="table" aria-pressed="true"><i class="fa-solid fa-table-list" aria-hidden="true"></i> Table</button>
-                <button class="button button-secondary" type="button" data-application-view="board" aria-pressed="false"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Pipeline</button>
+                <button class="button button-secondary active" type="button" data-application-view="table" aria-pressed="true"><i class="fa-solid fa-table-list" aria-hidden="true"></i> List</button>
+                <button class="button button-secondary" type="button" data-application-view="board" aria-pressed="false"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Board</button>
               </div>
             </div>
           </section>
@@ -434,8 +438,8 @@
               <label class="application-filter-field"><input type="date" id="applicationDateFilter" aria-label="Filter applications by application date" /></label>
               <label class="application-filter-field"><select id="applicationDateSort" aria-label="Filter applications by week"><option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option></select></label>
               <label class="application-filter-field"><select id="applicationOrderSort" aria-label="Sort applications by date"><option value="newest">Newest</option><option value="oldest">Oldest</option></select></label>
-              <label class="application-filter-field"><select id="statusFilter" aria-label="Filter applications by stage"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
-              <label class="application-filter-field"><select id="platformFilter" aria-label="Filter applications by source"><option value="">All sources</option></select></label>
+              <label class="application-filter-field"><select id="statusFilter" aria-label="Filter applications by stage"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Offer</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
+              <label class="application-filter-field"><select id="platformFilter" aria-label="Filter applications by platform"><option value="">All sources</option></select></label><label class="application-filter-field"><select id="applicationEmploymentFilter" aria-label="Filter by employment type"><option value="">All employment types</option><option>Full time</option><option>Part time</option><option>Gig</option></select></label>
             </div>
             <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
           </section>
@@ -447,7 +451,6 @@
               <button class="button button-secondary" type="button" id="applyBulkStatus">Apply</button>
               <button class="button button-ghost" type="button" id="clearApplicationSelection">Clear selection</button>
             </div>
-            <div class="application-list-head"><span><i class="fa-solid fa-list-check" aria-hidden="true"></i> Client / role</span><span>Source &amp; pay</span><span>Stage</span><span>Applied / activity</span><span></span></div>
             <div class="application-list" id="applicationList"></div>
           </section>
         </section>
@@ -510,7 +513,7 @@
 
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
           <section class="toolbar">
-            <label class="search-field"><span aria-hidden="true">⌕</span><input type="search" id="hiredSearch" aria-label="Search clients" placeholder="Search clients" /></label>
+            <label class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="hiredSearch" aria-label="Search clients" placeholder="Search clients" /></label>
             <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
             <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
           </section>
@@ -622,7 +625,6 @@
                     <span class="email-status-dot" aria-hidden="true"></span>
                     <p id="gmailSyncStatusText" role="status" aria-live="polite"></p>
                     <time id="gmailSyncTime" hidden></time>
-                    <button class="text-button" type="button" id="gmailSyncConnectButton" hidden>Connect Gmail</button>
                   </div>
                   <div class="email-ai-summary" id="emailAiStatusSummary" hidden>
                     <button class="email-status-chip email-ai-trigger" id="emailAiStatusTrigger" type="button" aria-expanded="false" aria-controls="emailAiStatusDetails" aria-describedby="emailAiStatusDetails">
@@ -650,11 +652,22 @@
               <section class="application-filters email-filters" aria-label="Email filters">
                 <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="emailSearch" aria-label="Search email" placeholder="Search email" /></label>
                 <div class="application-filter-controls email-filter-controls">
-                  <label class="application-filter-field"><input type="date" id="emailDateFilter" aria-label="Filter emails by exact date" /></label>
+                  <div class="inbox-date-range" role="group" aria-label="Email date range">
+                    <input type="date" id="emailDateFilter" aria-label="Start date" hidden />
+                    <button type="button" class="inbox-date-trigger" data-follow-up-calendar="emailDateFilter" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i> <span>Start date</span></button>
+                    <input type="date" id="emailDateEndFilter" aria-label="End date" hidden />
+                    <button type="button" class="inbox-date-trigger" data-follow-up-calendar="emailDateEndFilter" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i> <span>End date</span></button>
+                  </div>
                   <label class="application-filter-field"><select id="emailDateSort" aria-label="Filter emails by week"><option value="0">This week</option></select></label>
                 </div>
               </section>
             </header>
+            <div class="inbox-permission-banner" id="inboxPermissionBanner" hidden>
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+              <p><strong>Gmail permission needed</strong><span>Reconnect Gmail to resume syncing. Saved emails are still available.</span></p>
+              <button class="button button-primary" type="button" id="gmailSyncConnectButton">Reconnect Gmail</button>
+              <button class="icon-button" type="button" id="dismissInboxPermission" aria-label="Dismiss Gmail warning">×</button>
+            </div>
             <div class="email-list" id="emailList"></div>
           </section>
           <p class="privacy-note">Gmail syncs automatically through Google; Jeff VA never sees your password.</p>
@@ -756,13 +769,14 @@
               <div class="invoice-list" id="invoiceList"></div>
             </div>
             <div class="documents-tab-panel hidden" id="salaryCalculatorPanel" data-documents-panel="salary">
-              <div class="salary-calculator">
+              <div class="salary-calculator" id="workspaceCalculator">
                 <div class="documents-subsection-head">
-                  <div><p class="eyebrow">PAY CONVERTER</p><h3>Salary calculator</h3></div>
-                  <span class="salary-rate-note">1 USD = 58 PHP</span>
+                  <div><p class="eyebrow">PAY CONVERTER</p><h3 id="workspaceCalculatorTitle">Salary calculator</h3></div>
+                  <div class="salary-exchange-controls"><span class="salary-rate-note" id="salaryExchangeRate" role="status"></span><button type="button" class="text-button" id="refreshSalaryExchangeRate">Refresh rate</button></div>
                 </div>
                 <div class="salary-calculator-fields">
                   <label class="form-field"><span>Pay currency</span><select id="salaryCalculatorCurrency"><option value="USD">US dollars (USD)</option><option value="PHP">Philippine pesos (PHP)</option></select></label>
+                  <label class="form-field"><span>Convert to</span><select id="salaryCalculatorTarget"><option value="PHP">Philippine pesos (PHP)</option></select></label>
                   <label class="form-field"><span>Pay type</span><select id="salaryCalculatorPayType"><option value="hourly">Hourly</option><option value="monthly">Monthly</option></select></label>
                   <label class="form-field"><span id="salaryCalculatorRateLabel">Hourly rate</span><input id="salaryCalculatorRate" type="number" min="0" step="0.01" value="10" placeholder="e.g. 10 or 400" /></label>
                   <label class="form-field"><span>Hours per week</span><input id="salaryCalculatorHours" type="number" min="0" step="0.5" value="40" placeholder="e.g. 40" /></label>
@@ -771,10 +785,11 @@
                 <div class="salary-calculator-result" aria-live="polite">
                   <div><span>Estimated days per month</span><strong id="salaryCalculatorMonthlyDays">21.7 days</strong></div>
                   <div><span>Total per month</span><strong id="salaryCalculatorMonthlyTotal">$1,733</strong></div>
-                  <div><span id="salaryCalculatorConversionLabel">Converted monthly (PHP)</span><strong id="salaryCalculatorConversion">₱100,514</strong></div>
-                  <div><span id="salaryCalculatorHourlyLabel">Hourly equivalent (PHP)</span><strong id="salaryCalculatorHourlyConversion">₱580</strong></div>
+                  <div><span id="salaryCalculatorConversionLabel">Converted monthly (PHP)</span><strong id="salaryCalculatorConversion">—</strong></div>
+                  <div><span id="salaryCalculatorHourlyLabel">Hourly equivalent (PHP)</span><strong id="salaryCalculatorHourlyConversion">—</strong></div>
                 </div>
-                <p class="salary-calculator-help">Hourly estimates use 52 weeks divided by 12 months. Monthly pay uses the amount entered. PHP/USD conversion is approximate and uses the rate shown above.</p>
+                <details class="salary-currency-converter"><summary>Convert a money amount</summary><label class="form-field"><span>Amount in <span id="salaryAmountCurrency">USD</span></span><input id="salaryConverterAmount" type="number" min="0" step="any" placeholder="Enter amount" /></label><output id="salaryConverterResult" for="salaryConverterAmount"></output></details>
+                <p class="salary-calculator-help">Hourly estimates use 52 weeks divided by 12 months. Monthly pay uses the amount entered. Converted amounts use the dated reference rate shown above.</p>
               </div>
             </div>
             </div>
@@ -783,7 +798,6 @@
         </section>
 
         <section class="view subscriptions-view" id="subscriptionsView" data-view-panel="subscriptions" data-page="subscriptions">
-          <div class="subscriptions-intro"><div><h2>Your paid accounts</h2><p>Keep track of when your subscriptions end.</p></div><button class="button button-primary" id="addSubscription" type="button">Add subscription</button></div>
           <div class="subscriptions-toolbar">
             <label class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="subscriptionSearch" placeholder="Search service or account" aria-label="Search subscriptions" /></label>
             <label><span class="sr-only">Filter subscriptions by status</span><select id="subscriptionFilter"><option value="all">All subscriptions</option><option value="active">Active</option><option value="soon">Expiring soon</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></label>
@@ -807,7 +821,6 @@
         </section>
 
         <section class="view" id="walletView" data-view-panel="wallet" data-page="wallet">
-          <div class="wallet-intro"><button class="button button-primary wallet-add-entry-button" type="button" id="walletAddEntry" title="Add transaction (N)">Add transaction <kbd aria-label="Keyboard shortcut N">N</kbd></button></div>
           <div class="wallet-summary" id="walletSummary" aria-label="Wallet totals"></div>
           <p class="wallet-hint" id="walletInvoiceNotice" role="status"></p>
           <section class="wallet-section" aria-labelledby="walletClientRatesTitle"><div class="wallet-section-heading"><h3 id="walletClientRatesTitle">Active client salary rates</h3></div><div class="wallet-accounts" id="walletClientRates"></div></section>
@@ -901,7 +914,7 @@
           </section>
           <section class="account-section account-storage-section" aria-labelledby="accountStorageTitle">
             <div class="account-section-heading">
-              <h2 id="accountStorageTitle">File storage usage</h2>
+              <h2 id="accountStorageTitle">Storage usage</h2>
               <div class="account-storage-actions">
                 <button class="text-button account-storage-refresh" type="button" id="refreshAccountStorageUsage"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
               </div>
@@ -910,12 +923,25 @@
               <label class="account-storage-plan-field"><span>Supabase plan</span><select id="accountStoragePlan" aria-label="Supabase plan for storage quota"><option value="">Select plan</option><option value="free">Free · 1 GB</option><option value="pro-team">Pro / Team · 100 GB</option><option value="custom">Enterprise / custom</option></select></label>
               <label class="account-storage-plan-field" id="accountStorageCustomQuotaField" hidden><span>Custom quota (GB)</span><input id="accountStorageCustomQuota" type="number" min="0.01" step="0.1" inputmode="decimal" /></label>
             </div>
-            <dl class="account-detail-list">
-              <div><dt>Storage provider</dt><dd id="accountProjectStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
-              <div hidden><dt>Plan storage</dt><dd id="accountProjectStorageQuota">Select plan</dd></div>
-              <div hidden><dt>Estimated available</dt><dd id="accountProjectStorageAvailable">Select plan</dd></div>
-              <div><dt>Your files</dt><dd id="accountStorageUsage" role="status" aria-live="polite">Not checked</dd></div>
+            <dl class="account-storage-overview">
+              <div><dt>Workspace files</dt><dd id="accountStorageUsage" role="status" aria-live="polite">Not checked</dd><small id="accountProjectStorageUsage">Cloudflare R2 · Private</small></div>
+              <div><dt>Available capacity</dt><dd>No fixed bucket limit</dd><small>10 GB-month included for R2 Standard storage</small></div>
+              <div><dt>Estimated free-tier headroom</dt><dd id="accountStorageHeadroom" aria-live="polite">Not checked</dd><small>Based on current workspace files only</small></div>
             </dl>
+            <div hidden><span id="accountProjectStorageQuota"></span><span id="accountProjectStorageAvailable"></span></div>
+            <p class="account-storage-caption">Cloudflare calculates free usage across your account over the billing month. <a href="https://developers.cloudflare.com/r2/pricing/" target="_blank" rel="noopener noreferrer">R2 pricing</a></p>
+            <div id="accountStorageBreakdown" hidden>
+              <p id="accountStorageBreakdownNote"></p>
+              <h3 id="accountStorageSectionsTitle">By section</h3>
+              <table class="account-storage-table" aria-labelledby="accountStorageSectionsTitle">
+                <thead><tr><th scope="col">Section</th><th scope="col">Records (est.)</th><th scope="col">Files</th></tr></thead>
+                <tbody id="accountStorageSections"></tbody>
+              </table>
+              <details id="accountStorageClients" hidden>
+                <summary>By client</summary>
+                <dl class="account-detail-list" id="accountStorageClientRows"></dl>
+              </details>
+            </div>
           </section>
           <section class="account-section account-history-section" aria-labelledby="accountLoginActivityTitle">
             <div class="account-section-heading account-history-heading">
@@ -1042,6 +1068,7 @@
         </div>
       </form>
     </dialog>
+    <dialog class="modal workspace-calculator-modal" id="workspaceCalculatorModal" aria-label="Salary calculator and currency converter"><form method="dialog" class="workspace-calculator-close"><button type="submit" class="button button-secondary" aria-label="Close calculator">×</button></form></dialog>
     <dialog class="modal quick-search-modal" id="quickSearchModal" aria-labelledby="quickSearchTitle">
       <div class="quick-search-shell">
         <header class="research-header"><div><h2 id="quickSearchTitle">Search your workspace</h2><p id="researchModelLabel" hidden>GPT-OSS 120B</p></div><button class="icon-button" type="button" id="closeQuickSearch" aria-label="Close search and AI assistant">×</button></header>
@@ -1158,7 +1185,8 @@
     <dialog class="modal" id="clientModal" aria-labelledby="clientModalTitle">
       <form method="dialog" id="clientForm">
         <div class="modal-heading">
-          <div><p class="eyebrow" id="modalEyebrow">NEW RECORD</p><h2 id="clientModalTitle">Add an applied job</h2></div>
+          <div><p class="eyebrow" id="modalEyebrow">NEW RECORD</p><h2 id="clientModalTitle">Add an applied job</h2><p id="applicationDrawerSubtitle" hidden></p></div>
+          <button class="icon-button" id="closeApplicationDrawer" type="button" aria-label="Close application drawer" hidden><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
           <div id="applicationDetailViews" class="application-detail-views" role="group" aria-label="Application view" hidden>
             <button type="button" class="button button-secondary" id="applicationDetailsViewButton" aria-controls="applicationDetailsContent" aria-pressed="true">Application Details</button>
             <button type="button" class="button button-secondary" id="applicationEmailViewButton" aria-controls="applicationEmailContent" aria-pressed="false">Email &amp; Follow-up</button>
@@ -1167,43 +1195,50 @@
         <input type="hidden" id="clientId" />
         <div class="client-form-layout" id="applicationDetailsContent">
           <section class="client-form-column">
-            <p class="form-column-label">CLIENT DETAILS</p>
+            <p class="form-column-label">Client details</p>
             <p class="application-duplicate-notice form-field-wide" id="applicationDuplicateNotice" role="status" aria-live="polite" hidden></p>
           <label class="form-field form-field-wide">Client or company name <span class="required">*</span><input id="clientName" maxlength="100" required placeholder="e.g. Acme Studio" /></label>
             <label class="form-field">Contact person <span class="required">*</span><input id="contactName" maxlength="100" required placeholder="e.g. Jordan Lee" /></label>
             <label class="form-field">Role or service <span class="required">*</span><input id="clientRole" maxlength="120" required placeholder="e.g. Website redesign" /></label>
-          <label class="form-field">Email <span class="required">*</span><input id="hiredEmail" type="email" maxlength="120" required placeholder="name@company.com" /></label>
-          <label class="form-field">Phone number <span class="required">*</span><input id="hiredPhone" type="tel" maxlength="40" required placeholder="e.g. +1 555 010 2938" /></label>
-          <label class="form-field">Application Link <input id="hiredWebsite" type="text" maxlength="200" placeholder="e.g. job posting or application URL" /><a id="hiredWebsiteLink" class="form-field-link" target="_blank" rel="noopener noreferrer" hidden></a></label>
-          <label class="form-field" id="hiredSocialField">Social Media | Website <input id="hiredSocial" type="text" maxlength="200" placeholder="e.g. @acmestudio or company website" /><a id="hiredSocialLink" class="form-field-link" target="_blank" rel="noopener noreferrer" hidden></a></label>
-          <section class="client-social-links-field form-field-wide" id="clientSocialLinksField" aria-labelledby="clientSocialLinksLabel">
-            <div class="client-social-links-heading"><div><span id="clientSocialLinksLabel">Social media accounts and websites</span><small>Add each client profile you manage.</small></div><button class="button button-secondary client-social-add" type="button" id="addClientSocialLink"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add account</button></div>
-            <div class="client-social-links-list" id="clientSocialLinksList"></div>
-          </section>
-          <label class="form-field form-field-wide">Client location <select id="clientCountry"><option value="" selected>Select client country</option><option value="AU">Australia</option><option value="BR">Brazil</option><option value="CA">Canada</option><option value="CN">China</option><option value="CO">Colombia</option><option value="FR">France</option><option value="DE">Germany</option><option value="IN">India</option><option value="IE">Ireland</option><option value="IL">Israel</option><option value="IT">Italy</option><option value="JP">Japan</option><option value="MX">Mexico</option><option value="NL">Netherlands</option><option value="NZ">New Zealand</option><option value="PE">Peru</option><option value="PH">Philippines</option><option value="SA">Saudi Arabia</option><option value="ZA">South Africa</option><option value="KR">South Korea</option><option value="TW">Taiwan</option><option value="AE">United Arab Emirates</option><option value="GB">United Kingdom</option><option value="US">United States</option><option value="OTHER">Other country</option></select><span id="clientRegionField" class="hidden"><select id="clientRegion"><option value="" selected disabled>Select client region</option><option data-countries="US,CA" value="America/New_York">Eastern</option><option data-countries="US,CA" value="America/Chicago">Central</option><option data-countries="US,CA" value="America/Denver">Mountain</option><option data-countries="US,CA" value="America/Los_Angeles">Pacific</option><option data-countries="CA" value="America/Halifax">Atlantic</option><option data-countries="CA" value="America/St_Johns">Newfoundland</option><option data-countries="US" value="America/Anchorage">Alaska</option><option data-countries="US" value="Pacific/Honolulu">Hawaii</option><option data-countries="AU" value="Australia/Sydney">East</option><option data-countries="AU" value="Australia/Adelaide">Central</option><option data-countries="AU" value="Australia/Perth">West</option></select></span><input id="hiredLocation" type="hidden" /><input id="clientTimeZone" type="hidden" /><small id="clientTimeZoneDisplay" class="field-help">Select the client country to determine the client timezone.</small></label>
           </section>
           <section class="client-form-column">
-            <p class="form-column-label">APPLICATION DETAILS</p>
-          <p class="form-subsection-label">PLATFORM</p>
+            <p class="form-column-label">Contact</p>
+          <label class="form-field">Email <span class="required">*</span><span class="application-icon-field"><i class="application-field-icon fa-solid fa-envelope" aria-hidden="true"></i><input id="hiredEmail" type="email" maxlength="120" required placeholder="name@company.com" /></span></label>
+          <label class="form-field">Phone number <span class="required">*</span><span class="application-icon-field"><i class="application-field-icon fa-solid fa-phone" aria-hidden="true"></i><input id="hiredPhone" type="tel" maxlength="40" required placeholder="e.g. +1 555 010 2938" /></span></label>
+          <label class="form-field">Application Link <span class="application-icon-field"><i class="application-field-icon fa-solid fa-link" aria-hidden="true"></i><input id="hiredWebsite" type="text" maxlength="200" placeholder="e.g. job posting or application URL" /><a id="hiredWebsiteLink" class="form-field-link" target="_blank" rel="noopener noreferrer" hidden></a></span></label>
+          <label class="form-field form-field-wide">Client location <span class="application-icon-field"><i class="application-field-icon fa-solid fa-location-dot" aria-hidden="true"></i><select id="clientCountry"><option value="" selected>Select client country</option><option value="AU">Australia</option><option value="BR">Brazil</option><option value="CA">Canada</option><option value="CN">China</option><option value="CO">Colombia</option><option value="FR">France</option><option value="DE">Germany</option><option value="IN">India</option><option value="IE">Ireland</option><option value="IL">Israel</option><option value="IT">Italy</option><option value="JP">Japan</option><option value="MX">Mexico</option><option value="NL">Netherlands</option><option value="NZ">New Zealand</option><option value="PE">Peru</option><option value="PH">Philippines</option><option value="SA">Saudi Arabia</option><option value="ZA">South Africa</option><option value="KR">South Korea</option><option value="TW">Taiwan</option><option value="AE">United Arab Emirates</option><option value="GB">United Kingdom</option><option value="US">United States</option><option value="OTHER">Other country</option></select></span><span id="clientRegionField" class="hidden"><select id="clientRegion"><option value="" selected disabled>Select client region</option><option data-countries="US,CA" value="America/New_York">Eastern</option><option data-countries="US,CA" value="America/Chicago">Central</option><option data-countries="US,CA" value="America/Denver">Mountain</option><option data-countries="US,CA" value="America/Los_Angeles">Pacific</option><option data-countries="CA" value="America/Halifax">Atlantic</option><option data-countries="CA" value="America/St_Johns">Newfoundland</option><option data-countries="US" value="America/Anchorage">Alaska</option><option data-countries="US" value="Pacific/Honolulu">Hawaii</option><option data-countries="AU" value="Australia/Sydney">East</option><option data-countries="AU" value="Australia/Adelaide">Central</option><option data-countries="AU" value="Australia/Perth">West</option></select></span><input id="hiredLocation" type="hidden" /><input id="clientTimeZone" type="hidden" /><small id="clientTimeZoneDisplay" class="field-help">Select the client country to determine the client timezone.</small></label>
+          </section>
+          <section class="client-form-column">
+            <p class="form-column-label">Contract</p>
           <label class="form-field">Where did you apply? <span class="required">*</span><select id="clientPlatform" required><option value="" selected disabled>Select platform</option><option>20four7VA</option><option>Crew Club</option><option>Direct client</option><option>Email outreach</option><option>Fiverr</option><option>Freelancer</option><option>Indeed</option><option>Jobstreet</option><option>LinkedIn</option><option>MultiplyMii</option><option>OnlineJobs.ph</option><option>Referral</option><option>Remote Work PH</option><option>Upwork</option><option>vaworkersph</option><option>Zirtual</option><option>Other</option></select></label>
           <label class="form-field hidden" id="customPlatformField">Platform name <span class="required">*</span><input id="customPlatform" maxlength="80" placeholder="Name the platform" /></label>
           <label class="form-field">Employment type <span class="required">*</span><select id="employmentType" required><option value="" selected disabled>Select type</option><option>Full time</option><option>Part time</option><option>Gig</option></select></label>
-          <p class="form-subsection-label">SALARY</p>
+
           <label class="form-field">Salary type <select id="salaryType"><option value="" selected>Not set</option><option value="monthly">Monthly</option><option value="hourly">Per hour</option></select></label>
           <label class="form-field">Salary currency <select id="salaryCurrency"><option value="USD">US Dollar (USD)</option><option value="PHP">Philippine Peso (PHP)</option></select></label>
           <label class="form-field salary-amount-field hidden">Salary amount <input id="salaryAmount" type="number" min="0" step="0.01" placeholder="e.g. 5000 or 25" /></label>
           <label class="form-field salary-hours-field hidden">Hours per week <input id="salaryHoursPerWeek" type="number" min="1" max="80" step="0.5" placeholder="e.g. 25" /></label>
           <div class="salary-estimate-field hidden" role="status" aria-live="polite"><span class="salary-estimate-label">Estimated monthly pay</span><span class="salary-estimate-values"><strong id="salaryMonthlyEstimatePreview">$0</strong><span id="salaryMonthlyEstimatePhp" class="salary-estimate-php">approx. ₱0</span></span></div>
-          <p class="form-subsection-label">STATUS</p>
+          </section>
+          <section class="client-form-column">
+            <p class="form-column-label">Status</p>
           <label class="form-field">Current status <span class="required">*</span><select id="clientStatus" required><option>Ongoing</option><option selected>Applied</option><option>To Proceed</option><option>Interview</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
           <label class="form-field hidden" id="nextStepField">Next step <input id="nextStep" maxlength="300" placeholder="e.g. Send portfolio or schedule a call" /></label>
-          <label class="form-field contract-field hidden">Contract end date <input id="contractEndDate" type="date" /><small class="field-help">Leave blank if the contract has no end date.</small></label>
-          <label class="form-field">Date applied <span class="required">*</span><input id="appliedDate" type="date" required /></label>
-          <label class="form-field interview-field hidden">Interview date <input id="interviewDate" type="date" /></label>
+          <label class="form-field contract-field hidden">Contract end date <span class="follow-up-date-picker"><input id="contractEndDate" type="date" /><button class="follow-up-calendar-trigger application-date-trigger" type="button" data-follow-up-calendar="contractEndDate" aria-label="Open calendar" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Leave blank if the contract has no end date.</small></label>
+          <label class="form-field">Date applied <span class="required">*</span><span class="follow-up-date-picker"><input id="appliedDate" type="date" required /><button class="follow-up-calendar-trigger application-date-trigger" type="button" data-follow-up-calendar="appliedDate" aria-label="Open calendar" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span></label>
+          <label class="form-field interview-field hidden">Interview date <span class="follow-up-date-picker"><input id="interviewDate" type="date" /><button class="follow-up-calendar-trigger application-date-trigger" type="button" data-follow-up-calendar="interviewDate" aria-label="Open calendar" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span></label>
           <label class="form-field interview-field hidden">Interview meeting link <input id="interviewLink" type="url" maxlength="300" placeholder="https://meet.google.com/..." /></label>
           <label class="form-field" for="followUpDate">Follow-up date <span class="follow-up-date-picker"><input id="followUpDate" class="follow-up-date-input" type="date" aria-label="Follow-up date" /><button class="follow-up-calendar-trigger" type="button" data-follow-up-calendar="followUpDate" aria-label="Choose a weekday follow-up date" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Monday–Friday only. Faded weekends are unavailable.</small></label>
-          <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. Sends Monday–Friday, 8:00 AM–5:00 PM in the client timezone. Outside this window, it waits until the next opening.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label>
+          <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. Sends Monday–Friday, 8:00 AM–5:00 PM in the client timezone. Outside this window, it waits until the next opening.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label><div class="application-follow-up-meta form-field-wide"><button type="button" class="icon-button" aria-label="Automatic follow-up schedule" aria-describedby="applicationFollowUpTooltip" popovertarget="applicationFollowUpTooltip"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><span id="applicationFollowUpTooltip" popover role="tooltip">Sends Monday–Friday, 8 AM–5 PM in the client time zone. Requires Gmail and a valid client email. Outside these hours, it waits until the next sending window.</span><small id="applicationGmailWarning" hidden>Gmail is disconnected.</small></div>
           <label class="form-field form-field-wide client-notes-field">Notes <textarea id="clientNotes" maxlength="1000" rows="4" placeholder="A useful detail, next step, rate, or link…"></textarea></label>
+          </section>
+          <section class="client-form-column">
+            <p class="form-column-label">Social media and websites</p>
+          <label class="form-field" id="hiredSocialField">Social Media | Website <input id="hiredSocial" type="text" maxlength="200" placeholder="e.g. @acmestudio or company website" /><a id="hiredSocialLink" class="form-field-link" target="_blank" rel="noopener noreferrer" hidden></a></label>
+          <section class="client-social-links-field form-field-wide" id="clientSocialLinksField" aria-labelledby="clientSocialLinksLabel">
+            <div class="client-social-links-heading"><div><span id="clientSocialLinksLabel">Social media accounts and websites</span><small>Add each client profile you manage.</small></div><button class="button button-secondary client-social-add" type="button" id="addClientSocialLink"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add account</button></div>
+            <div class="client-social-links-list" id="clientSocialLinksList"></div>
+          </section>
           </section>
         </div>
           <div class="application-history-grid" id="applicationEmailContent" hidden>
@@ -1214,7 +1249,7 @@
             <section class="client-follow-up-history hidden" id="clientFollowUpHistory" aria-live="polite"></section>
           </div>
         <div class="modal-actions modal-actions-split">
-          <div class="modal-actions-right"><button class="button button-secondary" type="button" id="sendProceedEmailButton" hidden>Send proceed email</button><button class="button button-secondary" value="cancel" type="submit" formnovalidate id="closeClientDetailsButton">Close</button><button class="button button-primary" type="submit" id="saveClientButton">Save application</button></div>
+          <span id="applicationEditStatus" role="status" hidden></span><div class="modal-actions-right"><button class="button button-secondary" type="button" id="sendProceedEmailButton" hidden>Send proceed email</button><button class="button button-secondary" value="cancel" type="submit" formnovalidate id="closeClientDetailsButton">Close</button><button class="button button-primary" type="submit" id="saveClientButton">Save application</button></div>
         </div>
       </form>
     </dialog>
@@ -1242,6 +1277,11 @@
         <button class="application-actions-panel-action" type="button" data-application-panel-action="edit">
           <span class="application-actions-panel-icon"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></span>
           <span><strong>Edit</strong><small>Update this application.</small></span>
+          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </button>
+        <button class="application-actions-panel-action" type="button" data-application-panel-action="status">
+          <span class="application-actions-panel-icon"><i class="fa-solid fa-tag" aria-hidden="true"></i></span>
+          <span><strong>Change status</strong></span>
           <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
         </button>
         <button class="application-actions-panel-action is-danger" type="button" data-application-panel-action="delete">
@@ -1944,6 +1984,6 @@
     <script src="js/invoice-engine.js?v=20261111-invoice-summary-layout"></script>
     <script src="js/invoice-payment-brands.js?v=20261111-terms-below-payment"></script>
     <script src="js/invoice-pdf.js?v=20261112-compact-invoice-total"></script>
-    <script src="js/app.js?v=20261112-application-history-views"></script>
+    <script src="js/app.js?v=20261113-currency-pairs"></script>
   </body>
 </html>

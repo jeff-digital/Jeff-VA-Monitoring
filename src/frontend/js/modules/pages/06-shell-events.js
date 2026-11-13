@@ -41,6 +41,7 @@
 
   const quickSearchPages = [
     { id: 'dashboard', label: 'Dashboard', detail: 'Your overview', icon: 'fa-house' },
+    { id: 'salary-calculator', label: 'Salary calculator', detail: 'Convert pay and money between currencies, including Philippine pesos', icon: 'fa-calculator' },
     { id: 'applications', label: 'Applications', detail: 'Search and manage your pipeline', icon: 'fa-layer-group' },
     { id: 'inbox', label: 'Email', detail: 'Open your email workspace', icon: 'fa-envelope' },
     { id: 'daily-task', label: 'Daily Tasks', detail: 'Review today’s tasks', icon: 'fa-list-check' },
@@ -127,6 +128,8 @@
       if (pageResult.dataset.quickPage === 'weekly-report') {
         showView('dashboard');
         openWeeklyReport();
+      } else if (pageResult.dataset.quickPage === 'salary-calculator') {
+        openWorkspaceCalculator();
       } else if (pageResult.dataset.quickPage === 'settings') {
         openWorkspaceSettings();
       } else {
@@ -179,7 +182,7 @@
     } else if (event.key.toLowerCase() === 'n' && activeView === 'wallet') {
       event.preventDefault();
       openWalletEntry();
-    } else if (event.key.toLowerCase() === 'n' && activeView !== 'inbox') {
+    } else if (event.key.toLowerCase() === 'n' && !['inbox', 'daily-task'].includes(activeView)) {
       event.preventDefault();
       if (activeView !== 'applications') showView('applications');
       openClientModal();

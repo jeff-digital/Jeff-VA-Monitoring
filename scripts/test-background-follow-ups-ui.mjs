@@ -11,7 +11,7 @@ const elements = new Map();
 const $ = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
 let enabled = false, token = 'offline-token', configured = true, calls = [], renewals = 0;
 const context = vm.createContext({ Map, Date, AbortSignal, currentUser: { id: 'owner' }, $, data: { applications: [{ id: 'app', clientName: '<script>company</script>' }] },
-  document: { createElement: () => new Element() }, formatAccountTimestamp: date => date || '', readGmailCredentials: () => ({ refreshToken: token }), loginWithGoogle: () => {},
+  document: { createElement: () => new Element() }, formatAccountTimestamp: date => date || '', readGmailCredentials: () => ({ refreshToken: token }), reconnectGmailWithGoogle: () => {},
   requireSupabase: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session' } } }), refreshSession: async () => { renewals++; return { data: { session: { access_token: 'renewed' } } }; } } }),
   fetch: async (_url, options) => {
     calls.push(options);

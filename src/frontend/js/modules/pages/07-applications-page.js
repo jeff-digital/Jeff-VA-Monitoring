@@ -124,6 +124,10 @@
       if (action === 'email' && application) openPlainClientEmailComposer(application, false, true);
       else if (action === 'follow-up' && application) openApplicationFollowUpModal(application);
       else if (action === 'edit') openClientModal(applicationId);
+      else if (action === 'status' && application) {
+        openClientModal(applicationId);
+        ($('#clientStatus + .application-select-trigger') || $('#clientStatus')).focus();
+      }
       else if (action === 'delete') await deleteClient(applicationId);
       return;
     }
@@ -242,6 +246,25 @@
   });
   $('#statusFilter').addEventListener('change', renderApplications);
   $('#platformFilter').addEventListener('change', renderApplications);
+  $('#applicationEmploymentFilter').addEventListener('change', renderApplications);
+  for (const select of $$('#applicationsView .application-filter-controls select')) {
+    enhanceWorkspaceSelect(select, { labelText: select.getAttribute('aria-label'), refreshTarget: $('#applicationsView') });
+  }
+  $('#applicationStatusChips').addEventListener('click', event => {
+    const chip = event.target.closest('[data-application-status-chip]');
+    if (!chip) return;
+    $('#statusFilter').value = chip.dataset.applicationStatusChip;
+    renderApplications();
+  });
+  $('#applicationList').addEventListener('click', event => {
+    if (event.target.closest('[data-clear-application-filters]')) $('#clearApplicationFilters').click();
+    const page = event.target.closest('[data-application-page]');
+    if (!page || page.disabled) return;
+    applicationPage += Number(page.dataset.applicationPage);
+    renderApplications();
+    const next = $('#applicationList [data-application-page="' + page.dataset.applicationPage + '"]:not(:disabled)');
+    (next || $('#applicationList .application-client-open'))?.focus({ preventScroll: true });
+  });
   document.querySelectorAll('[data-application-view]').forEach(button => {
     button.addEventListener('click', () => {
       applicationViewMode = button.dataset.applicationView;
@@ -259,6 +282,7 @@
     $('#applicationDateFilter').value = '';
     $('#statusFilter').value = '';
     $('#platformFilter').value = '';
+    $('#applicationEmploymentFilter').value = '';
     $('#applicationDateSort').value = 'all';
     applicationDateFilter = '';
     applicationDateSort = 'all';
@@ -277,6 +301,7 @@
       }
       if (filter === 'status') $('#statusFilter').value = '';
       if (filter === 'platform') $('#platformFilter').value = '';
+      if (filter === 'employment') $('#applicationEmploymentFilter').value = '';
       if (filter === 'week') {
         applicationDateSort = 'all';
         $('#applicationDateSort').value = 'all';

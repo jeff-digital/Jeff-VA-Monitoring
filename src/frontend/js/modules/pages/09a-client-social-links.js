@@ -94,6 +94,11 @@
         <button class="client-social-remove" type="button" data-remove-client-social-link aria-label="Remove ${escapeHtml(CLIENT_SOCIAL_PLATFORM_LABELS[platform])} account" title="Remove account"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
       </div>`;
     }).join('');
+    if (typeof enhanceWorkspaceSelect === 'function') {
+      target.querySelectorAll('select').forEach(select => {
+        enhanceWorkspaceSelect(select, { labelText: select.getAttribute('aria-label') });
+      });
+    }
     updateClientSocialEditorControls(viewOnly);
   }
 
@@ -124,12 +129,17 @@
     links.push({ platform: 'website', url: '' });
     renderClientSocialLinkEditor(links);
     $('#clientSocialLinksList .client-social-link-row:last-child [data-client-social-platform]')?.focus();
+    if (typeof updateApplicationEditStatus === 'function') updateApplicationEditStatus();
   });
-  $('#clientSocialLinksList')?.addEventListener('click', event => {
+  $('#clientSocialLinksList')?.addEventListener('click', async event => {
     const removeButton = event.target.closest('[data-remove-client-social-link]');
     if (!removeButton) return;
+    if (removeButton.closest('.application-edit-drawer') &&
+      !await appConfirm('Remove this social account from the form?', { title: 'Remove account', confirmLabel: 'Remove', danger: true })) return;
     removeButton.closest('.client-social-link-row')?.remove();
     if (!$('#clientSocialLinksList .client-social-link-row')) renderClientSocialLinkEditor();
     updateClientSocialEditorControls(false);
+    if (typeof updateApplicationEditStatus === 'function') updateApplicationEditStatus();
+    if (removeButton.closest('.application-edit-drawer') || $('#clientModal')?.classList.contains('application-edit-drawer')) $('#addClientSocialLink').focus();
   });
 

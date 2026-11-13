@@ -36,9 +36,18 @@ export async function fileStorage(request,env,user) {
   try {
     if(url.searchParams.get('action')==='usage' && request.method==='GET') {
       let cursor,bytes=0,count=0;
+      const files=url.searchParams.get('breakdown')==='1'?[]:null;
       const deleted=new Set((await env.WORKSPACE_DB.prepare('SELECT path FROM workspace_file_deletions WHERE user_id=?').bind(user.id).all()).results.map(row=>row.path));
-      do {const page=await env.WORKSPACE_FILES.list({prefix:user.id+'/',cursor,limit:1000});for(const object of page.objects)if(!deleted.has(object.key)){bytes+=object.size;count++;}cursor=page.truncated?page.cursor:undefined;}while(cursor);
-      return json({provider:'r2',bytes,count});
+      do {
+        const page=await env.WORKSPACE_FILES.list({prefix:user.id+'/',cursor,limit:1000});
+        for(const object of page.objects)if(!deleted.has(object.key)){
+          bytes+=object.size;
+          count++;
+          files?.push({path:object.key,bytes:object.size});
+        }
+        cursor=page.truncated?page.cursor:undefined;
+      }while(cursor);
+      return json({provider:'r2',bytes,count,...(files?{files}:{})});
     }
     const path=url.searchParams.get('path');if(!validFilePath(path,user.id))return json({error:'Invalid file path for this account.'},400);
     if(request.method==='DELETE') {

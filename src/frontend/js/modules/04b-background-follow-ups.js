@@ -87,4 +87,4 @@
   $('#enableBackgroundFollowUps')?.addEventListener('click', () => changeBackgroundFollowUps(true));
   $('#disableBackgroundFollowUps')?.addEventListener('click', () => changeBackgroundFollowUps(false));
   $('#refreshBackgroundFollowUps')?.addEventListener('click', () => loadBackgroundFollowUpStatus(true));
-  $('#reconnectBackgroundGmail')?.addEventListener('click', () => loginWithGoogle());
+  $('#reconnectBackgroundGmail')?.addEventListener('click', reconnectGmailWithGoogle);

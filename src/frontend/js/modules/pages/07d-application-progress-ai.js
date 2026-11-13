@@ -58,16 +58,18 @@
     const responseMarkup = response ? `<section class="application-progress-ai-guidance"><h3>Are replies improving?</h3><dl class="application-progress-ai-stats">${stat('Recent 7-day reply rate', responseText(response.recent))}${stat('Earlier 7-day reply rate', responseText(response.previous))}</dl><p class="application-progress-ai-note">Recent applications: ${escapeHtml(response.recent.start)} – ${escapeHtml(response.recent.end)}. Earlier: ${escapeHtml(response.previous.start)} – ${escapeHtml(response.previous.end)}. Replies are counted in each application's first 7 days. Small samples and missing synced emails can distort rates.</p>
       ${response.bySource.length ? `<div class="application-progress-ai-sources">${response.bySource.map(source => `<div><strong>${escapeHtml(source.source)}</strong><span>${escapeHtml(responseText(source))}${source.applications < response.minimumSample ? ' · small sample' : ''}</span></div>`).join('')}</div>` : ''}</section>` : '';
     const checks = (metrics.applicationChecks || []).filter(check => check.applicationId);
+    const expanded = Boolean(result.querySelector?.('details[open]'));
     result.innerHTML = `<div class="application-progress-ai-assessment"><span class="application-progress-ai-badge is-${escapeHtml(review.status)}">${escapeHtml(applicationProgressLabels[review.status])}</span><small>Reviewed ${escapeHtml(new Date(review.reviewedAt).toLocaleString())}</small></div>
+      <p class="application-progress-ai-summary">${escapeHtml(review.summary)}</p>
+      <details class="dashboard-view-all"${expanded ? ' open' : ''}><summary>Read more</summary>
       <p class="application-progress-ai-period">${escapeHtml(metrics.start)} – ${escapeHtml(metrics.through)} · Philippine time. Compared with ${escapeHtml(metrics.previousStart)} – ${escapeHtml(metrics.previousThrough)}; today may be incomplete.</p>
       <dl class="application-progress-ai-stats">${stat('Applications', metrics.current.applications, metrics.previous.applications)}${stat('Matched replies', metrics.current.matchedReplies, metrics.previous.matchedReplies)}${stat('Scheduled interviews', metrics.current.interviews, metrics.previous.interviews)}${stat('Overdue follow-ups', metrics.overdue)}${stat('Follow-ups sent', metrics.current.followUpsSent, metrics.previous.followUpsSent)}${stat('Weekly goal', metrics.weeklyGoal || 'Not set')}</dl>
-      <p class="application-progress-ai-summary">${escapeHtml(review.summary)}</p>
       ${list('What your records show', review.findings)}
       ${responseMarkup}
       ${list('Why replies may be lower', review.possibleReasons, 'Possible explanations to test, not confirmed causes. The AI has not reviewed your resume or application messages.')}
       ${list('What to improve next', review.nextSteps)}
       ${checks.length ? `<section class="application-progress-ai-guidance"><h3>Applications to review</h3><p class="application-progress-ai-note">These are tracker checks, not a judgment of application quality.</p>${checks.map(check => `<article class="application-progress-ai-check"><strong>${escapeHtml(check.company)}</strong><small>${escapeHtml(check.role)}</small><ul>${check.issues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}</ul><button class="text-button" type="button" data-progress-application="${escapeHtml(check.applicationId)}">Open application</button></article>`).join('')}</section>` : ''}
-      <p class="application-progress-ai-note">Matched replies exclude known automated and no-reply senders. Missing or outdated records can affect this review.</p>`;
+      <p class="application-progress-ai-note">Matched replies exclude known automated and no-reply senders. Missing or outdated records can affect this review.</p></details>`;
   }
 
   async function requestApplicationProgressReview() {

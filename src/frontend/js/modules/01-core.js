@@ -269,9 +269,7 @@
   }
 
   function renderAccountPage() {
-    if (typeof loadBackgroundFollowUpStatus === 'function') void loadBackgroundFollowUpStatus();
     if (!currentUser) return;
-    loadLoginActivity();
     const provider = activeAuthProvider === 'google' ? 'Google' : activeAuthProvider === 'email' ? 'Email and password' : 'Supabase Auth';
     const projectHost = (() => {
       try { return new URL(window.SUPABASE_URL).host; } catch { return 'Not configured'; }
@@ -307,6 +305,9 @@
     updateGmailConnectionUI(Boolean(gmailAccessToken && !gmailReconnectRequired));
     $('#accountLastSignIn').textContent = formatAccountTimestamp(currentUser.last_sign_in_at);
     $('#accountCreatedAt').textContent = formatAccountTimestamp(currentUser.created_at);
+  }
+
+  function renderAccountSignInHistory() {
     const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
     const list = $('#accountSignInHistory');
     list.replaceChildren();
@@ -394,22 +395,104 @@
   });
   renderProjectStorageSummary();
 
+  function renderAccountStorageBreakdown(usage, userId) {
+    const files = Array.isArray(usage.files) ? new Map(usage.files.map(file => [file.path, file.bytes])) : null;
+    const encoder = new TextEncoder();
+    const bytes = records => records.reduce((sum, record) => sum + encoder.encode(JSON.stringify(record)).length, 0);
+    const filePaths = records => records.map(record => record?.storagePath || (record?.id ? userId + '/' + record.id : '')).filter(Boolean);
+    const fileBytes = paths => [...new Set(paths)].reduce((sum, path) => sum + (files.get(path) || 0), 0);
+    const applications = data.applications || [];
+    const clients = hiredClients();
+    const clientIds = new Set(clients.map(client => client.id));
+    const jobApplications = applications.filter(item => !clientIds.has(item.id));
+    const clientFiles = client => filePaths([...(client.documents || []), client.profileImage]);
+    const sections = [
+      ['Applications', jobApplications, jobApplications.flatMap(clientFiles)],
+      ['Active Clients', clients, clients.flatMap(clientFiles)],
+      ['To Apply', data.toApply || []],
+      ['Tasks', [...(data.dailyTasks || []), ...(data.clientTasks || [])]],
+      ['Email', data.emails || []],
+      ['Invoices', data.invoices || []],
+      ['Career Tools', [...(data.personalDocuments || []), ...(data.scripts || []), ...(data.workLinks || []), ...(data.emailTemplates || [])], (data.personalDocuments || []).map(doc => doc.storagePath || personalDocumentPath(doc.id))],
+      ['Wallet', data.walletEntries || []],
+      ['Subscriptions', data.subscriptions || []],
+      ['Social Trends', data.socialTrends || []]
+    ];
+    if (files) {
+      const linked = new Set();
+      for (const section of sections) {
+        if (!section[2]) continue;
+        section[2] = section[2].filter(path => {
+          if (linked.has(path)) return false;
+          linked.add(path);
+          return true;
+        });
+      }
+      const other = [...files.keys()].filter(path => !linked.has(path));
+      if (other.length) sections.push(['Other files', [], other]);
+    }
+    const renderRows = (selector, rows) => {
+      $(selector).replaceChildren(...rows.map(([label, records, paths = []]) => {
+        const row = document.createElement('div');
+        const title = document.createElement('dt');
+        const value = document.createElement('dd');
+        title.textContent = label;
+        value.textContent = `${formatFileSize(bytes(records))} records${files ? ` · ${formatFileSize(fileBytes(paths))} files` : ''}`;
+        row.append(title, value);
+        return row;
+      }));
+    };
+    $('#accountStorageSections').replaceChildren(...sections.map(([label, records, paths = []]) => {
+      const row = document.createElement('tr');
+      const title = document.createElement('th');
+      title.scope = 'row';
+      title.textContent = label;
+      row.append(title);
+      row.insertCell().textContent = formatFileSize(bytes(records));
+      row.insertCell().textContent = files ? formatFileSize(fileBytes(paths)) : 'Unavailable';
+      return row;
+    }));
+    renderRows('#accountStorageClientRows', clients.map(client => [
+      client.companyName || client.company || client.clientName || 'Client',
+      [client, ...(data.clientTasks || []).filter(task => task.clientId === client.id),
+        ...(data.invoices || []).filter(invoice => invoice.clientId === client.id),
+        ...(data.emails || []).filter(email => email.applicationId === client.id || email.activeClientId === client.id)],
+      clientFiles(client)
+    ]));
+    $('#accountStorageClients').hidden = !clients.length;
+    $('#accountStorageBreakdownNote').textContent = files
+      ? 'Record sizes are estimates based on workspace data. File sizes come from Cloudflare R2.'
+      : 'Record sizes are estimates based on workspace data. File sizes by section are unavailable.';
+    $('#accountStorageBreakdown').hidden = false;
+  }
+
   async function refreshAccountStorageUsage() {
     const output = $('#accountStorageUsage'), button = $('#refreshAccountStorageUsage');
+    const headroom = $('#accountStorageHeadroom');
     if (!currentUser || !output || button.disabled) return;
     const userId = currentUser.id;
     button.disabled = true; output.textContent = 'Checking…';
+    headroom.textContent = 'Checking…';
+    $('#accountStorageBreakdown').hidden = true;
     try {
-      const usage = await (await privateFileRequest({ action: 'usage' })).json();
+      const usage = await (await privateFileRequest({ action: 'usage', breakdown: '1' })).json();
       if (currentUser?.id !== userId) return;
       output.textContent = `${formatFileSize(usage.bytes)} · ${plural(usage.count, 'file')}`;
+      const remainingGb = Math.max(0, 10 - usage.bytes / 1e9);
+      headroom.textContent = remainingGb > 0 && remainingGb < 0.01 ? '< 0.01 GB' : `${Number(remainingGb.toFixed(2))} GB`;
       $('#accountProjectStorageUsage').textContent = 'Cloudflare R2 · Private';
+      renderAccountStorageBreakdown(usage, userId);
     } catch (error) {
-      if (currentUser?.id === userId) output.textContent = error.message || 'Usage unavailable';
+      if (currentUser?.id === userId) {
+        output.textContent = error.message || 'Usage unavailable';
+        headroom.textContent = 'Unavailable';
+      }
     } finally { button.disabled = false; }
   }
 
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
+
+  let settingsStorageLoaded = false;
 
   function selectWorkspaceSettingsSection(section = 'account') {
     const titles = { account: 'Account', appearance: 'Appearance', backups: 'Data & backups', automations: 'Automations', security: 'Security' };
@@ -428,6 +511,15 @@
       button.setAttribute('aria-pressed', String(button.dataset.settingsSection === section));
     });
     $('#settingsAccountContent').scrollTop = 0;
+    if (section === 'backups' && !settingsStorageLoaded) {
+      settingsStorageLoaded = true;
+      void refreshAccountStorageUsage();
+    }
+    if (section === 'automations') void loadBackgroundFollowUpStatus();
+    if (section === 'security') {
+      renderAccountSignInHistory();
+      void loadLoginActivity();
+    }
   }
   document.querySelectorAll('#settingsModal [data-settings-section]').forEach(button => {
     button.addEventListener('click', () => selectWorkspaceSettingsSection(button.dataset.settingsSection));
@@ -437,7 +529,8 @@
     setAccountIdVisibility(false);
     lockWorkspaceDataControls();
     const accountView = $('#accountView');
-    $('#settingsAccountContent').append(accountView);
+    const content = $('#settingsAccountContent');
+    if (accountView.parentElement !== content) content.append(accountView);
     for (const child of accountView.children) {
       child.dataset.settingsPanel = child.matches('.account-identity-section, .account-overview-grid') ? 'account'
         : child.matches('.account-storage-section') ? 'backups'
@@ -446,7 +539,7 @@
     accountView.classList.add('active');
     renderPasswordPage();
     renderAccountPage();
-    refreshAccountStorageUsage();
+    settingsStorageLoaded = false;
     renderGmailSyncStatus();
     renderEmailTaskAiStatus();
     selectWorkspaceSettingsSection(passwordRecoveryMode ? 'security' : 'account');

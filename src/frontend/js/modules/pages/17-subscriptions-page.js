@@ -34,21 +34,29 @@
   function renderSubscriptions() {
     const records = (data.subscriptions || []).filter(item => item?.id);
     const states = records.map(item => subscriptionStatus(item));
-    $('#subscriptionSummary').innerHTML = [['Active', states.filter(state => ['active', 'soon'].includes(state.key)).length, 'Accounts still in their paid period'],
-      ['Expiring soon', states.filter(state => state.key === 'soon').length, 'Today or within the next 7 days'],
-      ['Expired', states.filter(state => state.key === 'expired').length, 'Subscriptions past their end date']]
-      .map(([label, count, detail]) => `<article><span>${label}</span><strong>${count}</strong><small>${detail}</small></article>`).join('');
     const query = $('#subscriptionSearch').value.trim().toLowerCase(), filter = $('#subscriptionFilter').value;
+    const summary = $('#subscriptionSummary');
+    const focusedStatus = summary.contains(document.activeElement) ? document.activeElement.dataset.subscriptionStatus : '';
+    summary.innerHTML = [['active', 'Active', states.filter(state => ['active', 'soon'].includes(state.key)).length],
+      ['soon', 'Expiring soon', states.filter(state => state.key === 'soon').length],
+      ['expired', 'Expired', states.filter(state => state.key === 'expired').length]]
+      .map(([key, label, count]) => `<button type="button" data-subscription-status="${key}" aria-pressed="${filter === key}"><span>${label}</span><strong>${count}</strong></button>`).join('');
+    if (focusedStatus) summary.querySelector(`[data-subscription-status="${focusedStatus}"]`)?.focus();
+    $('#subscriptionsView').dispatchEvent(new Event('application-controls-refresh'));
     const visible = records.filter(item => [item.name, item.account].join(' ').toLowerCase().includes(query))
       .filter(item => filter === 'all' || (filter === 'active' ? ['active', 'soon'].includes(subscriptionStatus(item).key) : subscriptionStatus(item).key === filter))
       .sort((a, b) => Number(a.tracking === 'cancelled') - Number(b.tracking === 'cancelled') || String(a.expiryDate || '9999').localeCompare(String(b.expiryDate || '9999')) || String(a.name).localeCompare(String(b.name)));
     $('#subscriptionCount').textContent = `${plural(visible.length, 'subscription')}${query || filter !== 'all' ? ' shown' : ''}`;
     $('#subscriptionList').innerHTML = visible.length ? visible.map(item => {
       const status = subscriptionStatus(item);
-      return `<article class="subscription-card" data-state="${status.key}"><div class="subscription-card-heading"><div><h2>${escapeHtml(item.name || 'Untitled account')}</h2><p>${escapeHtml(item.account || 'Account not specified')}</p></div><span class="subscription-status">${status.label}</span></div>
-        <div class="subscription-expiry"><span>End of subscription</span><strong>${Number.isFinite(subscriptionDateValue(item.expiryDate)) ? escapeHtml(formatDate(item.expiryDate)) : 'Not set'}</strong><small>${escapeHtml(status.detail)}</small></div>
-        <footer><div><button class="button button-secondary" type="button" data-subscription-edit="${escapeHtml(item.id)}" aria-haspopup="dialog">Manage</button></div></footer></article>`;
-    }).join('') : `<div class="subscriptions-empty"><i class="fa-regular fa-credit-card" aria-hidden="true"></i><h2>${records.length ? 'No subscriptions found' : 'No subscriptions yet'}</h2><p>${records.length ? 'Try another search or status filter.' : 'Add a paid account to track its expiry and plan your next renewal.'}</p></div>`;
+      const name = item.name || 'Untitled account', id = escapeHtml(item.id);
+      const end = subscriptionDateValue(item.expiryDate), start = Date.parse(item.createdAt), now = subscriptionDateValue(subscriptionToday());
+      const progress = Number.isFinite(start) && end > start ? Math.round(Math.max(0, Math.min(1, (now - start) / (end - start))) * 100) : null;
+      return `<article class="subscription-card" data-state="${status.key}"><button class="subscription-card-open" type="button" data-subscription-edit="${id}" aria-label="Edit ${escapeHtml(name)}" aria-haspopup="dialog"></button><div class="subscription-card-heading"><span class="subscription-avatar" aria-hidden="true" style="--subscription-hue:${clientAvatarHue(name) * 24}">${escapeHtml(clientInitials(name))}</span><div><h2>${escapeHtml(name)}</h2><p>${escapeHtml(item.account || '')}</p></div><span class="subscription-status">${status.label}</span></div>
+        <div class="subscription-expiry"><span>End of subscription</span><strong>${Number.isFinite(end) ? escapeHtml(formatDate(item.expiryDate)) : 'Not set'}</strong><small>${escapeHtml(status.detail)}</small></div>
+        ${progress !== null && status.key !== 'cancelled' ? `<progress class="subscription-renewal-progress" max="100" value="${progress}" aria-label="Time elapsed since this subscription was added"></progress>` : ''}
+        <footer><details class="subscription-card-menu"><summary aria-label="Actions for ${escapeHtml(name)}">⋯</summary><div><button type="button" data-subscription-edit="${id}">Edit</button><button type="button" data-subscription-renew="${id}">Renew</button><button type="button" data-subscription-delete="${id}">Delete</button></div></details></footer></article>`;
+    }).join('') : `<div class="subscriptions-empty"><i class="fa-regular fa-credit-card" aria-hidden="true"></i><h2>${records.length ? 'No subscriptions found' : 'No subscriptions yet'}</h2><button class="button button-secondary" type="button" data-subscription-empty-action>${records.length ? 'Clear filters' : 'Add subscription'}</button></div>`;
   }
 
   function openSubscriptionEditor(id = '') {
@@ -79,11 +87,29 @@
   $('#addSubscription').addEventListener('click', () => openSubscriptionEditor());
   $('#subscriptionSearch').addEventListener('input', renderSubscriptions);
   $('#subscriptionFilter').addEventListener('change', renderSubscriptions);
+  enhanceWorkspaceSelect($('#subscriptionFilter'), { labelText: 'Filter subscriptions', refreshTarget: $('#subscriptionsView') });
+  $('#subscriptionSummary').addEventListener('click', event => {
+    const button = event.target.closest('[data-subscription-status]');
+    if (!button) return;
+    const filter = $('#subscriptionFilter');
+    filter.value = filter.value === button.dataset.subscriptionStatus ? 'all' : button.dataset.subscriptionStatus;
+    renderSubscriptions();
+  });
   ['closeSubscriptionEditor', 'cancelSubscriptionEditor'].forEach(id => $('#' + id).addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); }));
   $('#subscriptionEditor').addEventListener('cancel', event => { if (subscriptionSaving) event.preventDefault(); });
   $('#subscriptionList').addEventListener('click', event => {
     const edit = event.target.closest('[data-subscription-edit]');
     if (edit) openSubscriptionEditor(edit.dataset.subscriptionEdit);
+    const renew = event.target.closest('[data-subscription-renew]');
+    if (renew) { openSubscriptionEditor(renew.dataset.subscriptionRenew); $('#subscriptionExpiry').focus(); }
+    const remove = event.target.closest('[data-subscription-delete]');
+    if (remove && !subscriptionSaving) { openSubscriptionEditor(remove.dataset.subscriptionDelete); $('#deleteSubscription').click(); }
+    const menu = event.target.closest('.subscription-card-menu');
+    if (menu && event.target.closest('button')) menu.open = false;
+    if (event.target.closest('[data-subscription-empty-action]')) {
+      if (!(data.subscriptions || []).some(item => item?.id)) openSubscriptionEditor();
+      else { $('#subscriptionSearch').value = ''; $('#subscriptionFilter').value = 'all'; renderSubscriptions(); $('#subscriptionSearch').focus(); }
+    }
   });
   $('#subscriptionForm').addEventListener('submit', async event => {
     event.preventDefault(); if (subscriptionSaving || !event.currentTarget.reportValidity()) return;

@@ -6,12 +6,13 @@ const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const nodes = new Map();
 const $ = key => {
   if (!nodes.has(key)) nodes.set(key, { value: '', dataset: {}, hidden: false, open: false, innerHTML: '',
-    addEventListener(type, handler) { this[type] = handler; }, setAttribute() {}, reset() {}, focus() {},
+    addEventListener(type, handler) { this[type] = handler; }, setAttribute() {}, reset() {}, focus() {}, contains() { return false; }, dispatchEvent() {},
     showModal() { this.open = true; }, close() { this.open = false; }, reportValidity() { return true; } });
   return nodes.get(key);
 };
 let saveResult = true, renderCount = 0;
-const context = vm.createContext({ $, Intl, Date, URL, console,
+const context = vm.createContext({ $, Intl, Date, URL, console, Event, document: { activeElement: null },
+  enhanceWorkspaceSelect() {}, clientAvatarHue: () => 0, clientInitials: name => name[0],
   data: { subscriptions: [], alerts: [] }, currentUser: { id: 'owner' },
   uid: () => 'sub-1', persist: async () => saveResult, renderAll: () => renderCount++, toast() {},
   appConfirm: async () => true, formatDate: value => value,

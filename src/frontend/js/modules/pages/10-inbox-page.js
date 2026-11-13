@@ -1,4 +1,16 @@
   // Inbox and shared email composer controls.
+  let inboxPermissionDismissedFor = null;
+  function updateInboxPermissionBanner(state) {
+    const userId = currentUser?.id;
+    if (state !== 'permission' && state !== 'offline') inboxPermissionDismissedFor = null;
+    $('#inboxPermissionBanner').hidden = state !== 'permission' || !userId
+      || !gmailConfigured() || inboxPermissionDismissedFor === userId;
+  }
+  $('#dismissInboxPermission').addEventListener('click', () => {
+    inboxPermissionDismissedFor = currentUser?.id;
+    $('#inboxPermissionBanner').hidden = true;
+    $('#emailSearch').focus();
+  });
   function removeEmailsFromList(emails) {
     const emailIds = new Set(emails.map(email => email.id));
     const gmailIds = new Set(emails.map(email => email.gmailId).filter(Boolean));
@@ -10,6 +22,12 @@
   function updateEmailSelectionControls() {
     const checkboxes = [...document.querySelectorAll('#emailList [data-email-select]')];
     const selectedCount = checkboxes.filter(checkbox => checkbox.checked).length;
+    $('#emailList').classList.toggle('inbox-has-selection', selectedCount > 0);
+    for (const checkbox of checkboxes) checkbox.closest('.email-row')?.classList.toggle('is-selected', checkbox.checked);
+    const actions = $('#emailSelectionActions');
+    const contextual = selectedCount > 0 || emailSelectionMode;
+    actions.querySelector('.email-bulk-actions').hidden = !contextual;
+    actions.querySelector('.email-selection-trigger').hidden = contextual;
     const selectAll = document.querySelector('#emailSelectionActions [data-email-select-all]');
     const deleteButton = document.querySelector('#emailSelectionActions [data-email-bulk-delete]');
     const selectionCount = document.querySelector('#emailSelectionActions [data-email-selection-count]');
@@ -25,7 +43,24 @@
   }
 
   document.addEventListener('click', async event => {
+    if (event.target.closest('[data-inbox-clear-filters]')) {
+      $('#emailSearch').value = '';
+      $('#emailDateFilter').value = '';
+      $('#emailDateEndFilter').value = '';
+      emailDateFilter = '';
+      $('#emailDateSort').value = 'all';
+      $('#emailDateSort').dispatchEvent(new Event('change'));
+      $('#emailSearch').focus();
+      return;
+    }
     if (event.target.closest('[data-email-selection-toggle]')) {
+      if (event.target.closest('.email-selection-cancel')) {
+        $$('#emailList [data-email-select]:checked').forEach(input => { input.checked = false; });
+        emailSelectionMode = false;
+        updateEmailSelectionControls();
+        $('#emailSelectionActions .email-selection-trigger').focus();
+        return;
+      }
       emailSelectionMode = !emailSelectionMode;
       renderEmails();
       return;
@@ -57,8 +92,10 @@
       document.querySelectorAll('.email-actions-menu').forEach(panel => {
         if (panel !== menu) panel.classList.add('hidden');
       });
+      document.querySelectorAll('[data-email-action-trigger]').forEach(button => button.setAttribute('aria-expanded', 'false'));
       menu.classList.toggle('hidden', !willOpen);
       actionTrigger.setAttribute('aria-expanded', String(willOpen));
+      if (willOpen) menu.querySelector('button')?.focus();
       return;
     }
 
@@ -106,7 +143,35 @@
   $('#emailSearch').addEventListener('input', renderEmails);
   $('#emailDateFilter').addEventListener('change', event => {
     emailDateFilter = event.target.value;
+    if ($('#emailDateEndFilter').value && emailDateFilter > $('#emailDateEndFilter').value) $('#emailDateEndFilter').value = emailDateFilter;
     renderEmails();
+  });
+  $('#emailDateEndFilter').addEventListener('change', event => {
+    if (event.target.value && emailDateFilter > event.target.value) {
+      $('#emailDateFilter').value = emailDateFilter = event.target.value;
+    }
+    renderEmails();
+  });
+  enhanceWorkspaceSelect($('#emailDateSort'), { labelText: 'Filter emails by week', refreshTarget: $('#inboxView') });
+  $('#emailList').addEventListener('keydown', event => {
+    const menu = event.target.closest('.email-actions-menu');
+    if (menu && event.key === 'Escape') {
+      event.preventDefault();
+      const trigger = menu.parentElement.querySelector('[data-email-action-trigger]');
+      menu.classList.add('hidden');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.focus();
+      return;
+    }
+    const row = event.target;
+    if (!row.matches('.email-row')) return;
+    const next = event.key === 'ArrowDown' ? row.nextElementSibling : event.key === 'ArrowUp' ? row.previousElementSibling : null;
+    if (next?.matches('.email-row')) { event.preventDefault(); next.focus(); }
+    if (event.key === 'Enter') { event.preventDefault(); openEmailDetail(row.dataset.emailDetail); }
+    if (event.key.toLowerCase() === 'x' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      row.querySelector('[data-email-select]')?.click();
+    }
   });
   $('#emailDateSort').addEventListener('change', event => {
     emailDateSort = event.target.value;
@@ -115,6 +180,7 @@
     updateWeekNavigationCounts();
   });
   $$('.email-summary-item').forEach(button => button.addEventListener('click', () => {
+    $$('#emailList [data-email-select]:checked').forEach(input => { input.checked = false; });
     emailViewFilter = button.dataset.emailView;
     renderEmails();
   }));

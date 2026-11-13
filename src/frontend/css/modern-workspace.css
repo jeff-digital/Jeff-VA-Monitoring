@@ -168,14 +168,10 @@ body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client
 body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-bottom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; gap: 20px; }
 body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-panel-heading { padding: 20px; }
 body:has(#dashboardView.active):has(#clientDashboardPanel:not([hidden])) .client-dashboard-panel-heading h2 { font-size: 15px; }
-#dashboardView #clientDashboardPanel :is(.client-dashboard-client-list, .client-dashboard-task-list, .client-dashboard-activity-list) { max-height: 360px; overflow-y: auto; }
+#dashboardView #clientDashboardPanel :is(.client-dashboard-client-list, .client-dashboard-task-list, .client-dashboard-activity-list) { max-height: none; overflow: visible; }
 #dashboardView #applicationDashboardPanel { height: auto; overflow: visible; }
 body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #dashboardView { overflow: visible; }
-body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel {
-  height: auto; grid-template-rows: auto auto minmax(280px, auto) auto; gap: 22px; overflow: visible;
-}
 body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .weekly-report-banner { padding: 20px; border-radius: 12px; gap: 16px; flex-wrap: wrap; }
-body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel .stat-card { min-height: 130px; padding: 22px; }
 body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) :is(.platform-panel, .status-panel, .interview-calendar-panel) { padding: 22px; border-radius: 14px; }
 body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .interview-calendar { min-height: 360px; }
 #dashboardView .dashboard-overview { border-radius: 14px; }
@@ -183,13 +179,11 @@ body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .i
 
 /* Tasks and application pipelines. */
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-layout { height: auto; align-items: start; gap: 22px; }
-body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list-panel, .daily-task-history-panel) { height: auto; min-height: 360px; padding: 22px; overflow: visible; }
+body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list-panel, .daily-task-history-panel) { padding: 16px; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-section-heading { padding-bottom: 16px; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-section-heading h3 { font-size: 16px; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-toolbar { gap: 12px; margin-bottom: 18px; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary { gap: 10px; margin: 0 0 18px; }
-body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary > div { flex: 1; display: grid; gap: 6px; padding: 14px; border: 1px solid var(--modern-border); border-radius: 9px; background: var(--modern-canvas); }
-body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary > div:first-child { padding-left: 14px; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary strong { font-size: 23px; }
 body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list, .daily-task-history-list) { max-height: 620px; overflow-y: auto; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-item { min-height: 58px; padding: 13px 10px; }
@@ -212,6 +206,30 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
 #inboxView .email-summary-item strong { font-size: 11px; line-height: inherit; }
 #inboxView .email-summary-item.active { background: var(--modern-surface); box-shadow: 0 1px 3px #1423430a; }
 #inboxView .email-list { max-height: none; }
+@media (min-width: 721px) {
+  #inboxView .inbox-panel:has(.email-list-header) .email-panel-header {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+  #inboxView .inbox-panel:has(#emailList .email-list-header) .email-panel-header .email-filters {
+    margin-bottom: 0;
+  }
+  #inboxView .email-list-header {
+    border-block: 1px solid var(--modern-border);
+    background: var(--modern-surface);
+    color: var(--modern-muted);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  #inboxView :is(.email-list-date-label, .email-list-actions-label) { position: relative; }
+  #inboxView :is(.email-list-date-label, .email-list-actions-label)::before {
+    content: "";
+    position: absolute;
+    inset-block: -8px;
+    inset-inline-start: -6px;
+    border-inline-start: 1px solid var(--modern-border);
+  }
+}
 #inboxView .email-item { padding: 20px 22px; }
 #inboxView .privacy-note { margin: 16px 0 0; color: var(--modern-muted); font-size: 11px; }
 #newsView .news-live-section { padding: 24px; }
@@ -223,7 +241,6 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
 
 /* Finances: separate overview, accounts, and transactions into clear sections. */
 #walletView.active { display: flex; flex-direction: column; gap: 22px; }
-#walletView .wallet-intro { margin: 0; }
 #walletView .wallet-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 14px; }
 #walletView .wallet-stat { min-height: 130px; padding: 20px; }
 #walletView .wallet-stat strong { font-size: 26px; }
@@ -247,6 +264,18 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
   font-weight: 400;
 }
 #walletView .wallet-table td[data-label="Date"] > strong { font-weight: inherit; }
+.content > #walletView .wallet-transactions #walletTransactionList .wallet-table :is(th, td) { padding-block: 5px; }
+#walletView .wallet-table td small { margin-top: 2px; }
+.content > #walletView .wallet-transactions #walletTransactionList .wallet-row-actions .button {
+  min-height: 28px;
+  padding: 4px 9px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+@media (max-width: 900px) {
+  .content > #walletView .wallet-transactions #walletTransactionList .wallet-table tbody tr { gap: 6px 12px; padding-block: 8px; }
+  .content > #walletView .wallet-transactions #walletTransactionList .wallet-table td { padding-block: 0; }
+}
 
 @media (min-width: 901px) and (min-height: 600px) {
   body:not(:has(#hiredView.active)):has(#walletView.active) .content {
@@ -259,7 +288,7 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
   body:has(#walletView.active) .content > #walletView.active {
     display: grid;
     flex: 1;
-    grid-template-rows: 38px auto auto minmax(138px, auto) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(138px, auto) minmax(0, 1fr);
     gap: 10px 14px;
     overflow: hidden;
   }
@@ -275,14 +304,11 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
   #walletView #walletAccounts { overflow: visible; }
   #walletView #walletAccounts .wallet-account { gap: 5px; }
   #walletView .wallet-transactions { padding: 10px 12px; overflow: hidden; }
-  .content > #walletView .wallet-transactions .wallet-table :is(th, td) { padding-block: 7px; }
-  #walletView #walletTransactionList { overscroll-behavior: contain; }
+  .content > #walletView .wallet-transactions #walletTransactionList { overscroll-behavior: contain; }
 }
-#walletView #walletTransactionList { max-height: none; overflow: visible; }
+.content > #walletView .wallet-transactions #walletTransactionList { max-height: none; overflow: visible; }
 #subscriptionsView.active { display: flex; flex-direction: column; gap: 12px; }
 #subscriptionsView .subscriptions-toolbar { margin-bottom: 0; }
-#subscriptionsView .subscriptions-intro { margin: 0; }
-#subscriptionsView .subscriptions-intro h2 { font-size: 18px; }
 #subscriptionsView .subscriptions-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; border: 0; }
 #subscriptionsView .subscriptions-summary article { display: grid; gap: 5px; padding: 14px 16px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); }
 #subscriptionsView .subscriptions-summary strong { font-size: 21px; }
@@ -326,6 +352,21 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
 #documentsView #coverLetterPreview { position: absolute; top: 50%; left: 50%; width: 794px; min-height: 1123px; max-width: none; margin: 0; transform-origin: center; transform: translate(-50%, -50%) scale(var(--letter-preview-scale, .4)); }
 #documentsView :is(.script-item, .work-link-item, .personal-document-card, .invoice-item) { border-radius: 10px; padding: 18px; border-color: var(--modern-border); }
 #documentsView .salary-calculator-fields { gap: 18px; }
+.workspace-calculator-modal { width: min(680px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 20px; overflow: auto; }
+.workspace-calculator-modal .workspace-calculator-close { position: absolute; inset: 16px 16px auto auto; display: block; margin: 0; padding: 0; }
+.workspace-calculator-close .button { display: grid; place-items: center; width: 34px; min-height: 34px; padding: 0; font-size: 20px; }
+.workspace-calculator-modal .documents-subsection-head { display: grid; gap: 8px; padding-inline-end: 38px; margin-bottom: 16px; }
+.workspace-calculator-modal .documents-subsection-head .eyebrow { display: none; }
+.workspace-calculator-modal .documents-subsection-head h3 { margin: 0; }
+.workspace-calculator-modal .salary-calculator-fields { max-width: none; gap: 12px; }
+.workspace-calculator-modal .salary-calculator-result { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; gap: 8px; border: 0; background: transparent; }
+.workspace-calculator-modal .salary-calculator-result > div { padding: 10px 12px; border: 1px solid var(--theme-border, #e5e7eb); border-radius: 8px; }
+.workspace-calculator-modal .salary-calculator-result strong { color: var(--theme-text, #182230); overflow-wrap: anywhere; }
+.salary-exchange-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.salary-currency-converter { margin-top: 16px; padding: 12px; border: 1px solid var(--theme-border, #e5e7eb); border-radius: 10px; }
+.salary-currency-converter summary { cursor: pointer; font-weight: 600; }
+.salary-currency-converter .form-field { margin-block: 8px; max-width: 260px; }
+.salary-currency-converter output { display: block; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
 #documentsView .salary-calculator-result { margin-top: 24px; gap: 14px; }
 #documentsView .salary-calculator-result { border: 0; border-radius: 0; background: transparent; overflow: visible; }
 #documentsView .salary-calculator-result > div { padding: 22px; border-radius: 10px; background: var(--modern-canvas); border: 1px solid var(--modern-border); }
@@ -423,83 +464,6 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
   #documentsView .salary-calculator-result { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Desktop dashboards use the viewport; growing records scroll inside their panels. */
-@media (min-width: 1000px) and (min-height: 600px) {
-  body:has(#dashboardView.active):not(:has(#hiredView.active)) { height: 100dvh; min-height: 0; overflow: hidden; }
-  body:has(#dashboardView.active):not(:has(#hiredView.active)) .app-shell { height: 100dvh; min-height: 0; }
-  body:has(#dashboardView.active):not(:has(#hiredView.active)) .content {
-    display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; min-height: 0;
-    gap: 10px; padding: 12px 20px; overflow: hidden;
-  }
-  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar { flex-wrap: nowrap; min-height: 40px; gap: 10px; padding-bottom: 8px; }
-  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar-title-area { flex: 1 1 0; width: auto; }
-  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar .dashboard-switcher { flex: 0 0 auto; width: auto; order: 1; }
-  body:has(#dashboardView.active):not(:has(#hiredView.active)) .topbar .topbar-actions { flex: 0 0 auto; order: 2; }
-  body:has(#dashboardView.active):has(#clientDashboardPanel) #dashboardView.view.active { display: grid; grid-template-rows: minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel,
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel { height: 100%; min-height: 0; overflow: hidden; }
-
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel #clientDashboardContent {
-    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: 110px minmax(0, 1fr);
-    height: 100%; min-height: 0; gap: 12px;
-  }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-stat-grid { grid-column: 1 / -1; grid-row: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-stat-grid:not(.has-income) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi { min-height: 0; padding: 10px 14px; gap: 4px; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi .stat-icon { width: 24px; height: 24px; flex-basis: 24px; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi > strong { font-size: 25px; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-kpi :is(.stat-label, p) { font-size: 11px; line-height: 1.4; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-main-grid {
-    grid-column: 1 / 10; grid-row: 2; grid-template-columns: minmax(0, 2fr) minmax(190px, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; gap: 12px; min-height: 0;
-  }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-clients { grid-column: 1; grid-row: 1; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-tasks { grid-column: 1; grid-row: 2; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-attention { grid-column: 2; grid-row: 1 / 3; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-bottom-grid {
-    grid-column: 10 / -1; grid-row: 2; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr));
-    gap: 12px; min-height: 0; margin: 0;
-  }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-panel-heading { flex: 0 0 auto; padding: 12px; gap: 8px; flex-wrap: wrap; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-panel-heading h2 { font-size: 13px; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel :is(.client-dashboard-table-wrap, .client-dashboard-attention-list, .client-dashboard-task-list, .client-dashboard-activity-list) {
-    flex: 1; min-height: 0; max-height: none; overflow: auto; overscroll-behavior: contain;
-  }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-chart-wrap { flex: 1; min-height: 0; overflow: hidden; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-chart-wrap svg { height: 100%; min-height: 0; max-height: 100%; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-table :is(td, th) { padding: 9px 8px; }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-search { min-height: var(--workspace-filter-height); }
-  body:has(#dashboardView.active) #dashboardView #clientDashboardPanel.dashboard-tab-panel .client-dashboard-filters :is(input, select) { min-height: var(--workspace-filter-height); height: var(--workspace-filter-height); }
-
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel {
-    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-rows: 64px 90px minmax(155px, 1.15fr) minmax(100px, 1fr); gap: 10px 12px;
-  }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .weekly-report-banner { grid-column: 1 / -1; grid-row: 1; padding: 10px 14px; min-height: 0; gap: 10px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .weekly-report-banner > div { flex-wrap: wrap; gap: 4px 10px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .stat-grid { grid-column: 1 / 9; grid-row: 2; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .stat-card { min-height: 0; padding: 12px 16px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .stat-card strong { font-size: 25px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .dashboard-overview-carousel { grid-column: 1 / 9; grid-row: 3; min-height: 0; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .dashboard-overview-viewport { flex: 1; height: auto; min-height: 0; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel :is(.platform-panel, .status-panel) { padding: 12px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .platform-list { min-height: 0; overflow: auto; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .recent-panel { grid-column: 1 / 9; grid-row: 4; display: flex; flex-direction: column; min-height: 0; margin: 0; padding: 12px 14px; overflow: hidden; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .recent-panel .table-wrap { flex: 1; min-height: 0; overflow: auto; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel > .application-dashboard-insights {
-    grid-column: 9 / -1; grid-row: 2 / 5; display: grid; grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
-    gap: 12px; min-height: 0; overflow: hidden;
-  }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .interview-calendar-panel { min-height: 0; padding: 12px; overflow: hidden; display: flex; flex-direction: column; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .interview-calendar { flex: 1; min-height: 0; grid-template-rows: 22px repeat(6, minmax(0, 1fr)); }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .calendar-day { min-height: 0; padding: 3px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai { min-height: 0; padding: 12px; overflow: auto; overscroll-behavior: contain; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-heading h2 { font-size: 13px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-heading .button { min-height: 30px; padding: 6px 8px; font-size: 11px; }
-  body:has(#dashboardView.active) #dashboardView #applicationDashboardPanel.dashboard-tab-panel .application-progress-ai-note { font-size: 11px; line-height: 1.5; }
-}
-
 /* Shared sizing for search, filter and sort controls outside editing forms. */
 #workspaceShell { --workspace-filter-height: 30px; }
 #workspaceShell .content > .view:not(#accountView, #hiredView.client-focused) :is(.search-field, .daily-task-search, .client-dashboard-search) {
@@ -533,4 +497,259 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
 @media (max-width: 720px) {
   #workspaceShell { --workspace-filter-height: 32px; }
   .content > .view:not(#hiredView):not(#accountView) :is(.application-filters, .subscriptions-toolbar) { padding: 8px; }
+}
+
+/* Shared dashboard, task, and subscription surfaces */
+#workspaceShell {
+  --refined-surface: var(--theme-surface, #fff);
+  --refined-border: var(--theme-border, #e5e7eb);
+  --refined-muted: var(--theme-muted, #667085);
+  --refined-soft: var(--theme-raised, #f6f7fb);
+  --refined-accent: #6366f1;
+  --refined-space: 8px;
+  --refined-motion: 150ms ease;
+}
+@media (prefers-reduced-motion: reduce) { #workspaceShell { --refined-motion: 0ms; } }
+body:has(:is(#dashboardView, #dailyTaskView).active) { height: auto; overflow: visible; }
+body:has(:is(#dashboardView, #dailyTaskView).active) :is(.app-shell, .content) { height: auto; min-height: 100dvh; overflow: visible; }
+body:has(:is(#dashboardView, #dailyTaskView).active) #workspaceShell > .content { display: block; }
+#workspaceShell :is(#dashboardView, #dailyTaskView, #subscriptionsView) { font: 400 14px/1.45 Inter, sans-serif; }
+#workspaceShell :is(#dashboardView, #dailyTaskView, #subscriptionsView) :is(button, input, summary):focus-visible { outline: 2px solid var(--refined-accent); outline-offset: 2px; }
+#workspaceShell .dashboard-switcher { display: none; }
+#workspaceShell:has(#dashboardView.active) .dashboard-switcher { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--refined-border); border-radius: 10px; background: var(--refined-soft); }
+#workspaceShell .dashboard-switcher-tab { border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--refined-muted); font-weight: 500; transition: background var(--refined-motion); }
+#workspaceShell .dashboard-switcher-tab[aria-selected="true"] { background: var(--refined-surface); color: var(--theme-text, #182230); border-color: var(--refined-border); box-shadow: 0 1px 2px #18223010; }
+#workspaceShell #dashboardView.active,
+#workspaceShell #dashboardView .dashboard-tab-panel:not([hidden]),
+#workspaceShell #dashboardView #clientDashboardContent { height: auto; min-height: 0; overflow: visible; }
+#workspaceShell #dashboardView #clientDashboardContent { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; gap: 16px; }
+#workspaceShell #dashboardView #clientDashboardContent > * { grid-column: 1; grid-row: auto; }
+#workspaceShell #dashboardView :is(.client-dashboard-main-grid, .client-dashboard-bottom-grid) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; align-items: start; gap: 16px; }
+#workspaceShell #dashboardView .client-dashboard-main-grid > * { grid-row: auto; grid-column: auto; }
+#workspaceShell #dashboardView .client-dashboard-main-grid > .client-dashboard-clients { grid-column: 1 / -1; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel:not([hidden]) {
+  display: grid;
+  grid-template: "weekly" auto "main" auto "insights" auto / minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+#workspaceShell #dashboardView.active #applicationDashboardPanel > .weekly-report-banner { grid-area: weekly; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel > .application-dashboard-main { grid-area: main; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 16px; }
+#workspaceShell #dashboardView .application-dashboard-main > .stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; gap: 12px; }
+#workspaceShell #dashboardView .application-dashboard-main .stat-card { display: grid; align-content: start; gap: 8px; padding: 16px; }
+#workspaceShell #dashboardView .application-dashboard-main .stat-card strong { margin: 0; line-height: 1.1; }
+#workspaceShell #dashboardView .application-dashboard-main .recent-panel { display: block; margin: 0; overflow: visible; }
+#workspaceShell #dashboardView .application-dashboard-main #applicationOverviewCarousel { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; }
+#workspaceShell #dashboardView #applicationDashboardPanel .recent-panel table { width: 100%; height: auto; margin-top: 8px; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel > .application-dashboard-insights { grid-area: insights; align-self: start; overflow: visible; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel .application-dashboard-insights > .interview-calendar-panel { flex: 0 0 auto; min-height: 0; height: auto; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel .interview-calendar { min-height: 0; height: auto; }
+#workspaceShell #dashboardView #clientDashboardContent .client-dashboard-main-grid > .client-dashboard-panel { align-self: start; grid-row: auto; }
+#workspaceShell #dashboardView #clientDashboardContent .client-dashboard-main-grid > :not(.client-dashboard-clients) { grid-column: auto; }
+@media (min-width: 1100px) {
+  #workspaceShell #dashboardView.active #applicationDashboardPanel:not([hidden]) {
+    grid-template: "weekly weekly" auto "main insights" auto / minmax(0, 2fr) minmax(300px, 1fr);
+  }
+  body:has(#dashboardView.active) #workspaceShell > .content {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1500px;
+    margin-inline: auto;
+    padding: 12px 24px 12px;
+  }
+  body:has(#dashboardView.active) #workspaceShell > .content > .topbar {
+    display: grid;
+    grid-template-columns: minmax(235px, 1fr) auto minmax(235px, 1fr);
+    align-items: center;
+    gap: 12px;
+    height: auto;
+    min-height: 44px;
+    margin: 0 0 8px;
+  }
+  body:has(#dashboardView.active) #workspaceShell .topbar-title-area { grid-area: 1 / 1; }
+  body:has(#dashboardView.active) #workspaceShell .topbar .dashboard-switcher { grid-area: 1 / 2; margin: 0; width: 288px; }
+  body:has(#dashboardView.active) #workspaceShell .topbar .dashboard-switcher-tab { flex: 1 1 0; padding-inline: 6px; font-weight: 600; }
+  body:has(#dashboardView.active) #workspaceShell .topbar-actions { grid-area: 1 / 3; justify-self: end; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel > .application-dashboard-main,
+  #workspaceShell #dashboardView.active #applicationDashboardPanel:not([hidden]) { gap: 10px; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .weekly-report-banner { padding: 8px 12px; margin: 0; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .stat-card { padding: 10px 14px; gap: 4px; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .recent-panel { padding: 10px 12px; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .recent-panel td { height: 28px; padding-block: 2px; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .interview-calendar-panel { padding: 12px; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .interview-calendar { grid-template-rows: 18px repeat(6, minmax(29px, auto)); }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .calendar-day { height: auto; min-height: 29px; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .calendar-interviews:empty { display: none; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent { display: grid; grid-template-columns: minmax(0, 2fr) minmax(270px, 1fr); gap: 12px; align-items: start; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent > .client-dashboard-stat-grid { grid-column: 1 / -1; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent > :is(.client-dashboard-main-grid, .client-dashboard-bottom-grid) { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: max-content; gap: 12px; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent > .client-dashboard-main-grid { grid-area: 2 / 1; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent > .client-dashboard-bottom-grid { grid-area: 2 / 2; margin: 0; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent .client-dashboard-panel-heading { padding: 10px 12px; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent .client-dashboard-kpi { min-height: 0; padding: 10px 14px; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel .client-dashboard-activity-list { display: block; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel .client-dashboard-activity-item { min-height: 0; padding: 5px 10px; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel .client-dashboard-panel { min-height: 0; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .application-progress-ai { padding: 12px; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .application-progress-ai-note { margin: 6px 0 0; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel #applicationProgressAiStatus { margin: 6px 0; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel #applicationProgressAiResult { margin-block: 8px 0; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .application-progress-ai-summary { margin-block: 8px 4px; line-height: 1.45; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .application-progress-ai .dashboard-view-all { padding: 4px 0 0; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .application-progress-ai:has(#applicationProgressAiResult:not([hidden])) .application-progress-ai-note { display: none; }
+  #workspaceShell #dashboardView.active #applicationDashboardPanel .recent-panel .list-icon-button { min-height: 24px; height: 24px; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel #clientDashboardContent .client-dashboard-chart-wrap svg { max-height: 120px; }
+  #workspaceShell #dashboardView.active #clientDashboardPanel .client-dashboard-activity-icon { width: 24px; height: 24px; }
+}
+#workspaceShell #dashboardView :is(.panel, .stat-card, .client-dashboard-panel, .client-dashboard-kpi) { min-height: 0; height: auto; border: 1px solid var(--refined-border); border-radius: 12px; background: var(--refined-surface); }
+#workspaceShell #dashboardView :is(.client-dashboard-table-wrap, .client-dashboard-task-list, .client-dashboard-attention-list, .client-dashboard-activity-list, .client-dashboard-chart-wrap, .platform-list, .status-legend, .recent-panel .table-wrap, .application-progress-ai, .application-dashboard-insights) { height: auto; min-height: 0; max-height: none; overflow: visible; }
+#workspaceShell #dashboardView #applicationOverviewCarousel .dashboard-overview-viewport { height: auto; overflow: clip; }
+#workspaceShell #dashboardView .dashboard-overview-track { height: auto; align-items: start; }
+#workspaceShell #dashboardView #applicationOverviewCarousel:not([data-section="1"]) .dashboard-overview-page:nth-child(2),
+#workspaceShell #dashboardView #applicationOverviewCarousel[data-section="1"] .dashboard-overview-page:first-child { height: 0; }
+#workspaceShell #dashboardView #applicationOverviewCarousel :is(.platform-panel, .status-panel) { overflow: visible; }
+#workspaceShell #dashboardView #applicationOverviewCarousel .application-weekly-trend-chart { min-height: 160px; }
+#workspaceShell #dashboardView :is(.dashboard-compact-empty, .dashboard-not-set) { color: var(--refined-muted); }
+#workspaceShell #dashboardView .dashboard-compact-empty { display: flex; align-items: center; gap: 8px; padding: 12px; margin: 0; font-size: 12px; }
+#workspaceShell #dashboardView [hidden] { display: none; }
+#workspaceShell #dashboardView .client-dashboard-chart-wrap svg { display: block; height: auto; max-height: 230px; }
+#workspaceShell #dashboardView .client-dashboard-chart-line { stroke: var(--refined-accent); }
+#workspaceShell #dashboardView .client-dashboard-chart-point { fill: var(--refined-accent); }
+#workspaceShell #dashboardView .client-dashboard-chart-value { display: none; }
+#workspaceShell #dashboardView .dashboard-view-all { padding: 8px 12px; color: var(--refined-muted); }
+#workspaceShell #dashboardView .dashboard-view-all summary { color: var(--theme-info-text, #4f46e5); cursor: pointer; font-weight: 500; }
+#workspaceShell #dashboardView .weekly-report-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-height: 0; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel .dashboard-weekly-period { display: grid; gap: 2px; align-items: center; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel #weeklyReportPeriod { margin: 0; }
+#workspaceShell #dashboardView.active #applicationDashboardPanel .today-focus-items { gap: 12px; align-items: center; }
+#workspaceShell #dashboardView .dashboard-weekly-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-inline-start: auto; }
+#workspaceShell #dashboardView .dashboard-weekly-goal { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; }
+#workspaceShell #dashboardView .dashboard-weekly-goal small { grid-column: 1; color: var(--refined-muted); }
+#workspaceShell #dashboardView .calendar-interviews { display: flex; justify-content: center; flex-wrap: wrap; height: auto; }
+#workspaceShell #dashboardView .calendar-day { min-height: 34px; height: auto; }
+#workspaceShell #dashboardView .calendar-interview { display: grid; place-items: center; width: 12px; height: 14px; padding: 0; }
+#workspaceShell #dashboardView .calendar-interview > span { width: 5px; height: 5px; border-radius: 50%; background: var(--refined-accent); }
+#workspaceShell #dashboardView .other-month { color: var(--refined-muted); opacity: .55; }
+#workspaceShell #dashboardView tr:hover { background: var(--refined-soft); }
+@media (hover: hover) {
+  #workspaceShell #dashboardView tr:not(:hover, :focus-within) :is(.client-dashboard-row-action, .list-icon-button),
+  #workspaceShell #dailyTaskView .daily-task-item:not(:hover, :focus-within) .daily-task-delete { opacity: 0; }
+}
+#workspaceShell :is(#dashboardView, #dailyTaskView, #subscriptionsView) .application-select-trigger,
+#workspaceShell #dailyTaskView .inbox-date-trigger {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 5px 9px;
+  border: 1px solid var(--refined-border); border-radius: 8px; background: var(--refined-surface);
+  color: var(--theme-text, #182230); font: 500 12px/1.4 Inter, sans-serif;
+}
+#workspaceShell :is(#dashboardView, #dailyTaskView, #subscriptionsView) .application-select-options { --drawer-surface: var(--refined-surface); --drawer-line: var(--refined-border); --drawer-hover: var(--refined-soft); }
+#workspaceShell :is(#clientDashboardStatusFilter, #dailyTaskFilter, #subscriptionFilter, #dailyTaskDate, #dailyTaskHistoryDate) { display: none; }
+
+#workspaceShell #dailyTaskView.active { display: block; height: auto; overflow: visible; }
+#workspaceShell #dailyTaskView .daily-task-layout { grid-template-columns: minmax(0, 1fr); height: auto; align-items: start; gap: 12px; }
+#workspaceShell #dailyTaskView :is(.daily-task-list-panel, .daily-task-history-panel) { height: auto; min-height: 0; overflow: visible; border: 1px solid var(--refined-border); border-radius: 12px; }
+#workspaceShell #dailyTaskView .daily-task-history-panel { display: block; }
+#workspaceShell #dailyTaskView .daily-task-history-panel:not([open]) > :not(summary) { display: none; }
+#workspaceShell #dailyTaskView .daily-task-history-heading { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; cursor: pointer; margin: 0; padding-block: 4px; font-weight: 600; border: 0; }
+#workspaceShell #dailyTaskView .daily-task-history-heading::before { content: "›"; }
+#workspaceShell #dailyTaskView details[open] > summary::before { transform: rotate(90deg); }
+#workspaceShell #dailyTaskView .daily-task-summary:not(:has(button:not([hidden]))) { display: none; }
+#workspaceShell #dailyTaskView .daily-task-toolbar { border: 0; }
+#workspaceShell #dailyTaskView .daily-task-date-navigation { display: flex; flex-wrap: wrap; align-items: center; }
+#workspaceShell #dailyTaskView .daily-task-list-tools { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+#workspaceShell #dailyTaskView .daily-task-list-tools .daily-task-search[hidden] { display: none; }
+#workspaceShell #dailyTaskView .daily-task-quick-add { width: 100%; border: 1px solid var(--refined-border); border-radius: 10px; }
+#workspaceShell #dailyTaskView .daily-task-quick-add input { border: 0; background: transparent; }
+#workspaceShell #dailyTaskView .daily-task-progress { height: 4px; }
+#workspaceShell #dailyTaskView .daily-task-progress > span { background: var(--refined-accent); transition: width var(--refined-motion); }
+#workspaceShell #dailyTaskView :is(.daily-task-list, .daily-task-history-list) { height: auto; max-height: none; overflow: visible; }
+#workspaceShell #dailyTaskView .daily-task-item:hover { background: var(--refined-soft); }
+#workspaceShell #dailyTaskView .daily-task-item.is-complete .daily-task-item-title { text-decoration: line-through; color: var(--refined-muted); }
+#workspaceShell #dailyTaskView :is(.daily-task-empty, .daily-task-history-empty) { min-height: 0; height: auto; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 0; color: var(--refined-muted); font-size: 13px; }
+#workspaceShell #dailyTaskView :is(.daily-task-empty, .daily-task-history-empty) > i { font-size: inherit; color: inherit; }
+
+#workspaceShell #dailyTaskView.active .daily-task-layout { height: auto; min-height: 0; flex: 0 0 auto; grid-auto-rows: max-content; align-items: start; }
+#workspaceShell #dailyTaskView.active :is(.daily-task-list-panel, .daily-task-history-panel) {
+  display: block; height: auto; min-height: 0; padding: 16px; overflow: visible;
+}
+#workspaceShell #dailyTaskView.active .daily-task-history-panel:not([open]) { padding-block: 8px; }
+#workspaceShell #dailyTaskView.active .daily-task-toolbar { display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 0 0 12px; }
+#workspaceShell #dailyTaskView .daily-task-selected-date { font-size: 16px; font-weight: 600; margin-inline-end: 4px; }
+#workspaceShell #dailyTaskView .daily-task-progress-group { display: inline-flex; align-items: center; gap: 8px; color: var(--refined-muted); font-variant-numeric: tabular-nums; }
+#workspaceShell #dailyTaskView.active .daily-task-progress { width: 52px; height: 4px; margin: 0; background: var(--refined-border); }
+#workspaceShell #dailyTaskView .daily-task-progress-label { color: inherit; font-size: 12px; }
+#workspaceShell #dailyTaskView .daily-task-filter-tabs { display: flex; gap: 2px; padding: 2px; margin-inline-start: auto; border: 1px solid var(--refined-border); border-radius: 10px; background: var(--refined-soft); }
+#workspaceShell #dailyTaskView .daily-task-filter-tabs button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--refined-muted); font: inherit; font-weight: 500; cursor: pointer; }
+#workspaceShell #dailyTaskView .daily-task-filter-tabs button[aria-pressed="true"] { background: var(--refined-surface); color: var(--theme-text); box-shadow: 0 1px 2px #18223015; }
+#workspaceShell #dailyTaskView.active .daily-task-toolbar :is(.button, .inbox-date-trigger) { min-height: 36px; }
+#workspaceShell #dailyTaskView.active .daily-task-toolbar #openDailyTaskAddModal { background: var(--refined-surface); color: var(--theme-text, #182230); border: 1px solid var(--refined-border); }
+#workspaceShell #dailyTaskView.active .daily-task-toolbar #openDailyTaskAddModal:hover { background: var(--refined-soft); }
+#workspaceShell #dailyTaskView.active .daily-task-list-tools .daily-task-quick-add { display: flex; align-items: center; gap: 8px; box-sizing: border-box; padding-inline: 12px; }
+#workspaceShell #dailyTaskView.active .daily-task-quick-add input { flex: 1; min-width: 0; min-height: 44px; height: 44px; padding: 0; font-size: 14px; outline: none; box-shadow: none; }
+#workspaceShell #dailyTaskView .daily-task-quick-add:focus-within { outline: 2px solid var(--refined-accent); outline-offset: 2px; }
+#workspaceShell #dailyTaskView.active :is(.daily-task-list, .daily-task-history-list) { display: grid; gap: 0; height: auto; min-height: 0; overflow: visible; }
+#workspaceShell #dailyTaskView.active :is(.daily-task-list, .daily-task-history-list) .daily-task-item {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; box-sizing: border-box; padding: 4px 8px;
+  border: 0; border-bottom: 1px solid var(--refined-border); border-radius: 0; background: transparent; transition: background var(--refined-motion);
+}
+#workspaceShell #dailyTaskView.active .daily-task-item:is(:hover, :focus-within) { background: var(--refined-soft); }
+#workspaceShell #dailyTaskView.active .daily-task-item .daily-task-action { display: grid; place-items: center; flex: 0 0 28px; width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0; border-radius: 50%; line-height: 1; }
+#workspaceShell #dailyTaskView.active .daily-task-item.is-complete .daily-task-action { background: var(--refined-accent); border-color: var(--refined-accent); color: white; }
+#workspaceShell #dailyTaskView .daily-task-row-open { flex: 1; min-width: 0; text-align: start; }
+#workspaceShell #dailyTaskView .daily-task-client-chip { max-width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 7px; border-radius: 999px; background: var(--refined-soft); color: var(--refined-muted); font-size: 11px; }
+#workspaceShell #dailyTaskView .daily-task-details-action { width: 28px; height: 28px; flex: 0 0 28px; border: 0; border-radius: 6px; color: var(--refined-muted); background: transparent; cursor: pointer; }
+#workspaceShell #dailyTaskView .daily-task-completed > summary { padding: 10px 8px; color: var(--refined-muted); cursor: pointer; font-size: 13px; }
+#workspaceShell #dailyTaskView.active .daily-task-list .daily-task-empty { height: auto; min-height: 0; align-items: flex-start; padding: 24px 8px; font-size: 14px; color: var(--refined-muted); }
+#workspaceShell #dailyTaskView.active .daily-task-empty > i { display: grid; place-items: center; height: 1.45em; margin: 0; line-height: 1; }
+#workspaceShell #dailyTaskView .daily-task-empty small { display: block; margin-top: 4px; font-size: 12px; }
+#workspaceShell #dailyTaskView .daily-task-empty kbd { font: inherit; border: 1px solid var(--refined-border); padding: 1px 4px; border-radius: 4px; }
+#workspaceShell #inboxView .inbox-panel .email-panel-heading :is(.email-status-chip, .email-selection-trigger) {
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 18px;
+}
+@media (hover: hover) {
+  #workspaceShell #dailyTaskView .daily-task-item:not(:hover, :focus-within) .daily-task-details-action { opacity: 0; }
+}
+@media (max-width: 560px) {
+  #workspaceShell #dailyTaskView .daily-task-selected-date { flex-basis: 100%; }
+  #workspaceShell #dailyTaskView .daily-task-filter-tabs { margin-inline-start: 0; }
+}
+
+#workspaceShell #subscriptionsView .subscriptions-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; padding: 0; border: 0; background: transparent; }
+#workspaceShell #subscriptionsView .subscriptions-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+#workspaceShell #subscriptionsView .subscriptions-summary button { display: grid; gap: 4px; min-width: 0; text-align: start; padding: 12px; border: 1px solid var(--refined-border); border-radius: 12px; background: var(--refined-surface); color: var(--theme-text, #182230); font: inherit; cursor: pointer; }
+#workspaceShell #subscriptionsView .subscriptions-summary button[aria-pressed="true"] { border-color: var(--refined-accent); background: var(--refined-soft); }
+#workspaceShell #subscriptionsView .subscriptions-summary button strong { font-size: 20px; }
+#workspaceShell #subscriptionsView .subscription-card { position: relative; border: 1px solid var(--refined-border); border-radius: 12px; transition: border-color var(--refined-motion), box-shadow var(--refined-motion); }
+#workspaceShell #subscriptionsView .subscription-card:is(:hover, :focus-within) { border-color: var(--refined-accent); box-shadow: 0 3px 10px #18223012; }
+.subscription-card-open { position: absolute; inset: 0; z-index: 1; width: 100%; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+#workspaceShell #subscriptionsView .subscription-card-heading { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; }
+.subscription-avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: hsl(var(--subscription-hue) 48% 89%); color: hsl(var(--subscription-hue) 40% 25%); font-weight: 600; }
+:root[data-theme="dark"] .subscription-avatar { background: hsl(var(--subscription-hue) 35% 27%); color: hsl(var(--subscription-hue) 55% 88%); }
+#workspaceShell #subscriptionsView .subscription-status { display: inline-flex; align-items: center; gap: 4px; }
+.subscription-status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+#workspaceShell #subscriptionsView .subscription-expiry small { font-size: 14px; }
+.subscription-card[data-state="soon"] .subscription-expiry small { color: var(--theme-warning-text, #8a5a15); }
+.subscription-card[data-state="expired"] .subscription-expiry small { color: var(--theme-danger-text, #a12626); }
+.subscription-renewal-progress { display: block; width: 100%; height: 4px; accent-color: var(--refined-accent); }
+.subscription-card-menu { position: relative; z-index: 2; }
+.subscription-card-menu summary { display: grid; place-items: center; width: 32px; height: 28px; cursor: pointer; border-radius: 6px; list-style: none; }
+.subscription-card-menu summary::-webkit-details-marker { display: none; }
+.subscription-card-menu > div { position: absolute; inset-inline-end: 0; top: 100%; z-index: 3; min-width: 100px; padding: 4px; border: 1px solid var(--refined-border); border-radius: 8px; background: var(--refined-surface); box-shadow: 0 4px 12px #18223020; }
+.subscription-card-menu button { display: block; width: 100%; padding: 6px 8px; border: 0; border-radius: 4px; text-align: start; background: transparent; color: inherit; }
+.subscription-card-menu button:hover { background: var(--refined-soft); }
+.subscription-card-menu [data-subscription-delete] { color: var(--theme-danger-text, #a12626); }
+
+.workspace-refined-skeleton { display: none; }
+body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsView).active) .workspace-startup { place-items: start stretch; }
+body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsView).active) .workspace-startup-spinner { opacity: 0; position: absolute; }
+body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsView).active) .workspace-startup:not([hidden]) .workspace-refined-skeleton { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 16px; }
+.workspace-refined-skeleton span { height: 100px; border: 1px solid var(--refined-border); border-radius: 12px; background: linear-gradient(var(--refined-soft), var(--refined-soft)) 16px 18px / 45% 12px no-repeat, linear-gradient(var(--refined-soft), var(--refined-soft)) 16px 44px / 28% 22px no-repeat, var(--refined-surface); }
+@media (max-width: 720px) {
+  #workspaceShell #dashboardView :is(.client-dashboard-main-grid, .client-dashboard-bottom-grid) { grid-template-columns: minmax(0, 1fr); }
+  #workspaceShell #dashboardView .dashboard-weekly-actions { margin-inline-start: 0; }
 }

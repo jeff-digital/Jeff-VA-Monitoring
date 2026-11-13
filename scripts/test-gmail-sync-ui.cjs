@@ -12,7 +12,7 @@ const node = id => {
 };
 const context = vm.createContext({ $: node, currentUser: { id: 'u1' }, navigator: { onLine: true },
   gmailAccessToken: null, gmailReconnectRequired: false, readGmailCredentials: () => null,
-  gmailConfigured: () => true, loginWithGoogle() {},
+  gmailConfigured: () => true, reconnectGmailWithGoogle() {},
   localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) } });
 const source = read('04-gmail.js');
 vm.runInContext(source.slice(source.indexOf('  let gmailSyncDisplay ='), source.indexOf('  function setGmailStatus(')), context);

@@ -253,6 +253,60 @@
     const select = $('#documentTemplateSelect');
     sendDocumentTemplateTestEmail(select?.value || 'contract-signing', $('#documentTemplatePlatform')?.value || 'Direct client');
   });
+  const calculatorCurrencies = ['PHP', 'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD', 'JPY', 'HKD', 'NZD', 'CHF', 'KRW', 'AED', 'INR', 'CNY'];
+  const calculatorCurrencyNames = new Intl.DisplayNames(['en-PH'], { type: 'currency' });
+  const calculatorRates = new Map();
+  let calculatorRequest;
+  let calculatorRateMessage = '';
+
+  for (const [id, initial] of [['salaryCalculatorCurrency', 'USD'], ['salaryCalculatorTarget', 'PHP']]) {
+    const select = $('#' + id);
+    select.replaceChildren(...calculatorCurrencies.map(code => new Option(`${calculatorCurrencyNames.of(code)} (${code})`, code)));
+    select.value = initial;
+    select.addEventListener('change', () => {
+      if (calculatorRates.size || calculatorRequest) updateSalaryCalculator();
+      else refreshCalculatorRate();
+    });
+  }
+
+  async function refreshCalculatorRate() {
+    if (calculatorRequest) return;
+    calculatorRateMessage = 'Updating exchange rates…';
+    updateSalaryCalculator();
+    const request = new AbortController();
+    calculatorRequest = request;
+    const timeout = setTimeout(() => request.abort(), 8000);
+    try {
+      const quotes = calculatorCurrencies.filter(code => code !== 'USD').join(',');
+      const response = await fetch(`https://api.frankfurter.dev/v2/rates?base=USD&quotes=${quotes}`, { signal: request.signal, credentials: 'omit', cache: 'no-cache' });
+      if (!response.ok) throw new Error('Exchange rate unavailable');
+      const rows = await response.json();
+      const rates = rows.filter(({ base, quote, rate, date }) => base === 'USD' && calculatorCurrencies.includes(quote) && Number.isFinite(rate) && rate > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date));
+      if (!rates.length) throw new Error('Invalid exchange rates');
+      for (const { quote, rate, date } of rates) calculatorRates.set(quote, { rate, date });
+      calculatorRateMessage = '';
+    } catch {
+      calculatorRateMessage = calculatorRates.size ? 'Refresh unavailable. Showing last fetched rates.' : 'Exchange rates unavailable. Try again.';
+    } finally {
+      clearTimeout(timeout);
+      calculatorRequest = null;
+    }
+    updateSalaryCalculator();
+  }
+
+  function openWorkspaceCalculator() {
+    const dialog = $('#workspaceCalculatorModal');
+    dialog.append($('#workspaceCalculator'));
+    dialog.showModal();
+    refreshCalculatorRate();
+  }
+
+  $('#workspaceCalculatorModal').addEventListener('close', () => {
+    $('#salaryCalculatorPanel').append($('#workspaceCalculator'));
+    $('#openQuickSearch').focus();
+  });
+  $('#refreshSalaryExchangeRate').addEventListener('click', refreshCalculatorRate);
+
   function updateSalaryCalculator() {
     const currency = $('#salaryCalculatorCurrency')?.value || 'USD';
     const payType = $('#salaryCalculatorPayType')?.value || 'hourly';
@@ -264,12 +318,19 @@
     const hourlyRate = payType === 'monthly'
       ? (hoursPerWeek > 0 ? monthlyTotal / (hoursPerWeek * (52 / 12)) : 0)
       : enteredRate;
-    const convertedTotal = currency === 'USD' ? monthlyTotal * 58 : monthlyTotal / 58;
-    const convertedHourly = currency === 'USD' ? hourlyRate * 58 : hourlyRate / 58;
-    const convertedCurrency = currency === 'USD' ? 'PHP' : 'USD';
-    const money = (amount, code) => code === 'USD'
-      ? `$${Math.round(amount).toLocaleString()}`
-      : `₱${Math.round(amount).toLocaleString()}`;
+    const convertedCurrency = $('#salaryCalculatorTarget').value;
+    const usd = { rate: 1, date: '' };
+    const source = currency === 'USD' ? usd : calculatorRates.get(currency);
+    const target = convertedCurrency === 'USD' ? usd : calculatorRates.get(convertedCurrency);
+    const quote = currency !== convertedCurrency && source && target
+      ? { rate: target.rate / source.rate, date: [source.date, target.date].filter(Boolean).sort()[0] }
+      : null;
+    const rate = currency === convertedCurrency ? 1 : quote?.rate;
+    const money = (amount, code, digits = 0) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: code, maximumFractionDigits: digits, minimumFractionDigits: digits }).format(amount);
+    const convert = (amount, digits) => rate == null ? '—' : money(amount * rate, convertedCurrency, digits);
+    const rateLabel = quote ? `1 ${currency} = ${quote.rate.toLocaleString('en-PH', { maximumSignificantDigits: 7 })} ${convertedCurrency} · ${quote.date}`
+      : currency === convertedCurrency ? 'Same currency' : '';
+    $('#salaryExchangeRate').textContent = [rateLabel, calculatorRateMessage].filter(Boolean).join(' · ') || 'Rate unavailable for this pair.';
     $('#salaryCalculatorRateLabel').textContent = payType === 'monthly' ? 'Monthly salary' : 'Hourly rate';
     $('#salaryCalculatorRate').placeholder = currency === 'USD'
       ? (payType === 'monthly' ? 'e.g. 1,700' : 'e.g. 10')
@@ -278,15 +339,14 @@
     $('#salaryCalculatorMonthlyTotal').textContent = money(monthlyTotal, currency);
     $('#salaryCalculatorConversionLabel').textContent = `Converted monthly (${convertedCurrency})`;
     $('#salaryCalculatorHourlyLabel').textContent = `Hourly equivalent (${convertedCurrency})`;
-    $('#salaryCalculatorConversion').textContent = currency === 'USD'
-      ? money(convertedTotal, 'PHP')
-      : money(convertedTotal, 'USD');
-    $('#salaryCalculatorHourlyConversion').textContent = currency === 'USD'
-      ? money(convertedHourly, 'PHP')
-      : money(convertedHourly, 'USD');
+    $('#salaryCalculatorConversion').textContent = convert(monthlyTotal, 2);
+    $('#salaryCalculatorHourlyConversion').textContent = convert(hourlyRate, 2);
+    $('#salaryAmountCurrency').textContent = currency;
+    const amount = $('#salaryConverterAmount');
+    $('#salaryConverterResult').textContent = amount.value && amount.validity.valid ? convert(amount.valueAsNumber, 2) : '';
   }
 
-  ['salaryCalculatorCurrency', 'salaryCalculatorPayType', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays'].forEach(id => {
+  ['salaryCalculatorPayType', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays', 'salaryConverterAmount'].forEach(id => {
     $(`#${id}`)?.addEventListener('input', updateSalaryCalculator);
     $(`#${id}`)?.addEventListener('change', updateSalaryCalculator);
   });
@@ -306,7 +366,7 @@
     documents: 'Keep your resume, certificates, and other career documents together.',
     links: 'A home for your Google Docs, portfolios, and other useful resource links.',
     invoices: 'Find and review the invoices you have sent to your clients.',
-    salary: 'Compare hourly and monthly pay, and estimate the equivalent in USD or PHP.'
+    salary: 'Compare hourly and monthly pay and convert between currencies.'
   };
 
   function selectCareerTool(selectedPanel, { focus = false } = {}) {
@@ -328,6 +388,7 @@
     $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
     // The A4 preview fits a different available area after switching tools.
     if (selectedPanel === 'cover-letter') requestAnimationFrame(fitCoverLetterPreview);
+    if (selectedPanel === 'salary') refreshCalculatorRate();
   }
 
   $$('[data-documents-tab]').forEach(tab => {

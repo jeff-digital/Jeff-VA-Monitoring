@@ -121,12 +121,12 @@
       body: JSON.stringify({ refreshToken: saved.refreshToken }), signal: AbortSignal.timeout(15000)
     });
     const result = await response.json().catch(() => ({}));
+    if (!userId || currentUser?.id !== userId) throw new Error('The account changed while Gmail was reconnecting.');
     if (!response.ok || !result.access_token) {
       const error = new Error(result.error || 'Automatic Gmail renewal is unavailable on this server.');
       error.reconnect = result.reconnect === true;
       throw error;
     }
-    if (!userId || currentUser?.id !== userId) throw new Error('The account changed while Gmail was reconnecting.');
     saveGmailCredentials(userId, result.access_token, saved.refreshToken, result.expires_in);
     return gmailAccessToken;
   }
@@ -1106,6 +1106,7 @@
   }
 
   function updateGmailConnectionUI(connected) {
+    if (typeof updateApplicationGmailWarning === 'function') updateApplicationGmailWarning(connected);
     const reconnectButton = $('#gmailReconnectButton');
     if (reconnectButton) {
       reconnectButton.hidden = connected || !currentUser || !gmailConfigured();
@@ -1176,7 +1177,8 @@
     const connectButton = $('#gmailSyncConnectButton');
     connectButton.hidden = state !== 'permission' || !gmailConfigured();
     connectButton.textContent = gmailReconnectRequired ? 'Reconnect Gmail' : 'Connect Gmail';
-    connectButton.onclick = loginWithGoogle;
+    connectButton.onclick = reconnectGmailWithGoogle;
+    if (typeof updateInboxPermissionBanner === 'function') updateInboxPermissionBanner(state);
   }
 
   function setGmailStatus(message) {
@@ -1202,7 +1204,7 @@
       loginGoogleButton.disabled = !supabaseConfigured();
       return;
     }
-    $('#gmailReconnectButton').onclick = loginWithGoogle;
+    $('#gmailReconnectButton').onclick = reconnectGmailWithGoogle;
     loginGoogleButton.disabled = false;
     const saved = readGmailCredentials();
     if (saved) {
@@ -1218,7 +1220,11 @@
     }
   }
 
-  async function loginWithGoogle() {
+  function reconnectGmailWithGoogle() {
+    return loginWithGoogle({ reconnectGmail: true });
+  }
+
+  async function loginWithGoogle({ reconnectGmail = false } = {}) {
     if (!supabaseConfigured()) {
       $('#loginError').textContent = 'Sign-in is unavailable. Check the app configuration.';
       return;
@@ -1234,7 +1240,7 @@
         options: {
           redirectTo: `${window.location.origin}/?auth_view=dashboard`,
           scopes: GMAIL_SCOPE,
-          queryParams: { access_type: 'offline', prompt: 'consent' }
+          queryParams: { access_type: 'offline', prompt: reconnectGmail ? 'select_account consent' : 'select_account' }
         }
       });
       if (error) throw error;
@@ -1319,21 +1325,18 @@
     if (gmailSyncInFlight || !currentUser || !dataReady || !supabaseDataLoaded) return;
     if (navigator.onLine === false) { setGmailSyncDisplay('offline'); return; }
     const syncUserId = currentUser.id;
-    if (!gmailAccessToken || gmailReconnectRequired) {
-      if (!readGmailCredentials()?.refreshToken || gmailReconnectRequired) return;
-      try {
+    if (gmailReconnectRequired) return;
+    const saved = readGmailCredentials();
+    if (!gmailAccessToken && !saved?.refreshToken) return;
+    gmailSyncInFlight = true;
+    try {
+      if (!gmailAccessToken || (saved?.refreshToken && saved.expiresAt <= Date.now() + 60000)) {
         setGmailSyncDisplay('renewing');
         await refreshGmailAuthorization();
-      } catch (error) {
-        if (!gmailReconnectRequired) setGmailSyncDisplay('paused');
-        if (!gmailReconnectRequired) setGmailStatus(error.message);
-        return;
+        if (currentUser?.id !== syncUserId) return;
       }
-    }
-    gmailSyncInFlight = true;
-    setGmailSyncDisplay('syncing');
-    if (!silent) setGmailStatus('Checking Gmail for new messages…');
-    try {
+      setGmailSyncDisplay('syncing');
+      if (!silent) setGmailStatus('Checking Gmail for new messages…');
       const fetchMessageList = async params => {
         return fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`);
       };

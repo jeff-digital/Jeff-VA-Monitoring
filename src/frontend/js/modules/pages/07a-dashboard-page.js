@@ -14,7 +14,9 @@
     $('#todayFollowUps').textContent = followUp;
     $('#todayInterviews').textContent = interviewsToday;
     $('#todayToApply').textContent = toApplyToday;
-    const weeklyApplicationCount = weeklyReportData().applications.length;
+    const weeklyReport = weeklyReportData(0);
+    const weeklyApplicationCount = weeklyReport.applications.length;
+    $('#weeklyReportPeriod').textContent = weeklyRangeLabel(weeklyReport.range);
     const weeklyGoal = normalizeWeeklyActivityGoal(data.weeklyActivityGoal) || 0;
     $('#dashboardWeeklyActivity').textContent = weeklyGoal
       ? `${weeklyApplicationCount} of ${weeklyGoal} ${weeklyGoal === 1 ? 'application' : 'applications'}`
@@ -233,11 +235,11 @@
       return `<tr data-client-row="${escapeHtml(item.id)}" tabindex="0" aria-label="Open details for ${escapeHtml(item.clientName || 'client')}">
         <td data-label="Client name"><button class="client-dashboard-name" type="button" data-client-dashboard-open="${escapeHtml(item.id)}"><span class="client-dashboard-avatar" aria-hidden="true">${escapeHtml(initials)}</span><span>${escapeHtml(item.clientName || 'Untitled client')}<small>${escapeHtml(item.role || item.companyName || item.company || 'Client')}</small></span></button></td>
         <td data-label="Status"><span class="client-dashboard-status is-${status.key}">${status.label}</span></td>
-        <td data-label="Contract start">${startDate ? escapeHtml(formatDate(startDate)) : '—'}</td>
-        <td data-label="Contract end">${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : '—'}</td>
-        <td data-label="Days left">${daysLeft === null ? '—' : daysLeft < 0 ? 'Ended' : plural(daysLeft, 'day')}</td>
-        <td data-label="Rate">${escapeHtml(rate || '—')}</td>
-        <td data-label="Last contact">${lastContact ? escapeHtml(formatDate(lastContact)) : '—'}</td>
+        <td data-label="Contract start">${startDate ? escapeHtml(formatDate(startDate)) : '<span class="dashboard-not-set">Not set</span>'}</td>
+        <td data-label="Contract end">${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : '<span class="dashboard-not-set">Not set</span>'}</td>
+        <td data-label="Days left">${daysLeft === null ? '<span class="dashboard-not-set">Not set</span>' : daysLeft < 0 ? 'Ended' : plural(daysLeft, 'day')}</td>
+        <td data-label="Rate">${rate ? escapeHtml(rate) : '<span class="dashboard-not-set">Not set</span>'}</td>
+        <td data-label="Last contact">${lastContact ? escapeHtml(formatDate(lastContact)) : '<span class="dashboard-not-set">Not set</span>'}</td>
         <td data-label="Actions"><button class="client-dashboard-row-action" type="button" data-client-dashboard-open="${escapeHtml(item.id)}" aria-label="Open ${escapeHtml(item.clientName || 'client')} details"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i><span>View</span></button></td>
       </tr>`;
     }).join('');
@@ -271,7 +273,7 @@
   function renderClientDashboardActivity(clients) {
     const activity = clientDashboardRecentActivity(clients);
     $('#clientDashboardActivityList').innerHTML = activity.length
-      ? activity.map(item => `<article class="client-dashboard-activity-item"><span class="client-dashboard-activity-icon is-${escapeHtml(item.tone || 'blue')}"><i class="fa-solid ${escapeHtml(item.icon || 'fa-bolt')}" aria-hidden="true"></i></span><span><strong>${escapeHtml(item.title || 'Client update')}</strong><small>${escapeHtml(item.detail || '')}</small></span><time>${escapeHtml(formatDate(item.date))}</time></article>`).join('')
+      ? activity.slice(0, 5).map(item => `<article class="client-dashboard-activity-item"><span class="client-dashboard-activity-icon is-${escapeHtml(item.tone || 'blue')}"><i class="fa-solid ${escapeHtml(item.icon || 'fa-bolt')}" aria-hidden="true"></i></span><span><strong>${escapeHtml(item.title || 'Client update')}</strong><small title="${escapeHtml(item.detail || '')}">${escapeHtml(item.detail || '')}</small></span><time>${escapeHtml(formatDate(item.date))}</time></article>`).join('') + (activity.length > 5 ? `<details class="dashboard-view-all"><summary>View all</summary>${activity.slice(5).map(item => `<p>${escapeHtml(item.title)} · ${escapeHtml(item.detail || '')} · ${escapeHtml(formatDate(item.date))}</p>`).join('')}</details>` : '')
       : '<p class="client-dashboard-inline-empty">Client updates and completed tasks will appear here.</p>';
   }
 
@@ -307,6 +309,10 @@
     });
     const values = months.map(month => totals.get(month.key) || 0);
     const chart = $('#clientDashboardHoursChart');
+    const empty = !values.some(value => value > 0);
+    chart.parentElement.hidden = empty;
+    $('#clientDashboardHoursEmpty').hidden = !empty;
+    chart.setAttribute('aria-label', 'Logged client hours. ' + months.map((month, index) => month.label + ': ' + values[index].toFixed(1) + ' hours').join(', '));
     if (!values.some(value => value > 0)) {
       chart.innerHTML = '<text x="300" y="106" text-anchor="middle" class="client-dashboard-chart-empty">Logged client hours will appear here.</text>';
       return;
@@ -336,7 +342,7 @@
         const dueToday = task.date === today();
         const label = task.date ? `${overdue ? 'Overdue · ' : dueToday ? 'Today · ' : ''}${formatDate(task.date)}` : 'No due date';
         return `<article class="client-dashboard-task-row"><div><strong>${escapeHtml(task.title || 'Untitled task')}</strong><small>${task.status === 'in-progress' ? 'In progress' : 'To do'}</small></div><span class="client-dashboard-task-date${overdue ? ' is-overdue' : dueToday ? ' is-today' : ''}">${task.date ? `<time datetime="${escapeHtml(task.date)}">${escapeHtml(label)}</time>` : label}</span><button class="client-dashboard-task-done" type="button" data-client-dashboard-attention="${task.source}" data-client-id="${escapeHtml(client.id)}" data-item-id="${escapeHtml(task.id)}" aria-label="${escapeHtml(`Mark ${task.title || 'task'} for ${client.clientName || 'client'} done`)}" title="Mark done">✓</button></article>`;
-      }).join('')}</section>`).join('') : '<div class="client-dashboard-task-empty"><strong>All caught up</strong><p>Tasks linked to your clients will appear here.</p></div>';
+      }).join('')}</section>`).join('') : '<p class="dashboard-compact-empty"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> No open client tasks.</p>';
   }
 
   function renderClientDashboardAttention(clients) {
@@ -363,7 +369,7 @@
     $('#clientDashboardAttentionCount').textContent = entries.length ? plural(entries.length, 'item') : 'All caught up';
     $('#clientDashboardAttentionList').innerHTML = entries.length
       ? entries.slice(0, 8).map(entry => `<article class="client-dashboard-attention-item"><span class="client-dashboard-attention-dot is-${entry.tone}" aria-hidden="true"></span><span class="client-dashboard-attention-copy"><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.detail)}</small></span><button class="button button-secondary" type="button" data-client-dashboard-attention="${entry.type}" data-client-id="${escapeHtml(entry.clientId || entry.id)}" data-item-id="${escapeHtml(entry.id)}">${entry.action}</button></article>`).join('')
-      : '<p class="client-dashboard-inline-empty">No contracts, follow-ups, or tasks need attention.</p>';
+      : '<p class="dashboard-compact-empty"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> Nothing needs attention.</p>';
   }
 
   function renderClientDashboardDrawer(client) {
@@ -546,6 +552,7 @@
     if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeClientDashboardDrawer();
   });
   $('#clientDashboardStatusFilter').addEventListener('change', () => renderClientDashboardTable(hiredClients()));
+  enhanceWorkspaceSelect($('#clientDashboardStatusFilter'), { labelText: 'Filter clients by status' });
   $('#clientDashboardActionForm').addEventListener('submit', saveClientDashboardAction);
   $('#clientDashboardClients').addEventListener('click', event => {
     const sortButton = event.target.closest('[data-client-sort]');
@@ -714,7 +721,7 @@
       const inMonth = dayOffset >= 0 && dayOffset < daysInMonth;
       const dateValue = localDateKey(date);
       const dayInterviews = interviews.filter(item => dateKey(item.interviewDate) === dateValue);
-      cells.push(`<div class="calendar-day${inMonth ? '' : ' other-month'}${dateValue === today() ? ' today' : ''}"><span class="calendar-day-number">${date.getDate()}</span><div class="calendar-interviews">${dayInterviews.map(item => `<button class="calendar-interview" type="button" data-calendar-client="${escapeHtml(item.id)}" title="${escapeHtml(item.clientName)}">${escapeHtml(item.clientName)}</button>`).join('')}</div></div>`);
+      cells.push(`<div class="calendar-day${inMonth ? '' : ' other-month'}${dateValue === today() ? ' today' : ''}"><span class="calendar-day-number">${date.getDate()}</span><div class="calendar-interviews">${dayInterviews.map(item => `<button class="calendar-interview" type="button" data-calendar-client="${escapeHtml(item.id)}" title="${escapeHtml(item.clientName)}" aria-label="Interview with ${escapeHtml(item.clientName)}"><span aria-hidden="true"></span></button>`).join('')}</div></div>`);
     }
     target.innerHTML = cells.join('');
   }
@@ -739,7 +746,9 @@
 
   function renderStatusChart(applications) {
     const target = $('#statusLegend');
-    const statusEntries = Object.entries(STATUS_COLORS).map(([status, color]) => [status, applications.filter(item => item.status === status).length, color]).filter(([, count]) => count > 0);
+    const palette = ['#4f46e5', '#818cf8', '#a5b4fc', '#c7d2fe', '#64748b', '#94a3b8'];
+    const statusEntries = Object.keys(STATUS_COLORS).map((status, index) => [status, applications.filter(item => item.status === status).length, ['Rejected', 'Not selected'].includes(status) ? '#c99ca3' : palette[index % palette.length]]).filter(([, count]) => count > 0);
+    $('#statusDonut').setAttribute('aria-label', 'Pipeline status chart. ' + statusEntries.map(([status, count]) => (STATUS_LABELS[status] || status) + ': ' + count).join(', '));
     $('#donutValue').textContent = applications.length;
     if (!statusEntries.length) {
       $('#statusDonut').style.background = 'conic-gradient(#eff0ec 0 100%)';
@@ -767,9 +776,9 @@
     }
     target.innerHTML = applications.map(item => `
       <tr>
-        <td><div class="table-client">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
+        <td><div class="table-client" title="${escapeHtml([item.clientName, item.role || item.contact].filter(Boolean).join(" · "))}">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
         <td>${escapeHtml(item.platform)}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${formatDate(item.appliedDate)}</td>
-        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
+        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application"><i class="fa-solid fa-pen" aria-hidden="true"></i></button></td>
       </tr>
     `).join('');
   }

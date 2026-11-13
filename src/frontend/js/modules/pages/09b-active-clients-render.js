@@ -225,8 +225,12 @@
     const allActiveClients = allHired.filter(isActiveContract);
     const allEndedClients = allHired.filter(isContractEnded);
     $('#hiredCountLabel').textContent = `${allHired.length} ${allHired.length === 1 ? 'client' : 'clients'}`;
+    $('#hiredAllSummary').textContent = String(allHired.length);
     $('#hiredActiveSummary').textContent = String(allActiveClients.length);
     $('#hiredEndedSummary').textContent = String(allEndedClients.length);
+    $$('#hiredHeaderSummary [data-hired-filter]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.hiredFilter === filter));
+    });
     const selected = allHired.find(item => item.id === hiredEditingId)
       || allActiveClients[0];
     if (!selected && allHired.length) showingHiredClientList = true;
@@ -241,7 +245,7 @@
       target.innerHTML = clients.length
         ? [
           ...nonEndedClients.map(renderActiveClientCard),
-          ...(endedClients.length ? ['<h3 class="hired-ended-heading">Ended</h3>', ...endedClients.map(renderActiveClientCard)] : [])
+          ...(endedClients.length ? [`<h3 class="hired-ended-heading">Ended (${endedClients.length})</h3>`, ...endedClients.map(renderActiveClientCard)] : [])
         ].join('')
         : `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
       renderHiredClientAvatars();
@@ -268,37 +272,43 @@
     const statusLabel = endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active');
     const statusPillClass = contractEnded ? 'contract-ended'
       : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
-    const contractDetails = [
-      item.employmentType,
-      activeSinceDate(item) ? `Since ${emailDate(activeSinceDate(item))}` : ''
-    ].filter(Boolean).map(escapeHtml).join(' · ');
+    const activeSince = activeSinceDate(item);
     const initials = clientInitials(item.clientName);
     const avatarTone = clientAvatarHue(item.clientName);
-    const emailMarkup = item.email ? `<span class="hired-card-email" title="${escapeHtml(item.email)}">${escapeHtml(item.email)}</span>` : '';
-    const websiteMarkup = item.website ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(item.website)}</span></a>` : '';
-    const companyMarkup = item.companyName || item.company
-      ? `<span class="hired-card-company">${escapeHtml(item.companyName || item.company)}</span>`
-      : websiteMarkup;
+    const website = String(item.website || '').trim();
+    const websiteMarkup = website && !/^n\/?a$/i.test(website)
+      ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(website)}</span></a>`
+      : '';
+    const missing = label => `<span aria-label="${label} unavailable">—</span>`;
+    const openTaskCount = getClientTasks(item.id).filter(task => task.status !== 'done' && !task.completedAt).length;
     const matchCount = matchingEmailsForApplication(item)
       .filter(emailItem => !isSentEmail(emailItem)).length;
     const matchMarkup = matchCount
       ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>`
-      : '';
+      : '<span class="hired-card-match" title="0 emails" aria-label="0 matching emails"><i class="fa-regular fa-envelope" aria-hidden="true"></i>0</span>';
     const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
     const timeZoneMarkup = timeZone?.localTime
-      ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span></span>`
+      ? `<span class="hired-card-timezone"><i class="fa-regular fa-clock" aria-hidden="true"></i><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span>${!contractEnded ? renderClientOnlineStatus(item, false) : ''}</span>`
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
-    const clientDisplayName = [item.contact, item.companyName || item.company || item.clientName]
-      .map(value => String(value || '').trim())
-      .filter(Boolean)
-      .join(' | ') || 'Active client';
-    return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
-      ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
-      ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
-      ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
-      <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View Details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span></span>
+    const clientDisplayName = item.companyName || item.company || item.clientName || item.contact || 'Active client';
+    const clientSubtitle = [item.contact !== clientDisplayName ? item.contact : '', item.role].filter(Boolean).join(' · ');
+    return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}">
+      <span role="link" tabindex="0" class="hired-card-open" aria-label="View details for ${escapeHtml(clientDisplayName)}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong><span class="client-card-subtitle">${clientSubtitle ? escapeHtml(clientSubtitle) : missing('Contact and role')}</span></span></span></span>
+      <span class="hired-card-status-line">
+        <span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span>
+        <span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Since ${activeSince ? escapeHtml(emailDate(activeSince)) : missing('Start date')}</span>
+      </span>
+      <span class="hired-card-facts">
+        ${websiteMarkup}
+        ${item.employmentType ? `<span class="hired-card-contract"><i class="fa-solid fa-briefcase" aria-hidden="true"></i>${escapeHtml(item.employmentType)}</span>` : ''}
+        ${timeZoneMarkup}
+      </span>
+      <span class="hired-card-footer"><span class="hired-card-counts">
+        <span class="hired-card-task-count"><i class="fa-solid fa-list-check" aria-hidden="true"></i>${openTaskCount} open ${openTaskCount === 1 ? 'task' : 'tasks'}</span>
+        <span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}" aria-label="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${docs.length}</span>${matchMarkup}
+      </span></span>
     </article>`;
   }
 
@@ -312,6 +322,20 @@
     renderHired();
   });
   $('#hiredStatusFilter').addEventListener('change', renderHired);
+  $('#hiredHeaderSummary').addEventListener('click', event => {
+    const segment = event.target.closest('[data-hired-filter]');
+    if (!segment) return;
+    const filter = $('#hiredStatusFilter');
+    filter.value = segment.dataset.hiredFilter;
+    filter.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  $('#hiredList').addEventListener('keydown', event => {
+    if (!event.target.matches('.hired-card-open') || event.key !== 'Enter') return;
+    event.preventDefault();
+    event.target.click();
+  });
+  enhanceWorkspaceSelect($('#hiredDateSort'), { labelText: 'Sort clients by date' });
+  enhanceWorkspaceSelect($('#hiredStatusFilter'), { labelText: 'Filter by contract status' });
 
   function renderHiredDetail(item, scroll = true) {
     if (!item) return;

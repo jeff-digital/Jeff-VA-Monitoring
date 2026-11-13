@@ -8,23 +8,40 @@
 
   document.querySelectorAll('[data-follow-up-calendar]').forEach(trigger => {
     const input = document.getElementById(trigger.dataset.followUpCalendar);
+    const drawerDate = input.form?.id === 'clientForm';
+    if (drawerDate) {
+      trigger.insertAdjacentHTML('afterbegin', '<span class="application-date-value"></span>');
+      const refresh = () => {
+        trigger.querySelector('.application-date-value').textContent = input.value ? formatDate(input.value) : 'Select date';
+        trigger.disabled = input.disabled;
+        const label = input.getAttribute('aria-label') || input.labels?.[0]?.firstChild?.textContent.trim() || 'Date';
+        trigger.setAttribute('aria-label', label + ', ' + trigger.querySelector('.application-date-value').textContent);
+      };
+      input.form.addEventListener('application-controls-refresh', refresh);
+      input.addEventListener('change', refresh);
+      input.addEventListener('focus', () => { if (input.closest('.application-detail-panel')) trigger.focus(); });
+    }
+    const inboxDate = trigger.classList.contains('inbox-date-trigger');
+    const weekdayOnly = !inboxDate && !trigger.classList.contains('application-date-trigger');
+    const dateAllowed = value => !weekdayOnly || isFollowUpDateWeekday(value);
     const panel = document.createElement('div');
     panel.className = 'follow-up-calendar';
     panel.id = input.id + 'Calendar';
     panel.setAttribute('popover', 'auto');
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Choose a weekday follow-up date');
+    panel.setAttribute('aria-label', weekdayOnly ? 'Choose a weekday follow-up date' : input.labels?.[0]?.textContent.trim() || 'Choose a date');
     trigger.setAttribute('aria-controls', panel.id);
     panel.innerHTML = '<div class="follow-up-calendar-heading"><button type="button" data-calendar-month="-1" aria-label="Previous month">‹</button><strong aria-live="polite"></strong><button type="button" data-calendar-month="1" aria-label="Next month">›</button></div>'
       + '<div class="follow-up-calendar-week" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span class="is-weekend">Sat</span><span class="is-weekend">Sun</span></div>'
-      + '<div class="follow-up-calendar-days" role="group" aria-label="Dates"></div><p>Faded weekends are unavailable</p>';
+      + '<div class="follow-up-calendar-days" role="group" aria-label="Dates"></div>' + (weekdayOnly ? '<p>Weekends are unavailable</p>' : '');
+    if ((drawerDate || inboxDate) && !input.required) panel.insertAdjacentHTML('beforeend', '<button class="text-button" type="button" data-calendar-clear>Clear date</button>');
     (input.closest('dialog') || trigger.parentElement).append(panel);
     let year, month;
     const isOpen = () => panel.matches(':popover-open');
     function renderCalendar(focusDate) {
       panel.querySelector('strong').textContent = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month, 1)));
-      const days = followUpCalendarDays(year, month);
-      const defaultDate = input.value || nextFollowUpWeekday(today());
+      const days = followUpCalendarDays(year, month).map(day => ({ ...day, available: dateAllowed(day.value) }));
+      const defaultDate = input.value || (weekdayOnly ? nextFollowUpWeekday(today()) : today());
       const preferred = focusDate || (days.some(day => day.value === defaultDate && day.available) ? defaultDate : days.find(day => day.available)?.value);
       const offset = (new Date(Date.UTC(year, month, 1)).getUTCDay() + 6) % 7;
       panel.querySelector('.follow-up-calendar-days').innerHTML = '<span aria-hidden="true"></span>'.repeat(offset) + days.map(day => {
@@ -37,7 +54,8 @@
     }
     function positionCalendar() {
       if (!isOpen()) return;
-      const rect = input.getBoundingClientRect(), height = panel.getBoundingClientRect().height;
+      const anchor = inboxDate || trigger.closest('.application-detail-panel') ? trigger : input;
+      const rect = anchor.getBoundingClientRect(), height = panel.getBoundingClientRect().height;
       panel.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 12)) + 'px';
       const below = rect.bottom + 7;
       panel.style.top = Math.max(12, Math.min(below + height <= window.innerHeight - 12 ? below : rect.top - height - 7, window.innerHeight - height - 12)) + 'px';
@@ -58,9 +76,9 @@
     panel.addEventListener('click', event => {
       const nav = event.target.closest('[data-calendar-month]');
       if (nav) { const date = new Date(Date.UTC(year, month + Number(nav.dataset.calendarMonth), 1)); year = date.getUTCFullYear(); month = date.getUTCMonth(); renderCalendar(); positionCalendar(); return; }
-      const button = event.target.closest('[data-calendar-date]');
-      if (!button || button.disabled || !isFollowUpDateWeekday(button.dataset.calendarDate)) return;
-      input.value = button.dataset.calendarDate;
+      const button = event.target.closest('[data-calendar-date], [data-calendar-clear]');
+      if (!button || button.disabled || (!button.hasAttribute('data-calendar-clear') && !dateAllowed(button.dataset.calendarDate))) return;
+      input.value = button.dataset.calendarDate || '';
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
       panel.hidePopover(); trigger.focus();
@@ -72,7 +90,7 @@
       if (!button || !step) return;
       event.preventDefault();
       const date = new Date(button.dataset.calendarDate + 'T12:00:00Z');
-      do { date.setUTCDate(date.getUTCDate() + step); } while (!isFollowUpDateWeekday(date.toISOString().slice(0, 10)));
+      do { date.setUTCDate(date.getUTCDate() + step); } while (!dateAllowed(date.toISOString().slice(0, 10)));
       year = date.getUTCFullYear(); month = date.getUTCMonth();
       const value = date.toISOString().slice(0, 10);
       renderCalendar(value); panel.querySelector('[data-calendar-date="' + value + '"]')?.focus(); positionCalendar();

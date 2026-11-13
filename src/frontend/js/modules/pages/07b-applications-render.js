@@ -68,15 +68,26 @@
   function applicationFollowUpMarkup(item) {
     const state = applicationFollowUpState(item);
     const date = state === 'sent' ? dateKey(confirmedApplicationFollowUpSentAt(item)) : dateKey(item.followUpDate);
-    if (!date) return '—';
-    const label = state === 'sent' ? 'Follow-up sent successfully' : state === 'due' ? 'Follow-up due today — not sent yet' : 'Scheduled follow-up';
-    return `<span class="application-follow-up${state ? ` is-${state}` : ''}" title="${escapeHtml(label)}"><span>${escapeHtml(emailDate(date))}</span>${state === 'sent' ? '<span class="follow-up-check" aria-label="Sent successfully">✓</span>' : state === 'due' ? '<span class="follow-up-due-label">Due today</span>' : ''}</span>`;
+    if (!date) return '';
+    const days = Math.round((Date.parse(date) - Date.parse(followUpLocalDate(item) || today())) / 86400000);
+    const pending = !['Active client', 'Not selected'].includes(item.status) && state !== 'sent';
+    const relative = pending && Number.isFinite(days)
+      ? days < 0 ? 'Overdue' : days === 0 ? 'Today' : `in ${plural(days, 'day')}`
+      : emailDate(date);
+    const tone = pending && days <= 0 ? 'due' : state;
+    const description = state === 'sent' ? 'Follow-up sent successfully' : state === 'due' ? 'Due today' : 'Scheduled follow-up';
+    return `<span class="application-follow-up${tone ? ` is-${tone}` : ''}" title="${escapeHtml(description + ' · ' + emailDate(date))}"><span>${escapeHtml(relative)}</span>${state === 'sent' ? '<span class="follow-up-check" aria-label="Sent successfully">✓</span>' : ''}</span>`;
   }
+
+  let applicationPage = 0;
+  let applicationFilterSignature = '';
+  const applicationPageSize = 25;
 
   function renderApplications() {
     const query = $('#applicationSearch').value.trim().toLowerCase();
     const status = $('#statusFilter').value;
     const platform = $('#platformFilter').value;
+    const employment = $('#applicationEmploymentFilter').value;
     const dateFilter = $('#applicationDateFilter').value;
     updatePlatformFilter();
     const weekOffset = Number(applicationDateSort);
@@ -87,17 +98,30 @@
     $('#applicationDateSort').innerHTML = applicationWeekOptions();
     $('#applicationDateSort').value = applicationDateSort;
     const pipeline = pipelineApplications();
-    const filtered = pipeline.filter(item => {
+    const matchesStatus = (item, value) => !value || (value === 'To Proceed' ? isToProceedStatus(item) : item.status === value);
+    const eligible = pipeline.filter(item => {
       const text = [item.clientName, item.contact, item.role, item.platform, item.nextStep, item.notes].join(' ').toLowerCase();
-      const statusMatches = status
-        ? (status === 'To Proceed' ? isToProceedStatus(item) : status === 'Ongoing' ? item.status === 'Ongoing' : item.status === status)
-        : true;
       const alwaysVisibleStatus = isToProceedStatus(item) || item.status === 'Interview' || item.status === 'Ongoing';
       const dateMatches = alwaysVisibleStatus || !dateFilter || dateKey(item.appliedDate) === dateFilter;
       const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAppliedDate(item), weekRangeFilter);
-      return (!query || text.includes(query)) && statusMatches && (!platform || item.platform === platform) && dateMatches && weekMatches;
+      return (!query || text.includes(query)) && (!platform || item.platform === platform)
+        && (!employment || item.employmentType === employment) && dateMatches && weekMatches;
     });
-    $('#applicationListLabel').textContent = `${plural(filtered.length, 'application')}${filtered.length !== pipeline.length ? ` of ${pipeline.length}` : ''}`;
+    const filtered = eligible.filter(item => matchesStatus(item, status));
+    $('#applicationListLabel').textContent = String(filtered.length);
+    $('#applicationListLabel').setAttribute('aria-label', `${filtered.length} of ${pipeline.length} applications`);
+    const chips = [['', 'All'], ['Applied', 'Applied'], ['Interview', 'Interview'], ['Offer', 'Offer'], ['Not selected', 'Rejected']];
+    const chipGroup = $('#applicationStatusChips');
+    if (!chipGroup.children.length) chipGroup.innerHTML = chips.map(([value, label]) =>
+      `<button type="button" data-application-status-chip="${value}">${label} <span></span></button>`).join('');
+    for (const chip of chipGroup.children) {
+      chip.setAttribute('aria-pressed', String(chip.dataset.applicationStatusChip === status));
+      chip.firstElementChild.textContent = eligible.filter(item => matchesStatus(item, chip.dataset.applicationStatusChip)).length;
+    }
+    $('#applicationsView').dispatchEvent(new Event('application-controls-refresh'));
+    const signature = JSON.stringify([query, status, platform, employment, dateFilter, applicationDateSort, $('#applicationOrderSort').value, applicationViewMode]);
+    if (signature !== applicationFilterSignature) applicationPage = 0;
+    applicationFilterSignature = signature;
     const platformCounts = new Map();
     filtered.forEach(item => {
       const name = String(item.platform || 'Unspecified').trim() || 'Unspecified';
@@ -114,6 +138,7 @@
       dateFilter ? ['date', `Date: ${emailDate(dateFilter)}`] : null,
       status && status !== 'Applied' ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
       platform ? ['platform', `Source: ${platform}`] : null,
+      employment ? ['employment', `Employment: ${employment}`] : null,
       applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
@@ -136,29 +161,36 @@
     $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
     if (!filtered.length) {
       const isFiltered = pipeline.length > 0;
-      target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>Add your first client</button>'}</div>`;
+      target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'No applications yet'}</h3>${isFiltered ? '<button class="button button-secondary" type="button" data-clear-application-filters>Clear filters</button>' : '<button class="button button-primary" type="button" data-open-add>Add application</button>'}</div>`;
       return;
     }
     const sortedApplications = sortApplicationList(filtered, $('#applicationOrderSort').value);
     if (applicationViewMode === 'board') {
-      const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', 'Active client', 'Not selected'];
+      const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', ...(sortedApplications.some(item => item.status === 'Offer') ? ['Offer'] : []), 'Active client', 'Not selected'];
       target.innerHTML = `<div class="application-board">${stages.map(stage => {
         const cards = sortedApplications.filter(item => stage === 'To Proceed' ? isToProceedStatus(item) : item.status === stage);
         return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}">${applicationSelectionMode ? `<input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} />` : ''}<button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
       }).join('')}</div>`;
       return;
     }
-    const salaryAmountWidth = Math.max(5, ...sortedApplications.map(item => {
-      const value = Number(item.salaryAmount);
-      return Number.isFinite(value) && value > 0 ? Math.round(value).toLocaleString().length + 1 : 0;
-    }));
-    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" style="--salary-amount-width: ${salaryAmountWidth}ch"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.map(item => {
+    const pageCount = Math.ceil(sortedApplications.length / applicationPageSize);
+    applicationPage = Math.min(applicationPage, pageCount - 1);
+    const offset = applicationPage * applicationPageSize;
+    const displayValue = value => /^(?:n\/?a|—|-)$/i.test(String(value || '').trim()) ? '' : String(value || '').trim();
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" aria-label="Applications"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Platform</th><th scope="col">Employment type</th><th scope="col">Status</th><th scope="col">Date applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.slice(offset, offset + applicationPageSize).map(item => {
       const salaryAmount = Number(item.salaryAmount);
       const salary = Number.isFinite(salaryAmount) && salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
-        ? `<span class="application-salary-value"><span class="application-salary-amount"><span class="application-salary-currency">${escapeHtml(salaryCurrencySymbol(item.salaryCurrency))}</span><span class="application-salary-number">${escapeHtml(Math.round(salaryAmount).toLocaleString())}</span></span><span class="application-salary-period">/ ${item.salaryType === 'hourly' ? 'hour' : 'month'}</span></span>`
-        : '—';
-      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td class="application-table-muted">${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td class="application-salary-cell application-table-muted">${salary}</td><td class="application-table-muted">${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
-    }).join('')}</tbody></table></div>`;
+        ? `<small>${escapeHtml(salaryCurrencySymbol(item.salaryCurrency) + Math.round(salaryAmount).toLocaleString())} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}</small>` : '';
+      const name = displayValue(item.clientName) || 'Unnamed application';
+      const role = displayValue(item.role) || displayValue(item.contact);
+      const id = escapeHtml(item.id);
+      return `<tr data-view-details="${id}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${id}" aria-label="Select ${escapeHtml(name)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}
+        <td class="application-client-cell"><button type="button" class="application-client-open" data-view-details="${id}" aria-label="View details for ${escapeHtml(name)}"><span class="application-client-avatar" aria-hidden="true">${escapeHtml(clientInitials(name))}</span><span class="application-client-copy"><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>${role ? `<small title="${escapeHtml(role)}">${escapeHtml(role)}</small>` : ''}</span></button></td>
+        <td class="application-table-muted">${escapeHtml(displayValue(item.platform))}</td><td class="application-table-muted">${escapeHtml(displayValue(item.employmentType))}${salary}</td>
+        <td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td>
+        <td class="application-table-muted">${item.appliedDate ? escapeHtml(emailDate(item.appliedDate)) : ''}</td><td>${applicationFollowUpMarkup(item)}</td>
+        <td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(name)}" aria-haspopup="dialog" data-open-application-actions="${id}">⋯</button></td></tr>`;
+    }).join('')}</tbody></table></div>${pageCount > 1 ? `<nav class="application-pagination" aria-label="Applications pages"><span aria-live="polite">${offset + 1}–${Math.min(offset + applicationPageSize, sortedApplications.length)} of ${sortedApplications.length}</span><button type="button" data-application-page="-1"${applicationPage === 0 ? ' disabled' : ''}>Previous</button><button type="button" data-application-page="1"${applicationPage === pageCount - 1 ? ' disabled' : ''}>Next</button></nav>` : ''}`;
   }
 
   function emailWeekOptions() {

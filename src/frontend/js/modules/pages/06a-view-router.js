@@ -147,8 +147,10 @@
     renderCurrentView();
     if (view === 'account') {
       renderPasswordPage();
-      renderAccountPage();
-      refreshAccountStorageUsage();
+      renderAccountSignInHistory();
+      void loadLoginActivity();
+      void loadBackgroundFollowUpStatus();
+      void refreshAccountStorageUsage();
     }
     const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['', 'News'], 'social-trends': ['', 'Social Trends'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['', 'Career Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
@@ -175,6 +177,8 @@
     const addClientButton = $('#openAddModal');
     addClientButton.hidden = activeView !== 'applications';
     addClientButton.setAttribute('aria-hidden', String(activeView !== 'applications'));
+    $('#walletAddEntry').hidden = activeView !== 'wallet';
+    $('#addSubscription').hidden = activeView !== 'subscriptions';
     const gmailHeaderActions = $('#gmailHeaderActions');
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });

@@ -272,9 +272,7 @@
   }
 
   function renderAccountPage() {
-    if (typeof loadBackgroundFollowUpStatus === 'function') void loadBackgroundFollowUpStatus();
     if (!currentUser) return;
-    loadLoginActivity();
     const provider = activeAuthProvider === 'google' ? 'Google' : activeAuthProvider === 'email' ? 'Email and password' : 'Supabase Auth';
     const projectHost = (() => {
       try { return new URL(window.SUPABASE_URL).host; } catch { return 'Not configured'; }
@@ -310,6 +308,9 @@
     updateGmailConnectionUI(Boolean(gmailAccessToken && !gmailReconnectRequired));
     $('#accountLastSignIn').textContent = formatAccountTimestamp(currentUser.last_sign_in_at);
     $('#accountCreatedAt').textContent = formatAccountTimestamp(currentUser.created_at);
+  }
+
+  function renderAccountSignInHistory() {
     const history = Array.isArray(data.accountSignInHistory) ? data.accountSignInHistory : [];
     const list = $('#accountSignInHistory');
     list.replaceChildren();
@@ -397,22 +398,104 @@
   });
   renderProjectStorageSummary();
 
+  function renderAccountStorageBreakdown(usage, userId) {
+    const files = Array.isArray(usage.files) ? new Map(usage.files.map(file => [file.path, file.bytes])) : null;
+    const encoder = new TextEncoder();
+    const bytes = records => records.reduce((sum, record) => sum + encoder.encode(JSON.stringify(record)).length, 0);
+    const filePaths = records => records.map(record => record?.storagePath || (record?.id ? userId + '/' + record.id : '')).filter(Boolean);
+    const fileBytes = paths => [...new Set(paths)].reduce((sum, path) => sum + (files.get(path) || 0), 0);
+    const applications = data.applications || [];
+    const clients = hiredClients();
+    const clientIds = new Set(clients.map(client => client.id));
+    const jobApplications = applications.filter(item => !clientIds.has(item.id));
+    const clientFiles = client => filePaths([...(client.documents || []), client.profileImage]);
+    const sections = [
+      ['Applications', jobApplications, jobApplications.flatMap(clientFiles)],
+      ['Active Clients', clients, clients.flatMap(clientFiles)],
+      ['To Apply', data.toApply || []],
+      ['Tasks', [...(data.dailyTasks || []), ...(data.clientTasks || [])]],
+      ['Email', data.emails || []],
+      ['Invoices', data.invoices || []],
+      ['Career Tools', [...(data.personalDocuments || []), ...(data.scripts || []), ...(data.workLinks || []), ...(data.emailTemplates || [])], (data.personalDocuments || []).map(doc => doc.storagePath || personalDocumentPath(doc.id))],
+      ['Wallet', data.walletEntries || []],
+      ['Subscriptions', data.subscriptions || []],
+      ['Social Trends', data.socialTrends || []]
+    ];
+    if (files) {
+      const linked = new Set();
+      for (const section of sections) {
+        if (!section[2]) continue;
+        section[2] = section[2].filter(path => {
+          if (linked.has(path)) return false;
+          linked.add(path);
+          return true;
+        });
+      }
+      const other = [...files.keys()].filter(path => !linked.has(path));
+      if (other.length) sections.push(['Other files', [], other]);
+    }
+    const renderRows = (selector, rows) => {
+      $(selector).replaceChildren(...rows.map(([label, records, paths = []]) => {
+        const row = document.createElement('div');
+        const title = document.createElement('dt');
+        const value = document.createElement('dd');
+        title.textContent = label;
+        value.textContent = `${formatFileSize(bytes(records))} records${files ? ` · ${formatFileSize(fileBytes(paths))} files` : ''}`;
+        row.append(title, value);
+        return row;
+      }));
+    };
+    $('#accountStorageSections').replaceChildren(...sections.map(([label, records, paths = []]) => {
+      const row = document.createElement('tr');
+      const title = document.createElement('th');
+      title.scope = 'row';
+      title.textContent = label;
+      row.append(title);
+      row.insertCell().textContent = formatFileSize(bytes(records));
+      row.insertCell().textContent = files ? formatFileSize(fileBytes(paths)) : 'Unavailable';
+      return row;
+    }));
+    renderRows('#accountStorageClientRows', clients.map(client => [
+      client.companyName || client.company || client.clientName || 'Client',
+      [client, ...(data.clientTasks || []).filter(task => task.clientId === client.id),
+        ...(data.invoices || []).filter(invoice => invoice.clientId === client.id),
+        ...(data.emails || []).filter(email => email.applicationId === client.id || email.activeClientId === client.id)],
+      clientFiles(client)
+    ]));
+    $('#accountStorageClients').hidden = !clients.length;
+    $('#accountStorageBreakdownNote').textContent = files
+      ? 'Record sizes are estimates based on workspace data. File sizes come from Cloudflare R2.'
+      : 'Record sizes are estimates based on workspace data. File sizes by section are unavailable.';
+    $('#accountStorageBreakdown').hidden = false;
+  }
+
   async function refreshAccountStorageUsage() {
     const output = $('#accountStorageUsage'), button = $('#refreshAccountStorageUsage');
+    const headroom = $('#accountStorageHeadroom');
     if (!currentUser || !output || button.disabled) return;
     const userId = currentUser.id;
     button.disabled = true; output.textContent = 'Checking…';
+    headroom.textContent = 'Checking…';
+    $('#accountStorageBreakdown').hidden = true;
     try {
-      const usage = await (await privateFileRequest({ action: 'usage' })).json();
+      const usage = await (await privateFileRequest({ action: 'usage', breakdown: '1' })).json();
       if (currentUser?.id !== userId) return;
       output.textContent = `${formatFileSize(usage.bytes)} · ${plural(usage.count, 'file')}`;
+      const remainingGb = Math.max(0, 10 - usage.bytes / 1e9);
+      headroom.textContent = remainingGb > 0 && remainingGb < 0.01 ? '< 0.01 GB' : `${Number(remainingGb.toFixed(2))} GB`;
       $('#accountProjectStorageUsage').textContent = 'Cloudflare R2 · Private';
+      renderAccountStorageBreakdown(usage, userId);
     } catch (error) {
-      if (currentUser?.id === userId) output.textContent = error.message || 'Usage unavailable';
+      if (currentUser?.id === userId) {
+        output.textContent = error.message || 'Usage unavailable';
+        headroom.textContent = 'Unavailable';
+      }
     } finally { button.disabled = false; }
   }
 
   $('#refreshAccountStorageUsage').addEventListener('click', refreshAccountStorageUsage);
+
+  let settingsStorageLoaded = false;
 
   function selectWorkspaceSettingsSection(section = 'account') {
     const titles = { account: 'Account', appearance: 'Appearance', backups: 'Data & backups', automations: 'Automations', security: 'Security' };
@@ -431,6 +514,15 @@
       button.setAttribute('aria-pressed', String(button.dataset.settingsSection === section));
     });
     $('#settingsAccountContent').scrollTop = 0;
+    if (section === 'backups' && !settingsStorageLoaded) {
+      settingsStorageLoaded = true;
+      void refreshAccountStorageUsage();
+    }
+    if (section === 'automations') void loadBackgroundFollowUpStatus();
+    if (section === 'security') {
+      renderAccountSignInHistory();
+      void loadLoginActivity();
+    }
   }
   document.querySelectorAll('#settingsModal [data-settings-section]').forEach(button => {
     button.addEventListener('click', () => selectWorkspaceSettingsSection(button.dataset.settingsSection));
@@ -440,7 +532,8 @@
     setAccountIdVisibility(false);
     lockWorkspaceDataControls();
     const accountView = $('#accountView');
-    $('#settingsAccountContent').append(accountView);
+    const content = $('#settingsAccountContent');
+    if (accountView.parentElement !== content) content.append(accountView);
     for (const child of accountView.children) {
       child.dataset.settingsPanel = child.matches('.account-identity-section, .account-overview-grid') ? 'account'
         : child.matches('.account-storage-section') ? 'backups'
@@ -449,7 +542,7 @@
     accountView.classList.add('active');
     renderPasswordPage();
     renderAccountPage();
-    refreshAccountStorageUsage();
+    settingsStorageLoaded = false;
     renderGmailSyncStatus();
     renderEmailTaskAiStatus();
     selectWorkspaceSettingsSection(passwordRecoveryMode ? 'security' : 'account');
@@ -1641,23 +1734,40 @@
 
   document.querySelectorAll('[data-follow-up-calendar]').forEach(trigger => {
     const input = document.getElementById(trigger.dataset.followUpCalendar);
+    const drawerDate = input.form?.id === 'clientForm';
+    if (drawerDate) {
+      trigger.insertAdjacentHTML('afterbegin', '<span class="application-date-value"></span>');
+      const refresh = () => {
+        trigger.querySelector('.application-date-value').textContent = input.value ? formatDate(input.value) : 'Select date';
+        trigger.disabled = input.disabled;
+        const label = input.getAttribute('aria-label') || input.labels?.[0]?.firstChild?.textContent.trim() || 'Date';
+        trigger.setAttribute('aria-label', label + ', ' + trigger.querySelector('.application-date-value').textContent);
+      };
+      input.form.addEventListener('application-controls-refresh', refresh);
+      input.addEventListener('change', refresh);
+      input.addEventListener('focus', () => { if (input.closest('.application-detail-panel')) trigger.focus(); });
+    }
+    const inboxDate = trigger.classList.contains('inbox-date-trigger');
+    const weekdayOnly = !inboxDate && !trigger.classList.contains('application-date-trigger');
+    const dateAllowed = value => !weekdayOnly || isFollowUpDateWeekday(value);
     const panel = document.createElement('div');
     panel.className = 'follow-up-calendar';
     panel.id = input.id + 'Calendar';
     panel.setAttribute('popover', 'auto');
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Choose a weekday follow-up date');
+    panel.setAttribute('aria-label', weekdayOnly ? 'Choose a weekday follow-up date' : input.labels?.[0]?.textContent.trim() || 'Choose a date');
     trigger.setAttribute('aria-controls', panel.id);
     panel.innerHTML = '<div class="follow-up-calendar-heading"><button type="button" data-calendar-month="-1" aria-label="Previous month">‹</button><strong aria-live="polite"></strong><button type="button" data-calendar-month="1" aria-label="Next month">›</button></div>'
       + '<div class="follow-up-calendar-week" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span class="is-weekend">Sat</span><span class="is-weekend">Sun</span></div>'
-      + '<div class="follow-up-calendar-days" role="group" aria-label="Dates"></div><p>Faded weekends are unavailable</p>';
+      + '<div class="follow-up-calendar-days" role="group" aria-label="Dates"></div>' + (weekdayOnly ? '<p>Weekends are unavailable</p>' : '');
+    if ((drawerDate || inboxDate) && !input.required) panel.insertAdjacentHTML('beforeend', '<button class="text-button" type="button" data-calendar-clear>Clear date</button>');
     (input.closest('dialog') || trigger.parentElement).append(panel);
     let year, month;
     const isOpen = () => panel.matches(':popover-open');
     function renderCalendar(focusDate) {
       panel.querySelector('strong').textContent = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month, 1)));
-      const days = followUpCalendarDays(year, month);
-      const defaultDate = input.value || nextFollowUpWeekday(today());
+      const days = followUpCalendarDays(year, month).map(day => ({ ...day, available: dateAllowed(day.value) }));
+      const defaultDate = input.value || (weekdayOnly ? nextFollowUpWeekday(today()) : today());
       const preferred = focusDate || (days.some(day => day.value === defaultDate && day.available) ? defaultDate : days.find(day => day.available)?.value);
       const offset = (new Date(Date.UTC(year, month, 1)).getUTCDay() + 6) % 7;
       panel.querySelector('.follow-up-calendar-days').innerHTML = '<span aria-hidden="true"></span>'.repeat(offset) + days.map(day => {
@@ -1670,7 +1780,8 @@
     }
     function positionCalendar() {
       if (!isOpen()) return;
-      const rect = input.getBoundingClientRect(), height = panel.getBoundingClientRect().height;
+      const anchor = inboxDate || trigger.closest('.application-detail-panel') ? trigger : input;
+      const rect = anchor.getBoundingClientRect(), height = panel.getBoundingClientRect().height;
       panel.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 12)) + 'px';
       const below = rect.bottom + 7;
       panel.style.top = Math.max(12, Math.min(below + height <= window.innerHeight - 12 ? below : rect.top - height - 7, window.innerHeight - height - 12)) + 'px';
@@ -1691,9 +1802,9 @@
     panel.addEventListener('click', event => {
       const nav = event.target.closest('[data-calendar-month]');
       if (nav) { const date = new Date(Date.UTC(year, month + Number(nav.dataset.calendarMonth), 1)); year = date.getUTCFullYear(); month = date.getUTCMonth(); renderCalendar(); positionCalendar(); return; }
-      const button = event.target.closest('[data-calendar-date]');
-      if (!button || button.disabled || !isFollowUpDateWeekday(button.dataset.calendarDate)) return;
-      input.value = button.dataset.calendarDate;
+      const button = event.target.closest('[data-calendar-date], [data-calendar-clear]');
+      if (!button || button.disabled || (!button.hasAttribute('data-calendar-clear') && !dateAllowed(button.dataset.calendarDate))) return;
+      input.value = button.dataset.calendarDate || '';
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
       panel.hidePopover(); trigger.focus();
@@ -1705,7 +1816,7 @@
       if (!button || !step) return;
       event.preventDefault();
       const date = new Date(button.dataset.calendarDate + 'T12:00:00Z');
-      do { date.setUTCDate(date.getUTCDate() + step); } while (!isFollowUpDateWeekday(date.toISOString().slice(0, 10)));
+      do { date.setUTCDate(date.getUTCDate() + step); } while (!dateAllowed(date.toISOString().slice(0, 10)));
       year = date.getUTCFullYear(); month = date.getUTCMonth();
       const value = date.toISOString().slice(0, 10);
       renderCalendar(value); panel.querySelector('[data-calendar-date="' + value + '"]')?.focus(); positionCalendar();
@@ -1811,6 +1922,11 @@
         <button class="client-social-remove" type="button" data-remove-client-social-link aria-label="Remove ${escapeHtml(CLIENT_SOCIAL_PLATFORM_LABELS[platform])} account" title="Remove account"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
       </div>`;
     }).join('');
+    if (typeof enhanceWorkspaceSelect === 'function') {
+      target.querySelectorAll('select').forEach(select => {
+        enhanceWorkspaceSelect(select, { labelText: select.getAttribute('aria-label') });
+      });
+    }
     updateClientSocialEditorControls(viewOnly);
   }
 
@@ -1841,13 +1957,18 @@
     links.push({ platform: 'website', url: '' });
     renderClientSocialLinkEditor(links);
     $('#clientSocialLinksList .client-social-link-row:last-child [data-client-social-platform]')?.focus();
+    if (typeof updateApplicationEditStatus === 'function') updateApplicationEditStatus();
   });
-  $('#clientSocialLinksList')?.addEventListener('click', event => {
+  $('#clientSocialLinksList')?.addEventListener('click', async event => {
     const removeButton = event.target.closest('[data-remove-client-social-link]');
     if (!removeButton) return;
+    if (removeButton.closest('.application-edit-drawer') &&
+      !await appConfirm('Remove this social account from the form?', { title: 'Remove account', confirmLabel: 'Remove', danger: true })) return;
     removeButton.closest('.client-social-link-row')?.remove();
     if (!$('#clientSocialLinksList .client-social-link-row')) renderClientSocialLinkEditor();
     updateClientSocialEditorControls(false);
+    if (typeof updateApplicationEditStatus === 'function') updateApplicationEditStatus();
+    if (removeButton.closest('.application-edit-drawer') || $('#clientModal')?.classList.contains('application-edit-drawer')) $('#addClientSocialLink').focus();
   });
 
 
@@ -2170,7 +2291,9 @@
     $('#todayFollowUps').textContent = followUp;
     $('#todayInterviews').textContent = interviewsToday;
     $('#todayToApply').textContent = toApplyToday;
-    const weeklyApplicationCount = weeklyReportData().applications.length;
+    const weeklyReport = weeklyReportData(0);
+    const weeklyApplicationCount = weeklyReport.applications.length;
+    $('#weeklyReportPeriod').textContent = weeklyRangeLabel(weeklyReport.range);
     const weeklyGoal = normalizeWeeklyActivityGoal(data.weeklyActivityGoal) || 0;
     $('#dashboardWeeklyActivity').textContent = weeklyGoal
       ? `${weeklyApplicationCount} of ${weeklyGoal} ${weeklyGoal === 1 ? 'application' : 'applications'}`
@@ -2389,11 +2512,11 @@
       return `<tr data-client-row="${escapeHtml(item.id)}" tabindex="0" aria-label="Open details for ${escapeHtml(item.clientName || 'client')}">
         <td data-label="Client name"><button class="client-dashboard-name" type="button" data-client-dashboard-open="${escapeHtml(item.id)}"><span class="client-dashboard-avatar" aria-hidden="true">${escapeHtml(initials)}</span><span>${escapeHtml(item.clientName || 'Untitled client')}<small>${escapeHtml(item.role || item.companyName || item.company || 'Client')}</small></span></button></td>
         <td data-label="Status"><span class="client-dashboard-status is-${status.key}">${status.label}</span></td>
-        <td data-label="Contract start">${startDate ? escapeHtml(formatDate(startDate)) : '—'}</td>
-        <td data-label="Contract end">${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : '—'}</td>
-        <td data-label="Days left">${daysLeft === null ? '—' : daysLeft < 0 ? 'Ended' : plural(daysLeft, 'day')}</td>
-        <td data-label="Rate">${escapeHtml(rate || '—')}</td>
-        <td data-label="Last contact">${lastContact ? escapeHtml(formatDate(lastContact)) : '—'}</td>
+        <td data-label="Contract start">${startDate ? escapeHtml(formatDate(startDate)) : '<span class="dashboard-not-set">Not set</span>'}</td>
+        <td data-label="Contract end">${item.contractEndDate ? escapeHtml(formatDate(item.contractEndDate)) : '<span class="dashboard-not-set">Not set</span>'}</td>
+        <td data-label="Days left">${daysLeft === null ? '<span class="dashboard-not-set">Not set</span>' : daysLeft < 0 ? 'Ended' : plural(daysLeft, 'day')}</td>
+        <td data-label="Rate">${rate ? escapeHtml(rate) : '<span class="dashboard-not-set">Not set</span>'}</td>
+        <td data-label="Last contact">${lastContact ? escapeHtml(formatDate(lastContact)) : '<span class="dashboard-not-set">Not set</span>'}</td>
         <td data-label="Actions"><button class="client-dashboard-row-action" type="button" data-client-dashboard-open="${escapeHtml(item.id)}" aria-label="Open ${escapeHtml(item.clientName || 'client')} details"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i><span>View</span></button></td>
       </tr>`;
     }).join('');
@@ -2427,7 +2550,7 @@
   function renderClientDashboardActivity(clients) {
     const activity = clientDashboardRecentActivity(clients);
     $('#clientDashboardActivityList').innerHTML = activity.length
-      ? activity.map(item => `<article class="client-dashboard-activity-item"><span class="client-dashboard-activity-icon is-${escapeHtml(item.tone || 'blue')}"><i class="fa-solid ${escapeHtml(item.icon || 'fa-bolt')}" aria-hidden="true"></i></span><span><strong>${escapeHtml(item.title || 'Client update')}</strong><small>${escapeHtml(item.detail || '')}</small></span><time>${escapeHtml(formatDate(item.date))}</time></article>`).join('')
+      ? activity.slice(0, 5).map(item => `<article class="client-dashboard-activity-item"><span class="client-dashboard-activity-icon is-${escapeHtml(item.tone || 'blue')}"><i class="fa-solid ${escapeHtml(item.icon || 'fa-bolt')}" aria-hidden="true"></i></span><span><strong>${escapeHtml(item.title || 'Client update')}</strong><small title="${escapeHtml(item.detail || '')}">${escapeHtml(item.detail || '')}</small></span><time>${escapeHtml(formatDate(item.date))}</time></article>`).join('') + (activity.length > 5 ? `<details class="dashboard-view-all"><summary>View all</summary>${activity.slice(5).map(item => `<p>${escapeHtml(item.title)} · ${escapeHtml(item.detail || '')} · ${escapeHtml(formatDate(item.date))}</p>`).join('')}</details>` : '')
       : '<p class="client-dashboard-inline-empty">Client updates and completed tasks will appear here.</p>';
   }
 
@@ -2463,6 +2586,10 @@
     });
     const values = months.map(month => totals.get(month.key) || 0);
     const chart = $('#clientDashboardHoursChart');
+    const empty = !values.some(value => value > 0);
+    chart.parentElement.hidden = empty;
+    $('#clientDashboardHoursEmpty').hidden = !empty;
+    chart.setAttribute('aria-label', 'Logged client hours. ' + months.map((month, index) => month.label + ': ' + values[index].toFixed(1) + ' hours').join(', '));
     if (!values.some(value => value > 0)) {
       chart.innerHTML = '<text x="300" y="106" text-anchor="middle" class="client-dashboard-chart-empty">Logged client hours will appear here.</text>';
       return;
@@ -2492,7 +2619,7 @@
         const dueToday = task.date === today();
         const label = task.date ? `${overdue ? 'Overdue · ' : dueToday ? 'Today · ' : ''}${formatDate(task.date)}` : 'No due date';
         return `<article class="client-dashboard-task-row"><div><strong>${escapeHtml(task.title || 'Untitled task')}</strong><small>${task.status === 'in-progress' ? 'In progress' : 'To do'}</small></div><span class="client-dashboard-task-date${overdue ? ' is-overdue' : dueToday ? ' is-today' : ''}">${task.date ? `<time datetime="${escapeHtml(task.date)}">${escapeHtml(label)}</time>` : label}</span><button class="client-dashboard-task-done" type="button" data-client-dashboard-attention="${task.source}" data-client-id="${escapeHtml(client.id)}" data-item-id="${escapeHtml(task.id)}" aria-label="${escapeHtml(`Mark ${task.title || 'task'} for ${client.clientName || 'client'} done`)}" title="Mark done">✓</button></article>`;
-      }).join('')}</section>`).join('') : '<div class="client-dashboard-task-empty"><strong>All caught up</strong><p>Tasks linked to your clients will appear here.</p></div>';
+      }).join('')}</section>`).join('') : '<p class="dashboard-compact-empty"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> No open client tasks.</p>';
   }
 
   function renderClientDashboardAttention(clients) {
@@ -2519,7 +2646,7 @@
     $('#clientDashboardAttentionCount').textContent = entries.length ? plural(entries.length, 'item') : 'All caught up';
     $('#clientDashboardAttentionList').innerHTML = entries.length
       ? entries.slice(0, 8).map(entry => `<article class="client-dashboard-attention-item"><span class="client-dashboard-attention-dot is-${entry.tone}" aria-hidden="true"></span><span class="client-dashboard-attention-copy"><strong>${escapeHtml(entry.title)}</strong><small>${escapeHtml(entry.detail)}</small></span><button class="button button-secondary" type="button" data-client-dashboard-attention="${entry.type}" data-client-id="${escapeHtml(entry.clientId || entry.id)}" data-item-id="${escapeHtml(entry.id)}">${entry.action}</button></article>`).join('')
-      : '<p class="client-dashboard-inline-empty">No contracts, follow-ups, or tasks need attention.</p>';
+      : '<p class="dashboard-compact-empty"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> Nothing needs attention.</p>';
   }
 
   function renderClientDashboardDrawer(client) {
@@ -2702,6 +2829,7 @@
     if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeClientDashboardDrawer();
   });
   $('#clientDashboardStatusFilter').addEventListener('change', () => renderClientDashboardTable(hiredClients()));
+  enhanceWorkspaceSelect($('#clientDashboardStatusFilter'), { labelText: 'Filter clients by status' });
   $('#clientDashboardActionForm').addEventListener('submit', saveClientDashboardAction);
   $('#clientDashboardClients').addEventListener('click', event => {
     const sortButton = event.target.closest('[data-client-sort]');
@@ -2870,7 +2998,7 @@
       const inMonth = dayOffset >= 0 && dayOffset < daysInMonth;
       const dateValue = localDateKey(date);
       const dayInterviews = interviews.filter(item => dateKey(item.interviewDate) === dateValue);
-      cells.push(`<div class="calendar-day${inMonth ? '' : ' other-month'}${dateValue === today() ? ' today' : ''}"><span class="calendar-day-number">${date.getDate()}</span><div class="calendar-interviews">${dayInterviews.map(item => `<button class="calendar-interview" type="button" data-calendar-client="${escapeHtml(item.id)}" title="${escapeHtml(item.clientName)}">${escapeHtml(item.clientName)}</button>`).join('')}</div></div>`);
+      cells.push(`<div class="calendar-day${inMonth ? '' : ' other-month'}${dateValue === today() ? ' today' : ''}"><span class="calendar-day-number">${date.getDate()}</span><div class="calendar-interviews">${dayInterviews.map(item => `<button class="calendar-interview" type="button" data-calendar-client="${escapeHtml(item.id)}" title="${escapeHtml(item.clientName)}" aria-label="Interview with ${escapeHtml(item.clientName)}"><span aria-hidden="true"></span></button>`).join('')}</div></div>`);
     }
     target.innerHTML = cells.join('');
   }
@@ -2895,7 +3023,9 @@
 
   function renderStatusChart(applications) {
     const target = $('#statusLegend');
-    const statusEntries = Object.entries(STATUS_COLORS).map(([status, color]) => [status, applications.filter(item => item.status === status).length, color]).filter(([, count]) => count > 0);
+    const palette = ['#4f46e5', '#818cf8', '#a5b4fc', '#c7d2fe', '#64748b', '#94a3b8'];
+    const statusEntries = Object.keys(STATUS_COLORS).map((status, index) => [status, applications.filter(item => item.status === status).length, ['Rejected', 'Not selected'].includes(status) ? '#c99ca3' : palette[index % palette.length]]).filter(([, count]) => count > 0);
+    $('#statusDonut').setAttribute('aria-label', 'Pipeline status chart. ' + statusEntries.map(([status, count]) => (STATUS_LABELS[status] || status) + ': ' + count).join(', '));
     $('#donutValue').textContent = applications.length;
     if (!statusEntries.length) {
       $('#statusDonut').style.background = 'conic-gradient(#eff0ec 0 100%)';
@@ -2923,9 +3053,9 @@
     }
     target.innerHTML = applications.map(item => `
       <tr>
-        <td><div class="table-client">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
+        <td><div class="table-client" title="${escapeHtml([item.clientName, item.role || item.contact].filter(Boolean).join(" · "))}">${escapeHtml(item.clientName)}<small>${escapeHtml(item.role || item.contact || 'No role added')}</small></div></td>
         <td>${escapeHtml(item.platform)}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td>${formatDate(item.appliedDate)}</td>
-        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application">✎</button></td>
+        <td><button class="icon-button list-icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}" title="Edit application"><i class="fa-solid fa-pen" aria-hidden="true"></i></button></td>
       </tr>
     `).join('');
   }
@@ -2991,16 +3121,18 @@
     const responseMarkup = response ? `<section class="application-progress-ai-guidance"><h3>Are replies improving?</h3><dl class="application-progress-ai-stats">${stat('Recent 7-day reply rate', responseText(response.recent))}${stat('Earlier 7-day reply rate', responseText(response.previous))}</dl><p class="application-progress-ai-note">Recent applications: ${escapeHtml(response.recent.start)} – ${escapeHtml(response.recent.end)}. Earlier: ${escapeHtml(response.previous.start)} – ${escapeHtml(response.previous.end)}. Replies are counted in each application's first 7 days. Small samples and missing synced emails can distort rates.</p>
       ${response.bySource.length ? `<div class="application-progress-ai-sources">${response.bySource.map(source => `<div><strong>${escapeHtml(source.source)}</strong><span>${escapeHtml(responseText(source))}${source.applications < response.minimumSample ? ' · small sample' : ''}</span></div>`).join('')}</div>` : ''}</section>` : '';
     const checks = (metrics.applicationChecks || []).filter(check => check.applicationId);
+    const expanded = Boolean(result.querySelector?.('details[open]'));
     result.innerHTML = `<div class="application-progress-ai-assessment"><span class="application-progress-ai-badge is-${escapeHtml(review.status)}">${escapeHtml(applicationProgressLabels[review.status])}</span><small>Reviewed ${escapeHtml(new Date(review.reviewedAt).toLocaleString())}</small></div>
+      <p class="application-progress-ai-summary">${escapeHtml(review.summary)}</p>
+      <details class="dashboard-view-all"${expanded ? ' open' : ''}><summary>Read more</summary>
       <p class="application-progress-ai-period">${escapeHtml(metrics.start)} – ${escapeHtml(metrics.through)} · Philippine time. Compared with ${escapeHtml(metrics.previousStart)} – ${escapeHtml(metrics.previousThrough)}; today may be incomplete.</p>
       <dl class="application-progress-ai-stats">${stat('Applications', metrics.current.applications, metrics.previous.applications)}${stat('Matched replies', metrics.current.matchedReplies, metrics.previous.matchedReplies)}${stat('Scheduled interviews', metrics.current.interviews, metrics.previous.interviews)}${stat('Overdue follow-ups', metrics.overdue)}${stat('Follow-ups sent', metrics.current.followUpsSent, metrics.previous.followUpsSent)}${stat('Weekly goal', metrics.weeklyGoal || 'Not set')}</dl>
-      <p class="application-progress-ai-summary">${escapeHtml(review.summary)}</p>
       ${list('What your records show', review.findings)}
       ${responseMarkup}
       ${list('Why replies may be lower', review.possibleReasons, 'Possible explanations to test, not confirmed causes. The AI has not reviewed your resume or application messages.')}
       ${list('What to improve next', review.nextSteps)}
       ${checks.length ? `<section class="application-progress-ai-guidance"><h3>Applications to review</h3><p class="application-progress-ai-note">These are tracker checks, not a judgment of application quality.</p>${checks.map(check => `<article class="application-progress-ai-check"><strong>${escapeHtml(check.company)}</strong><small>${escapeHtml(check.role)}</small><ul>${check.issues.map(issue => `<li>${escapeHtml(issue)}</li>`).join('')}</ul><button class="text-button" type="button" data-progress-application="${escapeHtml(check.applicationId)}">Open application</button></article>`).join('')}</section>` : ''}
-      <p class="application-progress-ai-note">Matched replies exclude known automated and no-reply senders. Missing or outdated records can affect this review.</p>`;
+      <p class="application-progress-ai-note">Matched replies exclude known automated and no-reply senders. Missing or outdated records can affect this review.</p></details>`;
   }
 
   async function requestApplicationProgressReview() {
@@ -3126,15 +3258,26 @@
   function applicationFollowUpMarkup(item) {
     const state = applicationFollowUpState(item);
     const date = state === 'sent' ? dateKey(confirmedApplicationFollowUpSentAt(item)) : dateKey(item.followUpDate);
-    if (!date) return '—';
-    const label = state === 'sent' ? 'Follow-up sent successfully' : state === 'due' ? 'Follow-up due today — not sent yet' : 'Scheduled follow-up';
-    return `<span class="application-follow-up${state ? ` is-${state}` : ''}" title="${escapeHtml(label)}"><span>${escapeHtml(emailDate(date))}</span>${state === 'sent' ? '<span class="follow-up-check" aria-label="Sent successfully">✓</span>' : state === 'due' ? '<span class="follow-up-due-label">Due today</span>' : ''}</span>`;
+    if (!date) return '';
+    const days = Math.round((Date.parse(date) - Date.parse(followUpLocalDate(item) || today())) / 86400000);
+    const pending = !['Active client', 'Not selected'].includes(item.status) && state !== 'sent';
+    const relative = pending && Number.isFinite(days)
+      ? days < 0 ? 'Overdue' : days === 0 ? 'Today' : `in ${plural(days, 'day')}`
+      : emailDate(date);
+    const tone = pending && days <= 0 ? 'due' : state;
+    const description = state === 'sent' ? 'Follow-up sent successfully' : state === 'due' ? 'Due today' : 'Scheduled follow-up';
+    return `<span class="application-follow-up${tone ? ` is-${tone}` : ''}" title="${escapeHtml(description + ' · ' + emailDate(date))}"><span>${escapeHtml(relative)}</span>${state === 'sent' ? '<span class="follow-up-check" aria-label="Sent successfully">✓</span>' : ''}</span>`;
   }
+
+  let applicationPage = 0;
+  let applicationFilterSignature = '';
+  const applicationPageSize = 25;
 
   function renderApplications() {
     const query = $('#applicationSearch').value.trim().toLowerCase();
     const status = $('#statusFilter').value;
     const platform = $('#platformFilter').value;
+    const employment = $('#applicationEmploymentFilter').value;
     const dateFilter = $('#applicationDateFilter').value;
     updatePlatformFilter();
     const weekOffset = Number(applicationDateSort);
@@ -3145,17 +3288,30 @@
     $('#applicationDateSort').innerHTML = applicationWeekOptions();
     $('#applicationDateSort').value = applicationDateSort;
     const pipeline = pipelineApplications();
-    const filtered = pipeline.filter(item => {
+    const matchesStatus = (item, value) => !value || (value === 'To Proceed' ? isToProceedStatus(item) : item.status === value);
+    const eligible = pipeline.filter(item => {
       const text = [item.clientName, item.contact, item.role, item.platform, item.nextStep, item.notes].join(' ').toLowerCase();
-      const statusMatches = status
-        ? (status === 'To Proceed' ? isToProceedStatus(item) : status === 'Ongoing' ? item.status === 'Ongoing' : item.status === status)
-        : true;
       const alwaysVisibleStatus = isToProceedStatus(item) || item.status === 'Interview' || item.status === 'Ongoing';
       const dateMatches = alwaysVisibleStatus || !dateFilter || dateKey(item.appliedDate) === dateFilter;
       const weekMatches = alwaysVisibleStatus || !applicationDateSort || applicationDateSort === 'all' || isInWeeklyRange(applicationAppliedDate(item), weekRangeFilter);
-      return (!query || text.includes(query)) && statusMatches && (!platform || item.platform === platform) && dateMatches && weekMatches;
+      return (!query || text.includes(query)) && (!platform || item.platform === platform)
+        && (!employment || item.employmentType === employment) && dateMatches && weekMatches;
     });
-    $('#applicationListLabel').textContent = `${plural(filtered.length, 'application')}${filtered.length !== pipeline.length ? ` of ${pipeline.length}` : ''}`;
+    const filtered = eligible.filter(item => matchesStatus(item, status));
+    $('#applicationListLabel').textContent = String(filtered.length);
+    $('#applicationListLabel').setAttribute('aria-label', `${filtered.length} of ${pipeline.length} applications`);
+    const chips = [['', 'All'], ['Applied', 'Applied'], ['Interview', 'Interview'], ['Offer', 'Offer'], ['Not selected', 'Rejected']];
+    const chipGroup = $('#applicationStatusChips');
+    if (!chipGroup.children.length) chipGroup.innerHTML = chips.map(([value, label]) =>
+      `<button type="button" data-application-status-chip="${value}">${label} <span></span></button>`).join('');
+    for (const chip of chipGroup.children) {
+      chip.setAttribute('aria-pressed', String(chip.dataset.applicationStatusChip === status));
+      chip.firstElementChild.textContent = eligible.filter(item => matchesStatus(item, chip.dataset.applicationStatusChip)).length;
+    }
+    $('#applicationsView').dispatchEvent(new Event('application-controls-refresh'));
+    const signature = JSON.stringify([query, status, platform, employment, dateFilter, applicationDateSort, $('#applicationOrderSort').value, applicationViewMode]);
+    if (signature !== applicationFilterSignature) applicationPage = 0;
+    applicationFilterSignature = signature;
     const platformCounts = new Map();
     filtered.forEach(item => {
       const name = String(item.platform || 'Unspecified').trim() || 'Unspecified';
@@ -3172,6 +3328,7 @@
       dateFilter ? ['date', `Date: ${emailDate(dateFilter)}`] : null,
       status && status !== 'Applied' ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
       platform ? ['platform', `Source: ${platform}`] : null,
+      employment ? ['employment', `Employment: ${employment}`] : null,
       applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
@@ -3194,29 +3351,36 @@
     $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
     if (!filtered.length) {
       const isFiltered = pipeline.length > 0;
-      target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'Start your client pipeline'}</h3><p>${isFiltered ? 'Try a different search or filter.' : 'Track each application, where you applied, and the next step all in one private workspace.'}</p>${isFiltered ? '' : '<button class="button button-primary" type="button" data-open-add>Add your first client</button>'}</div>`;
+      target.innerHTML = `<div class="application-empty"><h3>${isFiltered ? 'No matching applications' : 'No applications yet'}</h3>${isFiltered ? '<button class="button button-secondary" type="button" data-clear-application-filters>Clear filters</button>' : '<button class="button button-primary" type="button" data-open-add>Add application</button>'}</div>`;
       return;
     }
     const sortedApplications = sortApplicationList(filtered, $('#applicationOrderSort').value);
     if (applicationViewMode === 'board') {
-      const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', 'Active client', 'Not selected'];
+      const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', ...(sortedApplications.some(item => item.status === 'Offer') ? ['Offer'] : []), 'Active client', 'Not selected'];
       target.innerHTML = `<div class="application-board">${stages.map(stage => {
         const cards = sortedApplications.filter(item => stage === 'To Proceed' ? isToProceedStatus(item) : item.status === stage);
         return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}">${applicationSelectionMode ? `<input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} />` : ''}<button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
       }).join('')}</div>`;
       return;
     }
-    const salaryAmountWidth = Math.max(5, ...sortedApplications.map(item => {
-      const value = Number(item.salaryAmount);
-      return Number.isFinite(value) && value > 0 ? Math.round(value).toLocaleString().length + 1 : 0;
-    }));
-    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" style="--salary-amount-width: ${salaryAmountWidth}ch"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Source</th><th scope="col">Stage</th><th scope="col">Salary</th><th scope="col">Applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.map(item => {
+    const pageCount = Math.ceil(sortedApplications.length / applicationPageSize);
+    applicationPage = Math.min(applicationPage, pageCount - 1);
+    const offset = applicationPage * applicationPageSize;
+    const displayValue = value => /^(?:n\/?a|—|-)$/i.test(String(value || '').trim()) ? '' : String(value || '').trim();
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" aria-label="Applications"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Platform</th><th scope="col">Employment type</th><th scope="col">Status</th><th scope="col">Date applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.slice(offset, offset + applicationPageSize).map(item => {
       const salaryAmount = Number(item.salaryAmount);
       const salary = Number.isFinite(salaryAmount) && salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
-        ? `<span class="application-salary-value"><span class="application-salary-amount"><span class="application-salary-currency">${escapeHtml(salaryCurrencySymbol(item.salaryCurrency))}</span><span class="application-salary-number">${escapeHtml(Math.round(salaryAmount).toLocaleString())}</span></span><span class="application-salary-period">/ ${item.salaryType === 'hourly' ? 'hour' : 'month'}</span></span>`
-        : '—';
-      return `<tr class="${applicationFollowUpState(item) === 'due' ? 'application-follow-up-due' : ''}" data-view-details="${escapeHtml(item.id)}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}<td><strong>${escapeHtml(item.clientName)}</strong><small>${escapeHtml(item.role || item.contact || 'Role not set')}</small></td><td class="application-table-muted">${escapeHtml(item.platform || 'Not specified')}</td><td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td><td class="application-salary-cell application-table-muted">${salary}</td><td class="application-table-muted">${escapeHtml(emailDate(item.appliedDate))}</td><td>${applicationFollowUpMarkup(item)}</td><td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(item.clientName)}" aria-haspopup="dialog" data-open-application-actions="${escapeHtml(item.id)}">⋯</button></td></tr>`;
-    }).join('')}</tbody></table></div>`;
+        ? `<small>${escapeHtml(salaryCurrencySymbol(item.salaryCurrency) + Math.round(salaryAmount).toLocaleString())} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}</small>` : '';
+      const name = displayValue(item.clientName) || 'Unnamed application';
+      const role = displayValue(item.role) || displayValue(item.contact);
+      const id = escapeHtml(item.id);
+      return `<tr data-view-details="${id}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${id}" aria-label="Select ${escapeHtml(name)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}
+        <td class="application-client-cell"><button type="button" class="application-client-open" data-view-details="${id}" aria-label="View details for ${escapeHtml(name)}"><span class="application-client-avatar" aria-hidden="true">${escapeHtml(clientInitials(name))}</span><span class="application-client-copy"><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>${role ? `<small title="${escapeHtml(role)}">${escapeHtml(role)}</small>` : ''}</span></button></td>
+        <td class="application-table-muted">${escapeHtml(displayValue(item.platform))}</td><td class="application-table-muted">${escapeHtml(displayValue(item.employmentType))}${salary}</td>
+        <td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td>
+        <td class="application-table-muted">${item.appliedDate ? escapeHtml(emailDate(item.appliedDate)) : ''}</td><td>${applicationFollowUpMarkup(item)}</td>
+        <td><button class="icon-button application-actions-trigger" type="button" aria-label="More actions for ${escapeHtml(name)}" aria-haspopup="dialog" data-open-application-actions="${id}">⋯</button></td></tr>`;
+    }).join('')}</tbody></table></div>${pageCount > 1 ? `<nav class="application-pagination" aria-label="Applications pages"><span aria-live="polite">${offset + 1}–${Math.min(offset + applicationPageSize, sortedApplications.length)} of ${sortedApplications.length}</span><button type="button" data-application-page="-1"${applicationPage === 0 ? ' disabled' : ''}>Previous</button><button type="button" data-application-page="1"${applicationPage === pageCount - 1 ? ' disabled' : ''}>Next</button></nav>` : ''}`;
   }
 
   function emailWeekOptions() {
@@ -3366,13 +3530,24 @@
     $('#emailWeekDate').textContent = emailDateSort === 'all' ? 'All weeks' : weeklyRangeLabel(weekRangeFilter).replace(' – ', ' to ');
     $('#emailDateSort').innerHTML = emailWeekOptions();
     $('#emailDateSort').value = emailDateSort;
+    $('#inboxView').dispatchEvent(new Event('application-controls-refresh'));
+    const endDate = $('#emailDateEndFilter').value;
+    for (const id of ['emailDateFilter', 'emailDateEndFilter']) {
+      const field = $('#' + id);
+      const text = field.value ? emailDate(field.value) : field.getAttribute('aria-label');
+      const button = $(`[data-follow-up-calendar="${id}"]`);
+      button.querySelector('span').textContent = text;
+      button.setAttribute('aria-label', field.getAttribute('aria-label') + (field.value ? ', ' + text : ''));
+    }
     const received = receivedEmails();
     const sent = data.emails.filter(isSentEmail);
     $('#emailReceivedCount').textContent = received.length;
     $('#emailSentCount').textContent = sent.length;
     const emails = data.emails
       .filter(item => [item.from, item.to, item.subject, item.body, item.date].join(' ').toLowerCase().includes(query))
-      .filter(item => !emailDateFilter || dateKey(item.date) === emailDateFilter)
+      .filter(item => endDate
+        ? Boolean(dateKey(item.date)) && (!emailDateFilter || dateKey(item.date) >= emailDateFilter) && dateKey(item.date) <= endDate
+        : !emailDateFilter || dateKey(item.date) === emailDateFilter)
       .filter(item => emailDateSort === 'all' || isInWeeklyRange(item.date, weekRangeFilter))
       .filter(item => emailViewFilter === 'sent'
         ? isSentEmail(item)
@@ -3386,13 +3561,13 @@
       button.setAttribute('aria-pressed', String(selected));
     });
     const target = $('#emailList');
+    const selection = new Set([...target.querySelectorAll('[data-email-select]:checked')].map(input => input.value));
+    const focusedRow = target.contains(document.activeElement) ? document.activeElement.closest('.email-row')?.dataset.emailDetail : '';
     const sectionClass = `email-section${emailViewFilter === 'sent' ? ' email-section-sent' : ''}${emailSelectionMode ? ' email-selection-mode' : ''}`;
-    const selectionActions = emailSelectionMode
-      ? '<div class="email-bulk-actions"><label class="email-select-all-control"><input type="checkbox" data-email-select-all aria-label="Select all visible emails" /><span>Select all</span></label><span class="email-selection-count" data-email-selection-count aria-live="polite">0 selected</span><button class="email-selection-cancel" type="button" data-email-selection-toggle>Cancel</button><button class="button button-danger email-bulk-delete" type="button" data-email-bulk-delete disabled><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button></div>'
-      : '<button class="button button-secondary email-selection-trigger" type="button" data-email-selection-toggle><i class="fa-regular fa-square-check" aria-hidden="true"></i><span>Select emails</span></button>';
-    $('#emailSelectionActions').innerHTML = selectionActions;
+    const selectionActions = $('#emailSelectionActions');
+    if (!selectionActions.children.length) selectionActions.innerHTML = '<div class="email-bulk-actions" hidden><label class="email-select-all-control"><input type="checkbox" data-email-select-all aria-label="Select all visible emails" /><span>Select all</span></label><span class="email-selection-count" data-email-selection-count aria-live="polite">0 selected</span><button class="email-selection-cancel" type="button" data-email-selection-toggle>Cancel</button><button class="button button-danger email-bulk-delete" type="button" data-email-bulk-delete disabled><i class="fa-regular fa-trash-can" aria-hidden="true"></i> Delete</button></div><button class="button button-secondary email-selection-trigger" type="button" data-email-selection-toggle><i class="fa-regular fa-square-check" aria-hidden="true"></i><span>Select emails</span></button>';
     if (!visibleEmails.length) {
-      const hasFilters = Boolean(query || emailDateFilter || emailDateSort !== 'all');
+      const hasFilters = Boolean(query || emailDateFilter || endDate || emailDateSort !== 'all');
       const title = emailViewFilter === 'sent'
         ? (hasFilters ? 'No sent emails found' : 'No sent emails yet')
         : hasFilters
@@ -3403,7 +3578,8 @@
         : emailViewFilter === 'sent'
           ? 'Your saved sent messages will appear here.'
           : 'Received messages from Gmail will appear here.';
-      target.innerHTML = `<section class="${sectionClass}"><div class="email-empty"><h3>${title}</h3><p>${copy}</p></div></section>`;
+      target.innerHTML = `<section class="${sectionClass}"><div class="email-empty"><i class="fa-regular fa-envelope" aria-hidden="true"></i><h3>${title}</h3><p>${copy}</p>${hasFilters ? '<button class="button button-secondary" type="button" data-inbox-clear-filters>Clear filters</button>' : ''}</div></section>`;
+      updateEmailSelectionControls();
       return;
     }
     const renderEmailRows = items => items.map(item => {
@@ -3414,7 +3590,8 @@
       const sender = platformName || (rawSender.includes('<')
         ? rawSender.slice(0, rawSender.indexOf('<')).replace(/["']/g, '').trim() || rawSender
         : rawSender);
-      const initial = sender.trim().charAt(0).toUpperCase() || '?';
+      const initial = clientInitials(sender) || '?';
+      const unread = !isSentEmail(item) && Array.isArray(item.labelIds) && item.labelIds.includes('UNREAD');
       const bodyPreview = emailContentText(item.body).replace(/\s+/g, ' ').trim();
       const preview = bodyPreview.length > 110 ? `${bodyPreview.slice(0, 110).trimEnd()}...` : bodyPreview;
       const previewTitle = `${item.subject || '(No subject)'}${preview ? ` - ${preview}` : ''}`;
@@ -3425,11 +3602,13 @@
       const dateLabel = isSentEmail(item) ? 'Sent' : 'Received';
       const sentTime = emailTime(item.date);
       const selectionLabel = platformName ? `${platformName} email` : (item.subject || 'email');
-      const selectionCheckbox = emailSelectionMode ? `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}" />` : '';
+      const selectionCheckbox = `<input class="email-select-checkbox" type="checkbox" data-email-select value="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(selectionLabel)}"${selection.has(item.id) ? ' checked' : ''} />`;
       const previewMarkup = `<p class="email-preview" title="${escapeHtml(previewTitle)}"><strong class="email-subject">${escapeHtml(item.subject || '(No subject)')}</strong><span class="email-snippet">${preview ? ` - ${escapeHtml(preview)}` : ''}</span></p>`;
-      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${matchTag}${sentBadge}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions"><div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-haspopup="true" aria-expanded="false">Actions</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
+      return `<article class="email-row${sentClass}${platformName ? ' platform-email-row' : ''}${unread ? ' is-unread' : ''}" tabindex="0" data-email-detail="${escapeHtml(item.id)}">${selectionCheckbox}<span class="email-avatar" aria-hidden="true" style="--inbox-avatar-hue:${clientAvatarHue(sender) * 24}">${escapeHtml(initial)}</span><div class="email-row-content"><div class="email-sender-line"><h3 class="email-from" title="${escapeHtml(sender)}">${escapeHtml(sender)}</h3>${unread ? '<span class="inbox-unread-dot" aria-label="Unread"></span>' : ''}${matchTag}${sentBadge}</div>${previewMarkup}</div><time class="email-date" title="${dateLabel}"><span>${escapeHtml(emailDate(item.date))}</span>${sentTime ? `<span class="email-time">${escapeHtml(sentTime)}</span>` : ''}</time><div class="email-row-actions">${canCompose ? `<button class="inbox-compose-icon" type="button" data-email-action="compose" data-email-id="${escapeHtml(item.id)}" aria-label="Send email" title="Send email"><i class="fa-regular fa-envelope" aria-hidden="true"></i></button>` : ''}<div class="email-action-menu"><button class="email-actions-trigger" type="button" data-email-action-trigger="${escapeHtml(item.id)}" aria-label="Actions for ${escapeHtml(item.subject || sender)}" aria-haspopup="menu" aria-expanded="false">⋯</button><div class="email-actions-menu hidden" data-email-actions-menu="${escapeHtml(item.id)}" role="menu">${canCompose ? `<button type="button" role="menuitem" data-email-action="compose" data-email-id="${escapeHtml(item.id)}">Send email</button>` : ''}<button type="button" role="menuitem" class="email-action-delete" data-email-action="delete" data-email-id="${escapeHtml(item.id)}">Delete email</button></div></div></div></article>`;
     }).join('');
     target.innerHTML = `<section class="${sectionClass}">${renderEmailRows(visibleEmails)}</section>`;
+    updateEmailSelectionControls();
+    if (focusedRow) [...target.querySelectorAll(".email-row")].find(row => row.dataset.emailDetail === focusedRow)?.focus({ preventScroll: true });
   }
 
 
@@ -3660,8 +3839,12 @@
     const allActiveClients = allHired.filter(isActiveContract);
     const allEndedClients = allHired.filter(isContractEnded);
     $('#hiredCountLabel').textContent = `${allHired.length} ${allHired.length === 1 ? 'client' : 'clients'}`;
+    $('#hiredAllSummary').textContent = String(allHired.length);
     $('#hiredActiveSummary').textContent = String(allActiveClients.length);
     $('#hiredEndedSummary').textContent = String(allEndedClients.length);
+    $$('#hiredHeaderSummary [data-hired-filter]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.hiredFilter === filter));
+    });
     const selected = allHired.find(item => item.id === hiredEditingId)
       || allActiveClients[0];
     if (!selected && allHired.length) showingHiredClientList = true;
@@ -3676,7 +3859,7 @@
       target.innerHTML = clients.length
         ? [
           ...nonEndedClients.map(renderActiveClientCard),
-          ...(endedClients.length ? ['<h3 class="hired-ended-heading">Ended</h3>', ...endedClients.map(renderActiveClientCard)] : [])
+          ...(endedClients.length ? [`<h3 class="hired-ended-heading">Ended (${endedClients.length})</h3>`, ...endedClients.map(renderActiveClientCard)] : [])
         ].join('')
         : `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
       renderHiredClientAvatars();
@@ -3703,37 +3886,43 @@
     const statusLabel = endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active');
     const statusPillClass = contractEnded ? 'contract-ended'
       : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
-    const contractDetails = [
-      item.employmentType,
-      activeSinceDate(item) ? `Since ${emailDate(activeSinceDate(item))}` : ''
-    ].filter(Boolean).map(escapeHtml).join(' · ');
+    const activeSince = activeSinceDate(item);
     const initials = clientInitials(item.clientName);
     const avatarTone = clientAvatarHue(item.clientName);
-    const emailMarkup = item.email ? `<span class="hired-card-email" title="${escapeHtml(item.email)}">${escapeHtml(item.email)}</span>` : '';
-    const websiteMarkup = item.website ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(item.website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(item.website)}</span></a>` : '';
-    const companyMarkup = item.companyName || item.company
-      ? `<span class="hired-card-company">${escapeHtml(item.companyName || item.company)}</span>`
-      : websiteMarkup;
+    const website = String(item.website || '').trim();
+    const websiteMarkup = website && !/^n\/?a$/i.test(website)
+      ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(website)}</span></a>`
+      : '';
+    const missing = label => `<span aria-label="${label} unavailable">—</span>`;
+    const openTaskCount = getClientTasks(item.id).filter(task => task.status !== 'done' && !task.completedAt).length;
     const matchCount = matchingEmailsForApplication(item)
       .filter(emailItem => !isSentEmail(emailItem)).length;
     const matchMarkup = matchCount
       ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>`
-      : '';
+      : '<span class="hired-card-match" title="0 emails" aria-label="0 matching emails"><i class="fa-regular fa-envelope" aria-hidden="true"></i>0</span>';
     const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
     const timeZoneMarkup = timeZone?.localTime
-      ? `<span class="hired-card-timezone">${!contractEnded ? renderClientOnlineStatus(item, false) : ''}<span class="hired-card-timezone-separator" aria-hidden="true">·</span><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span></span>`
+      ? `<span class="hired-card-timezone"><i class="fa-regular fa-clock" aria-hidden="true"></i><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span>${!contractEnded ? renderClientOnlineStatus(item, false) : ''}</span>`
       : '';
     const avatarPath = item.profileImage?.storagePath || '';
-    const clientDisplayName = [item.contact, item.companyName || item.company || item.clientName]
-      .map(value => String(value || '').trim())
-      .filter(Boolean)
-      .join(' | ') || 'Active client';
-    return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}" tabindex="0" role="button">
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong>${item.role ? `<span class="client-card-subtitle">${escapeHtml(item.role)}</span>` : ''}</span></span><span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span></span>
-      ${emailMarkup ? `<span class="hired-card-email-line">${emailMarkup}</span>` : ''}
-      ${companyMarkup || timeZoneMarkup ? `<span class="hired-card-contact">${companyMarkup}${timeZoneMarkup}</span>` : ''}
-      ${contractDetails ? `<span class="hired-card-contract"><i class="fa-regular fa-calendar" aria-hidden="true"></i>${contractDetails}</span>` : ''}
-      <span class="hired-card-footer">${docs.length ? `<span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${escapeHtml(plural(docs.length, 'file'))}</span>` : ''}${matchMarkup}<span class="view-details-label">View Details <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span></span>
+    const clientDisplayName = item.companyName || item.company || item.clientName || item.contact || 'Active client';
+    const clientSubtitle = [item.contact !== clientDisplayName ? item.contact : '', item.role].filter(Boolean).join(' · ');
+    return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}">
+      <span role="link" tabindex="0" class="hired-card-open" aria-label="View details for ${escapeHtml(clientDisplayName)}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
+      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong><span class="client-card-subtitle">${clientSubtitle ? escapeHtml(clientSubtitle) : missing('Contact and role')}</span></span></span></span>
+      <span class="hired-card-status-line">
+        <span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span>
+        <span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Since ${activeSince ? escapeHtml(emailDate(activeSince)) : missing('Start date')}</span>
+      </span>
+      <span class="hired-card-facts">
+        ${websiteMarkup}
+        ${item.employmentType ? `<span class="hired-card-contract"><i class="fa-solid fa-briefcase" aria-hidden="true"></i>${escapeHtml(item.employmentType)}</span>` : ''}
+        ${timeZoneMarkup}
+      </span>
+      <span class="hired-card-footer"><span class="hired-card-counts">
+        <span class="hired-card-task-count"><i class="fa-solid fa-list-check" aria-hidden="true"></i>${openTaskCount} open ${openTaskCount === 1 ? 'task' : 'tasks'}</span>
+        <span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}" aria-label="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${docs.length}</span>${matchMarkup}
+      </span></span>
     </article>`;
   }
 
@@ -3747,6 +3936,20 @@
     renderHired();
   });
   $('#hiredStatusFilter').addEventListener('change', renderHired);
+  $('#hiredHeaderSummary').addEventListener('click', event => {
+    const segment = event.target.closest('[data-hired-filter]');
+    if (!segment) return;
+    const filter = $('#hiredStatusFilter');
+    filter.value = segment.dataset.hiredFilter;
+    filter.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  $('#hiredList').addEventListener('keydown', event => {
+    if (!event.target.matches('.hired-card-open') || event.key !== 'Enter') return;
+    event.preventDefault();
+    event.target.click();
+  });
+  enhanceWorkspaceSelect($('#hiredDateSort'), { labelText: 'Sort clients by date' });
+  enhanceWorkspaceSelect($('#hiredStatusFilter'), { labelText: 'Filter by contract status' });
 
   function renderHiredDetail(item, scroll = true) {
     if (!item) return;
@@ -4322,8 +4525,10 @@
     renderCurrentView();
     if (view === 'account') {
       renderPasswordPage();
-      renderAccountPage();
-      refreshAccountStorageUsage();
+      renderAccountSignInHistory();
+      void loadLoginActivity();
+      void loadBackgroundFollowUpStatus();
+      void refreshAccountStorageUsage();
     }
     const labels = { dashboard: [activeDashboardTab === 'client' ? 'CLIENT WORKSPACE' : 'YOUR PIPELINE', activeDashboardTab === 'client' ? 'Client Dashboard' : 'Application Dashboard'], 'daily-task': ['', 'Daily Tasks'], applications: ['', 'Applications'], 'to-apply': ['APPLICATION PIPELINE', 'To Apply'], news: ['', 'News'], 'social-trends': ['', 'Social Trends'], hired: ['', 'Active Clients'], inbox: ['', 'Email'], documents: ['', 'Career Tools'], account: ['', 'Account'] };
     labels.wallet = ['', 'Wallet'];
@@ -4350,6 +4555,8 @@
     const addClientButton = $('#openAddModal');
     addClientButton.hidden = activeView !== 'applications';
     addClientButton.setAttribute('aria-hidden', String(activeView !== 'applications'));
+    $('#walletAddEntry').hidden = activeView !== 'wallet';
+    $('#addSubscription').hidden = activeView !== 'subscriptions';
     const gmailHeaderActions = $('#gmailHeaderActions');
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
@@ -4413,6 +4620,7 @@
 
   $('#applicationDetailsViewButton').addEventListener('click', () => showApplicationDetailsView());
   $('#applicationEmailViewButton').addEventListener('click', () => showApplicationDetailsView(true));
+  $('#closeApplicationDrawer').addEventListener('click', () => $('#closeClientDetailsButton').click());
 
   function openClientModal(id = null, viewOnly = false, activeClientOnly = false, drawerEdit = false, activeClientDetailsEdit = false) {
     const form = $('#clientForm');
@@ -4422,8 +4630,29 @@
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
     viewingClientDetails = viewOnly;
-    const applicationPanel = !activeClientOnly && !drawerEdit && !activeClientDetailsEdit && (!viewOnly || activeView === 'applications');
+    const applicationPanel = !drawerEdit && ((!activeClientOnly && !activeClientDetailsEdit) || (Boolean(id) && !viewOnly))
+      && (!viewOnly || activeView === 'applications');
+    const editPanel = applicationPanel && Boolean(id) && !viewOnly;
+    const modal = $('#clientModal');
+    modal.classList.toggle('application-edit-drawer', editPanel);
+    applicationEditBaseline = null;
+    applicationEditReturnFocus = editPanel ? document.activeElement : null;
+    applicationEditReturnId = editPanel ? id : null;
+    $('#applicationEditStatus').hidden = !editPanel;
     $('#clientModal').classList.toggle('application-detail-panel', applicationPanel);
+    form.querySelectorAll('select, input[type="date"]').forEach(field => {
+      if (applicationPanel) {
+        field.tabIndex = -1;
+        field.setAttribute('aria-hidden', 'true');
+      } else {
+        field.removeAttribute('tabindex');
+        field.removeAttribute('aria-hidden');
+      }
+    });
+    $('#closeApplicationDrawer').hidden = !applicationPanel;
+    const subtitle = $('#applicationDrawerSubtitle');
+    subtitle.textContent = data.applications.find(item => item.id === id)?.clientName || '';
+    subtitle.hidden = !applicationPanel || !subtitle.textContent;
     $('#applicationDetailViews').hidden = !viewOnly;
     showApplicationDetailsView();
     $('#clientId').value = id || '';
@@ -4508,6 +4737,11 @@
       }
     }
     if (!id && !viewOnly) restoreNewClientApplicationDraft();
+    if (editPanel) {
+      $('#clientModalTitle').textContent = subtitle.textContent || 'Edit client';
+      subtitle.textContent = 'Edit client';
+      subtitle.hidden = false;
+    }
     const showSocialAccountEditor = Boolean(id && activeClientOnly && !viewOnly);
     $('#clientSocialLinksField').hidden = !showSocialAccountEditor;
     $('#hiredSocialField').hidden = showSocialAccountEditor;
@@ -4539,6 +4773,9 @@
     $('#automaticFollowUp').disabled = activeClientEdit;
     $('#followUpDate').closest('.form-field')?.classList.toggle('hidden', activeClientEdit);
     $('#automaticFollowUp').closest('.follow-up-option')?.classList.toggle('hidden', activeClientEdit);
+    if (applicationPanel) $('#automaticFollowUp').setAttribute('role', 'switch');
+    else $('#automaticFollowUp').removeAttribute('role');
+    updateApplicationGmailWarning(Boolean(gmailAccessToken && !gmailReconnectRequired));
     if (drawerEdit) {
       showActiveClientDrawerView('edit');
       $('#closeClientDetailsButton').textContent = 'Cancel';
@@ -4547,13 +4784,183 @@
       $('#clientModal').showModal();
     }
     updateClientActionLabel();
+    if (applicationPanel && !viewOnly) $('#closeClientDetailsButton').textContent = 'Cancel';
     updateApplicationDuplicateNotice();
+    updateApplicationStatusTone();
+    form.dispatchEvent(new Event('application-controls-refresh'));
+    if (editPanel) {
+      applicationEditBaseline = applicationEditSnapshot();
+      updateApplicationEditStatus();
+    }
     if (drawerEdit) $('#clientName').focus();
     else if (applicationPanel) {
       form.querySelector('.client-form-layout').scrollTop = 0;
       if (!viewOnly) $('#clientName').focus({ preventScroll: true });
     }
     else setTimeout(() => $('#clientName').focus(), 30);
+  }
+
+  let applicationEditBaseline = null;
+  let applicationEditReturnFocus = null;
+  let applicationEditReturnId = null;
+  let applicationEditConfirming = false;
+  function applicationEditSnapshot() {
+    return JSON.stringify($$('#clientForm input, #clientForm select, #clientForm textarea').map(field =>
+      field.type === 'checkbox' ? field.checked : field.value));
+  }
+
+  function updateApplicationEditStatus() {
+    if (applicationEditBaseline === null) return;
+    const dirty = applicationEditSnapshot() !== applicationEditBaseline;
+    const status = $('#applicationEditStatus');
+    status.dataset.dirty = String(dirty);
+    status.textContent = dirty ? 'Unsaved changes' : 'Saved';
+  }
+
+  async function closeApplicationEditDrawer() {
+    if (applicationEditConfirming || $('#saveClientButton').disabled) return;
+    const modal = $('#clientModal');
+    if (applicationEditBaseline !== null && applicationEditSnapshot() !== applicationEditBaseline) {
+      applicationEditConfirming = true;
+      try {
+        if (!await appConfirm('Discard your unsaved changes?', { title: 'Unsaved changes', confirmLabel: 'Discard changes', danger: true })) return;
+      } finally { applicationEditConfirming = false; }
+    }
+    browserDrafts.clearForm('clientForm');
+    modal.close('cancel');
+  }
+
+  $('#clientForm').addEventListener('input', updateApplicationEditStatus);
+  $('#clientForm').addEventListener('change', updateApplicationEditStatus);
+  $('#clientForm').addEventListener('application-controls-refresh', updateApplicationEditStatus);
+  $('#clientForm').addEventListener('invalid', event => {
+    if (!event.target.closest('.application-edit-drawer')) return;
+    const field = event.target.closest('.form-field');
+    if (!field) return;
+    let error = field.querySelector('.application-field-error');
+    if (!error) {
+      error = document.createElement('small');
+      error.className = 'application-field-error';
+      error.setAttribute('role', 'alert');
+      field.append(error);
+    }
+    error.textContent = event.target.validationMessage;
+  }, true);
+  $('#clientForm').addEventListener('input', event => {
+    if (event.target.validity?.valid) event.target.closest('.form-field')?.querySelector('.application-field-error')?.remove();
+  });
+  $('#clientModal').addEventListener('close', () => $$('#clientForm .application-field-error').forEach(error => error.remove()));
+  $('#clientModal').addEventListener('cancel', event => {
+    if (!$('#clientModal').classList.contains('application-edit-drawer')) return;
+    event.preventDefault();
+    void closeApplicationEditDrawer();
+  });
+  $('#clientModal').addEventListener('close', () => {
+    applicationEditBaseline = null;
+    const trigger = applicationEditReturnFocus;
+    const id = applicationEditReturnId;
+    applicationEditReturnFocus = null;
+    applicationEditReturnId = null;
+    if (trigger?.isConnected && trigger.getClientRects().length && !trigger.closest('dialog:not([open])')) {
+      trigger.focus({ preventScroll: true });
+    } else if (id) {
+      const rowAction = $$('#applicationList [data-open-application-actions]').find(button => button.dataset.openApplicationActions === id);
+      (rowAction || (activeView === 'hired' ? $('#activeClientActionsButton') : $('#applicationSearch')))?.focus({ preventScroll: true });
+    }
+  });
+
+  function updateApplicationGmailWarning(connected) {
+    $('#applicationGmailWarning').hidden = connected;
+  }
+
+  const applicationStatusTones = {
+    Applied: 'blue', Interview: 'amber', 'To Proceed': 'green',
+    'Active client': 'green', 'Not selected': 'red'
+  };
+  function updateApplicationStatusTone() {
+    const status = $('#clientStatus');
+    status.dataset.tone = applicationStatusTones[status.value] || 'neutral';
+  }
+  $('#clientStatus').addEventListener('change', updateApplicationStatusTone);
+
+  // The original selects own the value, constraints, and change handlers.
+  function enhanceWorkspaceSelect(select, { labelText, refreshTarget, closeTarget, scrollTarget } = {}) {
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'application-select-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    const list = document.createElement('div');
+    list.id = (select.id || 'clientSocialPlatform' + [...$('#clientSocialLinksList').querySelectorAll('select')].indexOf(select)) + 'Options';
+    list.className = 'application-select-options';
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('popover', 'auto');
+    trigger.setAttribute('aria-controls', list.id);
+    select.after(trigger, list);
+    const label = () => labelText || (select.id === 'clientRegion' ? 'Client region' :
+      [...(select.labels?.[0]?.childNodes || [])].filter(node => node.nodeType === 3).map(node => node.textContent.trim()).join(' ').trim() || select.id);
+    function refresh() {
+      trigger.textContent = select.selectedOptions[0]?.text || 'Select an option';
+      trigger.setAttribute('aria-label', label() + ', ' + trigger.textContent);
+      trigger.dataset.tone = select.dataset.tone || '';
+      trigger.disabled = select.disabled;
+    }
+    const close = () => { if (list.matches(':popover-open')) list.hidePopover(); };
+    trigger.addEventListener('click', () => {
+      if (list.matches(':popover-open')) { close(); return; }
+      list.setAttribute('aria-label', label());
+      list.replaceChildren(...[...select.options].filter(option => !option.hidden && !option.disabled).map(option => {
+        const choice = document.createElement('button');
+        choice.type = 'button';
+        choice.textContent = option.text;
+        choice.setAttribute('role', 'option');
+        choice.setAttribute('aria-selected', String(option.selected));
+        choice.tabIndex = -1;
+        choice.addEventListener('click', () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          close();
+          trigger.focus();
+        });
+        return choice;
+      }));
+      list.showPopover();
+      const rect = trigger.getBoundingClientRect();
+      list.style.width = rect.width + 'px';
+      list.style.left = rect.left + 'px';
+      list.style.top = Math.max(8, rect.bottom + list.offsetHeight + 8 <= innerHeight
+        ? rect.bottom + 4 : rect.top - list.offsetHeight - 4) + 'px';
+      (list.querySelector('[aria-selected="true"]') || list.firstElementChild)?.focus();
+    });
+    trigger.addEventListener('keydown', event => {
+      if (['ArrowDown', 'ArrowUp'].includes(event.key)) { event.preventDefault(); trigger.click(); }
+    });
+    list.addEventListener('toggle', () => trigger.setAttribute('aria-expanded', String(list.matches(':popover-open'))));
+    list.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); close(); trigger.focus(); return; }
+      const choices = [...list.children];
+      const index = choices.indexOf(document.activeElement);
+      const next = { ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: choices.length - 1 }[event.key];
+      if (next !== undefined) {
+        event.preventDefault();
+        choices[Math.min(choices.length - 1, Math.max(0, next))]?.focus();
+      }
+      if (event.key === 'Tab') { close(); trigger.focus(); }
+    });
+    closeTarget?.addEventListener('close', close);
+    scrollTarget?.addEventListener('scroll', close, { passive: true });
+    select.addEventListener('change', refresh);
+    select.addEventListener('focus', () => {
+      if (select.closest('.application-detail-panel')) trigger.focus();
+    });
+    refreshTarget?.addEventListener('application-controls-refresh', refresh);
+    refresh();
+  }
+  for (const select of $$('#clientForm select')) {
+    enhanceWorkspaceSelect(select, {
+      refreshTarget: $('#clientForm'), closeTarget: $('#clientModal'), scrollTarget: $('#applicationDetailsContent')
+    });
   }
 
   function renderClientFollowUpHistory(item, viewOnly) {
@@ -4681,6 +5088,11 @@
   async function saveClient(event) {
     const submitter = event.submitter;
     if (submitter?.value === 'cancel') {
+      if ($('#clientModal').open && $('#clientModal').classList.contains('application-edit-drawer')) {
+        event.preventDefault();
+        await closeApplicationEditDrawer();
+        return;
+      }
       if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
       return;
     }
@@ -7871,12 +8283,12 @@
       body: JSON.stringify({ refreshToken: saved.refreshToken }), signal: AbortSignal.timeout(15000)
     });
     const result = await response.json().catch(() => ({}));
+    if (!userId || currentUser?.id !== userId) throw new Error('The account changed while Gmail was reconnecting.');
     if (!response.ok || !result.access_token) {
       const error = new Error(result.error || 'Automatic Gmail renewal is unavailable on this server.');
       error.reconnect = result.reconnect === true;
       throw error;
     }
-    if (!userId || currentUser?.id !== userId) throw new Error('The account changed while Gmail was reconnecting.');
     saveGmailCredentials(userId, result.access_token, saved.refreshToken, result.expires_in);
     return gmailAccessToken;
   }
@@ -8856,6 +9268,7 @@
   }
 
   function updateGmailConnectionUI(connected) {
+    if (typeof updateApplicationGmailWarning === 'function') updateApplicationGmailWarning(connected);
     const reconnectButton = $('#gmailReconnectButton');
     if (reconnectButton) {
       reconnectButton.hidden = connected || !currentUser || !gmailConfigured();
@@ -8926,7 +9339,8 @@
     const connectButton = $('#gmailSyncConnectButton');
     connectButton.hidden = state !== 'permission' || !gmailConfigured();
     connectButton.textContent = gmailReconnectRequired ? 'Reconnect Gmail' : 'Connect Gmail';
-    connectButton.onclick = loginWithGoogle;
+    connectButton.onclick = reconnectGmailWithGoogle;
+    if (typeof updateInboxPermissionBanner === 'function') updateInboxPermissionBanner(state);
   }
 
   function setGmailStatus(message) {
@@ -8952,7 +9366,7 @@
       loginGoogleButton.disabled = !supabaseConfigured();
       return;
     }
-    $('#gmailReconnectButton').onclick = loginWithGoogle;
+    $('#gmailReconnectButton').onclick = reconnectGmailWithGoogle;
     loginGoogleButton.disabled = false;
     const saved = readGmailCredentials();
     if (saved) {
@@ -8968,7 +9382,11 @@
     }
   }
 
-  async function loginWithGoogle() {
+  function reconnectGmailWithGoogle() {
+    return loginWithGoogle({ reconnectGmail: true });
+  }
+
+  async function loginWithGoogle({ reconnectGmail = false } = {}) {
     if (!supabaseConfigured()) {
       $('#loginError').textContent = 'Sign-in is unavailable. Check the app configuration.';
       return;
@@ -8984,7 +9402,7 @@
         options: {
           redirectTo: `${window.location.origin}/?auth_view=dashboard`,
           scopes: GMAIL_SCOPE,
-          queryParams: { access_type: 'offline', prompt: 'consent' }
+          queryParams: { access_type: 'offline', prompt: reconnectGmail ? 'select_account consent' : 'select_account' }
         }
       });
       if (error) throw error;
@@ -9069,21 +9487,18 @@
     if (gmailSyncInFlight || !currentUser || !dataReady || !supabaseDataLoaded) return;
     if (navigator.onLine === false) { setGmailSyncDisplay('offline'); return; }
     const syncUserId = currentUser.id;
-    if (!gmailAccessToken || gmailReconnectRequired) {
-      if (!readGmailCredentials()?.refreshToken || gmailReconnectRequired) return;
-      try {
+    if (gmailReconnectRequired) return;
+    const saved = readGmailCredentials();
+    if (!gmailAccessToken && !saved?.refreshToken) return;
+    gmailSyncInFlight = true;
+    try {
+      if (!gmailAccessToken || (saved?.refreshToken && saved.expiresAt <= Date.now() + 60000)) {
         setGmailSyncDisplay('renewing');
         await refreshGmailAuthorization();
-      } catch (error) {
-        if (!gmailReconnectRequired) setGmailSyncDisplay('paused');
-        if (!gmailReconnectRequired) setGmailStatus(error.message);
-        return;
+        if (currentUser?.id !== syncUserId) return;
       }
-    }
-    gmailSyncInFlight = true;
-    setGmailSyncDisplay('syncing');
-    if (!silent) setGmailStatus('Checking Gmail for new messages…');
-    try {
+      setGmailSyncDisplay('syncing');
+      if (!silent) setGmailStatus('Checking Gmail for new messages…');
       const fetchMessageList = async params => {
         return fetchGmailJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`);
       };
@@ -9520,7 +9935,7 @@
   $('#enableBackgroundFollowUps')?.addEventListener('click', () => changeBackgroundFollowUps(true));
   $('#disableBackgroundFollowUps')?.addEventListener('click', () => changeBackgroundFollowUps(false));
   $('#refreshBackgroundFollowUps')?.addEventListener('click', () => loadBackgroundFollowUpStatus(true));
-  $('#reconnectBackgroundGmail')?.addEventListener('click', () => loginWithGoogle());
+  $('#reconnectBackgroundGmail')?.addEventListener('click', reconnectGmailWithGoogle);
 
   // --- Excel export/restore ---
   // Uses SheetJS (loaded via CDN in index.html) to read/write real .xlsx workbooks in the
@@ -9937,6 +10352,7 @@
 
   const quickSearchPages = [
     { id: 'dashboard', label: 'Dashboard', detail: 'Your overview', icon: 'fa-house' },
+    { id: 'salary-calculator', label: 'Salary calculator', detail: 'Convert pay and money between currencies, including Philippine pesos', icon: 'fa-calculator' },
     { id: 'applications', label: 'Applications', detail: 'Search and manage your pipeline', icon: 'fa-layer-group' },
     { id: 'inbox', label: 'Email', detail: 'Open your email workspace', icon: 'fa-envelope' },
     { id: 'daily-task', label: 'Daily Tasks', detail: 'Review today’s tasks', icon: 'fa-list-check' },
@@ -10023,6 +10439,8 @@
       if (pageResult.dataset.quickPage === 'weekly-report') {
         showView('dashboard');
         openWeeklyReport();
+      } else if (pageResult.dataset.quickPage === 'salary-calculator') {
+        openWorkspaceCalculator();
       } else if (pageResult.dataset.quickPage === 'settings') {
         openWorkspaceSettings();
       } else {
@@ -10075,7 +10493,7 @@
     } else if (event.key.toLowerCase() === 'n' && activeView === 'wallet') {
       event.preventDefault();
       openWalletEntry();
-    } else if (event.key.toLowerCase() === 'n' && activeView !== 'inbox') {
+    } else if (event.key.toLowerCase() === 'n' && !['inbox', 'daily-task'].includes(activeView)) {
       event.preventDefault();
       if (activeView !== 'applications') showView('applications');
       openClientModal();
@@ -10852,6 +11270,10 @@
       if (action === 'email' && application) openPlainClientEmailComposer(application, false, true);
       else if (action === 'follow-up' && application) openApplicationFollowUpModal(application);
       else if (action === 'edit') openClientModal(applicationId);
+      else if (action === 'status' && application) {
+        openClientModal(applicationId);
+        ($('#clientStatus + .application-select-trigger') || $('#clientStatus')).focus();
+      }
       else if (action === 'delete') await deleteClient(applicationId);
       return;
     }
@@ -10970,6 +11392,25 @@
   });
   $('#statusFilter').addEventListener('change', renderApplications);
   $('#platformFilter').addEventListener('change', renderApplications);
+  $('#applicationEmploymentFilter').addEventListener('change', renderApplications);
+  for (const select of $$('#applicationsView .application-filter-controls select')) {
+    enhanceWorkspaceSelect(select, { labelText: select.getAttribute('aria-label'), refreshTarget: $('#applicationsView') });
+  }
+  $('#applicationStatusChips').addEventListener('click', event => {
+    const chip = event.target.closest('[data-application-status-chip]');
+    if (!chip) return;
+    $('#statusFilter').value = chip.dataset.applicationStatusChip;
+    renderApplications();
+  });
+  $('#applicationList').addEventListener('click', event => {
+    if (event.target.closest('[data-clear-application-filters]')) $('#clearApplicationFilters').click();
+    const page = event.target.closest('[data-application-page]');
+    if (!page || page.disabled) return;
+    applicationPage += Number(page.dataset.applicationPage);
+    renderApplications();
+    const next = $('#applicationList [data-application-page="' + page.dataset.applicationPage + '"]:not(:disabled)');
+    (next || $('#applicationList .application-client-open'))?.focus({ preventScroll: true });
+  });
   document.querySelectorAll('[data-application-view]').forEach(button => {
     button.addEventListener('click', () => {
       applicationViewMode = button.dataset.applicationView;
@@ -10987,6 +11428,7 @@
     $('#applicationDateFilter').value = '';
     $('#statusFilter').value = '';
     $('#platformFilter').value = '';
+    $('#applicationEmploymentFilter').value = '';
     $('#applicationDateSort').value = 'all';
     applicationDateFilter = '';
     applicationDateSort = 'all';
@@ -11005,6 +11447,7 @@
       }
       if (filter === 'status') $('#statusFilter').value = '';
       if (filter === 'platform') $('#platformFilter').value = '';
+      if (filter === 'employment') $('#applicationEmploymentFilter').value = '';
       if (filter === 'week') {
         applicationDateSort = 'all';
         $('#applicationDateSort').value = 'all';
@@ -11370,7 +11813,9 @@
         <button class="daily-task-row-open" type="button" data-daily-task-open="${escapeHtml(task.id)}" aria-label="View details for ${escapeHtml(task.title || 'task')}">
           <span class="daily-task-item-title">${escapeHtml(task.title || 'Untitled task')}</span>
         </button>
+        ${task.relatedType === 'client' && task.relatedName ? `<span class="daily-task-client-chip" title="${escapeHtml(task.relatedName)}">${escapeHtml(task.relatedName)}</span>` : ''}
         ${dailyTaskDateStatus(task)}
+        <button class="daily-task-details-action" type="button" data-daily-task-open="${escapeHtml(task.id)}" aria-label="Task details: ${escapeHtml(task.title || 'task')}" title="Task details"><i class="fa-regular fa-rectangle-list" aria-hidden="true"></i></button>
         <button class="daily-task-delete" type="button" data-daily-task-delete="${escapeHtml(task.id)}" aria-label="Delete task: ${escapeHtml(task.title || 'task')}" title="Delete task"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
       </article>`;
   }
@@ -11387,21 +11832,35 @@
     const dateTasks = allTasks.filter(task => task.taskDate === selectedDate);
     const overdueTasks = allTasks.filter(task => !task.completedAt && task.taskDate < today());
     const completedCount = dateTasks.filter(task => task.completedAt).length;
-    const remainingCount = dateTasks.length - completedCount;
-    const dateLabel = formatDate(selectedDate);
-    $('#dailyTaskHeaderDate').textContent = dateLabel;
+    const selected = new Date(selectedDate + 'T12:00:00');
+    const dateLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(selected);
+    const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(selected);
+    for (const field of [planDate, historyDate]) {
+      const trigger = $(`[data-follow-up-calendar="${field.id}"]`);
+      const label = formatDate(field.value);
+      trigger.querySelector('span').textContent = label;
+      trigger.setAttribute('aria-label', `${field.getAttribute('aria-label')}, ${label}`);
+    }
+    const searchToggle = $('#toggleDailyTaskSearch');
+    searchToggle.hidden = allTasks.length === 0;
+    if (searchToggle.hidden) {
+      searchToggle.setAttribute('aria-expanded', 'false');
+      $('#dailyTaskSearch').value = '';
+    }
+    $('#dailyTaskSearch').closest('label').hidden = searchToggle.hidden || searchToggle.getAttribute('aria-expanded') !== 'true';
+    $('#dailyTaskHeaderDate').textContent = weekday;
+    $('#dailyTaskSelectedDate').textContent = selectedDate === today() ? `Today, ${dateLabel}` : dateLabel;
+    $$('[data-task-filter]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.taskFilter === dailyTaskFilter)));
     $('#dailyTaskToday').disabled = selectedDate === today();
-    $('#dailyTaskScheduledCount').textContent = dateTasks.length;
-    $('#dailyTaskCompletedCount').textContent = completedCount;
-    $('#dailyTaskRemainingCount').textContent = remainingCount;
     $('#dailyTaskOverdueCount').textContent = overdueTasks.length;
     const overdueButton = $('#dailyTaskOverdueFilter');
     overdueButton.hidden = overdueTasks.length === 0;
     overdueButton.classList.toggle('has-overdue', overdueTasks.length > 0);
     overdueButton.classList.toggle('is-active', dailyTaskFilter === 'overdue');
-    $('#dailyTaskProgressLabel').textContent = `${completedCount} of ${dateTasks.length} done`;
+    $('#dailyTaskProgressLabel').textContent = `${completedCount}/${dateTasks.length}`;
     const progress = $('#dailyTaskProgress');
-    progress.setAttribute('aria-valuemax', String(dateTasks.length));
+    progress.setAttribute('aria-valuemax', String(dateTasks.length || 1));
+    progress.setAttribute('aria-valuetext', `${completedCount} of ${dateTasks.length} done`);
     progress.setAttribute('aria-valuenow', String(completedCount));
     progress.querySelector('span').style.width = `${dateTasks.length ? Math.round(completedCount / dateTasks.length * 100) : 0}%`;
     const overdueIds = new Set(overdueTasks.map(task => task.id));
@@ -11431,10 +11890,14 @@
     const nonOverdueTasks = dailyTaskFilter === 'all'
       ? tasks.filter(task => !overdueIds.has(task.id))
       : dailyTaskFilter === 'overdue' ? [] : tasks;
-    const taskMarkup = `${overdueGroup}${nonOverdueTasks.map(task => renderDailyTaskItem(task)).join('')}`;
+    const completedOpen = $('#dailyTaskList details')?.open;
+    const completedTasks = nonOverdueTasks.filter(task => task.completedAt);
+    const openTasks = nonOverdueTasks.filter(task => !task.completedAt);
+    const completedGroup = completedTasks.length ? `<details class="daily-task-completed"${completedOpen || dailyTaskFilter === 'completed' || query ? ' open' : ''}><summary>Completed (${completedTasks.length})</summary>${completedTasks.map(task => renderDailyTaskItem(task)).join('')}</details>` : '';
+    const taskMarkup = `${overdueGroup}${openTasks.map(task => renderDailyTaskItem(task)).join('')}${completedGroup}`;
     $('#dailyTaskList').innerHTML = tasks.length
       ? taskMarkup
-      : `<div class="daily-task-empty"><i class="fa-regular ${query ? 'fa-face-frown' : 'fa-circle-check'}" aria-hidden="true"></i><span>${query ? 'No tasks match your search.' : dailyTaskFilter === 'all' && selectedDate === today() || dailyTaskFilter === 'overdue' ? 'You’re all caught up.' : dailyTaskFilter === 'completed' ? 'No completed tasks for this date.' : dailyTaskFilter === 'remaining' ? 'No remaining tasks for this date.' : 'No tasks planned for this date.'}</span></div>`;
+      : `<div class="daily-task-empty"><i class="fa-regular fa-circle-check" aria-hidden="true"></i><div>${query ? 'No tasks match your search.' : dailyTaskFilter === 'completed' ? 'No completed tasks for this date.' : dailyTaskFilter === 'overdue' ? 'No overdue tasks.' : selectedDate === today() ? 'Nothing planned for today' : 'Nothing planned for this date'}${!query && ['all', 'remaining'].includes(dailyTaskFilter) ? '<small>Press <kbd>N</kbd> to add a task</small>' : ''}</div></div>`;
 
     const historyTasks = (data.dailyTasks || []).filter(task => task.completedAt && dateKey(task.completedAt) === historyDate.value)
       .filter(matchesSearch)
@@ -11530,6 +11993,11 @@
     $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
     renderDailyTasks();
   });
+  $$('[data-task-date-step]').forEach(button => button.addEventListener('click', () => {
+    const date = $('#dailyTaskDate');
+    date.value = addDays(date.value || today(), Number(button.dataset.taskDateStep));
+    date.dispatchEvent(new Event('change'));
+  }));
   $('#dailyTaskToday').addEventListener('click', () => {
     $('#dailyTaskDate').value = today();
     $('#dailyTaskHistoryDate').value = today();
@@ -11567,13 +12035,21 @@
       event.currentTarget.focus();
     }
   });
-  $('#dailyTaskFilter').addEventListener('change', event => {
-    dailyTaskFilter = event.target.value;
+  $$('[data-task-filter]').forEach(button => button.addEventListener('click', () => {
+    dailyTaskFilter = button.dataset.taskFilter;
     renderDailyTasks();
+  }));
+  $('#toggleDailyTaskSearch').addEventListener('click', event => {
+    const button = event.currentTarget;
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    button.setAttribute('aria-expanded', String(open));
+    const search = $('#dailyTaskSearch');
+    if (!open) search.value = '';
+    renderDailyTasks();
+    if (open) search.focus();
   });
   $('#dailyTaskOverdueFilter').addEventListener('click', () => {
     dailyTaskFilter = 'overdue';
-    $('#dailyTaskFilter').value = 'overdue';
     renderDailyTasks();
   });
   $('#dailyTaskForm').addEventListener('submit', event => {
@@ -11696,7 +12172,7 @@
   });
 
   document.addEventListener('keydown', event => {
-    if (!$('#dailyTaskView').classList.contains('active') || $('#dailyTaskAddModal').open || $('#dailyTaskDetailModal').open) return;
+    if (!$('#dailyTaskView').classList.contains('active') || document.querySelector('dialog[open], .follow-up-calendar:popover-open')) return;
     const target = event.target;
     const editing = target instanceof HTMLElement
       && (target.matches('input, textarea, select, [contenteditable="true"]') || target.closest('[contenteditable="true"]'));
@@ -11705,15 +12181,22 @@
       $('#dailyTaskQuickAdd').focus();
       return;
     }
-    const taskButton = target instanceof Element ? target.closest('[data-daily-task-open]') : null;
-    if (taskButton && (event.key === 'Enter' || event.key === ' ')) {
+    const row = target instanceof Element ? target.closest('.daily-task-item') : null;
+    if (!row) return;
+    if (['ArrowUp', 'ArrowDown'].includes(event.key)) {
+      const rows = [...row.closest('.daily-task-list, .daily-task-history-list').querySelectorAll('.daily-task-row-open')].filter(button => button.getClientRects().length);
+      const index = rows.indexOf(row.querySelector('.daily-task-row-open'));
       event.preventDefault();
-      const task = (data.dailyTasks || []).find(item => item.id === taskButton.dataset.dailyTaskOpen);
-      if (!task) return;
-      task.completedAt = task.completedAt ? '' : new Date().toISOString();
-      persist();
-      renderDailyTasks();
-      document.querySelector(`[data-daily-task-open="${CSS.escape(task.id)}"]`)?.focus();
+      rows[index + (event.key === 'ArrowUp' ? -1 : 1)]?.focus();
+    }
+    if (target.matches('.daily-task-row-open') && event.key === ' ') {
+      event.preventDefault();
+      const id = target.dataset.dailyTaskOpen;
+      const list = row.closest('.daily-task-list, .daily-task-history-list');
+      row.querySelector('.daily-task-action').click();
+      const next = list.querySelector(`.daily-task-row-open[data-daily-task-open="${CSS.escape(id)}"]`);
+      if (next?.getClientRects().length) next.focus();
+      else (next?.closest('details')?.querySelector('summary') || list.querySelector('.daily-task-row-open') || $('#dailyTaskQuickAdd')).focus();
     }
   });
 
@@ -13165,6 +13648,18 @@
   document.addEventListener('visibilitychange', () => document.hidden ? stopClientWorldClock() : startClientWorldClock());
 
   // Inbox and shared email composer controls.
+  let inboxPermissionDismissedFor = null;
+  function updateInboxPermissionBanner(state) {
+    const userId = currentUser?.id;
+    if (state !== 'permission' && state !== 'offline') inboxPermissionDismissedFor = null;
+    $('#inboxPermissionBanner').hidden = state !== 'permission' || !userId
+      || !gmailConfigured() || inboxPermissionDismissedFor === userId;
+  }
+  $('#dismissInboxPermission').addEventListener('click', () => {
+    inboxPermissionDismissedFor = currentUser?.id;
+    $('#inboxPermissionBanner').hidden = true;
+    $('#emailSearch').focus();
+  });
   function removeEmailsFromList(emails) {
     const emailIds = new Set(emails.map(email => email.id));
     const gmailIds = new Set(emails.map(email => email.gmailId).filter(Boolean));
@@ -13176,6 +13671,12 @@
   function updateEmailSelectionControls() {
     const checkboxes = [...document.querySelectorAll('#emailList [data-email-select]')];
     const selectedCount = checkboxes.filter(checkbox => checkbox.checked).length;
+    $('#emailList').classList.toggle('inbox-has-selection', selectedCount > 0);
+    for (const checkbox of checkboxes) checkbox.closest('.email-row')?.classList.toggle('is-selected', checkbox.checked);
+    const actions = $('#emailSelectionActions');
+    const contextual = selectedCount > 0 || emailSelectionMode;
+    actions.querySelector('.email-bulk-actions').hidden = !contextual;
+    actions.querySelector('.email-selection-trigger').hidden = contextual;
     const selectAll = document.querySelector('#emailSelectionActions [data-email-select-all]');
     const deleteButton = document.querySelector('#emailSelectionActions [data-email-bulk-delete]');
     const selectionCount = document.querySelector('#emailSelectionActions [data-email-selection-count]');
@@ -13191,7 +13692,24 @@
   }
 
   document.addEventListener('click', async event => {
+    if (event.target.closest('[data-inbox-clear-filters]')) {
+      $('#emailSearch').value = '';
+      $('#emailDateFilter').value = '';
+      $('#emailDateEndFilter').value = '';
+      emailDateFilter = '';
+      $('#emailDateSort').value = 'all';
+      $('#emailDateSort').dispatchEvent(new Event('change'));
+      $('#emailSearch').focus();
+      return;
+    }
     if (event.target.closest('[data-email-selection-toggle]')) {
+      if (event.target.closest('.email-selection-cancel')) {
+        $$('#emailList [data-email-select]:checked').forEach(input => { input.checked = false; });
+        emailSelectionMode = false;
+        updateEmailSelectionControls();
+        $('#emailSelectionActions .email-selection-trigger').focus();
+        return;
+      }
       emailSelectionMode = !emailSelectionMode;
       renderEmails();
       return;
@@ -13223,8 +13741,10 @@
       document.querySelectorAll('.email-actions-menu').forEach(panel => {
         if (panel !== menu) panel.classList.add('hidden');
       });
+      document.querySelectorAll('[data-email-action-trigger]').forEach(button => button.setAttribute('aria-expanded', 'false'));
       menu.classList.toggle('hidden', !willOpen);
       actionTrigger.setAttribute('aria-expanded', String(willOpen));
+      if (willOpen) menu.querySelector('button')?.focus();
       return;
     }
 
@@ -13272,7 +13792,35 @@
   $('#emailSearch').addEventListener('input', renderEmails);
   $('#emailDateFilter').addEventListener('change', event => {
     emailDateFilter = event.target.value;
+    if ($('#emailDateEndFilter').value && emailDateFilter > $('#emailDateEndFilter').value) $('#emailDateEndFilter').value = emailDateFilter;
     renderEmails();
+  });
+  $('#emailDateEndFilter').addEventListener('change', event => {
+    if (event.target.value && emailDateFilter > event.target.value) {
+      $('#emailDateFilter').value = emailDateFilter = event.target.value;
+    }
+    renderEmails();
+  });
+  enhanceWorkspaceSelect($('#emailDateSort'), { labelText: 'Filter emails by week', refreshTarget: $('#inboxView') });
+  $('#emailList').addEventListener('keydown', event => {
+    const menu = event.target.closest('.email-actions-menu');
+    if (menu && event.key === 'Escape') {
+      event.preventDefault();
+      const trigger = menu.parentElement.querySelector('[data-email-action-trigger]');
+      menu.classList.add('hidden');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.focus();
+      return;
+    }
+    const row = event.target;
+    if (!row.matches('.email-row')) return;
+    const next = event.key === 'ArrowDown' ? row.nextElementSibling : event.key === 'ArrowUp' ? row.previousElementSibling : null;
+    if (next?.matches('.email-row')) { event.preventDefault(); next.focus(); }
+    if (event.key === 'Enter') { event.preventDefault(); openEmailDetail(row.dataset.emailDetail); }
+    if (event.key.toLowerCase() === 'x' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      row.querySelector('[data-email-select]')?.click();
+    }
   });
   $('#emailDateSort').addEventListener('change', event => {
     emailDateSort = event.target.value;
@@ -13281,6 +13829,7 @@
     updateWeekNavigationCounts();
   });
   $$('.email-summary-item').forEach(button => button.addEventListener('click', () => {
+    $$('#emailList [data-email-select]:checked').forEach(input => { input.checked = false; });
     emailViewFilter = button.dataset.emailView;
     renderEmails();
   }));
@@ -14102,6 +14651,60 @@
     const select = $('#documentTemplateSelect');
     sendDocumentTemplateTestEmail(select?.value || 'contract-signing', $('#documentTemplatePlatform')?.value || 'Direct client');
   });
+  const calculatorCurrencies = ['PHP', 'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD', 'JPY', 'HKD', 'NZD', 'CHF', 'KRW', 'AED', 'INR', 'CNY'];
+  const calculatorCurrencyNames = new Intl.DisplayNames(['en-PH'], { type: 'currency' });
+  const calculatorRates = new Map();
+  let calculatorRequest;
+  let calculatorRateMessage = '';
+
+  for (const [id, initial] of [['salaryCalculatorCurrency', 'USD'], ['salaryCalculatorTarget', 'PHP']]) {
+    const select = $('#' + id);
+    select.replaceChildren(...calculatorCurrencies.map(code => new Option(`${calculatorCurrencyNames.of(code)} (${code})`, code)));
+    select.value = initial;
+    select.addEventListener('change', () => {
+      if (calculatorRates.size || calculatorRequest) updateSalaryCalculator();
+      else refreshCalculatorRate();
+    });
+  }
+
+  async function refreshCalculatorRate() {
+    if (calculatorRequest) return;
+    calculatorRateMessage = 'Updating exchange rates…';
+    updateSalaryCalculator();
+    const request = new AbortController();
+    calculatorRequest = request;
+    const timeout = setTimeout(() => request.abort(), 8000);
+    try {
+      const quotes = calculatorCurrencies.filter(code => code !== 'USD').join(',');
+      const response = await fetch(`https://api.frankfurter.dev/v2/rates?base=USD&quotes=${quotes}`, { signal: request.signal, credentials: 'omit', cache: 'no-cache' });
+      if (!response.ok) throw new Error('Exchange rate unavailable');
+      const rows = await response.json();
+      const rates = rows.filter(({ base, quote, rate, date }) => base === 'USD' && calculatorCurrencies.includes(quote) && Number.isFinite(rate) && rate > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date));
+      if (!rates.length) throw new Error('Invalid exchange rates');
+      for (const { quote, rate, date } of rates) calculatorRates.set(quote, { rate, date });
+      calculatorRateMessage = '';
+    } catch {
+      calculatorRateMessage = calculatorRates.size ? 'Refresh unavailable. Showing last fetched rates.' : 'Exchange rates unavailable. Try again.';
+    } finally {
+      clearTimeout(timeout);
+      calculatorRequest = null;
+    }
+    updateSalaryCalculator();
+  }
+
+  function openWorkspaceCalculator() {
+    const dialog = $('#workspaceCalculatorModal');
+    dialog.append($('#workspaceCalculator'));
+    dialog.showModal();
+    refreshCalculatorRate();
+  }
+
+  $('#workspaceCalculatorModal').addEventListener('close', () => {
+    $('#salaryCalculatorPanel').append($('#workspaceCalculator'));
+    $('#openQuickSearch').focus();
+  });
+  $('#refreshSalaryExchangeRate').addEventListener('click', refreshCalculatorRate);
+
   function updateSalaryCalculator() {
     const currency = $('#salaryCalculatorCurrency')?.value || 'USD';
     const payType = $('#salaryCalculatorPayType')?.value || 'hourly';
@@ -14113,12 +14716,19 @@
     const hourlyRate = payType === 'monthly'
       ? (hoursPerWeek > 0 ? monthlyTotal / (hoursPerWeek * (52 / 12)) : 0)
       : enteredRate;
-    const convertedTotal = currency === 'USD' ? monthlyTotal * 58 : monthlyTotal / 58;
-    const convertedHourly = currency === 'USD' ? hourlyRate * 58 : hourlyRate / 58;
-    const convertedCurrency = currency === 'USD' ? 'PHP' : 'USD';
-    const money = (amount, code) => code === 'USD'
-      ? `$${Math.round(amount).toLocaleString()}`
-      : `₱${Math.round(amount).toLocaleString()}`;
+    const convertedCurrency = $('#salaryCalculatorTarget').value;
+    const usd = { rate: 1, date: '' };
+    const source = currency === 'USD' ? usd : calculatorRates.get(currency);
+    const target = convertedCurrency === 'USD' ? usd : calculatorRates.get(convertedCurrency);
+    const quote = currency !== convertedCurrency && source && target
+      ? { rate: target.rate / source.rate, date: [source.date, target.date].filter(Boolean).sort()[0] }
+      : null;
+    const rate = currency === convertedCurrency ? 1 : quote?.rate;
+    const money = (amount, code, digits = 0) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: code, maximumFractionDigits: digits, minimumFractionDigits: digits }).format(amount);
+    const convert = (amount, digits) => rate == null ? '—' : money(amount * rate, convertedCurrency, digits);
+    const rateLabel = quote ? `1 ${currency} = ${quote.rate.toLocaleString('en-PH', { maximumSignificantDigits: 7 })} ${convertedCurrency} · ${quote.date}`
+      : currency === convertedCurrency ? 'Same currency' : '';
+    $('#salaryExchangeRate').textContent = [rateLabel, calculatorRateMessage].filter(Boolean).join(' · ') || 'Rate unavailable for this pair.';
     $('#salaryCalculatorRateLabel').textContent = payType === 'monthly' ? 'Monthly salary' : 'Hourly rate';
     $('#salaryCalculatorRate').placeholder = currency === 'USD'
       ? (payType === 'monthly' ? 'e.g. 1,700' : 'e.g. 10')
@@ -14127,15 +14737,14 @@
     $('#salaryCalculatorMonthlyTotal').textContent = money(monthlyTotal, currency);
     $('#salaryCalculatorConversionLabel').textContent = `Converted monthly (${convertedCurrency})`;
     $('#salaryCalculatorHourlyLabel').textContent = `Hourly equivalent (${convertedCurrency})`;
-    $('#salaryCalculatorConversion').textContent = currency === 'USD'
-      ? money(convertedTotal, 'PHP')
-      : money(convertedTotal, 'USD');
-    $('#salaryCalculatorHourlyConversion').textContent = currency === 'USD'
-      ? money(convertedHourly, 'PHP')
-      : money(convertedHourly, 'USD');
+    $('#salaryCalculatorConversion').textContent = convert(monthlyTotal, 2);
+    $('#salaryCalculatorHourlyConversion').textContent = convert(hourlyRate, 2);
+    $('#salaryAmountCurrency').textContent = currency;
+    const amount = $('#salaryConverterAmount');
+    $('#salaryConverterResult').textContent = amount.value && amount.validity.valid ? convert(amount.valueAsNumber, 2) : '';
   }
 
-  ['salaryCalculatorCurrency', 'salaryCalculatorPayType', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays'].forEach(id => {
+  ['salaryCalculatorPayType', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays', 'salaryConverterAmount'].forEach(id => {
     $(`#${id}`)?.addEventListener('input', updateSalaryCalculator);
     $(`#${id}`)?.addEventListener('change', updateSalaryCalculator);
   });
@@ -14155,7 +14764,7 @@
     documents: 'Keep your resume, certificates, and other career documents together.',
     links: 'A home for your Google Docs, portfolios, and other useful resource links.',
     invoices: 'Find and review the invoices you have sent to your clients.',
-    salary: 'Compare hourly and monthly pay, and estimate the equivalent in USD or PHP.'
+    salary: 'Compare hourly and monthly pay and convert between currencies.'
   };
 
   function selectCareerTool(selectedPanel, { focus = false } = {}) {
@@ -14177,6 +14786,7 @@
     $('#uploadDocumentButton').hidden = selectedPanel !== 'documents' || !(data.personalDocuments || []).length;
     // The A4 preview fits a different available area after switching tools.
     if (selectedPanel === 'cover-letter') requestAnimationFrame(fitCoverLetterPreview);
+    if (selectedPanel === 'salary') refreshCalculatorRate();
   }
 
   $$('[data-documents-tab]').forEach(tab => {
@@ -15824,21 +16434,29 @@
   function renderSubscriptions() {
     const records = (data.subscriptions || []).filter(item => item?.id);
     const states = records.map(item => subscriptionStatus(item));
-    $('#subscriptionSummary').innerHTML = [['Active', states.filter(state => ['active', 'soon'].includes(state.key)).length, 'Accounts still in their paid period'],
-      ['Expiring soon', states.filter(state => state.key === 'soon').length, 'Today or within the next 7 days'],
-      ['Expired', states.filter(state => state.key === 'expired').length, 'Subscriptions past their end date']]
-      .map(([label, count, detail]) => `<article><span>${label}</span><strong>${count}</strong><small>${detail}</small></article>`).join('');
     const query = $('#subscriptionSearch').value.trim().toLowerCase(), filter = $('#subscriptionFilter').value;
+    const summary = $('#subscriptionSummary');
+    const focusedStatus = summary.contains(document.activeElement) ? document.activeElement.dataset.subscriptionStatus : '';
+    summary.innerHTML = [['active', 'Active', states.filter(state => ['active', 'soon'].includes(state.key)).length],
+      ['soon', 'Expiring soon', states.filter(state => state.key === 'soon').length],
+      ['expired', 'Expired', states.filter(state => state.key === 'expired').length]]
+      .map(([key, label, count]) => `<button type="button" data-subscription-status="${key}" aria-pressed="${filter === key}"><span>${label}</span><strong>${count}</strong></button>`).join('');
+    if (focusedStatus) summary.querySelector(`[data-subscription-status="${focusedStatus}"]`)?.focus();
+    $('#subscriptionsView').dispatchEvent(new Event('application-controls-refresh'));
     const visible = records.filter(item => [item.name, item.account].join(' ').toLowerCase().includes(query))
       .filter(item => filter === 'all' || (filter === 'active' ? ['active', 'soon'].includes(subscriptionStatus(item).key) : subscriptionStatus(item).key === filter))
       .sort((a, b) => Number(a.tracking === 'cancelled') - Number(b.tracking === 'cancelled') || String(a.expiryDate || '9999').localeCompare(String(b.expiryDate || '9999')) || String(a.name).localeCompare(String(b.name)));
     $('#subscriptionCount').textContent = `${plural(visible.length, 'subscription')}${query || filter !== 'all' ? ' shown' : ''}`;
     $('#subscriptionList').innerHTML = visible.length ? visible.map(item => {
       const status = subscriptionStatus(item);
-      return `<article class="subscription-card" data-state="${status.key}"><div class="subscription-card-heading"><div><h2>${escapeHtml(item.name || 'Untitled account')}</h2><p>${escapeHtml(item.account || 'Account not specified')}</p></div><span class="subscription-status">${status.label}</span></div>
-        <div class="subscription-expiry"><span>End of subscription</span><strong>${Number.isFinite(subscriptionDateValue(item.expiryDate)) ? escapeHtml(formatDate(item.expiryDate)) : 'Not set'}</strong><small>${escapeHtml(status.detail)}</small></div>
-        <footer><div><button class="button button-secondary" type="button" data-subscription-edit="${escapeHtml(item.id)}" aria-haspopup="dialog">Manage</button></div></footer></article>`;
-    }).join('') : `<div class="subscriptions-empty"><i class="fa-regular fa-credit-card" aria-hidden="true"></i><h2>${records.length ? 'No subscriptions found' : 'No subscriptions yet'}</h2><p>${records.length ? 'Try another search or status filter.' : 'Add a paid account to track its expiry and plan your next renewal.'}</p></div>`;
+      const name = item.name || 'Untitled account', id = escapeHtml(item.id);
+      const end = subscriptionDateValue(item.expiryDate), start = Date.parse(item.createdAt), now = subscriptionDateValue(subscriptionToday());
+      const progress = Number.isFinite(start) && end > start ? Math.round(Math.max(0, Math.min(1, (now - start) / (end - start))) * 100) : null;
+      return `<article class="subscription-card" data-state="${status.key}"><button class="subscription-card-open" type="button" data-subscription-edit="${id}" aria-label="Edit ${escapeHtml(name)}" aria-haspopup="dialog"></button><div class="subscription-card-heading"><span class="subscription-avatar" aria-hidden="true" style="--subscription-hue:${clientAvatarHue(name) * 24}">${escapeHtml(clientInitials(name))}</span><div><h2>${escapeHtml(name)}</h2><p>${escapeHtml(item.account || '')}</p></div><span class="subscription-status">${status.label}</span></div>
+        <div class="subscription-expiry"><span>End of subscription</span><strong>${Number.isFinite(end) ? escapeHtml(formatDate(item.expiryDate)) : 'Not set'}</strong><small>${escapeHtml(status.detail)}</small></div>
+        ${progress !== null && status.key !== 'cancelled' ? `<progress class="subscription-renewal-progress" max="100" value="${progress}" aria-label="Time elapsed since this subscription was added"></progress>` : ''}
+        <footer><details class="subscription-card-menu"><summary aria-label="Actions for ${escapeHtml(name)}">⋯</summary><div><button type="button" data-subscription-edit="${id}">Edit</button><button type="button" data-subscription-renew="${id}">Renew</button><button type="button" data-subscription-delete="${id}">Delete</button></div></details></footer></article>`;
+    }).join('') : `<div class="subscriptions-empty"><i class="fa-regular fa-credit-card" aria-hidden="true"></i><h2>${records.length ? 'No subscriptions found' : 'No subscriptions yet'}</h2><button class="button button-secondary" type="button" data-subscription-empty-action>${records.length ? 'Clear filters' : 'Add subscription'}</button></div>`;
   }
 
   function openSubscriptionEditor(id = '') {
@@ -15869,11 +16487,29 @@
   $('#addSubscription').addEventListener('click', () => openSubscriptionEditor());
   $('#subscriptionSearch').addEventListener('input', renderSubscriptions);
   $('#subscriptionFilter').addEventListener('change', renderSubscriptions);
+  enhanceWorkspaceSelect($('#subscriptionFilter'), { labelText: 'Filter subscriptions', refreshTarget: $('#subscriptionsView') });
+  $('#subscriptionSummary').addEventListener('click', event => {
+    const button = event.target.closest('[data-subscription-status]');
+    if (!button) return;
+    const filter = $('#subscriptionFilter');
+    filter.value = filter.value === button.dataset.subscriptionStatus ? 'all' : button.dataset.subscriptionStatus;
+    renderSubscriptions();
+  });
   ['closeSubscriptionEditor', 'cancelSubscriptionEditor'].forEach(id => $('#' + id).addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); }));
   $('#subscriptionEditor').addEventListener('cancel', event => { if (subscriptionSaving) event.preventDefault(); });
   $('#subscriptionList').addEventListener('click', event => {
     const edit = event.target.closest('[data-subscription-edit]');
     if (edit) openSubscriptionEditor(edit.dataset.subscriptionEdit);
+    const renew = event.target.closest('[data-subscription-renew]');
+    if (renew) { openSubscriptionEditor(renew.dataset.subscriptionRenew); $('#subscriptionExpiry').focus(); }
+    const remove = event.target.closest('[data-subscription-delete]');
+    if (remove && !subscriptionSaving) { openSubscriptionEditor(remove.dataset.subscriptionDelete); $('#deleteSubscription').click(); }
+    const menu = event.target.closest('.subscription-card-menu');
+    if (menu && event.target.closest('button')) menu.open = false;
+    if (event.target.closest('[data-subscription-empty-action]')) {
+      if (!(data.subscriptions || []).some(item => item?.id)) openSubscriptionEditor();
+      else { $('#subscriptionSearch').value = ''; $('#subscriptionFilter').value = 'all'; renderSubscriptions(); $('#subscriptionSearch').focus(); }
+    }
   });
   $('#subscriptionForm').addEventListener('submit', async event => {
     event.preventDefault(); if (subscriptionSaving || !event.currentTarget.reportValidity()) return;
@@ -16096,6 +16732,8 @@
         }
         for(const item of entry.values || []){const field=item.id?inputs.find(field=>field.id===item.id):null;if(field && field.tagName==='SELECT')field.value=String(item.value ?? '');}
         updateSalaryFields();updateClientActionLabel();
+        if (typeof updateApplicationStatusTone === 'function') updateApplicationStatusTone();
+        form.dispatchEvent(new Event('application-controls-refresh'));
       }
       if(entry.form==='walletEntryForm')syncWalletPayeeField();
       status(form,entry.form==='invoiceCheckForm'?'Saved in this tab.':'Unfinished form restored. Changes are not submitted automatically.');

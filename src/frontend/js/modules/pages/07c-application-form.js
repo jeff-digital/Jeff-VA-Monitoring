@@ -53,6 +53,7 @@
 
   $('#applicationDetailsViewButton').addEventListener('click', () => showApplicationDetailsView());
   $('#applicationEmailViewButton').addEventListener('click', () => showApplicationDetailsView(true));
+  $('#closeApplicationDrawer').addEventListener('click', () => $('#closeClientDetailsButton').click());
 
   function openClientModal(id = null, viewOnly = false, activeClientOnly = false, drawerEdit = false, activeClientDetailsEdit = false) {
     const form = $('#clientForm');
@@ -62,8 +63,29 @@
     $$('#clientForm input, #clientForm select, #clientForm textarea').forEach(field => { field.disabled = false; });
     editingId = id;
     viewingClientDetails = viewOnly;
-    const applicationPanel = !activeClientOnly && !drawerEdit && !activeClientDetailsEdit && (!viewOnly || activeView === 'applications');
+    const applicationPanel = !drawerEdit && ((!activeClientOnly && !activeClientDetailsEdit) || (Boolean(id) && !viewOnly))
+      && (!viewOnly || activeView === 'applications');
+    const editPanel = applicationPanel && Boolean(id) && !viewOnly;
+    const modal = $('#clientModal');
+    modal.classList.toggle('application-edit-drawer', editPanel);
+    applicationEditBaseline = null;
+    applicationEditReturnFocus = editPanel ? document.activeElement : null;
+    applicationEditReturnId = editPanel ? id : null;
+    $('#applicationEditStatus').hidden = !editPanel;
     $('#clientModal').classList.toggle('application-detail-panel', applicationPanel);
+    form.querySelectorAll('select, input[type="date"]').forEach(field => {
+      if (applicationPanel) {
+        field.tabIndex = -1;
+        field.setAttribute('aria-hidden', 'true');
+      } else {
+        field.removeAttribute('tabindex');
+        field.removeAttribute('aria-hidden');
+      }
+    });
+    $('#closeApplicationDrawer').hidden = !applicationPanel;
+    const subtitle = $('#applicationDrawerSubtitle');
+    subtitle.textContent = data.applications.find(item => item.id === id)?.clientName || '';
+    subtitle.hidden = !applicationPanel || !subtitle.textContent;
     $('#applicationDetailViews').hidden = !viewOnly;
     showApplicationDetailsView();
     $('#clientId').value = id || '';
@@ -148,6 +170,11 @@
       }
     }
     if (!id && !viewOnly) restoreNewClientApplicationDraft();
+    if (editPanel) {
+      $('#clientModalTitle').textContent = subtitle.textContent || 'Edit client';
+      subtitle.textContent = 'Edit client';
+      subtitle.hidden = false;
+    }
     const showSocialAccountEditor = Boolean(id && activeClientOnly && !viewOnly);
     $('#clientSocialLinksField').hidden = !showSocialAccountEditor;
     $('#hiredSocialField').hidden = showSocialAccountEditor;
@@ -179,6 +206,9 @@
     $('#automaticFollowUp').disabled = activeClientEdit;
     $('#followUpDate').closest('.form-field')?.classList.toggle('hidden', activeClientEdit);
     $('#automaticFollowUp').closest('.follow-up-option')?.classList.toggle('hidden', activeClientEdit);
+    if (applicationPanel) $('#automaticFollowUp').setAttribute('role', 'switch');
+    else $('#automaticFollowUp').removeAttribute('role');
+    updateApplicationGmailWarning(Boolean(gmailAccessToken && !gmailReconnectRequired));
     if (drawerEdit) {
       showActiveClientDrawerView('edit');
       $('#closeClientDetailsButton').textContent = 'Cancel';
@@ -187,13 +217,183 @@
       $('#clientModal').showModal();
     }
     updateClientActionLabel();
+    if (applicationPanel && !viewOnly) $('#closeClientDetailsButton').textContent = 'Cancel';
     updateApplicationDuplicateNotice();
+    updateApplicationStatusTone();
+    form.dispatchEvent(new Event('application-controls-refresh'));
+    if (editPanel) {
+      applicationEditBaseline = applicationEditSnapshot();
+      updateApplicationEditStatus();
+    }
     if (drawerEdit) $('#clientName').focus();
     else if (applicationPanel) {
       form.querySelector('.client-form-layout').scrollTop = 0;
       if (!viewOnly) $('#clientName').focus({ preventScroll: true });
     }
     else setTimeout(() => $('#clientName').focus(), 30);
+  }
+
+  let applicationEditBaseline = null;
+  let applicationEditReturnFocus = null;
+  let applicationEditReturnId = null;
+  let applicationEditConfirming = false;
+  function applicationEditSnapshot() {
+    return JSON.stringify($$('#clientForm input, #clientForm select, #clientForm textarea').map(field =>
+      field.type === 'checkbox' ? field.checked : field.value));
+  }
+
+  function updateApplicationEditStatus() {
+    if (applicationEditBaseline === null) return;
+    const dirty = applicationEditSnapshot() !== applicationEditBaseline;
+    const status = $('#applicationEditStatus');
+    status.dataset.dirty = String(dirty);
+    status.textContent = dirty ? 'Unsaved changes' : 'Saved';
+  }
+
+  async function closeApplicationEditDrawer() {
+    if (applicationEditConfirming || $('#saveClientButton').disabled) return;
+    const modal = $('#clientModal');
+    if (applicationEditBaseline !== null && applicationEditSnapshot() !== applicationEditBaseline) {
+      applicationEditConfirming = true;
+      try {
+        if (!await appConfirm('Discard your unsaved changes?', { title: 'Unsaved changes', confirmLabel: 'Discard changes', danger: true })) return;
+      } finally { applicationEditConfirming = false; }
+    }
+    browserDrafts.clearForm('clientForm');
+    modal.close('cancel');
+  }
+
+  $('#clientForm').addEventListener('input', updateApplicationEditStatus);
+  $('#clientForm').addEventListener('change', updateApplicationEditStatus);
+  $('#clientForm').addEventListener('application-controls-refresh', updateApplicationEditStatus);
+  $('#clientForm').addEventListener('invalid', event => {
+    if (!event.target.closest('.application-edit-drawer')) return;
+    const field = event.target.closest('.form-field');
+    if (!field) return;
+    let error = field.querySelector('.application-field-error');
+    if (!error) {
+      error = document.createElement('small');
+      error.className = 'application-field-error';
+      error.setAttribute('role', 'alert');
+      field.append(error);
+    }
+    error.textContent = event.target.validationMessage;
+  }, true);
+  $('#clientForm').addEventListener('input', event => {
+    if (event.target.validity?.valid) event.target.closest('.form-field')?.querySelector('.application-field-error')?.remove();
+  });
+  $('#clientModal').addEventListener('close', () => $$('#clientForm .application-field-error').forEach(error => error.remove()));
+  $('#clientModal').addEventListener('cancel', event => {
+    if (!$('#clientModal').classList.contains('application-edit-drawer')) return;
+    event.preventDefault();
+    void closeApplicationEditDrawer();
+  });
+  $('#clientModal').addEventListener('close', () => {
+    applicationEditBaseline = null;
+    const trigger = applicationEditReturnFocus;
+    const id = applicationEditReturnId;
+    applicationEditReturnFocus = null;
+    applicationEditReturnId = null;
+    if (trigger?.isConnected && trigger.getClientRects().length && !trigger.closest('dialog:not([open])')) {
+      trigger.focus({ preventScroll: true });
+    } else if (id) {
+      const rowAction = $$('#applicationList [data-open-application-actions]').find(button => button.dataset.openApplicationActions === id);
+      (rowAction || (activeView === 'hired' ? $('#activeClientActionsButton') : $('#applicationSearch')))?.focus({ preventScroll: true });
+    }
+  });
+
+  function updateApplicationGmailWarning(connected) {
+    $('#applicationGmailWarning').hidden = connected;
+  }
+
+  const applicationStatusTones = {
+    Applied: 'blue', Interview: 'amber', 'To Proceed': 'green',
+    'Active client': 'green', 'Not selected': 'red'
+  };
+  function updateApplicationStatusTone() {
+    const status = $('#clientStatus');
+    status.dataset.tone = applicationStatusTones[status.value] || 'neutral';
+  }
+  $('#clientStatus').addEventListener('change', updateApplicationStatusTone);
+
+  // The original selects own the value, constraints, and change handlers.
+  function enhanceWorkspaceSelect(select, { labelText, refreshTarget, closeTarget, scrollTarget } = {}) {
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'application-select-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    const list = document.createElement('div');
+    list.id = (select.id || 'clientSocialPlatform' + [...$('#clientSocialLinksList').querySelectorAll('select')].indexOf(select)) + 'Options';
+    list.className = 'application-select-options';
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('popover', 'auto');
+    trigger.setAttribute('aria-controls', list.id);
+    select.after(trigger, list);
+    const label = () => labelText || (select.id === 'clientRegion' ? 'Client region' :
+      [...(select.labels?.[0]?.childNodes || [])].filter(node => node.nodeType === 3).map(node => node.textContent.trim()).join(' ').trim() || select.id);
+    function refresh() {
+      trigger.textContent = select.selectedOptions[0]?.text || 'Select an option';
+      trigger.setAttribute('aria-label', label() + ', ' + trigger.textContent);
+      trigger.dataset.tone = select.dataset.tone || '';
+      trigger.disabled = select.disabled;
+    }
+    const close = () => { if (list.matches(':popover-open')) list.hidePopover(); };
+    trigger.addEventListener('click', () => {
+      if (list.matches(':popover-open')) { close(); return; }
+      list.setAttribute('aria-label', label());
+      list.replaceChildren(...[...select.options].filter(option => !option.hidden && !option.disabled).map(option => {
+        const choice = document.createElement('button');
+        choice.type = 'button';
+        choice.textContent = option.text;
+        choice.setAttribute('role', 'option');
+        choice.setAttribute('aria-selected', String(option.selected));
+        choice.tabIndex = -1;
+        choice.addEventListener('click', () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          close();
+          trigger.focus();
+        });
+        return choice;
+      }));
+      list.showPopover();
+      const rect = trigger.getBoundingClientRect();
+      list.style.width = rect.width + 'px';
+      list.style.left = rect.left + 'px';
+      list.style.top = Math.max(8, rect.bottom + list.offsetHeight + 8 <= innerHeight
+        ? rect.bottom + 4 : rect.top - list.offsetHeight - 4) + 'px';
+      (list.querySelector('[aria-selected="true"]') || list.firstElementChild)?.focus();
+    });
+    trigger.addEventListener('keydown', event => {
+      if (['ArrowDown', 'ArrowUp'].includes(event.key)) { event.preventDefault(); trigger.click(); }
+    });
+    list.addEventListener('toggle', () => trigger.setAttribute('aria-expanded', String(list.matches(':popover-open'))));
+    list.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); close(); trigger.focus(); return; }
+      const choices = [...list.children];
+      const index = choices.indexOf(document.activeElement);
+      const next = { ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: choices.length - 1 }[event.key];
+      if (next !== undefined) {
+        event.preventDefault();
+        choices[Math.min(choices.length - 1, Math.max(0, next))]?.focus();
+      }
+      if (event.key === 'Tab') { close(); trigger.focus(); }
+    });
+    closeTarget?.addEventListener('close', close);
+    scrollTarget?.addEventListener('scroll', close, { passive: true });
+    select.addEventListener('change', refresh);
+    select.addEventListener('focus', () => {
+      if (select.closest('.application-detail-panel')) trigger.focus();
+    });
+    refreshTarget?.addEventListener('application-controls-refresh', refresh);
+    refresh();
+  }
+  for (const select of $$('#clientForm select')) {
+    enhanceWorkspaceSelect(select, {
+      refreshTarget: $('#clientForm'), closeTarget: $('#clientModal'), scrollTarget: $('#applicationDetailsContent')
+    });
   }
 
   function renderClientFollowUpHistory(item, viewOnly) {
@@ -321,6 +521,11 @@
   async function saveClient(event) {
     const submitter = event.submitter;
     if (submitter?.value === 'cancel') {
+      if ($('#clientModal').open && $('#clientModal').classList.contains('application-edit-drawer')) {
+        event.preventDefault();
+        await closeApplicationEditDrawer();
+        return;
+      }
       if (!editingId) localStorage.removeItem(`${APPLICATION_DRAFT_KEY}:${currentUser?.id || 'anonymous'}`);
       return;
     }

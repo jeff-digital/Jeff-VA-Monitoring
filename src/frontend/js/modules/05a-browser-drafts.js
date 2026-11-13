@@ -185,6 +185,8 @@
         }
         for(const item of entry.values || []){const field=item.id?inputs.find(field=>field.id===item.id):null;if(field && field.tagName==='SELECT')field.value=String(item.value ?? '');}
         updateSalaryFields();updateClientActionLabel();
+        if (typeof updateApplicationStatusTone === 'function') updateApplicationStatusTone();
+        form.dispatchEvent(new Event('application-controls-refresh'));
       }
       if(entry.form==='walletEntryForm')syncWalletPayeeField();
       status(form,entry.form==='invoiceCheckForm'?'Saved in this tab.':'Unfinished form restored. Changes are not submitted automatically.');

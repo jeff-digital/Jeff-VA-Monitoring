@@ -26,6 +26,7 @@ assert.ok(start >= 0 && end > start);
 vm.runInContext(`function renderApplications() {
   const query = $('#applicationSearch').value, dateFilter = applicationDateFilter;
   const status = $('#statusFilter').value, platform = $('#platformFilter').value;
+  const employment = $('#applicationEmploymentFilter').value;
   ${matcher.slice(start, end)}
 }`, context);
 context.renderApplications();
@@ -39,6 +40,9 @@ vm.runInContext(defaults, context);
 assert.equal(context.applicationDateSort, '0', 'Returning to Applications restores This week');
 assert.equal($('#statusFilter').value, 'Applied', 'Returning restores Applied');
 const html = fs.readFileSync(path.join(__dirname, '../src/frontend/index.html'), 'utf8');
-assert.ok(!html.includes('data-application-quick-filter'));
-assert.ok(!read('pages/07-applications-page.js').includes('data-application-quick-filter'));
-console.log('Applications default to This week and Applied on entry, without clickable quick filters; other filters remain available.');
+assert.ok(html.includes('id="applicationStatusChips"'));
+assert.ok(read('pages/07-applications-page.js').includes('data-application-status-chip'));
+$('#applicationEmploymentFilter').value = 'Part time';
+context.renderApplications();
+assert.match($('#applicationFilterChips').innerHTML, /Employment: Part time/);
+console.log('Applications keep the existing defaults and expose the employment filter chip.');

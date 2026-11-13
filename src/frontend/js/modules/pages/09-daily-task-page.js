@@ -193,7 +193,9 @@
         <button class="daily-task-row-open" type="button" data-daily-task-open="${escapeHtml(task.id)}" aria-label="View details for ${escapeHtml(task.title || 'task')}">
           <span class="daily-task-item-title">${escapeHtml(task.title || 'Untitled task')}</span>
         </button>
+        ${task.relatedType === 'client' && task.relatedName ? `<span class="daily-task-client-chip" title="${escapeHtml(task.relatedName)}">${escapeHtml(task.relatedName)}</span>` : ''}
         ${dailyTaskDateStatus(task)}
+        <button class="daily-task-details-action" type="button" data-daily-task-open="${escapeHtml(task.id)}" aria-label="Task details: ${escapeHtml(task.title || 'task')}" title="Task details"><i class="fa-regular fa-rectangle-list" aria-hidden="true"></i></button>
         <button class="daily-task-delete" type="button" data-daily-task-delete="${escapeHtml(task.id)}" aria-label="Delete task: ${escapeHtml(task.title || 'task')}" title="Delete task"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></button>
       </article>`;
   }
@@ -210,21 +212,35 @@
     const dateTasks = allTasks.filter(task => task.taskDate === selectedDate);
     const overdueTasks = allTasks.filter(task => !task.completedAt && task.taskDate < today());
     const completedCount = dateTasks.filter(task => task.completedAt).length;
-    const remainingCount = dateTasks.length - completedCount;
-    const dateLabel = formatDate(selectedDate);
-    $('#dailyTaskHeaderDate').textContent = dateLabel;
+    const selected = new Date(selectedDate + 'T12:00:00');
+    const dateLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(selected);
+    const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(selected);
+    for (const field of [planDate, historyDate]) {
+      const trigger = $(`[data-follow-up-calendar="${field.id}"]`);
+      const label = formatDate(field.value);
+      trigger.querySelector('span').textContent = label;
+      trigger.setAttribute('aria-label', `${field.getAttribute('aria-label')}, ${label}`);
+    }
+    const searchToggle = $('#toggleDailyTaskSearch');
+    searchToggle.hidden = allTasks.length === 0;
+    if (searchToggle.hidden) {
+      searchToggle.setAttribute('aria-expanded', 'false');
+      $('#dailyTaskSearch').value = '';
+    }
+    $('#dailyTaskSearch').closest('label').hidden = searchToggle.hidden || searchToggle.getAttribute('aria-expanded') !== 'true';
+    $('#dailyTaskHeaderDate').textContent = weekday;
+    $('#dailyTaskSelectedDate').textContent = selectedDate === today() ? `Today, ${dateLabel}` : dateLabel;
+    $$('[data-task-filter]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.taskFilter === dailyTaskFilter)));
     $('#dailyTaskToday').disabled = selectedDate === today();
-    $('#dailyTaskScheduledCount').textContent = dateTasks.length;
-    $('#dailyTaskCompletedCount').textContent = completedCount;
-    $('#dailyTaskRemainingCount').textContent = remainingCount;
     $('#dailyTaskOverdueCount').textContent = overdueTasks.length;
     const overdueButton = $('#dailyTaskOverdueFilter');
     overdueButton.hidden = overdueTasks.length === 0;
     overdueButton.classList.toggle('has-overdue', overdueTasks.length > 0);
     overdueButton.classList.toggle('is-active', dailyTaskFilter === 'overdue');
-    $('#dailyTaskProgressLabel').textContent = `${completedCount} of ${dateTasks.length} done`;
+    $('#dailyTaskProgressLabel').textContent = `${completedCount}/${dateTasks.length}`;
     const progress = $('#dailyTaskProgress');
-    progress.setAttribute('aria-valuemax', String(dateTasks.length));
+    progress.setAttribute('aria-valuemax', String(dateTasks.length || 1));
+    progress.setAttribute('aria-valuetext', `${completedCount} of ${dateTasks.length} done`);
     progress.setAttribute('aria-valuenow', String(completedCount));
     progress.querySelector('span').style.width = `${dateTasks.length ? Math.round(completedCount / dateTasks.length * 100) : 0}%`;
     const overdueIds = new Set(overdueTasks.map(task => task.id));
@@ -254,10 +270,14 @@
     const nonOverdueTasks = dailyTaskFilter === 'all'
       ? tasks.filter(task => !overdueIds.has(task.id))
       : dailyTaskFilter === 'overdue' ? [] : tasks;
-    const taskMarkup = `${overdueGroup}${nonOverdueTasks.map(task => renderDailyTaskItem(task)).join('')}`;
+    const completedOpen = $('#dailyTaskList details')?.open;
+    const completedTasks = nonOverdueTasks.filter(task => task.completedAt);
+    const openTasks = nonOverdueTasks.filter(task => !task.completedAt);
+    const completedGroup = completedTasks.length ? `<details class="daily-task-completed"${completedOpen || dailyTaskFilter === 'completed' || query ? ' open' : ''}><summary>Completed (${completedTasks.length})</summary>${completedTasks.map(task => renderDailyTaskItem(task)).join('')}</details>` : '';
+    const taskMarkup = `${overdueGroup}${openTasks.map(task => renderDailyTaskItem(task)).join('')}${completedGroup}`;
     $('#dailyTaskList').innerHTML = tasks.length
       ? taskMarkup
-      : `<div class="daily-task-empty"><i class="fa-regular ${query ? 'fa-face-frown' : 'fa-circle-check'}" aria-hidden="true"></i><span>${query ? 'No tasks match your search.' : dailyTaskFilter === 'all' && selectedDate === today() || dailyTaskFilter === 'overdue' ? 'You’re all caught up.' : dailyTaskFilter === 'completed' ? 'No completed tasks for this date.' : dailyTaskFilter === 'remaining' ? 'No remaining tasks for this date.' : 'No tasks planned for this date.'}</span></div>`;
+      : `<div class="daily-task-empty"><i class="fa-regular fa-circle-check" aria-hidden="true"></i><div>${query ? 'No tasks match your search.' : dailyTaskFilter === 'completed' ? 'No completed tasks for this date.' : dailyTaskFilter === 'overdue' ? 'No overdue tasks.' : selectedDate === today() ? 'Nothing planned for today' : 'Nothing planned for this date'}${!query && ['all', 'remaining'].includes(dailyTaskFilter) ? '<small>Press <kbd>N</kbd> to add a task</small>' : ''}</div></div>`;
 
     const historyTasks = (data.dailyTasks || []).filter(task => task.completedAt && dateKey(task.completedAt) === historyDate.value)
       .filter(matchesSearch)
@@ -353,6 +373,11 @@
     $('#dailyTaskHistoryDate').value = $('#dailyTaskDate').value;
     renderDailyTasks();
   });
+  $$('[data-task-date-step]').forEach(button => button.addEventListener('click', () => {
+    const date = $('#dailyTaskDate');
+    date.value = addDays(date.value || today(), Number(button.dataset.taskDateStep));
+    date.dispatchEvent(new Event('change'));
+  }));
   $('#dailyTaskToday').addEventListener('click', () => {
     $('#dailyTaskDate').value = today();
     $('#dailyTaskHistoryDate').value = today();
@@ -390,13 +415,21 @@
       event.currentTarget.focus();
     }
   });
-  $('#dailyTaskFilter').addEventListener('change', event => {
-    dailyTaskFilter = event.target.value;
+  $$('[data-task-filter]').forEach(button => button.addEventListener('click', () => {
+    dailyTaskFilter = button.dataset.taskFilter;
     renderDailyTasks();
+  }));
+  $('#toggleDailyTaskSearch').addEventListener('click', event => {
+    const button = event.currentTarget;
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    button.setAttribute('aria-expanded', String(open));
+    const search = $('#dailyTaskSearch');
+    if (!open) search.value = '';
+    renderDailyTasks();
+    if (open) search.focus();
   });
   $('#dailyTaskOverdueFilter').addEventListener('click', () => {
     dailyTaskFilter = 'overdue';
-    $('#dailyTaskFilter').value = 'overdue';
     renderDailyTasks();
   });
   $('#dailyTaskForm').addEventListener('submit', event => {
@@ -519,7 +552,7 @@
   });
 
   document.addEventListener('keydown', event => {
-    if (!$('#dailyTaskView').classList.contains('active') || $('#dailyTaskAddModal').open || $('#dailyTaskDetailModal').open) return;
+    if (!$('#dailyTaskView').classList.contains('active') || document.querySelector('dialog[open], .follow-up-calendar:popover-open')) return;
     const target = event.target;
     const editing = target instanceof HTMLElement
       && (target.matches('input, textarea, select, [contenteditable="true"]') || target.closest('[contenteditable="true"]'));
@@ -528,15 +561,22 @@
       $('#dailyTaskQuickAdd').focus();
       return;
     }
-    const taskButton = target instanceof Element ? target.closest('[data-daily-task-open]') : null;
-    if (taskButton && (event.key === 'Enter' || event.key === ' ')) {
+    const row = target instanceof Element ? target.closest('.daily-task-item') : null;
+    if (!row) return;
+    if (['ArrowUp', 'ArrowDown'].includes(event.key)) {
+      const rows = [...row.closest('.daily-task-list, .daily-task-history-list').querySelectorAll('.daily-task-row-open')].filter(button => button.getClientRects().length);
+      const index = rows.indexOf(row.querySelector('.daily-task-row-open'));
       event.preventDefault();
-      const task = (data.dailyTasks || []).find(item => item.id === taskButton.dataset.dailyTaskOpen);
-      if (!task) return;
-      task.completedAt = task.completedAt ? '' : new Date().toISOString();
-      persist();
-      renderDailyTasks();
-      document.querySelector(`[data-daily-task-open="${CSS.escape(task.id)}"]`)?.focus();
+      rows[index + (event.key === 'ArrowUp' ? -1 : 1)]?.focus();
+    }
+    if (target.matches('.daily-task-row-open') && event.key === ' ') {
+      event.preventDefault();
+      const id = target.dataset.dailyTaskOpen;
+      const list = row.closest('.daily-task-list, .daily-task-history-list');
+      row.querySelector('.daily-task-action').click();
+      const next = list.querySelector(`.daily-task-row-open[data-daily-task-open="${CSS.escape(id)}"]`);
+      if (next?.getClientRects().length) next.focus();
+      else (next?.closest('details')?.querySelector('summary') || list.querySelector('.daily-task-row-open') || $('#dailyTaskQuickAdd')).focus();
     }
   });
 
