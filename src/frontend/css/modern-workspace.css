@@ -188,14 +188,41 @@ body:has(#dailyTaskView.active) #dailyTaskView .daily-task-summary strong { font
 body:has(#dailyTaskView.active) #dailyTaskView :is(.daily-task-list, .daily-task-history-list) { max-height: 620px; overflow-y: auto; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-item { min-height: 58px; padding: 13px 10px; }
 body:has(#dailyTaskView.active) #dailyTaskView .daily-task-item-title { font-size: 13px; }
-#applicationsView.active { display: flex; flex-direction: column; gap: 18px; }
+body:has(#applicationsView.active) #workspaceShell,
+body:has(#applicationsView.active) #workspaceShell > .content {
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: clip;
+}
+body:has(#applicationsView.active) #workspaceShell > .content {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding-bottom: 12px;
+}
+#workspaceShell #applicationsView.active {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
 #applicationsView .application-workspace-head { min-height: 42px; margin: 0; padding: 0; justify-content: space-between; }
 body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #applicationsView .application-workspace-head { padding: 0; min-height: 42px; justify-content: space-between; }
 #applicationsView #applicationListLabel { font-size: 15px; font-weight: 650; }
 #applicationsView .application-filter-controls { flex-wrap: wrap; gap: 10px; }
-#applicationsView .application-panel { min-height: 240px; }
-#applicationsView .application-list { max-height: none; overflow: visible; }
-#applicationsView .application-table-wrap { overflow-x: auto; }
+#workspaceShell #applicationsView .application-panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+#applicationsView .application-bulk-bar { flex: none; }
+#applicationsView #applicationList {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+#applicationsView #applicationList .application-table-wrap { overflow: visible; max-height: none; }
+.application-board-column > header { position: sticky; top: 0; z-index: 1; background: inherit; border-radius: 10px 10px 0 0; }
 
 /* Inbox and discovery pages. */
 #inboxView .inbox-panel { padding: 0; overflow: visible; }
