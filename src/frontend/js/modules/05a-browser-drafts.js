@@ -60,6 +60,8 @@
     function key(id,c){return JSON.stringify([id,c.clientId || '',c.recordId || c.invoice?.id || c.invoice?.sourceDraftId || 'new']);}
     function navigation(){return {view:activeView,clientId:activeView==='hired' && !showingHiredClientList?hiredEditingId:'',clientTab:$('#hiredDetailPanel [data-client-detail-tab].active')?.dataset.clientDetailTab || 'overview',dashboardTab:activeDashboardTab,previewId:$('#invoiceDraftPreviewModal')?.open?invoicePreviewSnapshot?.id || '':''};}
     function statusHost(form){
+      if (form.id === 'walletEntryForm') return form.querySelector(':scope > .wallet-form-actions') || form;
+      if (form.id === 'subscriptionForm') return form.querySelector(':scope > footer') || form;
       if (form.closest('#clientModal.application-detail-panel')) return form.querySelector(':scope > .modal-actions') || form;
       return form.querySelector(':scope > .invoice-check-footer') || form;
     }

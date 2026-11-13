@@ -3432,7 +3432,7 @@
       const overdue = item.dueDate < currentDate;
       const dueToday = item.dueDate === currentDate;
       return `<tr class="to-apply-data-row${overdue ? ' overdue' : dueToday ? ' due-today' : ''}">
-        <td><strong>${escapeHtml(item.title)}</strong><a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(item.link)}">${escapeHtml(item.link)}</a></td>
+        <td><div class="to-apply-opportunity"><span class="application-client-avatar" aria-hidden="true">${escapeHtml(clientInitials(item.title || 'Reminder'))}</span><div class="application-client-copy"><strong title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</strong>${item.link ? `<a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(item.link)}">${escapeHtml(item.link)}</a>` : ''}</div></div></td>
         <td><time datetime="${escapeHtml(item.dueDate)}">${escapeHtml(formatDate(item.dueDate))}</time>${overdue || dueToday ? `<small class="to-apply-deadline-status">${overdue ? 'Missed' : 'Apply today'}</small>` : ''}</td>
         <td><button class="icon-button to-apply-actions-trigger" type="button" data-to-apply-actions="${escapeHtml(item.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(item.title)}">⋯</button></td>
       </tr>`;
@@ -4599,7 +4599,7 @@
     $('#hiredCountLabel').hidden = view !== 'hired' || !showingHiredClientList;
     $('#hiredHeaderSummary').hidden = view !== 'hired' || !showingHiredClientList;
     $('#applicationWeekDate').hidden = view !== 'applications';
-    $('#toApplyHeaderContext').hidden = view !== 'to-apply';
+    $('#toApplyCountLabel').hidden = view !== 'to-apply';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
     $$('.view').forEach(panel => panel.classList.toggle('active', panel.dataset.viewPanel === view));
@@ -4616,6 +4616,7 @@
     addClientButton.setAttribute('aria-hidden', String(activeView !== 'applications'));
     $('#walletAddEntry').hidden = activeView !== 'wallet';
     $('#addSubscription').hidden = activeView !== 'subscriptions';
+    $('#addToApplyButton').hidden = activeView !== 'to-apply';
     const gmailHeaderActions = $('#gmailHeaderActions');
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });
@@ -11636,6 +11637,7 @@
   $('#addToApplyButton')?.addEventListener('click', () => openToApplyModal());
   $('#toApplySearch')?.addEventListener('input', renderToApplyList);
   $('#toApplySort')?.addEventListener('change', renderToApplyList);
+  enhanceWorkspaceSelect($('#toApplySort'), { labelText: 'Sort reminders', refreshTarget: $('#toApplyView') });
   $('#toApplyForm')?.addEventListener('submit', saveToApply);
   let toApplyActionId = null;
   function openToApplyActions(id) {
@@ -16572,7 +16574,7 @@
 
   function setSubscriptionSaving(value) {
     subscriptionSaving = value;
-    ['saveSubscription', 'deleteSubscription', 'closeSubscriptionEditor', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
+    ['saveSubscription', 'deleteSubscription', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
     $('#subscriptionForm').setAttribute('aria-busy', String(value));
   }
 
@@ -16587,7 +16589,7 @@
     filter.value = filter.value === button.dataset.subscriptionStatus ? 'all' : button.dataset.subscriptionStatus;
     renderSubscriptions();
   });
-  ['closeSubscriptionEditor', 'cancelSubscriptionEditor'].forEach(id => $('#' + id).addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); }));
+  $('#cancelSubscriptionEditor').addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); });
   $('#subscriptionEditor').addEventListener('cancel', event => { if (subscriptionSaving) event.preventDefault(); });
   $('#subscriptionList').addEventListener('click', event => {
     const edit = event.target.closest('[data-subscription-edit]');
@@ -16699,6 +16701,8 @@
     function key(id,c){return JSON.stringify([id,c.clientId || '',c.recordId || c.invoice?.id || c.invoice?.sourceDraftId || 'new']);}
     function navigation(){return {view:activeView,clientId:activeView==='hired' && !showingHiredClientList?hiredEditingId:'',clientTab:$('#hiredDetailPanel [data-client-detail-tab].active')?.dataset.clientDetailTab || 'overview',dashboardTab:activeDashboardTab,previewId:$('#invoiceDraftPreviewModal')?.open?invoicePreviewSnapshot?.id || '':''};}
     function statusHost(form){
+      if (form.id === 'walletEntryForm') return form.querySelector(':scope > .wallet-form-actions') || form;
+      if (form.id === 'subscriptionForm') return form.querySelector(':scope > footer') || form;
       if (form.closest('#clientModal.application-detail-panel')) return form.querySelector(':scope > .modal-actions') || form;
       return form.querySelector(':scope > .invoice-check-footer') || form;
     }

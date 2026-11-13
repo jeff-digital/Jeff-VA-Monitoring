@@ -10,10 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261113-inbox-height" />
+    <link rel="stylesheet" href="css/styles.css?v=20261113-reminder-layout" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-inbox-height" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-reminder-layout" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -135,9 +135,8 @@
           <div class="topbar-title-area">
             <div class="topbar-copy">
               <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
-              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="application-workspace-count-summary"><strong id="applicationListLabel" tabindex="0" aria-describedby="applicationPlatformCounts">0 applications</strong><span id="applicationPlatformCounts" role="tooltip"></span></span><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" role="group" aria-label="Filter clients by contract" hidden><button type="button" data-hired-filter="all" aria-pressed="true">All <strong id="hiredAllSummary">0</strong></button><button type="button" data-hired-filter="Active" aria-pressed="false">Active <strong id="hiredActiveSummary">0</strong></button><button type="button" data-hired-filter="Contract Ended" aria-pressed="false">Ended <strong id="hiredEndedSummary">0</strong></button></span></div>
+              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="application-workspace-count-summary"><strong id="applicationListLabel" tabindex="0" aria-describedby="applicationPlatformCounts">0 applications</strong><span id="applicationPlatformCounts" role="tooltip"></span></span><span class="workspace-list-count" id="toApplyCountLabel" hidden>0 reminders</span><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" role="group" aria-label="Filter clients by contract" hidden><button type="button" data-hired-filter="all" aria-pressed="true">All <strong id="hiredAllSummary">0</strong></button><button type="button" data-hired-filter="Active" aria-pressed="false">Active <strong id="hiredActiveSummary">0</strong></button><button type="button" data-hired-filter="Contract Ended" aria-pressed="false">Ended <strong id="hiredEndedSummary">0</strong></button></span></div>
               <p class="page-context" id="applicationWeekDate" hidden></p>
-              <p class="page-context" id="toApplyHeaderContext" hidden>Keep your next opportunities organized and ready for action.</p>
               <p class="page-context" id="emailWeekDate" hidden></p>
               <p class="page-context daily-task-header-date" id="dailyTaskHeaderDate" hidden></p>
             </div>
@@ -173,6 +172,7 @@
             </div>
             <button class="button button-secondary" type="button" id="openFollowUpTemplate" hidden aria-hidden="true">Follow-up template</button>
             <button class="button button-primary" type="button" id="openAddModal" hidden aria-hidden="true">Add application</button>
+            <button class="button button-primary" type="button" id="addToApplyButton" hidden>Add reminder</button>
             <button class="button button-primary wallet-add-entry-button" type="button" id="walletAddEntry" title="Add transaction (N)" hidden>Add transaction <kbd aria-hidden="true">N</kbd></button>
             <button class="button button-primary" id="addSubscription" type="button" hidden>Add subscription</button>
           </div>
@@ -456,18 +456,10 @@
         </section>
 
         <section class="view" id="toApplyView" data-view-panel="to-apply" data-page="to-apply">
-          <section class="application-workspace-head to-apply-workspace-head">
-            <div class="application-workspace-count to-apply-count-card">
-              <strong id="toApplyCountLabel">0 reminders</strong>
-            </div>
-            <div class="to-apply-head-actions">
-              <button class="button button-primary to-apply-add-button" type="button" id="addToApplyButton">Add reminder</button>
-            </div>
-          </section>
           <section class="application-filters to-apply-filters" aria-label="Reminder filters">
             <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="toApplySearch" aria-label="Search reminders" placeholder="Search reminders" /></label>
             <div class="application-filter-controls to-apply-filter-controls">
-              <label class="application-filter-field"><span><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Sort</span><select id="toApplySort"><option value="due-soonest">Due date (soonest)</option><option value="due-latest">Due date (latest)</option><option value="title-asc">Title (A to Z)</option></select></label>
+              <label class="application-filter-field"><select id="toApplySort" aria-label="Sort reminders"><option value="due-soonest">Due date (soonest)</option><option value="due-latest">Due date (latest)</option><option value="title-asc">Title (A to Z)</option></select></label>
             </div>
           </section>
           <section class="panel to-apply-page-panel">
@@ -816,7 +808,7 @@
           <div class="subscriptions-grid" id="subscriptionList"></div>
           <dialog class="subscription-editor" id="subscriptionEditor" aria-labelledby="subscriptionEditorTitle">
             <form id="subscriptionForm">
-              <header><div><p class="eyebrow">PAID ACCOUNT</p><h2 id="subscriptionEditorTitle">Add subscription</h2></div><button class="icon-button" id="closeSubscriptionEditor" type="button" aria-label="Close subscription editor">×</button></header>
+              <header><div><p class="eyebrow">PAID ACCOUNT</p><h2 id="subscriptionEditorTitle">Add subscription</h2></div></header>
               <div class="subscription-form-body">
                 <input type="hidden" id="subscriptionId" />
                 <label class="form-field"><span>Account type or service</span><input id="subscriptionName" maxlength="120" required placeholder="e.g. Canva Pro" /></label>
@@ -1890,7 +1882,6 @@
       <form method="dialog">
         <div class="modal-heading">
           <div><p class="eyebrow" id="emailDetailEyebrow">EMAIL DETAILS</p><h2 id="emailDetailTitle">Email</h2></div>
-          <button class="icon-button" type="submit" value="cancel" formnovalidate aria-label="Close email details">×</button>
         </div>
         <div class="email-detail-meta">
           <div><span>From</span><strong id="emailDetailFrom"></strong></div>
@@ -1971,7 +1962,7 @@
 
     <dialog class="modal world-clock-modal" id="worldClockModal" aria-labelledby="worldClockTitle" aria-describedby="worldClockHelp">
       <form method="dialog" class="world-clock-form">
-        <div class="modal-heading"><div><p class="eyebrow">CLIENT TIME ZONES</p><h2 id="worldClockTitle">World clock</h2></div><button class="icon-button" type="submit" value="cancel" aria-label="Close world clock">×</button></div>
+        <div class="modal-heading"><div><p class="eyebrow">CLIENT TIME ZONES</p><h2 id="worldClockTitle">World clock</h2></div></div>
         <p class="world-clock-help" id="worldClockHelp">New York, Toronto, Sydney, and London are shown by default. Search a city or country, or choose a country below, to reveal other locations. Times adjust for daylight saving automatically.</p>
         <div class="world-clock-toolbar"><label><span class="sr-only">Search cities or countries</span><input type="search" id="worldClockSearch" placeholder="Search city or country" /></label><label><span class="sr-only">Filter country</span><select id="worldClockCountry"><option value="">All countries</option><option>Australia</option><option>Canada</option><option>United States</option><option>United Kingdom</option></select></label></div>
         <p class="world-clock-local" id="worldClockLocalTime"></p>
@@ -1993,6 +1984,6 @@
     <script src="js/invoice-engine.js?v=20261111-invoice-summary-layout"></script>
     <script src="js/invoice-payment-brands.js?v=20261111-terms-below-payment"></script>
     <script src="js/invoice-pdf.js?v=20261112-compact-invoice-total"></script>
-    <script src="js/app.js?v=20261113-inbox-height"></script>
+    <script src="js/app.js?v=20261113-reminder-layout"></script>
   </body>
 </html>

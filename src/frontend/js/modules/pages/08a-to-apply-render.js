@@ -23,7 +23,7 @@
       const overdue = item.dueDate < currentDate;
       const dueToday = item.dueDate === currentDate;
       return `<tr class="to-apply-data-row${overdue ? ' overdue' : dueToday ? ' due-today' : ''}">
-        <td><strong>${escapeHtml(item.title)}</strong><a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(item.link)}">${escapeHtml(item.link)}</a></td>
+        <td><div class="to-apply-opportunity"><span class="application-client-avatar" aria-hidden="true">${escapeHtml(clientInitials(item.title || 'Reminder'))}</span><div class="application-client-copy"><strong title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</strong>${item.link ? `<a href="${escapeHtml(normalizeUrl(item.link))}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(item.link)}">${escapeHtml(item.link)}</a>` : ''}</div></div></td>
         <td><time datetime="${escapeHtml(item.dueDate)}">${escapeHtml(formatDate(item.dueDate))}</time>${overdue || dueToday ? `<small class="to-apply-deadline-status">${overdue ? 'Missed' : 'Apply today'}</small>` : ''}</td>
         <td><button class="icon-button to-apply-actions-trigger" type="button" data-to-apply-actions="${escapeHtml(item.id)}" aria-haspopup="dialog" aria-label="Actions for ${escapeHtml(item.title)}">⋯</button></td>
       </tr>`;

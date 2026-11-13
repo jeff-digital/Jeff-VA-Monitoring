@@ -155,7 +155,7 @@
     $('#hiredCountLabel').hidden = view !== 'hired' || !showingHiredClientList;
     $('#hiredHeaderSummary').hidden = view !== 'hired' || !showingHiredClientList;
     $('#applicationWeekDate').hidden = view !== 'applications';
-    $('#toApplyHeaderContext').hidden = view !== 'to-apply';
+    $('#toApplyCountLabel').hidden = view !== 'to-apply';
     $('#emailWeekDate').hidden = view !== 'inbox';
     $('#dailyTaskHeaderDate').hidden = view !== 'daily-task';
     $$('.view').forEach(panel => panel.classList.toggle('active', panel.dataset.viewPanel === view));
@@ -172,6 +172,7 @@
     addClientButton.setAttribute('aria-hidden', String(activeView !== 'applications'));
     $('#walletAddEntry').hidden = activeView !== 'wallet';
     $('#addSubscription').hidden = activeView !== 'subscriptions';
+    $('#addToApplyButton').hidden = activeView !== 'to-apply';
     const gmailHeaderActions = $('#gmailHeaderActions');
     gmailHeaderActions?.classList.toggle('hidden', activeView !== 'inbox');
     closeMobileSidebar({ restoreFocus: window.matchMedia('(max-width: 720px)').matches });

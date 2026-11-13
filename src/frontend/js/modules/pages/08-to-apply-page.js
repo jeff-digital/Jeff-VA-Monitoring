@@ -2,6 +2,7 @@
   $('#addToApplyButton')?.addEventListener('click', () => openToApplyModal());
   $('#toApplySearch')?.addEventListener('input', renderToApplyList);
   $('#toApplySort')?.addEventListener('change', renderToApplyList);
+  enhanceWorkspaceSelect($('#toApplySort'), { labelText: 'Sort reminders', refreshTarget: $('#toApplyView') });
   $('#toApplyForm')?.addEventListener('submit', saveToApply);
   let toApplyActionId = null;
   function openToApplyActions(id) {

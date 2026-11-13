@@ -93,10 +93,12 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
         document.body.classList.remove('auth-loading');
         $('#pageTitle').textContent={documentsView:'Career Tools',dashboardView:'Dashboard',dailyTaskView:'Daily Tasks',applicationsView:'Applications',toApplyView:'To Apply',inboxView:'Email',walletView:'Wallet',subscriptionsView:'Account subscriptions',newsView:'News',socialTrendsView:'Social Trends',hiredView:'Active Clients'}[id];
         $('#pageEyebrow').hidden=true;
-        for (const [context, view] of Object.entries({applicationWeekDate:'applicationsView',emailWeekDate:'inboxView',dailyTaskHeaderDate:'dailyTaskView',toApplyHeaderContext:'toApplyView'})) {
+        for (const [context, view] of Object.entries({applicationWeekDate:'applicationsView',emailWeekDate:'inboxView',dailyTaskHeaderDate:'dailyTaskView'})) {
           $('#'+context).hidden=id!==view;
-          if (context!=='toApplyHeaderContext') $('#'+context).textContent='November 2 – November 8, 2026';
+          $('#'+context).textContent='November 2 – November 8, 2026';
         }
+        $('#toApplyCountLabel').hidden=id!=='toApplyView';
+        $('#addToApplyButton').hidden=id!=='toApplyView';
         $('#openAddModal').hidden=id!=='applicationsView';
         $('#openFollowUpTemplate').hidden=id!=='applicationsView';
         $('#hiredHeaderSummary').hidden=id!=='hiredView';
@@ -226,6 +228,27 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
     await page.locator('.subscription-card-menu summary').click();
     assert.ok(await page.getByRole('button', { name: 'Renew', exact: true }).isVisible());
     await page.locator('.subscription-card-menu summary').click();
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 739 });
+      await page.evaluate(() => {
+        previewView('subscriptionsView');
+        openSubscriptionEditor('s1');
+        $('#subscriptionForm > footer').insertAdjacentHTML('afterbegin', '<p class="form-draft-status">Saved in this tab.</p>');
+      });
+      const buttons = await page.locator('#deleteSubscription, #cancelSubscriptionEditor, #saveSubscription').evaluateAll(items => items.map(item => item.getBoundingClientRect().toJSON()));
+      assert.ok(buttons.every(button => button.width > 0 && Math.abs(button.top - buttons[0].top) < 2 && button.right <= width), `Subscription footer at ${width}px`);
+      await page.evaluate(() => {
+        $('#subscriptionEditor').close();
+        $('#subscriptionForm > footer > .form-draft-status').remove();
+        previewView('toApplyView');
+        $('#toApplyList').innerHTML = '<div class="application-table-wrap"><table class="application-data-table to-apply-data-table"><thead><tr><th>Opportunity</th><th>Deadline</th><th></th></tr></thead><tbody><tr class="to-apply-data-row"><td>Sample</td><td>Nov 20</td><td></td></tr></tbody></table></div>';
+      });
+      const addReminder = await page.locator('#addToApplyButton').boundingBox();
+      const bell = await page.locator('#notificationButton').boundingBox();
+      assert.ok(Math.abs(addReminder.y + addReminder.height / 2 - bell.y - bell.height / 2) < 3, `To Apply header at ${width}px`);
+      assert.ok((await page.locator('.to-apply-page-panel').boundingBox()).height < 130, `Compact reminder table at ${width}px`);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.evaluate(() => { previewView('dailyTaskView'); renderDailyTasks(); });
     assert.equal(await page.locator('.dashboard-switcher').isVisible(), false);
     assert.equal(await page.locator('#dailyTaskSearch').isVisible(), false);

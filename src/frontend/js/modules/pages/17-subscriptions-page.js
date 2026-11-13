@@ -80,7 +80,7 @@
 
   function setSubscriptionSaving(value) {
     subscriptionSaving = value;
-    ['saveSubscription', 'deleteSubscription', 'closeSubscriptionEditor', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
+    ['saveSubscription', 'deleteSubscription', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
     $('#subscriptionForm').setAttribute('aria-busy', String(value));
   }
 
@@ -95,7 +95,7 @@
     filter.value = filter.value === button.dataset.subscriptionStatus ? 'all' : button.dataset.subscriptionStatus;
     renderSubscriptions();
   });
-  ['closeSubscriptionEditor', 'cancelSubscriptionEditor'].forEach(id => $('#' + id).addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); }));
+  $('#cancelSubscriptionEditor').addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); });
   $('#subscriptionEditor').addEventListener('cancel', event => { if (subscriptionSaving) event.preventDefault(); });
   $('#subscriptionList').addEventListener('click', event => {
     const edit = event.target.closest('[data-subscription-edit]');
