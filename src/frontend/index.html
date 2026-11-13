@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="css/styles.css?v=20261113-select-chevron-size" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-calculator-layout" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-money-converter" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -788,7 +788,17 @@
                   <div><span id="salaryCalculatorConversionLabel">Converted monthly (PHP)</span><strong id="salaryCalculatorConversion">—</strong></div>
                   <div><span id="salaryCalculatorHourlyLabel">Hourly equivalent (PHP)</span><strong id="salaryCalculatorHourlyConversion">—</strong></div>
                 </div>
-                <details class="salary-currency-converter"><summary>Convert a money amount</summary><label class="form-field"><span>Amount in <span id="salaryAmountCurrency">USD</span></span><input id="salaryConverterAmount" type="number" min="0" step="any" placeholder="Enter amount" /></label><output id="salaryConverterResult" for="salaryConverterAmount"></output></details>
+                <details class="salary-currency-converter">
+                  <summary>Convert a money amount</summary>
+                  <div class="salary-converter-fields">
+                    <label class="form-field"><span>From</span><select id="salaryConverterFrom"></select></label>
+                    <button class="button button-secondary" type="button" id="swapSalaryConverterCurrencies" aria-label="Swap currencies">⇄</button>
+                    <label class="form-field"><span>To</span><select id="salaryConverterTo"></select></label>
+                  </div>
+                  <label class="form-field"><span>Amount in <span id="salaryAmountCurrency">PHP</span></span><input id="salaryConverterAmount" type="number" min="0" step="any" placeholder="Enter amount" /></label>
+                  <output id="salaryConverterResult" for="salaryConverterAmount salaryConverterFrom salaryConverterTo"></output>
+                  <p class="salary-calculator-help" id="salaryConverterRate" role="status"></p>
+                </details>
                 <p class="salary-calculator-help">Hourly estimates use 52 weeks divided by 12 months. Monthly pay uses the amount entered. Converted amounts use the dated reference rate shown above.</p>
               </div>
             </div>
@@ -1984,6 +1994,6 @@
     <script src="js/invoice-engine.js?v=20261111-invoice-summary-layout"></script>
     <script src="js/invoice-payment-brands.js?v=20261111-terms-below-payment"></script>
     <script src="js/invoice-pdf.js?v=20261112-compact-invoice-total"></script>
-    <script src="js/app.js?v=20261113-currency-pairs"></script>
+    <script src="js/app.js?v=20261113-money-converter"></script>
   </body>
 </html>

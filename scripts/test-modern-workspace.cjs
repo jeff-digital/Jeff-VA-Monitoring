@@ -131,11 +131,14 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
     await page.evaluate(() => { previewView('walletView'); openWorkspaceCalculator(); });
     await page.getByText('1 USD = 60 PHP · 2026-11-13', {exact: true}).waitFor();
     await page.locator('.salary-currency-converter summary').click();
+    await page.locator('#salaryConverterAmount').fill('600');
+    assert.match(await page.locator('#salaryConverterResult').textContent(), /10\.00/);
+    await page.locator('#swapSalaryConverterCurrencies').click();
+    assert.match(await page.locator('#salaryConverterResult').textContent(), /36,000\.00/);
     await page.locator('#salaryConverterAmount').fill('12.50');
-    assert.match(await page.locator('#salaryConverterResult').textContent(), /750\.00/);
-    await page.locator('#salaryCalculatorCurrency').selectOption('EUR');
+    await page.locator('#salaryConverterFrom').selectOption('EUR');
     assert.match(await page.locator('#salaryConverterResult').textContent(), /937\.50/);
-    await page.locator('#salaryCalculatorTarget').selectOption('JPY');
+    await page.locator('#salaryConverterTo').selectOption('JPY');
     assert.match(await page.locator('#salaryConverterResult').textContent(), /2,343\.75/);
     await page.keyboard.press('Escape');
     await page.locator('#salaryCalculatorPanel #workspaceCalculator').waitFor({state:'attached'});

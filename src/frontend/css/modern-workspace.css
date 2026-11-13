@@ -366,6 +366,9 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
 .salary-currency-converter { margin-top: 16px; padding: 12px; border: 1px solid var(--theme-border, #e5e7eb); border-radius: 10px; }
 .salary-currency-converter summary { cursor: pointer; font-weight: 600; }
 .salary-currency-converter .form-field { margin-block: 8px; max-width: 260px; }
+.salary-converter-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 8px; }
+.salary-converter-fields .form-field { min-width: 0; max-width: none; }
+.salary-converter-fields > button { margin-bottom: 8px; }
 .salary-currency-converter output { display: block; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
 #documentsView .salary-calculator-result { margin-top: 24px; gap: 14px; }
 #documentsView .salary-calculator-result { border: 0; border-radius: 0; background: transparent; overflow: visible; }

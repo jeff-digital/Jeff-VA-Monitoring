@@ -259,7 +259,7 @@
   let calculatorRequest;
   let calculatorRateMessage = '';
 
-  for (const [id, initial] of [['salaryCalculatorCurrency', 'USD'], ['salaryCalculatorTarget', 'PHP']]) {
+  for (const [id, initial] of [['salaryCalculatorCurrency', 'USD'], ['salaryCalculatorTarget', 'PHP'], ['salaryConverterFrom', 'PHP'], ['salaryConverterTo', 'USD']]) {
     const select = $('#' + id);
     select.replaceChildren(...calculatorCurrencies.map(code => new Option(`${calculatorCurrencyNames.of(code)} (${code})`, code)));
     select.value = initial;
@@ -306,6 +306,27 @@
     $('#openQuickSearch').focus();
   });
   $('#refreshSalaryExchangeRate').addEventListener('click', refreshCalculatorRate);
+  $('#swapSalaryConverterCurrencies').addEventListener('click', () => {
+    const from = $('#salaryConverterFrom');
+    const to = $('#salaryConverterTo');
+    [from.value, to.value] = [to.value, from.value];
+    updateSalaryCalculator();
+  });
+
+  function calculatorQuote(from, to) {
+    if (from === to) return { rate: 1, label: 'Same currency' };
+    const usd = { rate: 1, date: '' };
+    const source = from === 'USD' ? usd : calculatorRates.get(from);
+    const target = to === 'USD' ? usd : calculatorRates.get(to);
+    if (!source || !target) return { rate: null, label: '' };
+    const rate = target.rate / source.rate;
+    const date = [source.date, target.date].filter(Boolean).sort()[0];
+    return { rate, label: `1 ${from} = ${rate.toLocaleString('en-PH', { maximumSignificantDigits: 7 })} ${to} · ${date}` };
+  }
+
+  function calculatorRateStatus(quote) {
+    return [quote.label, calculatorRateMessage].filter(Boolean).join(' · ') || 'Rate unavailable for this pair.';
+  }
 
   function updateSalaryCalculator() {
     const currency = $('#salaryCalculatorCurrency')?.value || 'USD';
@@ -319,18 +340,11 @@
       ? (hoursPerWeek > 0 ? monthlyTotal / (hoursPerWeek * (52 / 12)) : 0)
       : enteredRate;
     const convertedCurrency = $('#salaryCalculatorTarget').value;
-    const usd = { rate: 1, date: '' };
-    const source = currency === 'USD' ? usd : calculatorRates.get(currency);
-    const target = convertedCurrency === 'USD' ? usd : calculatorRates.get(convertedCurrency);
-    const quote = currency !== convertedCurrency && source && target
-      ? { rate: target.rate / source.rate, date: [source.date, target.date].filter(Boolean).sort()[0] }
-      : null;
-    const rate = currency === convertedCurrency ? 1 : quote?.rate;
+    const quote = calculatorQuote(currency, convertedCurrency);
+    const rate = quote.rate;
     const money = (amount, code, digits = 0) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: code, maximumFractionDigits: digits, minimumFractionDigits: digits }).format(amount);
     const convert = (amount, digits) => rate == null ? '—' : money(amount * rate, convertedCurrency, digits);
-    const rateLabel = quote ? `1 ${currency} = ${quote.rate.toLocaleString('en-PH', { maximumSignificantDigits: 7 })} ${convertedCurrency} · ${quote.date}`
-      : currency === convertedCurrency ? 'Same currency' : '';
-    $('#salaryExchangeRate').textContent = [rateLabel, calculatorRateMessage].filter(Boolean).join(' · ') || 'Rate unavailable for this pair.';
+    $('#salaryExchangeRate').textContent = calculatorRateStatus(quote);
     $('#salaryCalculatorRateLabel').textContent = payType === 'monthly' ? 'Monthly salary' : 'Hourly rate';
     $('#salaryCalculatorRate').placeholder = currency === 'USD'
       ? (payType === 'monthly' ? 'e.g. 1,700' : 'e.g. 10')
@@ -341,9 +355,14 @@
     $('#salaryCalculatorHourlyLabel').textContent = `Hourly equivalent (${convertedCurrency})`;
     $('#salaryCalculatorConversion').textContent = convert(monthlyTotal, 2);
     $('#salaryCalculatorHourlyConversion').textContent = convert(hourlyRate, 2);
-    $('#salaryAmountCurrency').textContent = currency;
+    const from = $('#salaryConverterFrom').value;
+    const to = $('#salaryConverterTo').value;
+    const moneyQuote = calculatorQuote(from, to);
+    $('#salaryAmountCurrency').textContent = from;
+    $('#salaryConverterRate').textContent = calculatorRateStatus(moneyQuote);
     const amount = $('#salaryConverterAmount');
-    $('#salaryConverterResult').textContent = amount.value && amount.validity.valid ? convert(amount.valueAsNumber, 2) : '';
+    $('#salaryConverterResult').textContent = amount.value && amount.validity.valid
+      ? (moneyQuote.rate == null ? '—' : money(amount.valueAsNumber * moneyQuote.rate, to, 2)) : '';
   }
 
   ['salaryCalculatorPayType', 'salaryCalculatorRate', 'salaryCalculatorHours', 'salaryCalculatorDays', 'salaryConverterAmount'].forEach(id => {
