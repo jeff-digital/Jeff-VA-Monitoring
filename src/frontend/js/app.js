@@ -596,7 +596,7 @@
   let emailSelectionMode = false;
   let applicationDateSort = 'all';
   let applicationViewMode = localStorage.getItem('jeff-va-application-view-v1') === 'board' ? 'board' : 'table';
-  let applicationSelectionMode = false;
+
   const selectedApplicationIds = new Set();
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
@@ -748,7 +748,7 @@
     }
     indicator.className = `local-indicator is-${state}`;
     indicator.hidden = false;
-    label.textContent = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save failed';
+    label.textContent = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Changes saved' : 'Save failed';
     if (state === 'saved') {
       saveIndicatorTimer = setTimeout(() => {
         indicator.hidden = true;
@@ -1395,11 +1395,14 @@
       const details = document.createElement('details');
       const summary = document.createElement('summary');
       const method = document.createElement('span');
-      method.textContent = `${event.provider || 'Sign-in'} · ${labels[event.result] || 'Unknown'}`;
+      method.textContent = event.provider || 'Sign-in';
+      const result = document.createElement('span');
+      result.className = 'account-login-result';
+      result.textContent = labels[event.result] || 'Unknown';
       const timestamp = document.createElement('time');
       timestamp.dateTime = event.at || '';
       timestamp.textContent = formatAccountTimestamp(event.at);
-      summary.append(method, timestamp);
+      summary.append(method, result, timestamp);
       const metadata = document.createElement('dl');
       if (event.submittedEmail) {
         const term = document.createElement('dt');
@@ -3208,7 +3211,7 @@
       const range = weekRange(offset);
       return `<option value="${offset}">${escapeHtml(weeklyRangeLabel(range).replace(' – ', ' to '))}</option>`;
     }).join('');
-    return `<option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option>${options}`;
+    return `<option value="specific">Specific date…</option><option value="all">All weeks</option><option value="0">This week</option>${options}`;
   }
 
   function sortApplicationList(items, order = 'newest') {
@@ -3290,10 +3293,12 @@
     const weekOffset = Number(applicationDateSort);
     const weekRangeFilter = applicationDateSort && applicationDateSort !== 'all' ? weekRange(weekOffset) : null;
     $('#applicationWeekDate').textContent = !applicationDateSort
-      ? 'Select a week'
+      ? dateFilter ? emailDate(dateFilter) : 'All weeks'
       : applicationDateSort === 'all' ? 'All weeks' : weeklyRangeLabel(weekRangeFilter).replace(' – ', ' to ');
     $('#applicationDateSort').innerHTML = applicationWeekOptions();
-    $('#applicationDateSort').value = applicationDateSort;
+    $('#applicationDateSort').value = dateFilter ? 'specific' : applicationDateSort || 'all';
+    $('#applicationExactDate').hidden = !dateFilter;
+    $('#applicationExactDate span').textContent = dateFilter ? emailDate(dateFilter) : 'Specific date';
     const pipeline = pipelineApplications();
     const matchesStatus = (item, value) => !value || (value === 'To Proceed' ? isToProceedStatus(item) : item.status === value);
     const eligible = pipeline.filter(item => {
@@ -3305,8 +3310,8 @@
         && (!employment || item.employmentType === employment) && dateMatches && weekMatches;
     });
     const filtered = eligible.filter(item => matchesStatus(item, status));
-    $('#applicationListLabel').textContent = String(filtered.length);
-    $('#applicationListLabel').setAttribute('aria-label', `${filtered.length} of ${pipeline.length} applications`);
+    $('#applicationListLabel').textContent = String(pipeline.length);
+    $('#applicationListLabel').setAttribute('aria-label', plural(pipeline.length, 'application') + ' total. Show breakdown by source');
     const chips = [['', 'All'], ['Applied', 'Applied'], ['Interview', 'Interview'], ['Offer', 'Offer'], ['Not selected', 'Rejected']];
     const chipGroup = $('#applicationStatusChips');
     if (!chipGroup.children.length) chipGroup.innerHTML = chips.map(([value, label]) =>
@@ -3328,33 +3333,30 @@
       .sort(([first], [second]) => first.localeCompare(second, undefined, { sensitivity: 'base' }))
       .map(([name, count]) => `<span class="application-source-row"><span>${escapeHtml(name)}</span><strong>${count}</strong></span>`)
       .join('');
-    $('#applicationPlatformCounts').innerHTML = `<span class="application-source-heading"><span>Applications by source</span><strong>${filtered.length}</strong></span><span class="application-source-caption">Current filtered results</span><span class="application-source-list">${sourceBreakdown || '<span class="application-source-empty">No applications in this view</span>'}</span>`;
+    $('#applicationPlatformCounts').innerHTML = `<span class="application-source-heading">Applications by source</span><span class="application-source-caption">${filtered.length} of ${pipeline.length} match the current filters</span><span class="application-source-list">${sourceBreakdown || '<span class="application-source-empty">No applications in this view</span>'}</span>`;
     const target = $('#applicationList');
     const filterChips = [
       query ? ['search', `Search: ${query}`] : null,
+      $('#applicationOrderSort').value !== 'newest' ? ['sort', 'Oldest first'] : null,
       dateFilter ? ['date', `Date: ${emailDate(dateFilter)}`] : null,
-      status && status !== 'Applied' ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
+      status ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
       platform ? ['platform', `Source: ${platform}`] : null,
       employment ? ['employment', `Employment: ${employment}`] : null,
-      applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
+      applicationDateSort && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
-    $('#clearApplicationFilters').hidden = filterChips.length === 0 && applicationDateSort !== '0' && status !== 'Applied';
+    $('#clearApplicationFilters').hidden = filterChips.length === 0 && status !== 'Applied';
     $$('[data-application-view]').forEach(button => {
       const selected = button.dataset.applicationView === applicationViewMode;
       button.classList.toggle('active', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
-    const selectionToggle = $('#toggleApplicationSelection');
-    selectionToggle.classList.toggle('active', applicationSelectionMode);
-    selectionToggle.setAttribute('aria-pressed', String(applicationSelectionMode));
-    selectionToggle.textContent = applicationSelectionMode ? 'Done' : 'Select';
     target.classList.toggle('application-board-mode', applicationViewMode === 'board');
-    target.classList.toggle('selection-mode', applicationSelectionMode);
+    target.classList.toggle('selection-mode', applicationViewMode === 'table');
     selectedApplicationIds.forEach(id => {
       if (!filtered.some(item => item.id === id)) selectedApplicationIds.delete(id);
     });
-    $('#applicationBulkActions').hidden = !applicationSelectionMode || selectedApplicationIds.size === 0;
+    $('#applicationBulkActions').hidden = selectedApplicationIds.size === 0;
     $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
     if (!filtered.length) {
       const isFiltered = pipeline.length > 0;
@@ -3366,7 +3368,7 @@
       const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', ...(sortedApplications.some(item => item.status === 'Offer') ? ['Offer'] : []), 'Active client', 'Not selected'];
       target.innerHTML = `<div class="application-board">${stages.map(stage => {
         const cards = sortedApplications.filter(item => stage === 'To Proceed' ? isToProceedStatus(item) : item.status === stage);
-        return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}">${applicationSelectionMode ? `<input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} />` : ''}<button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
+        return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}"><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /><button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
       }).join('')}</div>`;
       return;
     }
@@ -3374,14 +3376,14 @@
     applicationPage = Math.min(applicationPage, pageCount - 1);
     const offset = applicationPage * applicationPageSize;
     const displayValue = value => /^(?:n\/?a|—|-)$/i.test(String(value || '').trim()) ? '' : String(value || '').trim();
-    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" aria-label="Applications"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Platform</th><th scope="col">Employment type</th><th scope="col">Status</th><th scope="col">Date applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.slice(offset, offset + applicationPageSize).map(item => {
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" aria-label="Applications"><thead><tr><th scope="col"><span class="sr-only">Select</span></th><th scope="col">Client / role</th><th scope="col">Platform</th><th scope="col">Employment type</th><th scope="col">Status</th><th scope="col">Date applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.slice(offset, offset + applicationPageSize).map(item => {
       const salaryAmount = Number(item.salaryAmount);
       const salary = Number.isFinite(salaryAmount) && salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `<small>${escapeHtml(salaryCurrencySymbol(item.salaryCurrency) + Math.round(salaryAmount).toLocaleString())} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}</small>` : '';
       const name = displayValue(item.clientName) || 'Unnamed application';
       const role = displayValue(item.role) || displayValue(item.contact);
       const id = escapeHtml(item.id);
-      return `<tr data-view-details="${id}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${id}" aria-label="Select ${escapeHtml(name)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}
+      return `<tr data-view-details="${id}"><td><input type="checkbox" data-application-select="${id}" aria-label="Select ${escapeHtml(name)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>
         <td class="application-client-cell"><button type="button" class="application-client-open" data-view-details="${id}" aria-label="View details for ${escapeHtml(name)}"><span class="application-client-avatar" aria-hidden="true">${escapeHtml(clientInitials(name))}</span><span class="application-client-copy"><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>${role ? `<small title="${escapeHtml(role)}">${escapeHtml(role)}</small>` : ''}</span></button></td>
         <td class="application-table-muted">${escapeHtml(displayValue(item.platform))}</td><td class="application-table-muted">${escapeHtml(displayValue(item.employmentType))}${salary}</td>
         <td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td>
@@ -3494,7 +3496,6 @@
   function saveToApply(event) {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault();
-    const savingInDrawer = isActiveClientDrawerView('edit');
     const form = $('#toApplyForm');
     if (!form.reportValidity()) return;
     data.toApply = data.toApply || [];
@@ -3550,6 +3551,12 @@
   function markInboxEmailOpened(email) {
     const key = email.gmailId || email.id;
     const opened = openedInboxEmails();
+    if (!email.openedInWorkspace && currentUser?.id) {
+      email.openedInWorkspace = true;
+      persist({ notifyOnError: false }).then(saved => {
+        if (!saved) delete email.openedInWorkspace;
+      });
+    }
     if (opened.has(key)) return;
     opened.add(key);
     if (currentUser?.id) try {
@@ -3646,7 +3653,7 @@
         ? rawSender.slice(0, rawSender.indexOf('<')).replace(/["']/g, '').trim() || rawSender
         : rawSender);
       const initial = clientInitials(sender) || '?';
-      const wasOpened = opened.has(item.gmailId || item.id);
+      const wasOpened = item.openedInWorkspace || opened.has(item.gmailId || item.id);
       const unread = !isSentEmail(item) && !wasOpened && item.labelIds?.includes('UNREAD');
       const readStatus = unread
         ? '<span class="inbox-read-status inbox-unread-dot" aria-label="Unread"></span>'
@@ -3882,6 +3889,13 @@
 
   let showingHiredClientList = false;
 
+  const hiredLayoutKey = 'jeff-va-client-list-layout';
+  let hiredListLayout = 'cards';
+  try {
+    if (localStorage.getItem(hiredLayoutKey) === 'table') hiredListLayout = 'table';
+  } catch {}
+  let hiredTableSort = { column: '', direction: 1 };
+
   function renderHired() {
     const allHired = sortByDate(hiredClients(), activeSinceDate, hiredDateSort);
     const query = $('#hiredSearch').value.trim().toLowerCase();
@@ -3922,12 +3936,18 @@
       detailPanel.classList.add('hidden');
       detailPanel.dataset.clientId = '';
       panel.hidden = false;
-      target.innerHTML = clients.length
-        ? [
+      target.classList.toggle('hired-table-layout', hiredListLayout === 'table');
+      $$('#hiredLayoutToggle button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.hiredLayout === hiredListLayout)));
+      if (!clients.length) {
+        target.innerHTML = `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
+      } else if (hiredListLayout === 'table') {
+        target.innerHTML = renderHiredTable([...nonEndedClients, ...endedClients]);
+      } else {
+        target.innerHTML = [
           ...nonEndedClients.map(renderActiveClientCard),
           ...(endedClients.length ? [`<h3 class="hired-ended-heading">Ended (${endedClients.length})</h3>`, ...endedClients.map(renderActiveClientCard)] : [])
-        ].join('')
-        : `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
+        ].join('');
+      }
       renderHiredClientAvatars();
       return;
     }
@@ -3944,50 +3964,102 @@
     detailPanel.dataset.clientId = '';
   }
 
-  function renderActiveClientCard(item) {
-    const docs = item.documents || [];
+  function hiredListDetails(item) {
     const contractEnded = isContractEnded(item);
     const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
     const endingLabel = contractEnded ? 'Contract ended' : contractEndingLabel(item);
     const statusLabel = endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active');
     const statusPillClass = contractEnded ? 'contract-ended'
       : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
+    const amount = Number(item.salaryAmount);
+    return {
+      contractEnded,
+      name: item.companyName || item.company || item.clientName || item.contact || 'Active client',
+      status: `<span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span>`,
+      rate: amount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
+        ? `${salaryCurrencySymbol(item.salaryCurrency)}${amount.toLocaleString()} / ${item.salaryType === 'monthly' ? 'month' : 'hour'}` : '',
+      end: item.contractEndDate ? formatDate(item.contractEndDate) : 'No end date',
+      tasks: getClientTasks(item.id).filter(task => task.status !== 'done' && !task.completedAt).length
+    };
+  }
+
+  function renderHiredTable(clients) {
+    const { column, direction } = hiredTableSort;
+    const rows = clients.map(item => ({ item, ...hiredListDetails(item) }));
+    const sortValues = {
+      name: row => row.name,
+      rate: row => row.rate ? Number(row.item.salaryAmount) : null,
+      end: row => row.item.contractEndDate || null,
+      tasks: row => row.tasks
+    };
+    if (column) {
+      rows.sort((a, b) => {
+        const first = sortValues[column](a);
+        const second = sortValues[column](b);
+        if (first == null || second == null) return Number(first == null) - Number(second == null);
+        if (column === 'rate') {
+          const currencyOrder = (a.item.salaryCurrency || 'USD').localeCompare(b.item.salaryCurrency || 'USD');
+          if (currencyOrder) return currencyOrder;
+          const periodOrder = a.item.salaryType.localeCompare(b.item.salaryType);
+          if (periodOrder) return periodOrder;
+        }
+        return direction * (typeof first === 'number' ? first - second : first.localeCompare(second));
+      });
+    }
+    const headers = [['Client', 'name'], ['Role'], ['Status'], ['Rate', 'rate'], ['Contract end', 'end'], ['Open tasks', 'tasks']];
+    return `<table class="hired-client-table" aria-label="Clients"><thead><tr>${headers.map(([label, key]) => {
+      if (!key) return `<th scope="col">${label}</th>`;
+      const current = key === column;
+      return `<th scope="col"${current ? ` aria-sort="${direction === 1 ? 'ascending' : 'descending'}"` : ''}><button type="button" data-hired-sort="${key}">${label} <i class="fa-solid fa-${current ? (direction === 1 ? 'sort-up' : 'sort-down') : 'sort'}" aria-hidden="true"></i></button></th>`;
+    }).join('')}<th scope="col"><span class="sr-only">Details</span></th></tr></thead><tbody>${rows.map(({ item, ...client }) => {
+      return `<tr class="${client.contractEnded ? 'contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}"><td><button type="button" class="hired-table-client">${renderHiredListAvatar(item, client.name)}<span>${escapeHtml(client.name)}</span></button></td><td>${escapeHtml(item.role || '')}</td><td>${client.status}</td><td>${escapeHtml(client.rate || 'Not set')}</td><td>${escapeHtml(client.end)}</td><td>${client.tasks}</td><td><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></td></tr>`;
+    }).join('')}</tbody></table>`;
+  }
+
+  function renderHiredListAvatar(item, name) {
+    const avatarPath = item.profileImage?.storagePath;
+    return `<span class="hired-card-avatar" style="--avatar-tone:${clientAvatarHue(name)}" aria-hidden="true"><span>${escapeHtml(clientInitials(name))}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="" hidden />` : ''}</span>`;
+  }
+
+  function renderActiveClientCard(item) {
+    const docs = item.documents || [];
+    const { contractEnded, name: clientDisplayName, status, rate, end, tasks: openTaskCount } = hiredListDetails(item);
     const activeSince = activeSinceDate(item);
-    const initials = clientInitials(item.clientName);
-    const avatarTone = clientAvatarHue(item.clientName);
     const website = String(item.website || '').trim();
     const websiteMarkup = website && !/^n\/?a$/i.test(website)
       ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(website)}</span></a>`
-      : '';
+      : `<button class="hired-card-add-field" type="button" data-hired-edit="${escapeHtml(item.id)}">Add website</button>`;
     const missing = label => `<span aria-label="${label} unavailable">—</span>`;
-    const openTaskCount = getClientTasks(item.id).filter(task => task.status !== 'done' && !task.completedAt).length;
     const matchCount = matchingEmailsForApplication(item)
       .filter(emailItem => !isSentEmail(emailItem)).length;
+    const emailLabel = plural(matchCount, 'email');
+    const emailIcon = `<i class="fa-regular fa-envelope" aria-hidden="true"></i>${matchCount}`;
     const matchMarkup = matchCount
-      ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>`
-      : '<span class="hired-card-match" title="0 emails" aria-label="0 matching emails"><i class="fa-regular fa-envelope" aria-hidden="true"></i>0</span>';
+      ? `<button class="hired-card-match" type="button" data-application-emails="${escapeHtml(item.id)}" title="${emailLabel}" aria-label="View ${emailLabel} for ${escapeHtml(clientDisplayName)}">${emailIcon}</button>`
+      : `<span class="hired-card-match" role="group" title="${emailLabel}" aria-label="${emailLabel}">${emailIcon}</span>`;
     const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
-    const timeZoneMarkup = timeZone?.localTime
-      ? `<span class="hired-card-timezone"><i class="fa-regular fa-clock" aria-hidden="true"></i><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span>${!contractEnded ? renderClientOnlineStatus(item, false) : ''}</span>`
-      : '';
-    const avatarPath = item.profileImage?.storagePath || '';
-    const clientDisplayName = item.companyName || item.company || item.clientName || item.contact || 'Active client';
+    const timeZoneLabel = timeZone?.localTime
+      ? `${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`
+      : followUpTimeZone(item);
+    const timeZoneMarkup = timeZoneLabel
+      ? `<span class="hired-card-timezone"><i class="fa-regular fa-clock" aria-hidden="true"></i><span data-client-timezone-text>${escapeHtml(timeZoneLabel)}</span>${timeZone?.localTime && !contractEnded ? renderClientOnlineStatus(item, false) : ''}</span>`
+      : `<button class="hired-card-add-field" type="button" data-hired-edit="${escapeHtml(item.id)}">Add timezone</button>`;
     const clientSubtitle = [item.contact !== clientDisplayName ? item.contact : '', item.role].filter(Boolean).join(' · ');
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}">
       <span role="link" tabindex="0" class="hired-card-open" aria-label="View details for ${escapeHtml(clientDisplayName)}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong><span class="client-card-subtitle">${clientSubtitle ? escapeHtml(clientSubtitle) : missing('Contact and role')}</span></span></span></span>
+      <span class="hired-card-heading"><span class="hired-card-profile">${renderHiredListAvatar(item, clientDisplayName)}<span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong><span class="client-card-subtitle">${clientSubtitle ? escapeHtml(clientSubtitle) : missing('Contact and role')}</span></span></span></span>
       <span class="hired-card-status-line">
-        <span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span>
+        ${status}
         <span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Since ${activeSince ? escapeHtml(emailDate(activeSince)) : missing('Start date')}</span>
       </span>
+      <span class="hired-card-contract-summary">${rate ? `<strong>${escapeHtml(rate)}</strong>` : `<span>Rate not set</span><button class="hired-card-add-field" type="button" data-hired-edit="${escapeHtml(item.id)}">Add rate</button>`}<span>${item.contractEndDate ? (contractEnded ? 'Ended ' : 'Ends ') : ''}${escapeHtml(end)}</span></span>
       <span class="hired-card-facts">
         ${websiteMarkup}
-        ${item.employmentType ? `<span class="hired-card-contract"><i class="fa-solid fa-briefcase" aria-hidden="true"></i>${escapeHtml(item.employmentType)}</span>` : ''}
         ${timeZoneMarkup}
       </span>
       <span class="hired-card-footer"><span class="hired-card-counts">
-        <span class="hired-card-task-count"><i class="fa-solid fa-list-check" aria-hidden="true"></i>${openTaskCount} open ${openTaskCount === 1 ? 'task' : 'tasks'}</span>
-        <span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}" aria-label="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${docs.length}</span>${matchMarkup}
+        <span class="hired-card-task-count" role="group" aria-label="${plural(openTaskCount, 'open task')}" title="${plural(openTaskCount, 'open task')}"><i class="fa-solid fa-list-check" aria-hidden="true"></i><span aria-hidden="true">${plural(openTaskCount, 'open task')}</span></span>
+        <span class="hired-card-files" role="group" title="${escapeHtml(plural(docs.length, 'file'))}" aria-label="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i><span aria-hidden="true">${docs.length}</span></span>${matchMarkup}
       </span></span>
     </article>`;
   }
@@ -3999,9 +4071,31 @@
   $('#hiredSearch').addEventListener('input', renderHired);
   $('#hiredDateSort').addEventListener('change', event => {
     hiredDateSort = event.target.value;
+    hiredTableSort = { column: '', direction: 1 };
     renderHired();
   });
   $('#hiredStatusFilter').addEventListener('change', renderHired);
+  $('#hiredLayoutToggle').addEventListener('click', event => {
+    const button = event.target.closest('[data-hired-layout]');
+    if (!button) return;
+    hiredListLayout = button.dataset.hiredLayout;
+    try { localStorage.setItem(hiredLayoutKey, hiredListLayout); } catch {}
+    renderHired();
+  });
+  $('#hiredList').addEventListener('click', event => {
+    const sortButton = event.target.closest('[data-hired-sort]');
+    if (sortButton) {
+      const column = sortButton.dataset.hiredSort;
+      hiredTableSort = { column, direction: hiredTableSort.column === column ? -hiredTableSort.direction : 1 };
+      renderHired();
+      $(`[data-hired-sort="${column}"]`).focus({ preventScroll: true });
+      return;
+    }
+    const button = event.target.closest('[data-hired-edit]');
+    if (!button) return;
+    event.stopPropagation();
+    openClientModal(button.dataset.hiredEdit, false, true, false, true);
+  });
   $('#hiredHeaderSummary').addEventListener('click', event => {
     const segment = event.target.closest('[data-hired-filter]');
     if (!segment) return;
@@ -4090,7 +4184,7 @@
       <div class="client-overview-summary-item"><span>Active since</span><strong>${escapeHtml(emailDate(activeSinceDate(item)))}</strong><small>${escapeHtml(contractStatus)} engagement</small></div>
       <div class="client-overview-summary-item"><span>Onboarding</span><strong id="clientOverviewOnboardingStatus">Checking status</strong><small>Client form response</small></div>
       <div class="client-overview-summary-item"><span>Invoices</span><strong>${escapeHtml(plural(invoices.length, 'invoice'))}</strong><small>${latestInvoice ? `Last sent ${escapeHtml(emailDate(latestInvoice.sentAt))}` : 'No invoices sent yet'}</small></div>
-      <div class="client-overview-summary-item"><span>Email History</span><strong>${escapeHtml(plural(sentEmails.length, 'email'))}</strong><small>${latestEmail ? `Last sent ${escapeHtml(emailDate(latestEmail.date))}` : 'No emails sent yet'}</small></div>`;
+      <div class="client-overview-summary-item"><span>Sent Email History</span><strong>${escapeHtml(plural(sentEmails.length, 'email'))}</strong><small>${latestEmail ? `Last sent ${escapeHtml(emailDate(latestEmail.date))}` : 'No emails sent yet'}</small></div>`;
     const detailsMarkup = fields => fields.filter(([, value]) => value).map(([label, value]) => `
       <div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('');
     const contactFields = detailsMarkup([
@@ -4442,16 +4536,28 @@
   }
 
 
+  function renderNavCount(id, count, description) {
+    const badge = $('#' + id);
+    const label = `${count} ${description}`;
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.title = label;
+    badge.setAttribute('role', 'img');
+    badge.setAttribute('aria-label', label);
+    badge.closest('.nav-link').title = `${badge.closest('.nav-link').querySelector('.nav-label').textContent} · ${label}`;
+  }
+
   function updateWeekNavigationCounts() {
     const applicationRange = applicationDateSort && applicationDateSort !== 'all' ? weekRange(Number(applicationDateSort)) : null;
     const emailRange = emailDateSort === 'all' ? null : weekRange(Number(emailDateSort));
     const relevantReceivedEmails = receivedEmails();
-    $('#navApplicationCount').textContent = !applicationDateSort || applicationDateSort === 'all'
+    const applicationCount = !applicationDateSort || applicationDateSort === 'all'
       ? pipelineApplications().length
       : pipelineApplications().filter(item => isInWeeklyRange(applicationAppliedDate(item), applicationRange)).length;
-    $('#navEmailCount').textContent = emailDateSort === 'all'
+    const emailCount = emailDateSort === 'all'
       ? relevantReceivedEmails.length
       : relevantReceivedEmails.filter(item => isInWeeklyRange(item.date, emailRange)).length;
+    renderNavCount('navApplicationCount', applicationCount, applicationRange ? 'applications in the selected week' : 'applications in the pipeline');
+    renderNavCount('navEmailCount', emailCount, emailRange ? 'received emails in the selected week' : 'received emails');
   }
 
   function updateToApplyAttention() {
@@ -4544,10 +4650,10 @@
     renderCurrentView();
     updateWeekNavigationCounts();
     updateInboxAttention();
-    $('#navToApplyCount').textContent = (data.toApply || []).filter(item => item.dueDate === today()).length;
+    renderNavCount('navToApplyCount', (data.toApply || []).filter(item => item.dueDate === today()).length, 'application reminders due today');
     updateToApplyAttention();
-    $('#navHiredCount').textContent = hiredClients().filter(isActiveContract).length;
-    $('#navSubscriptionsCount').textContent = (data.subscriptions || []).filter(item => ['soon', 'expired'].includes(subscriptionStatus(item).key)).length;
+    renderNavCount('navHiredCount', hiredClients().filter(isActiveContract).length, 'clients with active contracts');
+    renderNavCount('navSubscriptionsCount', (data.subscriptions || []).filter(item => ['soon', 'expired'].includes(subscriptionStatus(item).key)).length, 'subscriptions expiring soon or expired');
     $('#settingsAppCount').textContent = data.applications.length;
     $('#settingsEmailCount').textContent = receivedEmails().length;
     const autoBackupFrequency = $('#autoBackupFrequency');
@@ -5090,7 +5196,7 @@
   function renderHiredEmailHistory(item) {
     const sentEmails = sentEmailsForApplication(item);
     return `<section class="client-email-history hired-email-history" aria-live="polite">
-      <header class="client-email-history-head"><h3>Email History</h3><strong>${plural(sentEmails.length, 'email')}</strong></header>
+      <header class="client-email-history-head"><h3>Sent Email History</h3><strong>${plural(sentEmails.length, 'email')}</strong></header>
       <div class="client-email-history-list">${sentEmails.length ? renderClientHistoryEmailRows(sentEmails) : '<p>No emails have been sent to this client.</p>'}</div>
     </section>`;
   }
@@ -9707,7 +9813,11 @@
       // Re-read the deletion list before merging so an older response cannot revive it.
       const currentDeletedGmailIds = new Set(data.deletedGmailIds || []);
       const activeIds = ids.filter(id => !currentDeletedGmailIds.has(id));
+      const openedGmailIds = new Set(data.emails.filter(item => item.openedInWorkspace && item.gmailId).map(item => item.gmailId));
       const fetchedOnes = fetchedMessages.filter(item => !currentDeletedGmailIds.has(item.gmailId));
+      fetchedOnes.forEach(item => {
+        if (openedGmailIds.has(item.gmailId)) item.openedInWorkspace = true;
+      });
       const fetchedGmailIds = new Set(fetchedOnes.map(item => item.gmailId));
       const existingGmailMessages = data.emails.filter(item => item.source === 'gmail'
         && activeIds.includes(item.gmailId)
@@ -11443,6 +11553,23 @@
   });
   $('#applicationFollowUpDateInput').addEventListener('change', event => validateFollowUpDateInput(event.target));
   $('#applicationSearch').addEventListener('input', renderApplications);
+  $('#applicationPlatformCounts').addEventListener('beforetoggle', event => {
+    const button = $('#applicationListLabel');
+    const open = event.newState === 'open';
+    button.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const anchor = button.getBoundingClientRect();
+    const panel = event.target;
+    panel.style.left = Math.max(12, Math.min(anchor.left, innerWidth - 260)) + 'px';
+    panel.style.top = anchor.bottom + 8 + 'px';
+    panel.style.maxHeight = Math.max(0, innerHeight - anchor.bottom - 20) + 'px';
+  });
+  $('#applicationFiltersPanel').addEventListener('beforetoggle', event => {
+    if (event.newState !== 'open') return;
+    const anchor = $('#applicationFiltersButton').getBoundingClientRect();
+    event.target.style.left = Math.max(12, Math.min(anchor.left, innerWidth - 272)) + 'px';
+    event.target.style.top = Math.min(anchor.bottom + 8, Math.max(12, innerHeight - 260)) + 'px';
+  });
   $('#applicationOrderSort').addEventListener('change', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {
     applicationDateFilter = event.target.value;
@@ -11451,18 +11578,30 @@
     updateWeekNavigationCounts();
   });
   $('#applicationDateSort').addEventListener('change', event => {
+    if (event.target.value === 'specific') {
+      $('#applicationExactDate').hidden = false;
+      queueMicrotask(() => $('#applicationExactDate').click());
+      return;
+    }
     applicationDateSort = event.target.value;
-    if (applicationDateSort === 'all') {
+    if (applicationDateSort) {
       applicationDateFilter = '';
       $('#applicationDateFilter').value = '';
     }
     renderApplications();
     updateWeekNavigationCounts();
   });
+  $('#applicationDateFilterCalendar').addEventListener('toggle', event => {
+    if (event.newState !== 'closed' || $('#applicationDateFilter').value) return;
+    $('#applicationDateSort').value = applicationDateSort || 'all';
+    $('#applicationExactDate').hidden = true;
+    $('#applicationsView').dispatchEvent(new Event('application-controls-refresh'));
+    if ($('#applicationFiltersPanel').matches(':popover-open')) $('#applicationDateSort + .application-select-trigger').focus();
+  });
   $('#statusFilter').addEventListener('change', renderApplications);
   $('#platformFilter').addEventListener('change', renderApplications);
   $('#applicationEmploymentFilter').addEventListener('change', renderApplications);
-  for (const select of $$('#applicationsView .application-filter-controls select')) {
+  for (const select of $$('#applicationFiltersPanel select:not(#statusFilter)')) {
     enhanceWorkspaceSelect(select, { labelText: select.getAttribute('aria-label'), refreshTarget: $('#applicationsView') });
   }
   $('#applicationStatusChips').addEventListener('click', event => {
@@ -11487,17 +11626,13 @@
       renderApplications();
     });
   });
-  $('#toggleApplicationSelection').addEventListener('click', () => {
-    applicationSelectionMode = !applicationSelectionMode;
-    if (!applicationSelectionMode) selectedApplicationIds.clear();
-    renderApplications();
-  });
   $('#clearApplicationFilters').addEventListener('click', () => {
     $('#applicationSearch').value = '';
     $('#applicationDateFilter').value = '';
     $('#statusFilter').value = '';
     $('#platformFilter').value = '';
     $('#applicationEmploymentFilter').value = '';
+    $('#applicationOrderSort').value = 'newest';
     $('#applicationDateSort').value = 'all';
     applicationDateFilter = '';
     applicationDateSort = 'all';
@@ -11516,6 +11651,7 @@
       }
       if (filter === 'status') $('#statusFilter').value = '';
       if (filter === 'platform') $('#platformFilter').value = '';
+      if (filter === 'sort') $('#applicationOrderSort').value = 'newest';
       if (filter === 'employment') $('#applicationEmploymentFilter').value = '';
       if (filter === 'week') {
         applicationDateSort = 'all';
@@ -11535,7 +11671,7 @@
     if (!checkbox) return;
     if (checkbox.checked) selectedApplicationIds.add(checkbox.dataset.applicationSelect);
     else selectedApplicationIds.delete(checkbox.dataset.applicationSelect);
-    $('#applicationBulkActions').hidden = !applicationSelectionMode || selectedApplicationIds.size === 0;
+    $('#applicationBulkActions').hidden = selectedApplicationIds.size === 0;
     $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
   });
   $('#clearApplicationSelection').addEventListener('click', () => {
@@ -11666,26 +11802,9 @@
     closeToApplyActions();
     if (id) await deleteToApply(id);
   });
-  function closeToApplyActionMenus(restoreFocus = false) {
-    document.querySelectorAll('[data-to-apply-menu][aria-expanded="true"]').forEach(button => {
-      button.setAttribute('aria-expanded', 'false');
-      button.nextElementSibling.classList.add('hidden');
-      button.nextElementSibling.classList.remove('opens-up');
-      if (restoreFocus) button.focus();
-    });
-  }
-
   document.addEventListener('click', event => {
     const menuButton = event.target.closest('[data-to-apply-actions]');
-    if (menuButton) {
-      closeToApplyActionMenus();
-      openToApplyActions(menuButton.dataset.toApplyActions);
-      return;
-    }
-    closeToApplyActionMenus();
-  });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeToApplyActionMenus(true);
+    if (menuButton) openToApplyActions(menuButton.dataset.toApplyActions);
   });
 
   const DAILY_TASK_TYPES = {
@@ -11952,7 +12071,7 @@
       : dailyTaskFilter === 'all'
         ? [...sortTasks([...visibleOverdueTasks]), ...sortTasks(selectedTasks.filter(task => !overdueIds.has(task.id)))]
         : sortTasks(selectedTasks);
-    $('#navDailyTaskCount').textContent = allTasks.filter(task => task.taskDate === today()).length;
+    renderNavCount('navDailyTaskCount', allTasks.filter(task => task.taskDate === today()).length, 'tasks scheduled for today');
     $('#dailyTaskListTitle').textContent = 'Tasks';
     const overdueGroup = (dailyTaskFilter === 'all' || dailyTaskFilter === 'overdue') && visibleOverdueTasks.length
       ? `<h4 class="daily-task-overdue-heading">Overdue</h4>${sortTasks([...visibleOverdueTasks]).map(task => renderDailyTaskItem(task)).join('')}`
@@ -16506,6 +16625,7 @@
 
   function subscriptionStatus(item = {}, reference = subscriptionToday()) {
     item = item || {};
+    if (item.completed) return { key: 'completed', label: 'Completed', detail: 'Saved for future records' };
     if (item.tracking === 'cancelled') return { key: 'cancelled', label: 'Cancelled', detail: 'No longer tracked for renewal' };
     const expiry = subscriptionDateValue(item.expiryDate), current = subscriptionDateValue(reference);
     if (!Number.isFinite(expiry) || !Number.isFinite(current)) return { key: 'date-needed', label: 'Date needed', detail: 'Add an expiry date' };
@@ -16533,7 +16653,8 @@
     const focusedStatus = summary.contains(document.activeElement) ? document.activeElement.dataset.subscriptionStatus : '';
     summary.innerHTML = [['active', 'Active', states.filter(state => ['active', 'soon'].includes(state.key)).length],
       ['soon', 'Expiring soon', states.filter(state => state.key === 'soon').length],
-      ['expired', 'Expired', states.filter(state => state.key === 'expired').length]]
+      ['expired', 'Expired', states.filter(state => state.key === 'expired').length],
+      ['completed', 'Completed', states.filter(state => state.key === 'completed').length]]
       .map(([key, label, count]) => `<button type="button" data-subscription-status="${key}" aria-pressed="${filter === key}"><span>${label}</span><strong>${count}</strong></button>`).join('');
     if (focusedStatus) summary.querySelector(`[data-subscription-status="${focusedStatus}"]`)?.focus();
     $('#subscriptionsView').dispatchEvent(new Event('application-controls-refresh'));
@@ -16549,7 +16670,7 @@
       return `<article class="subscription-card" data-state="${status.key}"><button class="subscription-card-open" type="button" data-subscription-edit="${id}" aria-label="Edit ${escapeHtml(name)}" aria-haspopup="dialog"></button><div class="subscription-card-heading"><span class="subscription-avatar" aria-hidden="true" style="--subscription-hue:${clientAvatarHue(name) * 24}">${escapeHtml(clientInitials(name))}</span><div><h2>${escapeHtml(name)}</h2><p>${escapeHtml(item.account || '')}</p></div><span class="subscription-status">${status.label}</span></div>
         <div class="subscription-expiry"><span>End of subscription</span><strong>${Number.isFinite(end) ? escapeHtml(formatDate(item.expiryDate)) : 'Not set'}</strong><small>${escapeHtml(status.detail)}</small></div>
         ${progress !== null && status.key !== 'cancelled' ? `<progress class="subscription-renewal-progress" max="100" value="${progress}" aria-label="Time elapsed since this subscription was added"></progress>` : ''}
-        <footer><details class="subscription-card-menu"><summary aria-label="Actions for ${escapeHtml(name)}">⋯</summary><div><button type="button" data-subscription-edit="${id}">Edit</button><button type="button" data-subscription-renew="${id}">Renew</button><button type="button" data-subscription-delete="${id}">Delete</button></div></details></footer></article>`;
+        <footer><details class="subscription-card-menu"><summary aria-label="Actions for ${escapeHtml(name)}">⋯</summary><div><button type="button" data-subscription-edit="${id}">Edit</button><button type="button" data-subscription-renew="${id}">Renew</button><button type="button" data-subscription-complete="${id}">${item.completed ? 'Reopen' : 'Mark complete'}</button><button type="button" data-subscription-delete="${id}">Delete</button></div></details></footer></article>`;
     }).join('') : `<div class="subscriptions-empty"><i class="fa-regular fa-credit-card" aria-hidden="true"></i><h2>${records.length ? 'No subscriptions found' : 'No subscriptions yet'}</h2><button class="button button-secondary" type="button" data-subscription-empty-action>${records.length ? 'Clear filters' : 'Add subscription'}</button></div>`;
   }
 
@@ -16563,7 +16684,7 @@
     $('#subscriptionEditorTitle').textContent = item ? 'Manage subscription' : 'Add subscription';
     for (const [field, value] of Object.entries({ Name: item?.name || '', Account: item?.account || '', Expiry: item?.expiryDate || '' })) $('#subscription' + field).value = value;
     $('#subscriptionFormError').hidden = true;
-    $('#deleteSubscription').hidden = !item; $('#saveSubscription').textContent = 'Save subscription';
+    $('#deleteSubscription').hidden = !item; $('#completeSubscription').hidden = !item; $('#completeSubscription').textContent = item?.completed ? 'Reopen subscription' : 'Mark complete'; $('#saveSubscription').textContent = 'Save subscription';
     const dialog = $('#subscriptionEditor'); if (!dialog.open) dialog.showModal();
     $('#subscriptionName').focus();
   }
@@ -16574,7 +16695,7 @@
 
   function setSubscriptionSaving(value) {
     subscriptionSaving = value;
-    ['saveSubscription', 'deleteSubscription', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
+    ['saveSubscription', 'deleteSubscription', 'completeSubscription', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
     $('#subscriptionForm').setAttribute('aria-busy', String(value));
   }
 
@@ -16590,12 +16711,17 @@
     renderSubscriptions();
   });
   $('#cancelSubscriptionEditor').addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); });
+  $('#completeSubscription').addEventListener('click', () => {
+    if (!subscriptionSaving) toggleSubscriptionComplete($('#subscriptionId').value);
+  });
   $('#subscriptionEditor').addEventListener('cancel', event => { if (subscriptionSaving) event.preventDefault(); });
   $('#subscriptionList').addEventListener('click', event => {
     const edit = event.target.closest('[data-subscription-edit]');
     if (edit) openSubscriptionEditor(edit.dataset.subscriptionEdit);
     const renew = event.target.closest('[data-subscription-renew]');
     if (renew) { openSubscriptionEditor(renew.dataset.subscriptionRenew); $('#subscriptionExpiry').focus(); }
+    const complete = event.target.closest('[data-subscription-complete]');
+    if (complete && !subscriptionSaving) toggleSubscriptionComplete(complete.dataset.subscriptionComplete);
     const remove = event.target.closest('[data-subscription-delete]');
     if (remove && !subscriptionSaving) { openSubscriptionEditor(remove.dataset.subscriptionDelete); $('#deleteSubscription').click(); }
     const menu = event.target.closest('.subscription-card-menu');
@@ -16605,6 +16731,20 @@
       else { $('#subscriptionSearch').value = ''; $('#subscriptionFilter').value = 'all'; renderSubscriptions(); $('#subscriptionSearch').focus(); }
     }
   });
+  async function toggleSubscriptionComplete(id) {
+    if (subscriptionSaving) return;
+    const workspace = data, userId = currentUser?.id, item = (workspace.subscriptions || []).find(record => record.id === id);
+    if (!userId || !item) return;
+    const completing = !item.completed;
+    if (!(await appConfirm(`${completing ? 'Mark' : 'Reopen'} ${item.name} ${completing ? 'as completed and keep it in your records' : 'for renewal tracking'}?`, { title: completing ? 'Complete subscription' : 'Reopen subscription', confirmLabel: completing ? 'Mark complete' : 'Reopen' }))) return;
+    const previous = { ...item }, now = new Date().toISOString();
+    item.completed = completing; item.completedAt = completing ? now : null; item.updatedAt = now;
+    setSubscriptionSaving(true);
+    let saved = false; try { saved = await persist(); } catch { /* Restore on failure. */ } finally { setSubscriptionSaving(false); }
+    if (currentUser?.id !== userId || data !== workspace) return;
+    if (!saved) { Object.assign(item, previous); subscriptionFormError('The subscription could not be updated. Please try again.'); return; }
+    $('#subscriptionEditor').close(); renderAll(); toast(completing ? 'Subscription marked complete' : 'Subscription reopened');
+  }
   $('#subscriptionForm').addEventListener('submit', async event => {
     event.preventDefault(); if (subscriptionSaving || !event.currentTarget.reportValidity()) return;
     if (!currentUser || event.currentTarget.dataset.userId !== currentUser.id) { subscriptionFormError('Your account changed. Close this form and reopen it.'); return; }

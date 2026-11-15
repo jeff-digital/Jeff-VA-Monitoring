@@ -31,24 +31,7 @@
     closeToApplyActions();
     if (id) await deleteToApply(id);
   });
-  function closeToApplyActionMenus(restoreFocus = false) {
-    document.querySelectorAll('[data-to-apply-menu][aria-expanded="true"]').forEach(button => {
-      button.setAttribute('aria-expanded', 'false');
-      button.nextElementSibling.classList.add('hidden');
-      button.nextElementSibling.classList.remove('opens-up');
-      if (restoreFocus) button.focus();
-    });
-  }
-
   document.addEventListener('click', event => {
     const menuButton = event.target.closest('[data-to-apply-actions]');
-    if (menuButton) {
-      closeToApplyActionMenus();
-      openToApplyActions(menuButton.dataset.toApplyActions);
-      return;
-    }
-    closeToApplyActionMenus();
-  });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeToApplyActionMenus(true);
+    if (menuButton) openToApplyActions(menuButton.dataset.toApplyActions);
   });

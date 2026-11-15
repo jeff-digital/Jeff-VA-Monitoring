@@ -85,7 +85,6 @@
   function saveToApply(event) {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault();
-    const savingInDrawer = isActiveClientDrawerView('edit');
     const form = $('#toApplyForm');
     if (!form.reportValidity()) return;
     data.toApply = data.toApply || [];

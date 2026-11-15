@@ -10,10 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" />
     <script src="js/theme.js?v=20261029-dark-mode-white-text"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20261113-application-scroll" />
+    <link rel="stylesheet" href="css/styles.css?v=20261113-structure-cleanup" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-application-scroll" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-backups-layout" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -81,21 +81,12 @@
             <a class="nav-link" href="/documents" data-view="documents" title="Career tools">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-toolbox"></i></span><span class="nav-label">Career tools</span>
             </a>
-            <a class="nav-link" href="/subscriptions" data-view="subscriptions" title="Account subscriptions">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-credit-card"></i></span><span class="nav-label">Subscriptions</span><span class="nav-count" id="navSubscriptionsCount">0</span>
-            </a>
           </div>
           <div class="nav-group">
             <p class="nav-group-label">CLIENT MANAGEMENT</p>
             <a class="nav-link" href="/hired" data-view="hired" title="Active clients">
               <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-user-tie"></i></span><span class="nav-label">Active clients</span>
               <span class="nav-count" id="navHiredCount">0</span>
-            </a>
-          </div>
-          <div class="nav-group">
-            <p class="nav-group-label">FINANCE</p>
-            <a class="nav-link" href="/wallet" data-view="wallet" title="Wallet">
-              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span><span class="nav-label">Wallet</span>
             </a>
           </div>
           <div class="nav-group">
@@ -107,6 +98,15 @@
             <a class="nav-link" href="/to-apply" data-view="to-apply" title="To apply">
               <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-calendar-check"></i></span><span class="nav-label">To apply</span>
               <span class="nav-count" id="navToApplyCount">0</span>
+            </a>
+          </div>
+          <div class="nav-group">
+            <p class="nav-group-label">FINANCE</p>
+            <a class="nav-link" href="/wallet" data-view="wallet" title="Wallet">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-solid fa-wallet"></i></span><span class="nav-label">Wallet</span>
+            </a>
+            <a class="nav-link" href="/subscriptions" data-view="subscriptions" title="Account subscriptions">
+              <span class="nav-icon" aria-hidden="true"><i class="fa-regular fa-credit-card"></i></span><span class="nav-label">Subscriptions</span><span class="nav-count" id="navSubscriptionsCount">0</span>
             </a>
           </div>
         </nav>
@@ -135,7 +135,7 @@
           <div class="topbar-title-area">
             <div class="topbar-copy">
               <p class="eyebrow" id="pageEyebrow">YOUR PIPELINE</p>
-              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><span class="application-workspace-count-summary"><strong id="applicationListLabel" tabindex="0" aria-describedby="applicationPlatformCounts">0 applications</strong><span id="applicationPlatformCounts" role="tooltip"></span></span><span class="workspace-list-count" id="toApplyCountLabel" hidden>0 reminders</span><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" role="group" aria-label="Filter clients by contract" hidden><button type="button" data-hired-filter="all" aria-pressed="true">All <strong id="hiredAllSummary">0</strong></button><button type="button" data-hired-filter="Active" aria-pressed="false">Active <strong id="hiredActiveSummary">0</strong></button><button type="button" data-hired-filter="Contract Ended" aria-pressed="false">Ended <strong id="hiredEndedSummary">0</strong></button></span></div>
+              <div class="page-title-row"><h1 id="pageTitle">Client Dashboard</h1><div class="application-workspace-count-summary"><button id="applicationListLabel" type="button" popovertarget="applicationPlatformCounts">0</button><div id="applicationPlatformCounts" popover aria-label="Applications by source"></div></div><span class="workspace-list-count" id="toApplyCountLabel" hidden>0 reminders</span><span class="hired-header-count" id="hiredCountLabel" hidden>0 clients</span><span class="hired-header-summary" id="hiredHeaderSummary" role="group" aria-label="Filter clients by contract" hidden><button type="button" data-hired-filter="all" aria-pressed="true">All <strong id="hiredAllSummary">0</strong></button><button type="button" data-hired-filter="Active" aria-pressed="false">Active <strong id="hiredActiveSummary">0</strong></button><button type="button" data-hired-filter="Contract Ended" aria-pressed="false">Ended <strong id="hiredEndedSummary">0</strong></button></span></div>
               <p class="page-context" id="applicationWeekDate" hidden></p>
               <p class="page-context" id="emailWeekDate" hidden></p>
               <p class="page-context daily-task-header-date" id="dailyTaskHeaderDate" hidden></p>
@@ -185,6 +185,7 @@
           <span class="sr-only" id="workspaceStartupMessage">Checking your session…</span>
         </div>
 
+        <!-- Dashboard page -->
         <section class="view active" id="dashboardView" data-view-panel="dashboard" data-page="dashboard">
           <section id="clientDashboardPanel" class="dashboard-tab-panel" role="tabpanel" tabindex="0" aria-labelledby="clientDashboardTab" data-dashboard-panel="client">
             <div class="client-dashboard-loading" id="clientDashboardLoading" aria-label="Loading client dashboard" hidden>
@@ -377,6 +378,7 @@
           </section>
         </section>
 
+        <!-- Daily tasks page -->
         <section class="view daily-task-view" id="dailyTaskView" data-view-panel="daily-task" data-page="daily-task">
           <section class="daily-task-layout">
             <section class="panel daily-task-list-panel" aria-labelledby="dailyTaskListTitle">
@@ -420,28 +422,31 @@
           <div class="daily-task-undo-toast" id="dailyTaskUndoToast" role="status" aria-live="polite" hidden><span>Task deleted</span><button type="button" id="undoDailyTaskDelete">Undo</button></div>
         </section>
 
+        <!-- Applications page -->
         <section class="view" id="applicationsView" data-view-panel="applications" data-page="applications">
           <section class="application-workspace-head">
             <div id="applicationStatusChips" class="application-status-chips" role="group" aria-label="Filter by application status"></div>
             <div class="application-filter-footer application-workspace-actions">
-              <button class="text-button" type="button" id="clearApplicationFilters">Clear all</button>
-              <button class="button button-secondary" type="button" id="toggleApplicationSelection" aria-pressed="false">Select</button>
+
+
               <div class="application-view-toggle" role="group" aria-label="Application view">
-                <button class="button button-secondary active" type="button" data-application-view="table" aria-pressed="true"><i class="fa-solid fa-table-list" aria-hidden="true"></i> List</button>
-                <button class="button button-secondary" type="button" data-application-view="board" aria-pressed="false"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Board</button>
+                <button class="button button-secondary active" type="button" data-application-view="table" aria-label="List view" title="List view" aria-pressed="true"><i class="fa-solid fa-table-list" aria-hidden="true"></i></button>
+                <button class="button button-secondary" type="button" data-application-view="board" aria-label="Board view" title="Board view" aria-pressed="false"><i class="fa-solid fa-table-columns" aria-hidden="true"></i></button>
               </div>
             </div>
           </section>
-          <section class="application-filters" aria-label="Application filters">
+          <section class="application-filter-toolbar" aria-label="Application filters">
             <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="applicationSearch" aria-label="Search applications" placeholder="Search applications" /></label>
-            <div class="application-filter-controls">
-              <label class="application-filter-field"><input type="date" id="applicationDateFilter" aria-label="Filter applications by application date" /></label>
-              <label class="application-filter-field"><select id="applicationDateSort" aria-label="Filter applications by week"><option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option></select></label>
+            <button class="button button-secondary" type="button" id="applicationFiltersButton" popovertarget="applicationFiltersPanel"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters</button>
+            <div id="applicationFiltersPanel" popover aria-label="Application filters">
+              <div class="application-filter-field"><input type="hidden" id="applicationDateFilter" /><button class="button button-secondary inbox-date-trigger" type="button" data-follow-up-calendar="applicationDateFilter" id="applicationExactDate" hidden><i class="fa-regular fa-calendar" aria-hidden="true"></i><span>Specific date</span></button></div>
+              <label class="application-filter-field"><select id="applicationDateSort" aria-label="Date range"><option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option></select></label>
               <label class="application-filter-field"><select id="applicationOrderSort" aria-label="Sort applications by date"><option value="newest">Newest</option><option value="oldest">Oldest</option></select></label>
-              <label class="application-filter-field"><select id="statusFilter" aria-label="Filter applications by stage"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Offer</option><option>Active client</option><option value="Not selected">Rejected</option></select></label>
+              <div hidden><select id="statusFilter" aria-label="Filter applications by stage"><option value="">All stages</option><option>Ongoing</option><option>Applied</option><option>To Proceed</option><option>Interview</option><option>Offer</option><option>Active client</option><option value="Not selected">Rejected</option></select></div>
               <label class="application-filter-field"><select id="platformFilter" aria-label="Filter applications by platform"><option value="">All sources</option></select></label><label class="application-filter-field"><select id="applicationEmploymentFilter" aria-label="Filter by employment type"><option value="">All employment types</option><option>Full time</option><option>Part time</option><option>Gig</option></select></label>
             </div>
             <div id="applicationFilterChips" class="application-filter-chips" aria-live="polite"></div>
+            <button class="text-button" type="button" id="clearApplicationFilters" hidden>Clear all</button>
           </section>
           <section class="panel application-panel">
             <div class="application-bulk-bar" id="applicationBulkActions" hidden>
@@ -455,6 +460,7 @@
           </section>
         </section>
 
+        <!-- To Apply page -->
         <section class="view" id="toApplyView" data-view-panel="to-apply" data-page="to-apply">
           <section class="application-filters to-apply-filters" aria-label="Reminder filters">
             <label class="search-field application-search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="toApplySearch" aria-label="Search reminders" placeholder="Search reminders" /></label>
@@ -467,6 +473,7 @@
           </section>
         </section>
 
+        <!-- Industry news page -->
         <section class="view news-view" id="newsView" data-view-panel="news" data-page="news">
           <section class="news-live-panel" aria-label="Published news">
             <div class="news-live-toolbar">
@@ -484,6 +491,7 @@
           </section>
         </section>
 
+        <!-- Social trends page -->
         <section class="view social-trends-view" id="socialTrendsView" data-view-panel="social-trends" data-page="social-trends">
           <section class="social-trends-intro">
             <div><p class="eyebrow">CONTENT RESEARCH</p><h2>Track trends across platforms</h2><p>Record reliable view and usage counts for TikTok, Instagram, YouTube, Facebook, and other sources.</p></div>
@@ -503,11 +511,16 @@
           <section class="social-trend-grid" id="socialTrendGrid" aria-live="polite"></section>
         </section>
 
+        <!-- Active Clients page -->
         <section class="view" id="hiredView" data-view-panel="hired" data-page="active-clients">
           <section class="toolbar">
             <label class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="hiredSearch" aria-label="Search clients" placeholder="Search clients" /></label>
             <label class="select-field"><span class="sr-only">Sort active clients by date</span><select id="hiredDateSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
             <label class="select-field"><span class="sr-only">Filter by contract status</span><select id="hiredStatusFilter"><option value="all">All contracts</option><option value="Active">Active</option><option value="Not active">Not active</option><option value="Contract Ended">Contract Ended</option></select></label>
+            <div class="hired-layout-toggle" id="hiredLayoutToggle" role="group" aria-label="Client list layout">
+              <button type="button" data-hired-layout="cards" aria-pressed="true"><i class="fa-solid fa-table-cells-large" aria-hidden="true"></i> Cards</button>
+              <button type="button" data-hired-layout="table" aria-pressed="false"><i class="fa-solid fa-table-list" aria-hidden="true"></i> Table</button>
+            </div>
           </section>
           <section class="panel hired-panel" hidden>
             <div class="hired-list" id="hiredList"></div>
@@ -535,7 +548,7 @@
               <button class="client-detail-tab" id="clientOnboardingTab" type="button" role="tab" aria-selected="false" aria-controls="clientOnboardingPanel" data-client-detail-tab="onboarding">Onboarding</button>
               <button class="client-detail-tab" id="clientContractInfoTab" type="button" role="tab" aria-selected="false" aria-controls="clientContractsPanel" data-client-detail-tab="contract-info">Contract Info</button>
               <button class="client-detail-tab" id="clientInvoicesTab" type="button" role="tab" aria-selected="false" aria-controls="clientInvoicesPanel" data-client-detail-tab="invoices">Invoices</button>
-              <button class="client-detail-tab" id="clientEmailHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="clientEmailHistoryPanel" data-client-detail-tab="email-history">Email History</button>
+              <button class="client-detail-tab" id="clientEmailHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="clientEmailHistoryPanel" data-client-detail-tab="email-history">Sent Email History</button>
             </div>
             <div class="client-detail-panels" id="hiredUploadSection">
               <section class="client-detail-panel" id="clientOverviewPanel" role="tabpanel" tabindex="0" aria-labelledby="clientOverviewTab" data-client-detail-panel="overview">
@@ -600,6 +613,7 @@
           </section>
         </section>
 
+        <!-- Email inbox page -->
         <section class="view" id="inboxView" data-view-panel="inbox" data-page="inbox">
           <section class="panel inbox-panel">
             <header class="email-panel-header">
@@ -664,6 +678,7 @@
           </section>
         </section>
 
+        <!-- Career tools page -->
         <section class="view" id="documentsView" data-view-panel="documents" data-page="tools">
           <section class="panel documents-page-panel">
             <div class="career-tools-layout">
@@ -798,10 +813,11 @@
           </section>
         </section>
 
+        <!-- Subscriptions page -->
         <section class="view subscriptions-view" id="subscriptionsView" data-view-panel="subscriptions" data-page="subscriptions">
           <div class="subscriptions-toolbar">
             <label class="search-field"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="subscriptionSearch" placeholder="Search service or account" aria-label="Search subscriptions" /></label>
-            <label><span class="sr-only">Filter subscriptions by status</span><select id="subscriptionFilter"><option value="all">All subscriptions</option><option value="active">Active</option><option value="soon">Expiring soon</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></label>
+            <label><span class="sr-only">Filter subscriptions by status</span><select id="subscriptionFilter"><option value="all">All subscriptions</option><option value="active">Active</option><option value="soon">Expiring soon</option><option value="expired">Expired</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
           </div>
           <div class="subscriptions-summary" id="subscriptionSummary" aria-label="Subscription overview"></div>
           <p class="subscriptions-count" id="subscriptionCount" role="status" aria-live="polite"></p>
@@ -816,11 +832,12 @@
                 <label class="form-field"><span>End of subscription</span><input id="subscriptionExpiry" type="date" required /></label>
                 <p class="subscription-form-error" id="subscriptionFormError" role="alert" hidden></p>
               </div>
-              <footer><button class="button button-secondary subscription-delete" id="deleteSubscription" type="button" hidden>Delete</button><div><button class="button button-secondary" id="cancelSubscriptionEditor" type="button">Cancel</button><button class="button button-primary" id="saveSubscription" type="submit">Save subscription</button></div></footer>
+              <footer><div class="subscription-footer-secondary"><button class="button button-secondary subscription-complete" id="completeSubscription" type="button" hidden>Mark complete</button><button class="button button-secondary subscription-delete" id="deleteSubscription" type="button" hidden>Delete</button></div><div class="subscription-footer-primary"><button class="button button-secondary" id="cancelSubscriptionEditor" type="button">Cancel</button><button class="button button-primary" id="saveSubscription" type="submit">Save subscription</button></div></footer>
             </form>
           </dialog>
         </section>
 
+        <!-- Wallet page -->
         <section class="view" id="walletView" data-view-panel="wallet" data-page="wallet">
           <div class="wallet-summary" id="walletSummary" aria-label="Wallet totals"></div>
           <p class="wallet-hint" id="walletInvoiceNotice" role="status"></p>
@@ -853,6 +870,7 @@
           </section>
         </section>
 
+        <!-- Account and security page -->
         <section class="view account-view" id="accountView" data-view-panel="account" data-page="account">
           <section class="account-identity-section">
             <div class="account-avatar" aria-hidden="true"><i class="fa-solid fa-user"></i></div>
@@ -947,12 +965,18 @@
           <section class="account-section account-history-section" aria-labelledby="accountLoginActivityTitle">
             <div class="account-section-heading account-history-heading">
               <h2 id="accountLoginActivityTitle">Login attempts</h2>
-              <label>View <select id="accountLoginActivityScope"><option value="account">My account</option value="all" id="accountLoginActivityAll" hidden>All submitted attempts (admin)</option></select></label>
-              <button class="button button-secondary" id="accountLoginActivityRefresh" type="button">Refresh</button>
+              <div class="account-history-controls">
+                <label class="sr-only" for="accountLoginActivityScope">Login attempt scope</label>
+                <select id="accountLoginActivityScope"><option value="account">My account</option value="all" id="accountLoginActivityAll" hidden>All submitted attempts (admin)</option></select>
+                <button class="button button-secondary" id="accountLoginActivityRefresh" type="button"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Refresh</button>
+              </div>
             </div>
             <p class="settings-copy">Last 30 days · Up to 100 attempts</p>
             <p class="account-empty-state" id="accountLoginActivityStatus" role="status" aria-live="polite">Login activity not loaded.</p>
-            <ol class="account-sign-in-history account-login-activity" id="accountLoginActivity" aria-label="Login attempt history"></ol>
+            <div class="account-login-table">
+              <div class="account-login-columns" aria-hidden="true"><span>Sign-in method</span><span>Result</span><span>Date and time</span></div>
+              <ol class="account-sign-in-history account-login-activity" id="accountLoginActivity" aria-label="Login attempt history"></ol>
+            </div>
           </section>
           <section class="account-section account-history-section" aria-labelledby="accountSignInHistoryTitle">
             <div class="account-section-heading account-history-heading">
@@ -987,6 +1011,7 @@
       </main>
     </div>
 
+    <!-- Daily task dialogs -->
     <dialog class="modal daily-task-add-modal" id="dailyTaskAddModal" aria-labelledby="dailyTaskAddModalTitle">
       <form class="daily-task-form" id="dailyTaskForm">
         <div class="modal-heading">
@@ -1040,6 +1065,7 @@
       </div>
     </dialog>
 
+    <!-- Workspace dialogs -->
     <dialog class="modal small-modal app-confirm-modal" id="appConfirmModal" aria-labelledby="appConfirmTitle" aria-describedby="appConfirmMessage">
       <form method="dialog" class="app-confirm-form">
         <div class="modal-heading">
@@ -1125,6 +1151,7 @@
       </form>
     </dialog>
 
+    <!-- Career tools dialogs -->
     <dialog class="modal" id="scriptDialog" aria-labelledby="scriptDialogTitle">
       <form method="dialog" id="scriptForm" class="script-form">
         <div class="modal-heading">
@@ -1164,6 +1191,7 @@
       </form>
     </dialog>
 
+    <!-- To Apply dialogs -->
     <dialog class="modal small-modal" id="toApplyModal" aria-labelledby="toApplyModalTitle">
       <form method="dialog" id="toApplyForm" class="to-apply-form">
         <div class="modal-heading">
@@ -1183,6 +1211,7 @@
       <footer class="to-apply-actions-footer"><button class="button button-secondary" type="button" id="cancelToApplyActions">Cancel</button></footer>
     </dialog>
 
+    <!-- Application and client record dialogs -->
     <dialog class="modal" id="clientModal" aria-labelledby="clientModalTitle">
       <form method="dialog" id="clientForm">
         <div class="modal-heading">
@@ -1437,6 +1466,7 @@
       </form>
     </dialog>
 
+    <!-- Weekly report dialogs -->
     <dialog class="modal weekly-report-modal" id="weeklyReportModal" aria-labelledby="weeklyReportTitle">
       <form method="dialog" class="weekly-report-form">
         <header class="weekly-report-header">
@@ -1552,6 +1582,7 @@
       </form>
     </dialog>
 
+    <!-- Client profile, drawers, and invoice preview -->
     <dialog class="modal small-modal client-avatar-upload-modal" id="clientAvatarUploadModal" aria-labelledby="clientAvatarUploadTitle">
       <form method="dialog" class="client-avatar-upload-shell">
         <div class="modal-heading">
@@ -1830,6 +1861,7 @@
       </footer>
     </dialog>
 
+    <!-- Document and email dialogs -->
     <dialog class="modal document-viewer-modal" id="documentViewerModal" aria-labelledby="documentViewerTitle">
       <form method="dialog">
         <div class="modal-heading">
@@ -1910,6 +1942,7 @@
       </form>
     </dialog>
 
+    <!-- Settings dialog -->
     <dialog class="modal settings-modal" id="settingsModal" aria-labelledby="settingsTitle">
       <header class="settings-modal-heading">
         <div class="settings-brand"><span class="settings-brand-icon" aria-hidden="true"><i class="fa-solid fa-sliders"></i></span><div><p class="eyebrow">YOUR WORKSPACE</p><h2 id="settingsTitle">Settings &amp; account</h2></div></div>
@@ -1939,20 +1972,26 @@
         <section class="settings-device-section" data-settings-panel="backups" aria-labelledby="settingsDeviceTitle">
           <div class="settings-device-heading"><div><p class="eyebrow">BACKUP &amp; DEVICE</p><h3 id="settingsDeviceTitle">Data &amp; backups</h3></div></div>
           <div class="settings-stats"><span><strong id="settingsAppCount">0</strong> applications</span><span><strong id="settingsEmailCount">0</strong> emails</span></div>
-          <p class="settings-copy">Excel backups exclude attached files.</p>
           <div class="settings-backup-controls">
-            <label class="form-field">Excel download schedule
+            <div class="settings-backup-row">
+              <div><label class="settings-backup-label" for="autoBackupFrequency">Excel download schedule</label><p class="settings-copy" id="autoBackupNote">Scheduled backups go to Documents. Manual downloads go to Downloads.</p><p class="backup-status" id="documentsBackupStatus" role="status" aria-live="polite">Waiting for the first Documents backup.</p></div>
               <select id="autoBackupFrequency" aria-describedby="autoBackupNote">
                 <option value="off">Off</option>
                 <option value="daily">Every day</option>
                 <option value="weekly">Every week</option>
               </select>
-            </label>
-            <div><p class="settings-copy" id="autoBackupNote">Saved to Documents. Manual downloads go to Downloads.</p><p class="backup-status" id="documentsBackupStatus" role="status" aria-live="polite">Waiting for the first Documents backup.</p></div>
-            <button class="button button-secondary" type="button" id="exportFullWorkspaceBackup">Download full backup (.json)</button>
-            <p class="settings-copy">Includes email history. Attached files stay in storage.</p>
-            <button class="button button-secondary" type="button" id="unlockDataControlsButton">Unlock data controls</button>
-            <button class="danger-button" type="button" id="clearDataButton" hidden>Clear all cloud data</button>
+            </div>
+            <div class="settings-backup-row">
+              <div><span class="settings-backup-label">Full workspace backup</span><p class="settings-copy" id="fullWorkspaceBackupNote">Includes email history. Attached files stay in storage.</p></div>
+              <button class="button button-secondary" type="button" id="exportFullWorkspaceBackup" aria-describedby="fullWorkspaceBackupNote">Download backup (.json)</button>
+            </div>
+            <div class="settings-backup-row">
+              <span class="settings-backup-label">Data controls</span>
+              <div class="settings-data-actions">
+                <button class="button button-secondary" type="button" id="unlockDataControlsButton">Unlock data controls</button>
+                <button class="danger-button" type="button" id="clearDataButton" hidden>Clear all cloud data</button>
+              </div>
+            </div>
           </div>
         </section>
       </section>
@@ -1960,6 +1999,7 @@
       </div>
     </dialog>
 
+    <!-- World clock dialog -->
     <dialog class="modal world-clock-modal" id="worldClockModal" aria-labelledby="worldClockTitle" aria-describedby="worldClockHelp">
       <form method="dialog" class="world-clock-form">
         <div class="modal-heading"><div><p class="eyebrow">CLIENT TIME ZONES</p><h2 id="worldClockTitle">World clock</h2></div></div>
@@ -1984,6 +2024,6 @@
     <script src="js/invoice-engine.js?v=20261111-invoice-summary-layout"></script>
     <script src="js/invoice-payment-brands.js?v=20261111-terms-below-payment"></script>
     <script src="js/invoice-pdf.js?v=20261112-compact-invoice-total"></script>
-    <script src="js/app.js?v=20261113-business-news"></script>
+    <script src="js/app.js?v=20261113-structure-cleanup"></script>
   </body>
 </html>

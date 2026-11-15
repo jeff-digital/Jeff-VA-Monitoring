@@ -11,7 +11,7 @@
       const range = weekRange(offset);
       return `<option value="${offset}">${escapeHtml(weeklyRangeLabel(range).replace(' – ', ' to '))}</option>`;
     }).join('');
-    return `<option value="">- Select -</option><option value="all">All weeks</option><option value="0">This week</option>${options}`;
+    return `<option value="specific">Specific date…</option><option value="all">All weeks</option><option value="0">This week</option>${options}`;
   }
 
   function sortApplicationList(items, order = 'newest') {
@@ -93,10 +93,12 @@
     const weekOffset = Number(applicationDateSort);
     const weekRangeFilter = applicationDateSort && applicationDateSort !== 'all' ? weekRange(weekOffset) : null;
     $('#applicationWeekDate').textContent = !applicationDateSort
-      ? 'Select a week'
+      ? dateFilter ? emailDate(dateFilter) : 'All weeks'
       : applicationDateSort === 'all' ? 'All weeks' : weeklyRangeLabel(weekRangeFilter).replace(' – ', ' to ');
     $('#applicationDateSort').innerHTML = applicationWeekOptions();
-    $('#applicationDateSort').value = applicationDateSort;
+    $('#applicationDateSort').value = dateFilter ? 'specific' : applicationDateSort || 'all';
+    $('#applicationExactDate').hidden = !dateFilter;
+    $('#applicationExactDate span').textContent = dateFilter ? emailDate(dateFilter) : 'Specific date';
     const pipeline = pipelineApplications();
     const matchesStatus = (item, value) => !value || (value === 'To Proceed' ? isToProceedStatus(item) : item.status === value);
     const eligible = pipeline.filter(item => {
@@ -108,8 +110,8 @@
         && (!employment || item.employmentType === employment) && dateMatches && weekMatches;
     });
     const filtered = eligible.filter(item => matchesStatus(item, status));
-    $('#applicationListLabel').textContent = String(filtered.length);
-    $('#applicationListLabel').setAttribute('aria-label', `${filtered.length} of ${pipeline.length} applications`);
+    $('#applicationListLabel').textContent = String(pipeline.length);
+    $('#applicationListLabel').setAttribute('aria-label', plural(pipeline.length, 'application') + ' total. Show breakdown by source');
     const chips = [['', 'All'], ['Applied', 'Applied'], ['Interview', 'Interview'], ['Offer', 'Offer'], ['Not selected', 'Rejected']];
     const chipGroup = $('#applicationStatusChips');
     if (!chipGroup.children.length) chipGroup.innerHTML = chips.map(([value, label]) =>
@@ -131,33 +133,30 @@
       .sort(([first], [second]) => first.localeCompare(second, undefined, { sensitivity: 'base' }))
       .map(([name, count]) => `<span class="application-source-row"><span>${escapeHtml(name)}</span><strong>${count}</strong></span>`)
       .join('');
-    $('#applicationPlatformCounts').innerHTML = `<span class="application-source-heading"><span>Applications by source</span><strong>${filtered.length}</strong></span><span class="application-source-caption">Current filtered results</span><span class="application-source-list">${sourceBreakdown || '<span class="application-source-empty">No applications in this view</span>'}</span>`;
+    $('#applicationPlatformCounts').innerHTML = `<span class="application-source-heading">Applications by source</span><span class="application-source-caption">${filtered.length} of ${pipeline.length} match the current filters</span><span class="application-source-list">${sourceBreakdown || '<span class="application-source-empty">No applications in this view</span>'}</span>`;
     const target = $('#applicationList');
     const filterChips = [
       query ? ['search', `Search: ${query}`] : null,
+      $('#applicationOrderSort').value !== 'newest' ? ['sort', 'Oldest first'] : null,
       dateFilter ? ['date', `Date: ${emailDate(dateFilter)}`] : null,
-      status && status !== 'Applied' ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
+      status ? ['status', `Stage: ${status === 'Not selected' ? 'Rejected' : status}`] : null,
       platform ? ['platform', `Source: ${platform}`] : null,
       employment ? ['employment', `Employment: ${employment}`] : null,
-      applicationDateSort && applicationDateSort !== '0' && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
+      applicationDateSort && applicationDateSort !== 'all' ? ['week', `Week: ${$('#applicationWeekDate').textContent}`] : null
     ].filter(Boolean);
     $('#applicationFilterChips').innerHTML = filterChips.map(([key, label]) => `<button class="filter-chip" type="button" data-remove-application-filter="${key}">${escapeHtml(label)} <span aria-hidden="true">×</span><span class="sr-only">Remove filter</span></button>`).join('');
-    $('#clearApplicationFilters').hidden = filterChips.length === 0 && applicationDateSort !== '0' && status !== 'Applied';
+    $('#clearApplicationFilters').hidden = filterChips.length === 0 && status !== 'Applied';
     $$('[data-application-view]').forEach(button => {
       const selected = button.dataset.applicationView === applicationViewMode;
       button.classList.toggle('active', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
-    const selectionToggle = $('#toggleApplicationSelection');
-    selectionToggle.classList.toggle('active', applicationSelectionMode);
-    selectionToggle.setAttribute('aria-pressed', String(applicationSelectionMode));
-    selectionToggle.textContent = applicationSelectionMode ? 'Done' : 'Select';
     target.classList.toggle('application-board-mode', applicationViewMode === 'board');
-    target.classList.toggle('selection-mode', applicationSelectionMode);
+    target.classList.toggle('selection-mode', applicationViewMode === 'table');
     selectedApplicationIds.forEach(id => {
       if (!filtered.some(item => item.id === id)) selectedApplicationIds.delete(id);
     });
-    $('#applicationBulkActions').hidden = !applicationSelectionMode || selectedApplicationIds.size === 0;
+    $('#applicationBulkActions').hidden = selectedApplicationIds.size === 0;
     $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
     if (!filtered.length) {
       const isFiltered = pipeline.length > 0;
@@ -169,7 +168,7 @@
       const stages = ['To Proceed', 'Ongoing', 'Applied', 'Interview', ...(sortedApplications.some(item => item.status === 'Offer') ? ['Offer'] : []), 'Active client', 'Not selected'];
       target.innerHTML = `<div class="application-board">${stages.map(stage => {
         const cards = sortedApplications.filter(item => stage === 'To Proceed' ? isToProceedStatus(item) : item.status === stage);
-        return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}">${applicationSelectionMode ? `<input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} />` : ''}<button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
+        return `<section class="application-board-column" data-application-drop-status="${escapeHtml(stage)}"><header><h3>${escapeHtml(stage === 'Not selected' ? 'Rejected' : stage)}</h3><span>${cards.length}</span></header><div class="application-board-cards">${cards.map(item => `<article class="application-board-card" draggable="${stage !== 'Active client'}" data-application-card="${escapeHtml(item.id)}"><input type="checkbox" data-application-select="${escapeHtml(item.id)}" aria-label="Select ${escapeHtml(item.clientName)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /><button type="button" class="application-board-card-open" data-view-details="${escapeHtml(item.id)}"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.role || item.contact || 'Role not set')}</span><small>${escapeHtml(item.platform || 'Source not set')} · ${escapeHtml(emailDate(item.appliedDate))}</small></button>${statusPill(item.status)}<button class="icon-button" type="button" data-edit-id="${escapeHtml(item.id)}" aria-label="Edit ${escapeHtml(item.clientName)}">⋯</button></article>`).join('') || '<p class="application-board-empty">No applications</p>'}</div></section>`;
       }).join('')}</div>`;
       return;
     }
@@ -177,14 +176,14 @@
     applicationPage = Math.min(applicationPage, pageCount - 1);
     const offset = applicationPage * applicationPageSize;
     const displayValue = value => /^(?:n\/?a|—|-)$/i.test(String(value || '').trim()) ? '' : String(value || '').trim();
-    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" aria-label="Applications"><thead><tr>${applicationSelectionMode ? '<th scope="col"><span class="sr-only">Select</span></th>' : ''}<th scope="col">Client / role</th><th scope="col">Platform</th><th scope="col">Employment type</th><th scope="col">Status</th><th scope="col">Date applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.slice(offset, offset + applicationPageSize).map(item => {
+    target.innerHTML = `<div class="application-table-wrap"><table class="application-data-table" aria-label="Applications"><thead><tr><th scope="col"><span class="sr-only">Select</span></th><th scope="col">Client / role</th><th scope="col">Platform</th><th scope="col">Employment type</th><th scope="col">Status</th><th scope="col">Date applied</th><th scope="col">Follow-up</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${sortedApplications.slice(offset, offset + applicationPageSize).map(item => {
       const salaryAmount = Number(item.salaryAmount);
       const salary = Number.isFinite(salaryAmount) && salaryAmount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
         ? `<small>${escapeHtml(salaryCurrencySymbol(item.salaryCurrency) + Math.round(salaryAmount).toLocaleString())} / ${item.salaryType === 'hourly' ? 'hour' : 'month'}</small>` : '';
       const name = displayValue(item.clientName) || 'Unnamed application';
       const role = displayValue(item.role) || displayValue(item.contact);
       const id = escapeHtml(item.id);
-      return `<tr data-view-details="${id}">${applicationSelectionMode ? `<td><input type="checkbox" data-application-select="${id}" aria-label="Select ${escapeHtml(name)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>` : ''}
+      return `<tr data-view-details="${id}"><td><input type="checkbox" data-application-select="${id}" aria-label="Select ${escapeHtml(name)}"${selectedApplicationIds.has(item.id) ? ' checked' : ''} /></td>
         <td class="application-client-cell"><button type="button" class="application-client-open" data-view-details="${id}" aria-label="View details for ${escapeHtml(name)}"><span class="application-client-avatar" aria-hidden="true">${escapeHtml(clientInitials(name))}</span><span class="application-client-copy"><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>${role ? `<small title="${escapeHtml(role)}">${escapeHtml(role)}</small>` : ''}</span></button></td>
         <td class="application-table-muted">${escapeHtml(displayValue(item.platform))}</td><td class="application-table-muted">${escapeHtml(displayValue(item.employmentType))}${salary}</td>
         <td><span class="application-stage-email-count">${statusPill(item.status)}${matchBadge(item)}</span></td>

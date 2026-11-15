@@ -52,11 +52,14 @@
       const details = document.createElement('details');
       const summary = document.createElement('summary');
       const method = document.createElement('span');
-      method.textContent = `${event.provider || 'Sign-in'} · ${labels[event.result] || 'Unknown'}`;
+      method.textContent = event.provider || 'Sign-in';
+      const result = document.createElement('span');
+      result.className = 'account-login-result';
+      result.textContent = labels[event.result] || 'Unknown';
       const timestamp = document.createElement('time');
       timestamp.dateTime = event.at || '';
       timestamp.textContent = formatAccountTimestamp(event.at);
-      summary.append(method, timestamp);
+      summary.append(method, result, timestamp);
       const metadata = document.createElement('dl');
       if (event.submittedEmail) {
         const term = document.createElement('dt');

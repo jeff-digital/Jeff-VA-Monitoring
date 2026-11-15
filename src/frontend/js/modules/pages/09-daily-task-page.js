@@ -262,7 +262,7 @@
       : dailyTaskFilter === 'all'
         ? [...sortTasks([...visibleOverdueTasks]), ...sortTasks(selectedTasks.filter(task => !overdueIds.has(task.id)))]
         : sortTasks(selectedTasks);
-    $('#navDailyTaskCount').textContent = allTasks.filter(task => task.taskDate === today()).length;
+    renderNavCount('navDailyTaskCount', allTasks.filter(task => task.taskDate === today()).length, 'tasks scheduled for today');
     $('#dailyTaskListTitle').textContent = 'Tasks';
     const overdueGroup = (dailyTaskFilter === 'all' || dailyTaskFilter === 'overdue') && visibleOverdueTasks.length
       ? `<h4 class="daily-task-overdue-heading">Overdue</h4>${sortTasks([...visibleOverdueTasks]).map(task => renderDailyTaskItem(task)).join('')}`

@@ -1476,7 +1476,11 @@
       // Re-read the deletion list before merging so an older response cannot revive it.
       const currentDeletedGmailIds = new Set(data.deletedGmailIds || []);
       const activeIds = ids.filter(id => !currentDeletedGmailIds.has(id));
+      const openedGmailIds = new Set(data.emails.filter(item => item.openedInWorkspace && item.gmailId).map(item => item.gmailId));
       const fetchedOnes = fetchedMessages.filter(item => !currentDeletedGmailIds.has(item.gmailId));
+      fetchedOnes.forEach(item => {
+        if (openedGmailIds.has(item.gmailId)) item.openedInWorkspace = true;
+      });
       const fetchedGmailIds = new Set(fetchedOnes.map(item => item.gmailId));
       const existingGmailMessages = data.emails.filter(item => item.source === 'gmail'
         && activeIds.includes(item.gmailId)

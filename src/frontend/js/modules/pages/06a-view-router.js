@@ -1,13 +1,25 @@
+  function renderNavCount(id, count, description) {
+    const badge = $('#' + id);
+    const label = `${count} ${description}`;
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.title = label;
+    badge.setAttribute('role', 'img');
+    badge.setAttribute('aria-label', label);
+    badge.closest('.nav-link').title = `${badge.closest('.nav-link').querySelector('.nav-label').textContent} · ${label}`;
+  }
+
   function updateWeekNavigationCounts() {
     const applicationRange = applicationDateSort && applicationDateSort !== 'all' ? weekRange(Number(applicationDateSort)) : null;
     const emailRange = emailDateSort === 'all' ? null : weekRange(Number(emailDateSort));
     const relevantReceivedEmails = receivedEmails();
-    $('#navApplicationCount').textContent = !applicationDateSort || applicationDateSort === 'all'
+    const applicationCount = !applicationDateSort || applicationDateSort === 'all'
       ? pipelineApplications().length
       : pipelineApplications().filter(item => isInWeeklyRange(applicationAppliedDate(item), applicationRange)).length;
-    $('#navEmailCount').textContent = emailDateSort === 'all'
+    const emailCount = emailDateSort === 'all'
       ? relevantReceivedEmails.length
       : relevantReceivedEmails.filter(item => isInWeeklyRange(item.date, emailRange)).length;
+    renderNavCount('navApplicationCount', applicationCount, applicationRange ? 'applications in the selected week' : 'applications in the pipeline');
+    renderNavCount('navEmailCount', emailCount, emailRange ? 'received emails in the selected week' : 'received emails');
   }
 
   function updateToApplyAttention() {
@@ -100,10 +112,10 @@
     renderCurrentView();
     updateWeekNavigationCounts();
     updateInboxAttention();
-    $('#navToApplyCount').textContent = (data.toApply || []).filter(item => item.dueDate === today()).length;
+    renderNavCount('navToApplyCount', (data.toApply || []).filter(item => item.dueDate === today()).length, 'application reminders due today');
     updateToApplyAttention();
-    $('#navHiredCount').textContent = hiredClients().filter(isActiveContract).length;
-    $('#navSubscriptionsCount').textContent = (data.subscriptions || []).filter(item => ['soon', 'expired'].includes(subscriptionStatus(item).key)).length;
+    renderNavCount('navHiredCount', hiredClients().filter(isActiveContract).length, 'clients with active contracts');
+    renderNavCount('navSubscriptionsCount', (data.subscriptions || []).filter(item => ['soon', 'expired'].includes(subscriptionStatus(item).key)).length, 'subscriptions expiring soon or expired');
     $('#settingsAppCount').textContent = data.applications.length;
     $('#settingsEmailCount').textContent = receivedEmails().length;
     const autoBackupFrequency = $('#autoBackupFrequency');

@@ -228,6 +228,23 @@
   });
   $('#applicationFollowUpDateInput').addEventListener('change', event => validateFollowUpDateInput(event.target));
   $('#applicationSearch').addEventListener('input', renderApplications);
+  $('#applicationPlatformCounts').addEventListener('beforetoggle', event => {
+    const button = $('#applicationListLabel');
+    const open = event.newState === 'open';
+    button.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const anchor = button.getBoundingClientRect();
+    const panel = event.target;
+    panel.style.left = Math.max(12, Math.min(anchor.left, innerWidth - 260)) + 'px';
+    panel.style.top = anchor.bottom + 8 + 'px';
+    panel.style.maxHeight = Math.max(0, innerHeight - anchor.bottom - 20) + 'px';
+  });
+  $('#applicationFiltersPanel').addEventListener('beforetoggle', event => {
+    if (event.newState !== 'open') return;
+    const anchor = $('#applicationFiltersButton').getBoundingClientRect();
+    event.target.style.left = Math.max(12, Math.min(anchor.left, innerWidth - 272)) + 'px';
+    event.target.style.top = Math.min(anchor.bottom + 8, Math.max(12, innerHeight - 260)) + 'px';
+  });
   $('#applicationOrderSort').addEventListener('change', renderApplications);
   $('#applicationDateFilter').addEventListener('change', event => {
     applicationDateFilter = event.target.value;
@@ -236,18 +253,30 @@
     updateWeekNavigationCounts();
   });
   $('#applicationDateSort').addEventListener('change', event => {
+    if (event.target.value === 'specific') {
+      $('#applicationExactDate').hidden = false;
+      queueMicrotask(() => $('#applicationExactDate').click());
+      return;
+    }
     applicationDateSort = event.target.value;
-    if (applicationDateSort === 'all') {
+    if (applicationDateSort) {
       applicationDateFilter = '';
       $('#applicationDateFilter').value = '';
     }
     renderApplications();
     updateWeekNavigationCounts();
   });
+  $('#applicationDateFilterCalendar').addEventListener('toggle', event => {
+    if (event.newState !== 'closed' || $('#applicationDateFilter').value) return;
+    $('#applicationDateSort').value = applicationDateSort || 'all';
+    $('#applicationExactDate').hidden = true;
+    $('#applicationsView').dispatchEvent(new Event('application-controls-refresh'));
+    if ($('#applicationFiltersPanel').matches(':popover-open')) $('#applicationDateSort + .application-select-trigger').focus();
+  });
   $('#statusFilter').addEventListener('change', renderApplications);
   $('#platformFilter').addEventListener('change', renderApplications);
   $('#applicationEmploymentFilter').addEventListener('change', renderApplications);
-  for (const select of $$('#applicationsView .application-filter-controls select')) {
+  for (const select of $$('#applicationFiltersPanel select:not(#statusFilter)')) {
     enhanceWorkspaceSelect(select, { labelText: select.getAttribute('aria-label'), refreshTarget: $('#applicationsView') });
   }
   $('#applicationStatusChips').addEventListener('click', event => {
@@ -272,17 +301,13 @@
       renderApplications();
     });
   });
-  $('#toggleApplicationSelection').addEventListener('click', () => {
-    applicationSelectionMode = !applicationSelectionMode;
-    if (!applicationSelectionMode) selectedApplicationIds.clear();
-    renderApplications();
-  });
   $('#clearApplicationFilters').addEventListener('click', () => {
     $('#applicationSearch').value = '';
     $('#applicationDateFilter').value = '';
     $('#statusFilter').value = '';
     $('#platformFilter').value = '';
     $('#applicationEmploymentFilter').value = '';
+    $('#applicationOrderSort').value = 'newest';
     $('#applicationDateSort').value = 'all';
     applicationDateFilter = '';
     applicationDateSort = 'all';
@@ -301,6 +326,7 @@
       }
       if (filter === 'status') $('#statusFilter').value = '';
       if (filter === 'platform') $('#platformFilter').value = '';
+      if (filter === 'sort') $('#applicationOrderSort').value = 'newest';
       if (filter === 'employment') $('#applicationEmploymentFilter').value = '';
       if (filter === 'week') {
         applicationDateSort = 'all';
@@ -320,7 +346,7 @@
     if (!checkbox) return;
     if (checkbox.checked) selectedApplicationIds.add(checkbox.dataset.applicationSelect);
     else selectedApplicationIds.delete(checkbox.dataset.applicationSelect);
-    $('#applicationBulkActions').hidden = !applicationSelectionMode || selectedApplicationIds.size === 0;
+    $('#applicationBulkActions').hidden = selectedApplicationIds.size === 0;
     $('#applicationSelectionCount').textContent = `${selectedApplicationIds.size} selected`;
   });
   $('#clearApplicationSelection').addEventListener('click', () => {

@@ -88,7 +88,7 @@ body .sidebar :is(button, label) { font-family: var(--font-ui); }
 body:not(:has(#hiredView.active)) .app-shell,
 body:not(:has(#hiredView.active)) .app-shell :is(h1, h2, h3, h4, button, label) { font-family: var(--font-ui); }
 body .sidebar .nav-link { border-radius: 9px; min-height: 42px; }
-body .sidebar .nav-link.active { background: #ffffff16; box-shadow: inset 3px 0 #b9c6ff; }
+body .sidebar .nav-link.active { background: #ffffff24; box-shadow: inset 2px 0 #b9c6ff; }
 body .sidebar .nav-group-label { letter-spacing: .13em; font-size: 9px; }
 body .sidebar .nav-count { border-radius: 6px; font-variant-numeric: tabular-nums; }
 
@@ -203,13 +203,48 @@ body:has(#applicationsView.active) #workspaceShell > .content {
 #workspaceShell #applicationsView.active {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   min-height: 0;
 }
 #applicationsView .application-workspace-head { min-height: 42px; margin: 0; padding: 0; justify-content: space-between; }
 body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #applicationsView .application-workspace-head { padding: 0; min-height: 42px; justify-content: space-between; }
-#applicationsView #applicationListLabel { font-size: 15px; font-weight: 650; }
+body:has(#applicationsView.active) #workspaceShell .topbar #applicationListLabel {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 22px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--modern-surface);
+  color: var(--modern-muted);
+  font: 500 12px/1 Inter, sans-serif;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border: 1px solid var(--modern-border);
+}
+body:has(#applicationsView.active) #workspaceShell .topbar #applicationListLabel:is(:hover, [aria-expanded="true"]) {
+  color: var(--modern-accent);
+  border-color: var(--modern-accent);
+}
+#workspaceShell #applicationPlatformCounts:not(:popover-open) { display: none; }
+#workspaceShell #applicationPlatformCounts:popover-open {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(248px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 12px;
+  overflow: auto;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition: none;
+}
+body:has(#applicationsView.active) #workspaceShell .topbar #applicationListLabel:focus-visible {
+  outline: 2px solid var(--modern-accent);
+  outline-offset: 2px;
+}
 #applicationsView .application-filter-controls { flex-wrap: wrap; gap: 10px; }
 #workspaceShell #applicationsView .application-panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 #applicationsView .application-bulk-bar { flex: none; }
@@ -222,6 +257,52 @@ body:has(#applicationsView.active):has(#openAddModal:not([hidden])) #application
   overscroll-behavior: contain;
 }
 #applicationsView #applicationList .application-table-wrap { overflow: visible; max-height: none; }
+body:has(#applicationsView.active) #workspaceShell > .content > .topbar { border-bottom: 1px solid var(--modern-border); }
+#workspaceShell #applicationsView .application-workspace-head { min-height: 40px; padding: 0; border: 0; gap: 8px; }
+#applicationsView .application-workspace-head .application-workspace-actions { flex: 0 0 auto; margin-inline-start: auto; }
+#applicationsView .application-view-toggle { padding: 3px; gap: 2px; border-radius: 8px; background: var(--modern-canvas); }
+#applicationsView .application-view-toggle .button { width: 36px; min-height: 34px; padding: 0; justify-content: center; border-color: transparent; background: transparent; }
+#applicationsView .application-view-toggle .button.active { background: var(--modern-surface); border-color: var(--modern-border); color: var(--modern-accent); }
+#applicationsView .application-status-chips button { min-height: 40px; }
+#applicationsView .application-status-chips button[aria-pressed="true"] { box-shadow: inset 0 -2px var(--modern-accent); }
+#applicationsView > .application-filter-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0 8px; margin: 0;
+  border: 0; background: transparent; box-shadow: none;
+}
+#workspaceShell #applicationsView .application-search-field { flex: 1 1 160px; max-width: 400px; }
+#workspaceShell #applicationsView .application-filter-toolbar > :is(.application-search-field, #applicationFiltersButton) {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+}
+#workspaceShell #applicationsView .application-filter-toolbar > .application-search-field input {
+  height: 100%;
+  min-height: 0;
+}
+#workspaceShell #applicationsView .application-filter-toolbar > #applicationFiltersButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding-block: 0;
+}
+#applicationsView #applicationFilterChips { order: initial; flex: 0 1 auto; }
+#workspaceShell #applicationFiltersPanel:not(:popover-open) { display: none; }
+#workspaceShell #applicationsView #applicationFiltersPanel:popover-open {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; position: fixed; inset: auto; margin: 0; padding: 12px;
+  width: min(260px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto;
+  border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface);
+  color: var(--modern-text); box-shadow: 0 10px 30px #10182826;
+}
+#applicationsView #applicationFiltersPanel > .application-filter-field { min-width: 0; width: 100%; }
+#applicationsView #applicationFiltersPanel select { display: none; }
+#applicationFiltersButton i { margin-inline-end: 5px; }
+#applicationsView #applicationFiltersPanel :is(.application-select-trigger, #applicationExactDate) { width: 100%; min-height: 40px; }
+#applicationsView #applicationExactDate[hidden] { display: none; }
+#applicationsView [data-application-select] { opacity: 0; transition: opacity 150ms ease; cursor: pointer; }
+#applicationsView :is(tr, .application-board-card):is(:hover, :focus-within) [data-application-select],
+#applicationsView [data-application-select]:checked { opacity: 1; }
+@media (hover: none) { #applicationsView [data-application-select] { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #applicationsView [data-application-select] { transition: none; } }
 .application-board-column > header { position: sticky; top: 0; z-index: 1; background: inherit; border-radius: 10px 10px 0 0; }
 
 /* Inbox and discovery pages. */
@@ -751,6 +832,7 @@ body:has(:is(#dashboardView, #dailyTaskView).active) #workspaceShell > .content 
 
 #workspaceShell #subscriptionsView .subscriptions-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; padding: 0; border: 0; background: transparent; }
 #workspaceShell #subscriptionsView .subscriptions-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+#workspaceShell #subscriptionsView .subscriptions-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 #workspaceShell #subscriptionsView .subscriptions-summary button { display: grid; gap: 4px; min-width: 0; text-align: start; padding: 12px; border: 1px solid var(--refined-border); border-radius: 12px; background: var(--refined-surface); color: var(--theme-text, #182230); font: inherit; cursor: pointer; }
 #workspaceShell #subscriptionsView .subscriptions-summary button[aria-pressed="true"] { border-color: var(--refined-accent); background: var(--refined-soft); }
 #workspaceShell #subscriptionsView .subscriptions-summary button strong { font-size: 20px; }
@@ -765,6 +847,10 @@ body:has(:is(#dashboardView, #dailyTaskView).active) #workspaceShell > .content 
 #workspaceShell #subscriptionsView .subscription-expiry small { font-size: 14px; }
 .subscription-card[data-state="soon"] .subscription-expiry small { color: var(--theme-warning-text, #8a5a15); }
 .subscription-card[data-state="expired"] .subscription-expiry small { color: var(--theme-danger-text, #a12626); }
+.subscription-card[data-state="completed"] { opacity: .78; }
+.subscription-card[data-state="completed"] .subscription-status { color: var(--theme-info-text, #667085); }
+.subscription-card[data-state="completed"] .subscription-avatar { filter: saturate(.55); }
+.subscription-card[data-state="completed"]:is(:hover, :focus-within) { opacity: 1; }
 .subscription-renewal-progress { display: block; width: 100%; height: 4px; accent-color: var(--refined-accent); }
 .subscription-card-menu { position: relative; z-index: 2; }
 .subscription-card-menu summary { display: grid; place-items: center; width: 32px; height: 28px; cursor: pointer; border-radius: 6px; list-style: none; }
@@ -791,16 +877,18 @@ body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsVi
 #walletEntryForm .wallet-form-actions { align-items: center; flex-wrap: wrap; }
 #walletEntryForm .wallet-form-actions > .form-draft-status { margin: 0 auto 0 0; }
 
-#subscriptionForm > footer { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding: 12px 16px; }
-#subscriptionForm > footer > .form-draft-status { grid-area: 1 / 1; min-width: 0; margin: 0; }
-#subscriptionForm > footer > .subscription-delete { grid-area: 1 / 2; }
-#subscriptionForm > footer > div { grid-area: 1 / 3; margin: 0; }
+#subscriptionForm > footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 12px 16px; }
+#subscriptionForm > footer > .form-draft-status { grid-area: 1 / 1 / 2 / -1; min-width: 0; margin: 0; }
+#subscriptionForm > footer > .subscription-footer-secondary { grid-area: 2 / 1; min-width: 0; margin: 0; flex-wrap: wrap; }
+#subscriptionForm > footer > .subscription-footer-primary { grid-area: 2 / 2; min-width: 0; margin: 0; justify-content: flex-end; flex-wrap: wrap; }
 #subscriptionForm > footer .button { height: 34px; min-height: 34px; padding: 6px 10px; font-size: 11px; white-space: nowrap; }
 @media (max-width: 380px) {
   #subscriptionForm > footer { grid-template-columns: 1fr auto; padding-inline: 10px; }
-  #subscriptionForm > footer > .form-draft-status { grid-area: 1 / 1 / 2 / -1; }
-  #subscriptionForm > footer > .subscription-delete { grid-area: 2 / 1; justify-self: start; }
-  #subscriptionForm > footer > div { grid-area: 2 / 2; }
+  #subscriptionForm > footer > .subscription-footer-secondary { justify-self: start; }
+  #subscriptionForm > footer > .subscription-footer-primary { justify-self: end; }
+}
+@media (max-width: 720px) {
+  #workspaceShell #subscriptionsView .subscriptions-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .topbar #toApplyCountLabel:not([hidden]) {
@@ -871,3 +959,57 @@ body:has(#inboxView.active) #workspaceShell > .content { padding-bottom: 12px; }
   overscroll-behavior-y: contain;
 }
 #workspaceShell #inboxView .email-actions-menu.opens-up { top: auto; bottom: calc(100% + 4px); }
+#settingsModal #accountView .account-history-heading { gap: 8px 16px; margin-bottom: 8px; }
+#settingsModal #accountView .account-history-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+#settingsModal #accountView .account-history-controls :is(select, button) {
+  box-sizing: border-box; height: 36px; min-height: 36px; max-width: 100%;
+  padding: 0 10px; border-radius: 8px; font: inherit; font-size: 12px;
+}
+#settingsModal #accountView .account-history-controls select {
+  background: var(--theme-surface, #fff); border: 1px solid var(--workspace-line); color: var(--workspace-ink);
+}
+#settingsModal #accountView .account-history-controls button { display: inline-flex; align-items: center; gap: 6px; }
+#settingsModal #accountView #accountLoginActivityStatus { margin: 8px 0; padding: 6px 0; background: transparent; }
+#settingsModal #accountView .account-login-table { border: 1px solid var(--workspace-line); border-radius: 10px; overflow: hidden; }
+#settingsModal #accountView .account-login-table:has(ol:empty) { display: none; }
+#settingsModal #accountView :is(.account-login-columns, .account-login-activity summary) {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .9fr) minmax(0, 1fr);
+  align-items: center; gap: 8px; padding: 8px 12px; text-align: start;
+}
+#settingsModal #accountView .account-login-columns { background: var(--theme-raised, #f4f6f8); color: var(--workspace-muted); font-size: 11px; font-weight: 600; }
+#settingsModal #accountView .account-login-columns { overflow-y: auto; scrollbar-gutter: stable; }
+#settingsModal #accountView .account-login-activity { padding: 0; max-height: 224px; }
+#settingsModal #accountView .account-login-activity summary { font-size: 12px; }
+#settingsModal #accountView .account-login-activity summary > span { white-space: normal; overflow-wrap: anywhere; }
+#settingsModal #accountView .account-login-result::before { content: none; }
+#settingsModal #accountView .account-login-activity summary:hover { background: var(--theme-raised, #f4f6f8); }
+#settingsModal #accountView :is(.account-login-columns > :last-child, .account-login-activity summary time) { text-align: end; padding: 0; white-space: normal; }
+#settingsModal #accountView .password-security-layout { gap: 16px; }
+#settingsModal #accountView .password-security-section {
+  padding: 16px; border: 1px solid var(--workspace-line); border-radius: 12px; background: var(--theme-surface, #fff);
+}
+#settingsModal #accountView .password-change-form { max-width: none; }
+#settingsModal #accountView .password-change-form input { width: 100%; border-radius: 8px; }
+#settingsModal #accountView .password-change-form .login-error:empty { display: none; }
+#settingsModal #accountView .password-security-section strong { overflow-wrap: anywhere; }
+#settingsModal .settings-device-section[data-settings-panel="backups"] .settings-stats { gap: 8px; margin: 12px 0; }
+#settingsModal .settings-device-section[data-settings-panel="backups"] .settings-stats span {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 10px 12px;
+}
+#settingsModal .settings-device-section[data-settings-panel="backups"] .settings-stats strong { font-size: 18px; }
+#settingsModal .settings-backup-controls { gap: 0; margin-top: 0; }
+#settingsModal .settings-backup-controls > .settings-backup-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  gap: 8px 16px; padding: 12px 0; border-top: 1px solid var(--line);
+}
+#settingsModal .settings-backup-row:last-child { padding-bottom: 0; }
+#settingsModal .settings-backup-label { color: var(--settings-ink); font-size: 13px; font-weight: 600; }
+#settingsModal .settings-backup-row :is(.settings-copy, .backup-status) { margin: 4px 0 0; }
+#settingsModal .settings-backup-row > select { width: auto; min-width: 144px; }
+#settingsModal .settings-backup-row :is(select, button) { min-height: 36px; border-radius: 8px; }
+#settingsModal .settings-data-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+@media (max-width: 720px) {
+  #settingsModal .settings-backup-controls > .settings-backup-row { grid-template-columns: minmax(0, 1fr); }
+  #settingsModal .settings-backup-row > :is(select, button) { justify-self: start; max-width: 100%; }
+  #settingsModal .settings-data-actions { justify-content: flex-start; }
+}

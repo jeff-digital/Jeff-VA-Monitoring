@@ -12,6 +12,7 @@
 
   function subscriptionStatus(item = {}, reference = subscriptionToday()) {
     item = item || {};
+    if (item.completed) return { key: 'completed', label: 'Completed', detail: 'Saved for future records' };
     if (item.tracking === 'cancelled') return { key: 'cancelled', label: 'Cancelled', detail: 'No longer tracked for renewal' };
     const expiry = subscriptionDateValue(item.expiryDate), current = subscriptionDateValue(reference);
     if (!Number.isFinite(expiry) || !Number.isFinite(current)) return { key: 'date-needed', label: 'Date needed', detail: 'Add an expiry date' };
@@ -39,7 +40,8 @@
     const focusedStatus = summary.contains(document.activeElement) ? document.activeElement.dataset.subscriptionStatus : '';
     summary.innerHTML = [['active', 'Active', states.filter(state => ['active', 'soon'].includes(state.key)).length],
       ['soon', 'Expiring soon', states.filter(state => state.key === 'soon').length],
-      ['expired', 'Expired', states.filter(state => state.key === 'expired').length]]
+      ['expired', 'Expired', states.filter(state => state.key === 'expired').length],
+      ['completed', 'Completed', states.filter(state => state.key === 'completed').length]]
       .map(([key, label, count]) => `<button type="button" data-subscription-status="${key}" aria-pressed="${filter === key}"><span>${label}</span><strong>${count}</strong></button>`).join('');
     if (focusedStatus) summary.querySelector(`[data-subscription-status="${focusedStatus}"]`)?.focus();
     $('#subscriptionsView').dispatchEvent(new Event('application-controls-refresh'));
@@ -55,7 +57,7 @@
       return `<article class="subscription-card" data-state="${status.key}"><button class="subscription-card-open" type="button" data-subscription-edit="${id}" aria-label="Edit ${escapeHtml(name)}" aria-haspopup="dialog"></button><div class="subscription-card-heading"><span class="subscription-avatar" aria-hidden="true" style="--subscription-hue:${clientAvatarHue(name) * 24}">${escapeHtml(clientInitials(name))}</span><div><h2>${escapeHtml(name)}</h2><p>${escapeHtml(item.account || '')}</p></div><span class="subscription-status">${status.label}</span></div>
         <div class="subscription-expiry"><span>End of subscription</span><strong>${Number.isFinite(end) ? escapeHtml(formatDate(item.expiryDate)) : 'Not set'}</strong><small>${escapeHtml(status.detail)}</small></div>
         ${progress !== null && status.key !== 'cancelled' ? `<progress class="subscription-renewal-progress" max="100" value="${progress}" aria-label="Time elapsed since this subscription was added"></progress>` : ''}
-        <footer><details class="subscription-card-menu"><summary aria-label="Actions for ${escapeHtml(name)}">⋯</summary><div><button type="button" data-subscription-edit="${id}">Edit</button><button type="button" data-subscription-renew="${id}">Renew</button><button type="button" data-subscription-delete="${id}">Delete</button></div></details></footer></article>`;
+        <footer><details class="subscription-card-menu"><summary aria-label="Actions for ${escapeHtml(name)}">⋯</summary><div><button type="button" data-subscription-edit="${id}">Edit</button><button type="button" data-subscription-renew="${id}">Renew</button><button type="button" data-subscription-complete="${id}">${item.completed ? 'Reopen' : 'Mark complete'}</button><button type="button" data-subscription-delete="${id}">Delete</button></div></details></footer></article>`;
     }).join('') : `<div class="subscriptions-empty"><i class="fa-regular fa-credit-card" aria-hidden="true"></i><h2>${records.length ? 'No subscriptions found' : 'No subscriptions yet'}</h2><button class="button button-secondary" type="button" data-subscription-empty-action>${records.length ? 'Clear filters' : 'Add subscription'}</button></div>`;
   }
 
@@ -69,7 +71,7 @@
     $('#subscriptionEditorTitle').textContent = item ? 'Manage subscription' : 'Add subscription';
     for (const [field, value] of Object.entries({ Name: item?.name || '', Account: item?.account || '', Expiry: item?.expiryDate || '' })) $('#subscription' + field).value = value;
     $('#subscriptionFormError').hidden = true;
-    $('#deleteSubscription').hidden = !item; $('#saveSubscription').textContent = 'Save subscription';
+    $('#deleteSubscription').hidden = !item; $('#completeSubscription').hidden = !item; $('#completeSubscription').textContent = item?.completed ? 'Reopen subscription' : 'Mark complete'; $('#saveSubscription').textContent = 'Save subscription';
     const dialog = $('#subscriptionEditor'); if (!dialog.open) dialog.showModal();
     $('#subscriptionName').focus();
   }
@@ -80,7 +82,7 @@
 
   function setSubscriptionSaving(value) {
     subscriptionSaving = value;
-    ['saveSubscription', 'deleteSubscription', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
+    ['saveSubscription', 'deleteSubscription', 'completeSubscription', 'cancelSubscriptionEditor'].forEach(id => { $('#' + id).disabled = value; });
     $('#subscriptionForm').setAttribute('aria-busy', String(value));
   }
 
@@ -96,12 +98,17 @@
     renderSubscriptions();
   });
   $('#cancelSubscriptionEditor').addEventListener('click', () => { if (!subscriptionSaving) $('#subscriptionEditor').close(); });
+  $('#completeSubscription').addEventListener('click', () => {
+    if (!subscriptionSaving) toggleSubscriptionComplete($('#subscriptionId').value);
+  });
   $('#subscriptionEditor').addEventListener('cancel', event => { if (subscriptionSaving) event.preventDefault(); });
   $('#subscriptionList').addEventListener('click', event => {
     const edit = event.target.closest('[data-subscription-edit]');
     if (edit) openSubscriptionEditor(edit.dataset.subscriptionEdit);
     const renew = event.target.closest('[data-subscription-renew]');
     if (renew) { openSubscriptionEditor(renew.dataset.subscriptionRenew); $('#subscriptionExpiry').focus(); }
+    const complete = event.target.closest('[data-subscription-complete]');
+    if (complete && !subscriptionSaving) toggleSubscriptionComplete(complete.dataset.subscriptionComplete);
     const remove = event.target.closest('[data-subscription-delete]');
     if (remove && !subscriptionSaving) { openSubscriptionEditor(remove.dataset.subscriptionDelete); $('#deleteSubscription').click(); }
     const menu = event.target.closest('.subscription-card-menu');
@@ -111,6 +118,20 @@
       else { $('#subscriptionSearch').value = ''; $('#subscriptionFilter').value = 'all'; renderSubscriptions(); $('#subscriptionSearch').focus(); }
     }
   });
+  async function toggleSubscriptionComplete(id) {
+    if (subscriptionSaving) return;
+    const workspace = data, userId = currentUser?.id, item = (workspace.subscriptions || []).find(record => record.id === id);
+    if (!userId || !item) return;
+    const completing = !item.completed;
+    if (!(await appConfirm(`${completing ? 'Mark' : 'Reopen'} ${item.name} ${completing ? 'as completed and keep it in your records' : 'for renewal tracking'}?`, { title: completing ? 'Complete subscription' : 'Reopen subscription', confirmLabel: completing ? 'Mark complete' : 'Reopen' }))) return;
+    const previous = { ...item }, now = new Date().toISOString();
+    item.completed = completing; item.completedAt = completing ? now : null; item.updatedAt = now;
+    setSubscriptionSaving(true);
+    let saved = false; try { saved = await persist(); } catch { /* Restore on failure. */ } finally { setSubscriptionSaving(false); }
+    if (currentUser?.id !== userId || data !== workspace) return;
+    if (!saved) { Object.assign(item, previous); subscriptionFormError('The subscription could not be updated. Please try again.'); return; }
+    $('#subscriptionEditor').close(); renderAll(); toast(completing ? 'Subscription marked complete' : 'Subscription reopened');
+  }
   $('#subscriptionForm').addEventListener('submit', async event => {
     event.preventDefault(); if (subscriptionSaving || !event.currentTarget.reportValidity()) return;
     if (!currentUser || event.currentTarget.dataset.userId !== currentUser.id) { subscriptionFormError('Your account changed. Close this form and reopen it.'); return; }

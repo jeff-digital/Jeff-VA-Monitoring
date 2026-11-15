@@ -20,6 +20,12 @@
   function markInboxEmailOpened(email) {
     const key = email.gmailId || email.id;
     const opened = openedInboxEmails();
+    if (!email.openedInWorkspace && currentUser?.id) {
+      email.openedInWorkspace = true;
+      persist({ notifyOnError: false }).then(saved => {
+        if (!saved) delete email.openedInWorkspace;
+      });
+    }
     if (opened.has(key)) return;
     opened.add(key);
     if (currentUser?.id) try {
@@ -116,7 +122,7 @@
         ? rawSender.slice(0, rawSender.indexOf('<')).replace(/["']/g, '').trim() || rawSender
         : rawSender);
       const initial = clientInitials(sender) || '?';
-      const wasOpened = opened.has(item.gmailId || item.id);
+      const wasOpened = item.openedInWorkspace || opened.has(item.gmailId || item.id);
       const unread = !isSentEmail(item) && !wasOpened && item.labelIds?.includes('UNREAD');
       const readStatus = unread
         ? '<span class="inbox-read-status inbox-unread-dot" aria-label="Unread"></span>'

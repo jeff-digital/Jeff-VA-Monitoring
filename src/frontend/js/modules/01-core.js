@@ -593,7 +593,7 @@
   let emailSelectionMode = false;
   let applicationDateSort = 'all';
   let applicationViewMode = localStorage.getItem('jeff-va-application-view-v1') === 'board' ? 'board' : 'table';
-  let applicationSelectionMode = false;
+
   const selectedApplicationIds = new Set();
   let hiredDateSort = 'newest';
   let emailDateSort = localStorage.getItem(EMAIL_WEEK_FILTER_KEY) || 'all';
@@ -745,7 +745,7 @@
     }
     indicator.className = `local-indicator is-${state}`;
     indicator.hidden = false;
-    label.textContent = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : 'Save failed';
+    label.textContent = state === 'saving' ? 'Saving…' : state === 'saved' ? 'Changes saved' : 'Save failed';
     if (state === 'saved') {
       saveIndicatorTimer = setTimeout(() => {
         indicator.hidden = true;

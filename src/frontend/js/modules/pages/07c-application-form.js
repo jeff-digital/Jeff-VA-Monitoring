@@ -454,7 +454,7 @@
   function renderHiredEmailHistory(item) {
     const sentEmails = sentEmailsForApplication(item);
     return `<section class="client-email-history hired-email-history" aria-live="polite">
-      <header class="client-email-history-head"><h3>Email History</h3><strong>${plural(sentEmails.length, 'email')}</strong></header>
+      <header class="client-email-history-head"><h3>Sent Email History</h3><strong>${plural(sentEmails.length, 'email')}</strong></header>
       <div class="client-email-history-list">${sentEmails.length ? renderClientHistoryEmailRows(sentEmails) : '<p>No emails have been sent to this client.</p>'}</div>
     </section>`;
   }

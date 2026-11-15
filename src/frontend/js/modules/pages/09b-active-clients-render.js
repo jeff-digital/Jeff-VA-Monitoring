@@ -202,6 +202,13 @@
 
   let showingHiredClientList = false;
 
+  const hiredLayoutKey = 'jeff-va-client-list-layout';
+  let hiredListLayout = 'cards';
+  try {
+    if (localStorage.getItem(hiredLayoutKey) === 'table') hiredListLayout = 'table';
+  } catch {}
+  let hiredTableSort = { column: '', direction: 1 };
+
   function renderHired() {
     const allHired = sortByDate(hiredClients(), activeSinceDate, hiredDateSort);
     const query = $('#hiredSearch').value.trim().toLowerCase();
@@ -242,12 +249,18 @@
       detailPanel.classList.add('hidden');
       detailPanel.dataset.clientId = '';
       panel.hidden = false;
-      target.innerHTML = clients.length
-        ? [
+      target.classList.toggle('hired-table-layout', hiredListLayout === 'table');
+      $$('#hiredLayoutToggle button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.hiredLayout === hiredListLayout)));
+      if (!clients.length) {
+        target.innerHTML = `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
+      } else if (hiredListLayout === 'table') {
+        target.innerHTML = renderHiredTable([...nonEndedClients, ...endedClients]);
+      } else {
+        target.innerHTML = [
           ...nonEndedClients.map(renderActiveClientCard),
           ...(endedClients.length ? [`<h3 class="hired-ended-heading">Ended (${endedClients.length})</h3>`, ...endedClients.map(renderActiveClientCard)] : [])
-        ].join('')
-        : `<div class="application-empty"><h3>${allHired.length ? 'No matching clients' : 'No clients yet'}</h3><p>${allHired.length ? 'Try changing your search or filters.' : 'Clients marked as active in your tracker will appear here.'}</p></div>`;
+        ].join('');
+      }
       renderHiredClientAvatars();
       return;
     }
@@ -264,50 +277,102 @@
     detailPanel.dataset.clientId = '';
   }
 
-  function renderActiveClientCard(item) {
-    const docs = item.documents || [];
+  function hiredListDetails(item) {
     const contractEnded = isContractEnded(item);
     const contractStatus = contractEnded ? 'Contract Ended' : (item.contractStatus || 'Active');
     const endingLabel = contractEnded ? 'Contract ended' : contractEndingLabel(item);
     const statusLabel = endingLabel || (contractStatus === 'Not active' ? 'Not active' : 'Active');
     const statusPillClass = contractEnded ? 'contract-ended'
       : (endingLabel ? 'contract-ending-soon' : (contractStatus === 'Not active' ? 'not-active' : 'contract-active'));
+    const amount = Number(item.salaryAmount);
+    return {
+      contractEnded,
+      name: item.companyName || item.company || item.clientName || item.contact || 'Active client',
+      status: `<span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span>`,
+      rate: amount > 0 && ['monthly', 'hourly'].includes(item.salaryType)
+        ? `${salaryCurrencySymbol(item.salaryCurrency)}${amount.toLocaleString()} / ${item.salaryType === 'monthly' ? 'month' : 'hour'}` : '',
+      end: item.contractEndDate ? formatDate(item.contractEndDate) : 'No end date',
+      tasks: getClientTasks(item.id).filter(task => task.status !== 'done' && !task.completedAt).length
+    };
+  }
+
+  function renderHiredTable(clients) {
+    const { column, direction } = hiredTableSort;
+    const rows = clients.map(item => ({ item, ...hiredListDetails(item) }));
+    const sortValues = {
+      name: row => row.name,
+      rate: row => row.rate ? Number(row.item.salaryAmount) : null,
+      end: row => row.item.contractEndDate || null,
+      tasks: row => row.tasks
+    };
+    if (column) {
+      rows.sort((a, b) => {
+        const first = sortValues[column](a);
+        const second = sortValues[column](b);
+        if (first == null || second == null) return Number(first == null) - Number(second == null);
+        if (column === 'rate') {
+          const currencyOrder = (a.item.salaryCurrency || 'USD').localeCompare(b.item.salaryCurrency || 'USD');
+          if (currencyOrder) return currencyOrder;
+          const periodOrder = a.item.salaryType.localeCompare(b.item.salaryType);
+          if (periodOrder) return periodOrder;
+        }
+        return direction * (typeof first === 'number' ? first - second : first.localeCompare(second));
+      });
+    }
+    const headers = [['Client', 'name'], ['Role'], ['Status'], ['Rate', 'rate'], ['Contract end', 'end'], ['Open tasks', 'tasks']];
+    return `<table class="hired-client-table" aria-label="Clients"><thead><tr>${headers.map(([label, key]) => {
+      if (!key) return `<th scope="col">${label}</th>`;
+      const current = key === column;
+      return `<th scope="col"${current ? ` aria-sort="${direction === 1 ? 'ascending' : 'descending'}"` : ''}><button type="button" data-hired-sort="${key}">${label} <i class="fa-solid fa-${current ? (direction === 1 ? 'sort-up' : 'sort-down') : 'sort'}" aria-hidden="true"></i></button></th>`;
+    }).join('')}<th scope="col"><span class="sr-only">Details</span></th></tr></thead><tbody>${rows.map(({ item, ...client }) => {
+      return `<tr class="${client.contractEnded ? 'contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}"><td><button type="button" class="hired-table-client">${renderHiredListAvatar(item, client.name)}<span>${escapeHtml(client.name)}</span></button></td><td>${escapeHtml(item.role || '')}</td><td>${client.status}</td><td>${escapeHtml(client.rate || 'Not set')}</td><td>${escapeHtml(client.end)}</td><td>${client.tasks}</td><td><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></td></tr>`;
+    }).join('')}</tbody></table>`;
+  }
+
+  function renderHiredListAvatar(item, name) {
+    const avatarPath = item.profileImage?.storagePath;
+    return `<span class="hired-card-avatar" style="--avatar-tone:${clientAvatarHue(name)}" aria-hidden="true"><span>${escapeHtml(clientInitials(name))}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="" hidden />` : ''}</span>`;
+  }
+
+  function renderActiveClientCard(item) {
+    const docs = item.documents || [];
+    const { contractEnded, name: clientDisplayName, status, rate, end, tasks: openTaskCount } = hiredListDetails(item);
     const activeSince = activeSinceDate(item);
-    const initials = clientInitials(item.clientName);
-    const avatarTone = clientAvatarHue(item.clientName);
     const website = String(item.website || '').trim();
     const websiteMarkup = website && !/^n\/?a$/i.test(website)
       ? `<a class="hired-card-website" href="${escapeHtml(normalizeUrl(website))}" target="_blank" rel="noopener"><i class="fa-solid fa-globe" aria-hidden="true"></i><span>${escapeHtml(website)}</span></a>`
-      : '';
+      : `<button class="hired-card-add-field" type="button" data-hired-edit="${escapeHtml(item.id)}">Add website</button>`;
     const missing = label => `<span aria-label="${label} unavailable">—</span>`;
-    const openTaskCount = getClientTasks(item.id).filter(task => task.status !== 'done' && !task.completedAt).length;
     const matchCount = matchingEmailsForApplication(item)
       .filter(emailItem => !isSentEmail(emailItem)).length;
+    const emailLabel = plural(matchCount, 'email');
+    const emailIcon = `<i class="fa-regular fa-envelope" aria-hidden="true"></i>${matchCount}`;
     const matchMarkup = matchCount
-      ? `<span class="hired-card-match"><i class="fa-regular fa-envelope" title="Emails" aria-label="Emails"></i>${matchBadge(item).replace('title="View matching application emails"', `title="${matchCount} matching incoming emails"`)}</span>`
-      : '<span class="hired-card-match" title="0 emails" aria-label="0 matching emails"><i class="fa-regular fa-envelope" aria-hidden="true"></i>0</span>';
+      ? `<button class="hired-card-match" type="button" data-application-emails="${escapeHtml(item.id)}" title="${emailLabel}" aria-label="View ${emailLabel} for ${escapeHtml(clientDisplayName)}">${emailIcon}</button>`
+      : `<span class="hired-card-match" role="group" title="${emailLabel}" aria-label="${emailLabel}">${emailIcon}</span>`;
     const timeZone = clientTimeZones.has(item.id) ? clientOnlineStatus(item) : null;
-    const timeZoneMarkup = timeZone?.localTime
-      ? `<span class="hired-card-timezone"><i class="fa-regular fa-clock" aria-hidden="true"></i><span data-client-timezone-text>${escapeHtml(`${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`)}</span>${!contractEnded ? renderClientOnlineStatus(item, false) : ''}</span>`
-      : '';
-    const avatarPath = item.profileImage?.storagePath || '';
-    const clientDisplayName = item.companyName || item.company || item.clientName || item.contact || 'Active client';
+    const timeZoneLabel = timeZone?.localTime
+      ? `${timeZone.localTime} (${timeZone.utcOffset})${timeZone.country ? ` · ${timeZone.country}` : ''}`
+      : followUpTimeZone(item);
+    const timeZoneMarkup = timeZoneLabel
+      ? `<span class="hired-card-timezone"><i class="fa-regular fa-clock" aria-hidden="true"></i><span data-client-timezone-text>${escapeHtml(timeZoneLabel)}</span>${timeZone?.localTime && !contractEnded ? renderClientOnlineStatus(item, false) : ''}</span>`
+      : `<button class="hired-card-add-field" type="button" data-hired-edit="${escapeHtml(item.id)}">Add timezone</button>`;
     const clientSubtitle = [item.contact !== clientDisplayName ? item.contact : '', item.role].filter(Boolean).join(' · ');
     return `<article class="hired-card${contractEnded ? ' contract-ended-card' : ''}" data-hired-select="${escapeHtml(item.id)}">
       <span role="link" tabindex="0" class="hired-card-open" aria-label="View details for ${escapeHtml(clientDisplayName)}"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
-      <span class="hired-card-heading"><span class="hired-card-profile"><span class="hired-card-avatar" style="--avatar-tone:${avatarTone}"><span aria-hidden="true">${escapeHtml(initials)}</span>${avatarPath ? `<img class="hired-card-avatar-image" data-client-avatar-id="${escapeHtml(item.id)}" data-client-avatar-path="${escapeHtml(avatarPath)}" alt="${escapeHtml(item.clientName)} profile photo" hidden />` : ''}</span><span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong><span class="client-card-subtitle">${clientSubtitle ? escapeHtml(clientSubtitle) : missing('Contact and role')}</span></span></span></span>
+      <span class="hired-card-heading"><span class="hired-card-profile">${renderHiredListAvatar(item, clientDisplayName)}<span class="hired-card-identity"><strong class="client-card-title hired-client-contact-name" title="${escapeHtml(clientDisplayName)}">${escapeHtml(clientDisplayName)}</strong><span class="client-card-subtitle">${clientSubtitle ? escapeHtml(clientSubtitle) : missing('Contact and role')}</span></span></span></span>
       <span class="hired-card-status-line">
-        <span class="client-contract-status ${statusPillClass}">${escapeHtml(statusLabel)}</span>
+        ${status}
         <span><i class="fa-regular fa-calendar" aria-hidden="true"></i> Since ${activeSince ? escapeHtml(emailDate(activeSince)) : missing('Start date')}</span>
       </span>
+      <span class="hired-card-contract-summary">${rate ? `<strong>${escapeHtml(rate)}</strong>` : `<span>Rate not set</span><button class="hired-card-add-field" type="button" data-hired-edit="${escapeHtml(item.id)}">Add rate</button>`}<span>${item.contractEndDate ? (contractEnded ? 'Ended ' : 'Ends ') : ''}${escapeHtml(end)}</span></span>
       <span class="hired-card-facts">
         ${websiteMarkup}
-        ${item.employmentType ? `<span class="hired-card-contract"><i class="fa-solid fa-briefcase" aria-hidden="true"></i>${escapeHtml(item.employmentType)}</span>` : ''}
         ${timeZoneMarkup}
       </span>
       <span class="hired-card-footer"><span class="hired-card-counts">
-        <span class="hired-card-task-count"><i class="fa-solid fa-list-check" aria-hidden="true"></i>${openTaskCount} open ${openTaskCount === 1 ? 'task' : 'tasks'}</span>
-        <span class="hired-card-files" title="${escapeHtml(plural(docs.length, 'file'))}" aria-label="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i>${docs.length}</span>${matchMarkup}
+        <span class="hired-card-task-count" role="group" aria-label="${plural(openTaskCount, 'open task')}" title="${plural(openTaskCount, 'open task')}"><i class="fa-solid fa-list-check" aria-hidden="true"></i><span aria-hidden="true">${plural(openTaskCount, 'open task')}</span></span>
+        <span class="hired-card-files" role="group" title="${escapeHtml(plural(docs.length, 'file'))}" aria-label="${escapeHtml(plural(docs.length, 'file'))}"><i class="fa-regular fa-file" aria-hidden="true"></i><span aria-hidden="true">${docs.length}</span></span>${matchMarkup}
       </span></span>
     </article>`;
   }
@@ -319,9 +384,31 @@
   $('#hiredSearch').addEventListener('input', renderHired);
   $('#hiredDateSort').addEventListener('change', event => {
     hiredDateSort = event.target.value;
+    hiredTableSort = { column: '', direction: 1 };
     renderHired();
   });
   $('#hiredStatusFilter').addEventListener('change', renderHired);
+  $('#hiredLayoutToggle').addEventListener('click', event => {
+    const button = event.target.closest('[data-hired-layout]');
+    if (!button) return;
+    hiredListLayout = button.dataset.hiredLayout;
+    try { localStorage.setItem(hiredLayoutKey, hiredListLayout); } catch {}
+    renderHired();
+  });
+  $('#hiredList').addEventListener('click', event => {
+    const sortButton = event.target.closest('[data-hired-sort]');
+    if (sortButton) {
+      const column = sortButton.dataset.hiredSort;
+      hiredTableSort = { column, direction: hiredTableSort.column === column ? -hiredTableSort.direction : 1 };
+      renderHired();
+      $(`[data-hired-sort="${column}"]`).focus({ preventScroll: true });
+      return;
+    }
+    const button = event.target.closest('[data-hired-edit]');
+    if (!button) return;
+    event.stopPropagation();
+    openClientModal(button.dataset.hiredEdit, false, true, false, true);
+  });
   $('#hiredHeaderSummary').addEventListener('click', event => {
     const segment = event.target.closest('[data-hired-filter]');
     if (!segment) return;
@@ -410,7 +497,7 @@
       <div class="client-overview-summary-item"><span>Active since</span><strong>${escapeHtml(emailDate(activeSinceDate(item)))}</strong><small>${escapeHtml(contractStatus)} engagement</small></div>
       <div class="client-overview-summary-item"><span>Onboarding</span><strong id="clientOverviewOnboardingStatus">Checking status</strong><small>Client form response</small></div>
       <div class="client-overview-summary-item"><span>Invoices</span><strong>${escapeHtml(plural(invoices.length, 'invoice'))}</strong><small>${latestInvoice ? `Last sent ${escapeHtml(emailDate(latestInvoice.sentAt))}` : 'No invoices sent yet'}</small></div>
-      <div class="client-overview-summary-item"><span>Email History</span><strong>${escapeHtml(plural(sentEmails.length, 'email'))}</strong><small>${latestEmail ? `Last sent ${escapeHtml(emailDate(latestEmail.date))}` : 'No emails sent yet'}</small></div>`;
+      <div class="client-overview-summary-item"><span>Sent Email History</span><strong>${escapeHtml(plural(sentEmails.length, 'email'))}</strong><small>${latestEmail ? `Last sent ${escapeHtml(emailDate(latestEmail.date))}` : 'No emails sent yet'}</small></div>`;
     const detailsMarkup = fields => fields.filter(([, value]) => value).map(([label, value]) => `
       <div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('');
     const contactFields = detailsMarkup([
