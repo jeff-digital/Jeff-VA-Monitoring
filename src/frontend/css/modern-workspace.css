@@ -877,15 +877,26 @@ body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsVi
 #walletEntryForm .wallet-form-actions { align-items: center; flex-wrap: wrap; }
 #walletEntryForm .wallet-form-actions > .form-draft-status { margin: 0 auto 0 0; }
 
-#subscriptionForm > footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 12px 16px; }
-#subscriptionForm > footer > .form-draft-status { grid-area: 1 / 1 / 2 / -1; min-width: 0; margin: 0; }
-#subscriptionForm > footer > .subscription-footer-secondary { grid-area: 2 / 1; min-width: 0; margin: 0; flex-wrap: wrap; }
-#subscriptionForm > footer > .subscription-footer-primary { grid-area: 2 / 2; min-width: 0; margin: 0; justify-content: flex-end; flex-wrap: wrap; }
-#subscriptionForm > footer .button { height: 34px; min-height: 34px; padding: 6px 10px; font-size: 11px; white-space: nowrap; }
-@media (max-width: 380px) {
-  #subscriptionForm > footer { grid-template-columns: 1fr auto; padding-inline: 10px; }
-  #subscriptionForm > footer > .subscription-footer-secondary { justify-self: start; }
-  #subscriptionForm > footer > .subscription-footer-primary { justify-self: end; }
+#subscriptionEditor #subscriptionForm > footer.subscription-editor-footer { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: 100%; box-sizing: border-box; padding: 16px 22px; border-top: 1px solid var(--theme-border, #e5e7eb); background: var(--theme-surface, #fff); }
+#subscriptionForm > footer .subscription-footer-status { min-width: 0; margin: 0; color: var(--theme-muted, #667085); font-size: 12px; }
+#subscriptionForm > footer .subscription-footer-reopen:has(> #completeSubscription[hidden]) { display: none; }
+#subscriptionForm > footer .subscription-footer-reopen { display: flex; justify-content: stretch; width: 100%; }
+#subscriptionForm > footer .subscription-footer-reopen #completeSubscription:not([hidden]) { display: block; width: 100%; height: 40px; min-height: 40px; border-radius: 8px; }
+#subscriptionEditor #subscriptionForm > footer .subscription-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-width: 0; }
+#subscriptionEditor #subscriptionForm > footer .subscription-footer-primary { display: flex; align-items: center; justify-content: flex-end; gap: 12px; width: auto; min-width: 0; margin: 0; margin-left: auto; }
+#subscriptionForm > footer .button { flex: 0 0 auto; height: 40px; min-height: 40px; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+#subscriptionForm > footer #cancelSubscriptionEditor { min-width: 96px; }
+#subscriptionForm > footer #saveSubscription { min-width: 150px; }
+#subscriptionForm > footer .subscription-delete { order: 0; border-color: transparent; background: transparent; color: var(--theme-danger-text, #c2410c); }
+#subscriptionForm > footer .subscription-delete:hover { background: var(--theme-danger-soft, #fff1ed); }
+#subscriptionForm > footer .subscription-delete[hidden] { display: none; }
+@media (max-width: 420px) {
+  #subscriptionEditor #subscriptionForm > footer.subscription-editor-footer { padding: 12px 14px; }
+  #subscriptionForm > footer .subscription-footer-row { flex-direction: column-reverse; align-items: stretch; gap: 8px; }
+  #subscriptionForm > footer .subscription-footer-primary { display: flex; flex-direction: column-reverse; align-items: stretch; gap: 8px; width: 100%; }
+  #subscriptionForm > footer .subscription-footer-primary .button,
+  #subscriptionForm > footer .subscription-footer-row > .subscription-delete { width: 100%; }
+  #subscriptionForm > footer .subscription-footer-row > .subscription-delete { text-align: center; }
 }
 @media (max-width: 720px) {
   #workspaceShell #subscriptionsView .subscriptions-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }

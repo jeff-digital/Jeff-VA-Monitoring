@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="css/styles.css?v=20261113-structure-cleanup" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261113-backups-layout" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261116-subscription-footer-alignment" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -832,7 +832,14 @@
                 <label class="form-field"><span>End of subscription</span><input id="subscriptionExpiry" type="date" required /></label>
                 <p class="subscription-form-error" id="subscriptionFormError" role="alert" hidden></p>
               </div>
-              <footer><div class="subscription-footer-secondary"><button class="button button-secondary subscription-complete" id="completeSubscription" type="button" hidden>Mark complete</button><button class="button button-secondary subscription-delete" id="deleteSubscription" type="button" hidden>Delete</button></div><div class="subscription-footer-primary"><button class="button button-secondary" id="cancelSubscriptionEditor" type="button">Cancel</button><button class="button button-primary" id="saveSubscription" type="submit">Save subscription</button></div></footer>
+              <footer class="subscription-editor-footer">
+                <div class="subscription-footer-status form-draft-status" aria-live="polite"></div>
+                <div class="subscription-footer-reopen"><button class="button button-secondary subscription-complete" id="completeSubscription" type="button" hidden>Mark complete</button></div>
+                <div class="subscription-footer-row">
+                  <button class="button button-secondary subscription-delete" id="deleteSubscription" type="button" hidden>Delete</button>
+                  <div class="subscription-footer-primary"><button class="button button-secondary" id="cancelSubscriptionEditor" type="button">Cancel</button><button class="button button-primary" id="saveSubscription" type="submit">Save subscription</button></div>
+                </div>
+              </footer>
             </form>
           </dialog>
         </section>
@@ -1236,6 +1243,12 @@
           <label class="form-field">Email <span class="required">*</span><span class="application-icon-field"><i class="application-field-icon fa-solid fa-envelope" aria-hidden="true"></i><input id="hiredEmail" type="email" maxlength="120" required placeholder="name@company.com" /></span></label>
           <label class="form-field">Phone number <span class="required">*</span><span class="application-icon-field"><i class="application-field-icon fa-solid fa-phone" aria-hidden="true"></i><input id="hiredPhone" type="tel" maxlength="40" required placeholder="e.g. +1 555 010 2938" /></span></label>
           <label class="form-field">Application Link <span class="application-icon-field"><i class="application-field-icon fa-solid fa-link" aria-hidden="true"></i><input id="hiredWebsite" type="text" maxlength="200" placeholder="e.g. job posting or application URL" /><a id="hiredWebsiteLink" class="form-field-link" target="_blank" rel="noopener noreferrer" hidden></a></span></label>
+          <p class="form-subsection-label form-field-wide application-social-label">Social media and websites</p>
+          <label class="form-field form-field-wide" id="hiredSocialField">Social Media | Website <input id="hiredSocial" type="text" maxlength="200" placeholder="e.g. @acmestudio or company website" /><a id="hiredSocialLink" class="form-field-link" target="_blank" rel="noopener noreferrer" hidden></a></label>
+          <section class="client-social-links-field form-field-wide" id="clientSocialLinksField" aria-labelledby="clientSocialLinksLabel">
+            <div class="client-social-links-heading"><div><span id="clientSocialLinksLabel">Social media accounts and websites</span><small>Add each client profile you manage.</small></div><button class="button button-secondary client-social-add" type="button" id="addClientSocialLink"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add account</button></div>
+            <div class="client-social-links-list" id="clientSocialLinksList"></div>
+          </section>
           <label class="form-field form-field-wide">Client location <span class="application-icon-field"><i class="application-field-icon fa-solid fa-location-dot" aria-hidden="true"></i><select id="clientCountry"><option value="" selected>Select client country</option><option value="AU">Australia</option><option value="BR">Brazil</option><option value="CA">Canada</option><option value="CN">China</option><option value="CO">Colombia</option><option value="FR">France</option><option value="DE">Germany</option><option value="IN">India</option><option value="IE">Ireland</option><option value="IL">Israel</option><option value="IT">Italy</option><option value="JP">Japan</option><option value="MX">Mexico</option><option value="NL">Netherlands</option><option value="NZ">New Zealand</option><option value="PE">Peru</option><option value="PH">Philippines</option><option value="SA">Saudi Arabia</option><option value="ZA">South Africa</option><option value="KR">South Korea</option><option value="TW">Taiwan</option><option value="AE">United Arab Emirates</option><option value="GB">United Kingdom</option><option value="US">United States</option><option value="OTHER">Other country</option></select></span><span id="clientRegionField" class="hidden"><select id="clientRegion"><option value="" selected disabled>Select client region</option><option data-countries="US,CA" value="America/New_York">Eastern</option><option data-countries="US,CA" value="America/Chicago">Central</option><option data-countries="US,CA" value="America/Denver">Mountain</option><option data-countries="US,CA" value="America/Los_Angeles">Pacific</option><option data-countries="CA" value="America/Halifax">Atlantic</option><option data-countries="CA" value="America/St_Johns">Newfoundland</option><option data-countries="US" value="America/Anchorage">Alaska</option><option data-countries="US" value="Pacific/Honolulu">Hawaii</option><option data-countries="AU" value="Australia/Sydney">East</option><option data-countries="AU" value="Australia/Adelaide">Central</option><option data-countries="AU" value="Australia/Perth">West</option></select></span><input id="hiredLocation" type="hidden" /><input id="clientTimeZone" type="hidden" /><small id="clientTimeZoneDisplay" class="field-help">Select the client country to determine the client timezone.</small></label>
           </section>
           <section class="client-form-column">
@@ -1261,14 +1274,6 @@
           <label class="form-field" for="followUpDate">Follow-up date <span class="follow-up-date-picker"><input id="followUpDate" class="follow-up-date-input" type="date" aria-label="Follow-up date" /><button class="follow-up-calendar-trigger" type="button" data-follow-up-calendar="followUpDate" aria-label="Choose a weekday follow-up date" aria-expanded="false"><i class="fa-regular fa-calendar" aria-hidden="true"></i></button></span><small class="field-help">Monday–Friday only. Faded weekends are unavailable.</small></label>
           <label class="form-field form-field-wide follow-up-option"><span class="follow-up-control"><input id="automaticFollowUp" type="checkbox" /><span class="follow-up-copy"><strong>Send automatic follow-up</strong><small class="field-help">No approval is needed. Sends Monday–Friday, 8:00 AM–5:00 PM in the client timezone. Outside this window, it waits until the next opening.</small></span></span><span class="follow-up-note">Requires Gmail connection and a valid client email.</span></label><div class="application-follow-up-meta form-field-wide"><button type="button" class="icon-button" aria-label="Automatic follow-up schedule" aria-describedby="applicationFollowUpTooltip" popovertarget="applicationFollowUpTooltip"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></button><span id="applicationFollowUpTooltip" popover role="tooltip">Sends Monday–Friday, 8 AM–5 PM in the client time zone. Requires Gmail and a valid client email. Outside these hours, it waits until the next sending window.</span><small id="applicationGmailWarning" hidden>Gmail is disconnected.</small></div>
           <label class="form-field form-field-wide client-notes-field">Notes <textarea id="clientNotes" maxlength="1000" rows="4" placeholder="A useful detail, next step, rate, or link…"></textarea></label>
-          </section>
-          <section class="client-form-column">
-            <p class="form-column-label">Social media and websites</p>
-          <label class="form-field" id="hiredSocialField">Social Media | Website <input id="hiredSocial" type="text" maxlength="200" placeholder="e.g. @acmestudio or company website" /><a id="hiredSocialLink" class="form-field-link" target="_blank" rel="noopener noreferrer" hidden></a></label>
-          <section class="client-social-links-field form-field-wide" id="clientSocialLinksField" aria-labelledby="clientSocialLinksLabel">
-            <div class="client-social-links-heading"><div><span id="clientSocialLinksLabel">Social media accounts and websites</span><small>Add each client profile you manage.</small></div><button class="button button-secondary client-social-add" type="button" id="addClientSocialLink"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add account</button></div>
-            <div class="client-social-links-list" id="clientSocialLinksList"></div>
-          </section>
           </section>
         </div>
           <div class="application-history-grid" id="applicationEmailContent" hidden>
@@ -1882,6 +1887,10 @@
             <select id="emailTemplateSelect"><option value="">Start from scratch</option></select>
           </label>
           <button class="button button-secondary" type="button" id="deleteEmailTemplateButton" hidden>Delete template</button>
+          <div class="compose-template-save">
+            <input id="emailTemplateName" maxlength="80" placeholder="Template name" aria-label="Template name" />
+            <button class="button button-secondary" type="button" id="saveEmailTemplateButton">Save as template</button>
+          </div>
         </div>
         <div class="compose-fields">
           <label class="form-field">To <input id="composeTo" type="email" required /></label>
@@ -1895,10 +1904,6 @@
               <button class="button button-secondary" type="button" id="attachFileButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 12 7-7a3 3 0 0 1 4 4L9 19a5 5 0 0 1-7-7L13 1m-8 14 10-10"/></svg><span>Attach file</span></button>
               <button class="button button-secondary" type="button" id="removeComposeAttachmentButton" aria-label="Remove attachment" title="Remove attachment" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5m4-5v5"/></svg><span>Remove</span></button>
             </div>
-          </div>
-          <div class="compose-template-save">
-            <input id="emailTemplateName" maxlength="80" placeholder="Template name" aria-label="Template name" />
-            <button class="button button-secondary" type="button" id="saveEmailTemplateButton">Save as template</button>
           </div>
           </div></details>
         </div>
