@@ -8400,6 +8400,7 @@
   let gmailTokenRequest = null;
   let gmailAuthorizationRecovery = null;
   let gmailReconnectRequired = false;
+  let gmailFailureSignOutPending = false;
   let gmailSyncTriggerTimer = null;
   let sentHistoryAddressSignature = '';
   let sentHistoryPageToken = '';
@@ -8421,6 +8422,7 @@
     localStorage.setItem(`${GMAIL_CREDENTIALS_KEY}${userId}`, JSON.stringify(credentials));
     gmailAccessToken = token;
     gmailReconnectRequired = false;
+    gmailFailureSignOutPending = false;
     sessionStorage.setItem(GMAIL_TOKEN_SESSION_KEY, token);
     sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
     sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
@@ -9085,6 +9087,7 @@
           sessionStorage.setItem(GMAIL_CONNECTED_KEY, '1');
           sessionStorage.removeItem(GMAIL_RECONNECT_REQUIRED_KEY);
           gmailReconnectRequired = false;
+          gmailFailureSignOutPending = false;
           updateGmailConnectionUI(true);
           updateLoginGoogleUI(true, 'Google account connected for this browser session.');
           resolve(response.access_token);
@@ -9595,14 +9598,22 @@
   }
 
   function handleGmailAuthorizationFailure() {
+    if (gmailFailureSignOutPending) return;
+    gmailFailureSignOutPending = true;
     gmailAccessToken = null;
     sessionStorage.removeItem(GMAIL_TOKEN_SESSION_KEY);
     gmailReconnectRequired = true;
     setGmailSyncDisplay('permission');
     sessionStorage.setItem(GMAIL_RECONNECT_REQUIRED_KEY, '1');
     updateGmailConnectionUI(false);
-    updateLoginGoogleUI(false, 'Gmail needs to reconnect. Your dashboard session is still active.');
-    setGmailStatus('Saved emails remain available. Renew Google permission in Account settings to resume updates.');
+    updateLoginGoogleUI(false, 'Gmail authorization expired. Signing you out for security.');
+    setGmailStatus('Gmail authorization expired. Signing out…');
+    const signOutButton = $('#logoutButton');
+    if (signOutButton) signOutButton.click();
+    else {
+      gmailFailureSignOutPending = false;
+      setGmailStatus('Gmail authorization expired. Sign out, then sign in again.');
+    }
   }
 
   function startGmailSyncTimer() {

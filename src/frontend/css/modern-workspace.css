@@ -107,6 +107,23 @@ body:not(:has(#hiredView.active)):has(:is(#dashboardView, #dailyTaskView, #appli
   position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
   height: auto; min-height: 44px; margin: 0; padding: 0 0 10px; border-bottom: 1px solid var(--modern-border);
 }
+/* Keep the News shell fixed while the article feed scrolls independently. */
+@media (min-width: 721px) {
+  body:has(#newsView.active) { height: 100dvh; min-height: 0; overflow: hidden; }
+  body:has(#newsView.active) .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+  body:has(#newsView.active) .content { height: 100dvh; min-height: 0; overflow: hidden; box-sizing: border-box; }
+  #newsView.active { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; }
+  #newsView .news-live-panel { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; }
+  #newsView .news-live-toolbar, #newsView .news-live-status { flex: 0 0 auto; }
+  #newsView .news-live-grid { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+}
+@media (min-width: 721px) {
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) { height: 100dvh; min-height: 0; overflow: hidden; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) .app-shell { height: 100dvh; min-height: 0; overflow: hidden; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #workspaceShell > .content { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; box-sizing: border-box; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #dashboardView.active { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; overflow: hidden; }
+  body:has(#dashboardView.active):has(#applicationDashboardPanel:not([hidden])) #applicationDashboardPanel:not([hidden]) { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+}
 body:not(:has(#hiredView.active)) .topbar .topbar-title-area { flex: 1 1 240px; }
 body:not(:has(#hiredView.active)) .topbar #pageTitle { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.25; letter-spacing: -.4px; white-space: normal; color: var(--modern-text); }
 body:not(:has(#hiredView.active)) .topbar .page-context { margin: 0; color: var(--modern-muted); font-size: 11px; line-height: 1.4; }
