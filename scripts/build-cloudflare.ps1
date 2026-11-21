@@ -39,6 +39,7 @@ $copies = @{
   'js\theme.js' = 'js\theme.js'
   'js\invoice-engine.js' = 'js\invoice-engine.js'
   'js\invoice-pdf.js' = 'js\invoice-pdf.js'
+  'js\wallet-report-pdf.js' = 'js\wallet-report-pdf.js'
   'js\invoice-payment-brands.js' = 'js\invoice-payment-brands.js'
   'images\payment-wise.png' = 'images\payment-wise.png'
   'images\payment-paypal.png' = 'images\payment-paypal.png'

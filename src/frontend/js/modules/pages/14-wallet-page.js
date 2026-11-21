@@ -105,7 +105,7 @@
   async function walletReportPdf() {
     const report = renderWalletReport();
     if (!report) return null;
-    const pdfLibrary = window.JeffWalletReportPdf || await import('./wallet-report-pdf.js?v=20261121-wallet-report-right-padding');
+    const pdfLibrary = window.JeffWalletReportPdf || await import('./wallet-report-pdf.js?v=20261121-live-pdf-module');
     const title = report.title.replace(/^Monthly report · /, 'Monthly report - ').replace(/^Weekly report · /, 'Weekly report - ').replace(/^Salary report · /, 'Salary report - ');
     const pdfBytes = pdfLibrary.createWalletReportPdf({ title, period: title.replace(/^(Monthly|Weekly|Salary) report\s*[·-]\s*/, ''), rangeStart: report.rangeStart, rangeEnd: report.rangeEnd, userName: currentUser?.user_metadata?.full_name || 'Jeffrey Almocera', entries: report.entries, accountBalances: walletTotals([...(data.walletEntries || []), ...walletInvoiceEntries()]).accounts });
     const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`;
