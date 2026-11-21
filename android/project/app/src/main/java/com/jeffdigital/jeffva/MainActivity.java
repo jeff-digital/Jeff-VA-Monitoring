@@ -53,6 +53,11 @@ public final class MainActivity extends Activity {
     private String page = "Dashboard", query = "", filter = "All";
     private boolean dark = false, busy, offline, preview;
     private boolean clientDashboard;
+    private boolean revealNextPage = true;
+    private WorkspaceConnectivity connectivity;
+    private LinearLayout connectionNotice;
+    private TextView connectionMessage;
+    private boolean internetAvailable = true, workspaceVisible;
     private String taskSection = "To do", taskOrder = "Due date", clientTaskSection = "To do", listOrder = "Newest";
     private int accountGeneration;
     private String mailFolder = "Inbox", newsCategory = "all";
@@ -83,11 +88,11 @@ public final class MainActivity extends Activity {
     }
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     private void palette() {
-        background = Color.parseColor(dark ? "#0E1015" : "#FFFFFF");
-        surface = Color.parseColor(dark ? "#191C25" : "#FFFFFF");
-        foreground = Color.parseColor(dark ? "#FFFFFF" : "#172033");
-        line = Color.parseColor(dark ? "#343946" : "#E8EBF2");
-        accent = Color.parseColor(dark ? "#A9B8FF" : "#4F46E5");
+        background = Color.parseColor(dark ? "#111113" : "#FFFFFF");
+        surface = Color.parseColor(dark ? "#1C1C1E" : "#F5F5F7");
+        foreground = Color.parseColor(dark ? "#FFFFFF" : "#1D1D1F");
+        line = Color.parseColor(dark ? "#38383A" : "#E5E5EA");
+        accent = Color.parseColor(dark ? "#70B7FF" : "#0066CC");
     }
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -96,6 +101,8 @@ public final class MainActivity extends Activity {
         dark = preferences.getBoolean("dark", false); clientDashboard = preferences.getBoolean("clientDashboard", false); palette();
         ReminderNotifications.createChannel(this);
         repository = new WorkspaceRepository(this);
+        connectivity = new WorkspaceConnectivity(this, () -> runOnUiThread(this::connectionChanged));
+        internetAvailable = connectivity.available();
         if (saved != null) { page = saved.getString("page", "Dashboard"); pendingUploadClient = saved.getString("uploadClient", ""); }
         if (page.equals("Career tools")) page = "Scripts";
         notificationDestination(getIntent());
@@ -106,21 +113,22 @@ public final class MainActivity extends Activity {
             showWorkspace(); return;
         }
         if (getIntent().getData() != null) { handleCallback(getIntent().getData()); return; }
-        loading("Opening your workspace…");
+        busy = true; loading("Opening your workspace…");
         async(() -> {
             if (!repository.restore()) return null;
             try { offline = false; return repository.load(); }
             catch (WorkspaceRepository.ApiError error) { throw error; }
             catch (Exception error) { offline = true; return repository.cached(); }
-        }, result -> { if (result == null) showLogin(""); else { data = result; showWorkspace(); } }, error -> showLogin(error.getMessage()));
+        }, result -> { busy = false; if (result == null) showLogin(""); else { data = result; showWorkspace(); } }, error -> showLogin(error.getMessage()));
     }
     @Override public void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); if (intent.getData() != null) handleCallback(intent.getData()); else { notificationDestination(intent); if (repository.signedIn()) showWorkspace(); } }
-    @Override public void onResume() { super.onResume(); foregroundActive = true; startLiveUpdates(); if (repository != null && !busy && page.equals("Settings") && (preview || repository.signedIn())) showWorkspace(); }
-    @Override public void onStop() { foregroundActive = false; stopLiveUpdates(); super.onStop(); }
+    @Override public void onResume() { super.onResume(); foregroundActive = true; if (connectivity != null) { connectivity.start(); connectionChanged(); } startLiveUpdates(); if (repository != null && !busy && page.equals("Settings") && (preview || repository.signedIn())) showWorkspace(); }
+    @Override public void onStop() { foregroundActive = false; if (connectivity != null) connectivity.stop(); stopLiveUpdates(); super.onStop(); }
     private void notificationDestination(Intent intent) { String destination = intent.getStringExtra("notificationPage"); if ("Daily tasks".equals(destination) || "Subscriptions".equals(destination)) page = destination; }
     @Override public void onSaveInstanceState(Bundle state) { super.onSaveInstanceState(state); state.putString("page", page); state.putString("uploadClient", pendingUploadClient); }
     @Override public void onDestroy() {
         stopLiveUpdates();
+        if (connectivity != null) connectivity.stop();
         for (AlertDialog dialog : new HashSet<>(dialogs)) dialog.dismiss();
         io.shutdownNow(); images.shutdownNow(); imageCache.evictAll(); super.onDestroy();
     }
@@ -143,7 +151,7 @@ public final class MainActivity extends Activity {
     }
     private void stopLiveUpdates() { liveHandler.removeCallbacksAndMessages(null); if (liveUpdates != null) liveUpdates.close(); liveUpdates = null; }
     private void reloadLiveWorkspace() {
-        if (!foregroundActive || preview || repository == null || !repository.signedIn() || busy || liveLoading) return;
+        if (!foregroundActive || !internetAvailable || preview || repository == null || !repository.signedIn() || busy || liveLoading) return;
         liveLoading = true; int generation = accountGeneration; WorkspaceLiveUpdates connection = liveUpdates; JSONObject baseline = data;
         async(() -> { JSONObject credentials = repository.liveCredentials(), latest = repository.loadIfChanged(); return new Object[]{credentials, latest, !baseline.toString().equals(latest.toString())}; }, result -> {
             liveLoading = false;
@@ -152,7 +160,7 @@ public final class MainActivity extends Activity {
             if (busy) return;
             // A recovered background connection must unlock editing too, even if
             // the saved records are identical to the offline snapshot.
-            if (offline) { offline = false; liveDirty = true; }
+            if (offline) { offline = false; updateConnectionNotice(); liveDirty = true; }
             if (data == baseline && (Boolean) result[2]) { data = (JSONObject) result[1]; liveDirty = true; queueReminderUpdate(); }
             renderLiveWorkspace();
         }, error -> { liveLoading = false; });
@@ -213,9 +221,9 @@ public final class MainActivity extends Activity {
         }
     }
     private ImageView icon(int resource, int size) { ImageView image = new ImageView(this); image.setImageResource(resource); image.setImageTintList(ColorStateList.valueOf(accent)); image.setLayoutParams(new LinearLayout.LayoutParams(dp(size), dp(size))); image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); return image; }
-    private FrameLayout iconTile(String name, int size) { FrameLayout tile = new FrameLayout(this); tile.setBackground(shape(dark ? 0xFF313B60 : 0xFFF0EFFF, 12, false)); ImageView image = icon(pageIcon(name), 20); FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER); tile.addView(image, p); tile.setLayoutParams(new LinearLayout.LayoutParams(dp(size), dp(size))); return tile; }
+    private FrameLayout iconTile(String name, int size) { FrameLayout tile = new FrameLayout(this); tile.setBackground(shape(dark ? 0xFF173858 : 0xFFE8F2FF, 12, false)); ImageView image = icon(pageIcon(name), 20); FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER); tile.addView(image, p); tile.setLayoutParams(new LinearLayout.LayoutParams(dp(size), dp(size))); return tile; }
     private void navigationRow(LinearLayout parent, String name, String caption, Runnable action) {
-        LinearLayout panel = card(parent), content = row(); panel.addView(content); content.addView(iconTile(name, 40)); LinearLayout copy = column();
+        boolean grouped = "navigation-group".equals(parent.getTag()); LinearLayout panel = grouped ? column() : card(parent); if (grouped) { if (parent.getChildCount() > 0) { View divider = new View(this); divider.setBackgroundColor(line); LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(-1, 1); dividerParams.leftMargin = dp(64); parent.addView(divider, dividerParams); } panel.setPadding(dp(14), dp(14), dp(14), dp(14)); parent.addView(panel); } LinearLayout content = row(); panel.addView(content); content.addView(iconTile(name, 36)); LinearLayout copy = column();
         addText(copy, name, 15, true); if (!caption.isEmpty()) addText(copy, caption, 12, false); LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, -2, 1); textParams.leftMargin = dp(12); content.addView(copy, textParams); content.addView(icon(R.drawable.ic_ui_chevron_right, 16)); clickable(panel, action);
     }
     private void choiceRow(LinearLayout parent, String caption, String selected, String[] options, Choice callback) {
@@ -224,16 +232,16 @@ public final class MainActivity extends Activity {
         if (controls == null) { controls = row(); controls.setTag("list-controls"); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.bottomMargin = dp(16); parent.addView(controls, p); }
         boolean sort = caption.toLowerCase(Locale.ROOT).startsWith("sort"), active = !sort && !selected.equals("All");
         LinearLayout chip = row(); chip.setPadding(dp(14), 0, dp(12), 0); chip.setMinimumHeight(dp(48));
-        chip.setBackground(shape(active ? (dark ? 0xFF313B60 : 0xFFF0EFFF) : surface, 24, true)); chip.addView(icon(sort ? R.drawable.ic_ui_sort : R.drawable.ic_ui_filter, 18));
+        chip.setBackground(shape(active ? (dark ? 0xFF173858 : 0xFFE8F2FF) : surface, 12, false)); chip.addView(icon(sort ? R.drawable.ic_ui_sort : R.drawable.ic_ui_filter, 18));
         TextView value = label(selected.equals("All") ? "All statuses" : selected, 13, true); value.setSingleLine(true); value.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams copy = new LinearLayout.LayoutParams(0, -2, 1); copy.leftMargin = dp(8); copy.rightMargin = dp(8); chip.addView(value, copy); chip.addView(icon(R.drawable.ic_ui_chevron_down, 14));
         chip.setContentDescription(caption + ": " + selected + ". Choose an option"); clickable(chip, () -> { hideKeyboard(); track(dialogBuilder().setTitle(caption).setSingleChoiceItems(options, Math.max(0, Arrays.asList(options).indexOf(selected)), (d, which) -> { d.dismiss(); callback.selected(options[which]); }).setNegativeButton("Cancel", null).create()); });
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(48), 1); if (controls.getChildCount() > 0) cp.leftMargin = dp(8); controls.addView(chip, cp);
     }
     private TextView label(String value, int size, boolean bold) {
-        TextView view = new TextView(this); view.setText(value); view.setTextSize(size >= 23 ? 22 : size >= 16 ? size - 1 : size); view.setTextColor(foreground);
+        TextView view = new TextView(this); view.setText(value); view.setTextSize(size >= 23 ? size : size >= 16 ? size - 1 : size); view.setTextColor(foreground);
         view.setTypeface(Typeface.create(bold ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL));
-        view.setLineSpacing(dp(2), 1); return view;
+        view.setIncludeFontPadding(false); view.setLineSpacing(dp(3), 1); return view;
     }
     private void addText(LinearLayout parent, String value, int size, boolean bold) {
         TextView view = label(value, size, bold); LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
@@ -243,7 +251,7 @@ public final class MainActivity extends Activity {
         Button button = new Button(this); button.setText(title); button.setTextSize(13); button.setAllCaps(false);
         button.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL)); button.setTextColor(primary ? Color.WHITE : foreground); button.setMinHeight(dp(48)); button.setMinimumHeight(dp(48));
         button.setPadding(dp(12), dp(6), dp(12), dp(6));
-        button.setBackground(new RippleDrawable(ColorStateList.valueOf(0x224F46E5), shape(primary ? Color.parseColor("#4F46E5") : surface, 12, !primary), null));
+        button.setBackground(new RippleDrawable(ColorStateList.valueOf(0x220066CC), shape(primary ? Color.parseColor("#0066CC") : surface, 14, false), null));
         button.setOnClickListener(v -> action.run()); return button;
     }
     private void action(LinearLayout parent, String title, boolean primary, Runnable callback) {
@@ -252,11 +260,11 @@ public final class MainActivity extends Activity {
         params.bottomMargin = dp(8); parent.addView(button, params);
     }
     private LinearLayout card(LinearLayout parent) {
-        LinearLayout card = column(); card.setPadding(dp(14), dp(14), dp(14), dp(10)); card.setBackground(shape(surface, 16, true));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.bottomMargin = dp(10); parent.addView(card, params); return card;
+        LinearLayout card = column(); card.setPadding(dp(16), dp(16), dp(16), dp(14)); card.setBackground(shape(surface, 20, false));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.bottomMargin = dp(12); parent.addView(card, params); return card;
     }
     private void base() {
-        pullRefresh = null; palette(); root = column(); root.setBackgroundColor(background);
+        pullRefresh = null; workspaceVisible = false; palette(); root = column(); root.setBackgroundColor(background);
         getWindow().setStatusBarColor(background); getWindow().setNavigationBarColor(background);
         int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
         if (!dark) { flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR; if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR; }
@@ -269,6 +277,32 @@ public final class MainActivity extends Activity {
             return insets;
         });
         setContentView(root); root.requestApplyInsets();
+        connectionNotice = row(); connectionNotice.setPadding(dp(16), dp(6), dp(8), dp(6));
+        connectionNotice.setBackgroundColor(dark ? 0xFF422F1D : 0xFFFFF4E5);
+        connectionNotice.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        connectionMessage = label("", 13, true); connectionNotice.addView(connectionMessage, new LinearLayout.LayoutParams(0, -2, 1));
+        Button retry = button("Retry", false, this::retryConnection); retry.setBackgroundColor(Color.TRANSPARENT);
+        connectionNotice.addView(retry, new LinearLayout.LayoutParams(-2, dp(48))); root.addView(connectionNotice);
+        updateConnectionNotice();
+    }
+    private void connectionChanged() {
+        if (isDestroyed() || isFinishing()) return;
+        boolean wasAvailable = internetAvailable;
+        internetAvailable = connectivity == null || connectivity.available();
+        if (!internetAvailable && workspaceVisible && !preview) offline = true;
+        updateConnectionNotice();
+        if (foregroundActive && internetAvailable && !wasAvailable && repository != null && repository.signedIn() && !preview) liveHandler.post(liveChanged);
+    }
+    private void updateConnectionNotice() {
+        if (connectionNotice == null) return;
+        connectionNotice.setVisibility(!internetAvailable || offline ? View.VISIBLE : View.GONE);
+        connectionMessage.setText(!internetAvailable ? "No internet connection\n" + (workspaceVisible ? "Showing saved data. Connect to sync changes." : "Connect to sync and save changes.") : "Showing saved data\nReconnecting to your workspace…");
+    }
+    private void retryConnection() {
+        connectionChanged();
+        if (!internetAvailable) { toast("Connect to Wi-Fi or mobile data, then try again."); return; }
+        if (busy || liveLoading) { toast("Reconnecting. Please wait a moment."); return; }
+        if (workspaceVisible && (preview || repository.signedIn())) refresh(); else recreate();
     }
     private LinearLayout scroll(LinearLayout parent, boolean weighted) {
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
@@ -289,9 +323,9 @@ public final class MainActivity extends Activity {
     }
     private EditText input(LinearLayout parent, String title, String value, int type) {
         addText(parent, title, 13, true); EditText input = new EditText(this); input.setSingleLine(type != (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE));
-        input.setInputType(type); input.setTextColor(foreground); input.setHintTextColor(dark ? 0xFFCBD0DA : 0xFF667085); input.setTextSize(14); input.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        input.setInputType(type); input.setTextColor(foreground); input.setHintTextColor(dark ? 0xFFCBD0DA : 0xFF626269); input.setTextSize(14); input.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         input.setText(value); input.setPadding(dp(12), dp(12), dp(12), dp(12)); input.setMinHeight(dp(50));
-        input.setBackground(shape(surface, 10, true)); LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.bottomMargin = dp(16); parent.addView(input, params); return input;
+        input.setBackground(shape(dark ? 0xFF2C2C2E : 0xFFF2F2F7, 12, false)); LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.bottomMargin = dp(16); parent.addView(input, params); return input;
     }
     private void showLogin(String error) {
         busy = false; base(); LinearLayout content = scroll(root, true); content.setPadding(dp(24), dp(54), dp(24), dp(24));
@@ -330,18 +364,18 @@ public final class MainActivity extends Activity {
             startActivity(new Intent(Intent.ACTION_VIEW, uri));
         } catch (Exception error) { problem("No app is available to open this link."); }
     }
-    private void navigate(String destination) { hideKeyboard(); page = destination; query = ""; filter = "All"; listOrder = destination.equals("To apply") ? "Due date" : "Newest"; if (destination.equals("Daily tasks")) taskSection = "To do"; showWorkspace(); }
+    private void navigate(String destination) { hideKeyboard(); revealNextPage = !page.equals(destination); page = destination; query = ""; filter = "All"; listOrder = destination.equals("To apply") ? "Due date" : "Newest"; if (destination.equals("Daily tasks")) taskSection = "To do"; showWorkspace(); }
     private void showWorkspace() {
         liveDirty = false; startLiveUpdates();
         queueReminderUpdate();
-        base(); toolbar = row(); toolbar.setPadding(dp(16), dp(12), dp(16), dp(6));
-        LinearLayout.LayoutParams pageIconParams = new LinearLayout.LayoutParams(dp(40), dp(40)); pageIconParams.rightMargin = dp(10); toolbar.addView(iconTile(page, 40), pageIconParams);
-        LinearLayout titles = column(); TextView brand = label("JEFF VA  /  WORKSPACE", 10, true); brand.setTextColor(accent); brand.setLetterSpacing(.12f); titles.addView(brand); addText(titles, page, 25, true);
+        base(); workspaceVisible = true; toolbar = row(); toolbar.setPadding(dp(20), dp(16), dp(20), dp(16));
+        // Page identity lives in the large title; icons remain on navigation and actions.
+        LinearLayout titles = column(); TextView brand = label("Jeff VA", 12, true); brand.setTextColor(dark ? Color.WHITE : 0xFF626269); titles.addView(brand); TextView pageTitle = label(page, 30, true); pageTitle.setTypeface(Typeface.create("sans-serif", Typeface.BOLD)); pageTitle.setLetterSpacing(-.025f); pageTitle.setPadding(0, dp(6), 0, 0); if (Build.VERSION.SDK_INT >= 28) pageTitle.setAccessibilityHeading(true); titles.addView(pageTitle);
         toolbar.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
         String addLabel = addActionLabel();
         if (!addLabel.isEmpty()) { Button add = button("+", true, this::addFromHeader); add.setTextSize(26); add.setContentDescription(addLabel); toolbar.addView(add, new LinearLayout.LayoutParams(dp(48), dp(48))); }
         root.addView(toolbar); body = refreshableWorkspace();
-        if (offline) addText(card(body), "Offline snapshot · Connect to refresh or save changes", 13, true);
+        updateConnectionNotice();
         try {
             switch (page) {
                 case "Dashboard": dashboard(); break;
@@ -367,19 +401,28 @@ public final class MainActivity extends Activity {
                 default: more();
             }
         } catch (Exception error) { problem(error.getMessage()); }
-        navigation = row(); navigation.setPadding(dp(8), dp(8), dp(8), dp(10)); navigation.setBackgroundColor(surface);
+        navigation = row(); navigation.setPadding(dp(8), dp(8), dp(8), dp(10)); navigation.setBackgroundColor(background); View navLine = new View(this); navLine.setBackgroundColor(line); root.addView(navLine, new LinearLayout.LayoutParams(-1, 1));
         String[] names = {"Dashboard", "Daily tasks", "Applications", "Active clients", "Email inbox", "More"}; String[] labels = {"Home", "Tasks", "Apply", "Clients", "Inbox", "More"};
         int[] icons = {R.drawable.ic_ui_home, R.drawable.ic_ui_tasks, R.drawable.ic_ui_apply, R.drawable.ic_ui_clients, R.drawable.ic_ui_inbox, R.drawable.ic_ui_more};
         for (int i = 0; i < names.length; i++) {
             final String name = names[i]; LinearLayout item = column(); item.setGravity(Gravity.CENTER); item.setPadding(dp(3), dp(7), dp(3), dp(7));
-            ImageView icon = new ImageView(this); icon.setImageResource(icons[i]); icon.setImageTintList(ColorStateList.valueOf(foreground)); item.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
-            TextView title = label(labels[i], 11, true); title.setGravity(Gravity.CENTER); title.setMaxLines(1); title.setEllipsize(android.text.TextUtils.TruncateAt.END); item.setContentDescription(name); item.addView(title);
-            if (name.equals(page) || (i == names.length - 1 && !Arrays.asList(names).contains(page))) { item.setBackground(shape(dark ? Color.parseColor("#313B60") : Color.parseColor("#EEEDFF"), 12, false)); icon.setImageTintList(ColorStateList.valueOf(accent)); title.setTextColor(accent); }
+            ImageView icon = new ImageView(this); icon.setImageResource(icons[i]); icon.setImageTintList(ColorStateList.valueOf(dark ? Color.WHITE : 0xFF626269)); item.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+            TextView title = label(labels[i], 11, true); title.setGravity(Gravity.CENTER); title.setTextColor(dark ? Color.WHITE : 0xFF626269); title.setPadding(0, dp(4), 0, 0); title.setMaxLines(1); title.setEllipsize(android.text.TextUtils.TruncateAt.END); item.setContentDescription(name); item.addView(title);
+            if (name.equals(page) || (i == names.length - 1 && !Arrays.asList(names).contains(page))) { icon.setImageTintList(ColorStateList.valueOf(accent)); title.setTextColor(accent); }
             clickable(item, () -> navigate(name)); navigation.addView(item, new LinearLayout.LayoutParams(0, -2, 1));
         }
         root.addView(navigation);
+        if (revealNextPage) {
+            revealNextPage = false;
+            if (WorkspaceMotion.enabled(this)) {
+                body.setAlpha(0f); body.setTranslationY(dp(10));
+                body.animate().alpha(1f).translationY(0f).setDuration(180)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+            }
+        }
     }
     private void refresh() {
+        if (!internetAvailable) { if (pullRefresh != null) pullRefresh.setRefreshing(false); updateConnectionNotice(); toast("No internet connection. Your saved data is still available."); return; }
         if (busy) { if (pullRefresh != null) pullRefresh.setRefreshing(false); return; }
         if (pullRefresh != null) pullRefresh.setRefreshing(true);
         if (preview) { body.postDelayed(this::showWorkspace, 650); return; }
@@ -416,6 +459,7 @@ public final class MainActivity extends Activity {
     }
     private boolean mayEdit() {
         if (preview) { toast("Preview data is separate from your cloud account."); return false; }
+        if (!internetAvailable) { problem("No internet connection. Connect to Wi-Fi or mobile data before saving changes."); return false; }
         if (offline) { problem("Connect and refresh your workspace before saving changes."); return false; }
         if (busy) { toast("Please wait for the current operation."); return false; } return true;
     }
@@ -436,7 +480,7 @@ public final class MainActivity extends Activity {
         if (open != null) { content.addView(icon(R.drawable.ic_ui_chevron_right, 16)); clickable(card, open); card.setContentDescription(display(item) + ". Open details"); }
     }
     private FrameLayout profileAvatar(JSONObject item, int size) {
-        FrameLayout avatar = new FrameLayout(this); avatar.setBackground(shape(dark ? 0xFF313B60 : 0xFFEEEDFF, size / 2, false)); avatar.setClipToOutline(true);
+        FrameLayout avatar = new FrameLayout(this); avatar.setBackground(shape(dark ? 0xFF173858 : 0xFFE8F2FF, size / 2, false)); avatar.setClipToOutline(true);
         String name = display(item); String[] parts = name.trim().split("\\s+");
         String initials = parts.length > 1 ? parts[0].substring(0, 1) + parts[parts.length - 1].substring(0, 1) : name.substring(0, Math.min(2, name.length()));
         TextView fallback = label(initials.toUpperCase(Locale.getDefault()), size > 48 ? 22 : 15, true); fallback.setTextColor(accent); fallback.setGravity(Gravity.CENTER); avatar.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
@@ -525,12 +569,12 @@ public final class MainActivity extends Activity {
     private interface Choice { void selected(String value); }
     private void segments(LinearLayout parent, String[] options, String selected, Choice callback) {
         HorizontalScrollView scroll = new HorizontalScrollView(this); scroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout bar = row(); bar.setPadding(dp(4), dp(4), dp(4), dp(4)); bar.setBackground(shape(surface, 14, false));
+        LinearLayout bar = row(); bar.setPadding(dp(4), dp(4), dp(4), dp(4)); bar.setBackground(shape(dark ? 0xFF2C2C2E : 0xFFF2F2F7, 14, false)); scroll.setFillViewport(true);
         for (String option : options) {
             String caption = option.equals("all") ? "All news" : option.equals("ai-tools") ? "AI tools" : option.equals("virtual-assistants") ? "Virtual assistants" : option.equals("automation") ? "Automation" : option.equals("web") ? "Web" : option;
             TextView tab = label(caption, 13, true); tab.setGravity(Gravity.CENTER); tab.setMinHeight(dp(48)); tab.setPadding(dp(16), dp(8), dp(16), dp(8));
-            if (option.equals(selected)) { tab.setBackground(shape(dark ? 0xFF313B60 : Color.WHITE, 10, true)); tab.setTextColor(accent); }
-            clickable(tab, () -> callback.selected(option)); bar.addView(tab);
+            if (option.equals(selected)) { tab.setBackground(shape(dark ? 0xFF48484A : Color.WHITE, 10, false)); tab.setTextColor(foreground); }
+            tab.setSelected(option.equals(selected)); clickable(tab, () -> callback.selected(option)); if (options.length <= 4) bar.addView(tab, new LinearLayout.LayoutParams(0, -2, 1)); else bar.addView(tab);
         }
         scroll.addView(bar); LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.bottomMargin = dp(12); parent.addView(scroll, params);
     }
@@ -559,13 +603,13 @@ public final class MainActivity extends Activity {
         panel.addView(new WorkspaceChart(this, labels, values, donut, dark), new LinearLayout.LayoutParams(-1, dp(donut ? 176 : 180)));
     }
     private void stat(LinearLayout parent, String title, long number, String destination) {
-        LinearLayout card = column(); card.setPadding(dp(14), dp(14), dp(14), dp(14)); card.setBackground(shape(surface, 16, true));
-        TextView caption = label(title, 12, false); caption.setMinHeight(dp(32)); card.addView(caption); TextView value = label(String.valueOf(number), 30, true); value.setTextSize(25); value.setTextColor(accent); card.addView(value); LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1); params.setMargins(dp(3), 0, dp(3), dp(10)); parent.addView(card, params); clickable(card, () -> navigate(destination));
+        LinearLayout card = column(); card.setPadding(dp(16), dp(16), dp(16), dp(16)); card.setBackground(shape(surface, 20, false));
+        TextView caption = label(title, 12, false); caption.setMinHeight(dp(32)); card.addView(caption); TextView value = label(String.valueOf(number), 30, true); value.setTextSize(30); value.setTextColor(foreground); card.addView(value); LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1); params.setMargins(dp(3), 0, dp(3), dp(10)); parent.addView(card, params); clickable(card, () -> navigate(destination));
     }
     private void more() {
         accountSummary(body, true);
         String[][] groups = {{"Workspace", "To apply", "Industry news", "Assistant", "Weekly report"}, {"Finance", "Wallet", "Subscriptions", "Invoices", "Salary"}, {"Documents & writing", "Cover letter", "Scripts", "Softcopy links", "Documents", "Templates"}, {"Your account", "Account", "Settings"}};
-        for (String[] group : groups) { heading(group[0]); for (int i = 1; i < group.length; i++) { final String name = group[i]; navigationRow(body, name, pageDescription(name), () -> navigate(name)); } }
+        for (String[] group : groups) { heading(group[0]); LinearLayout section = card(body); section.setTag("navigation-group"); section.setPadding(0, 0, 0, 0); section.setClipToOutline(true); for (int i = 1; i < group.length; i++) { final String name = group[i]; navigationRow(section, name, pageDescription(name), () -> navigate(name)); } }
     }
     private String pageDescription(String name) {
         switch(name) {
@@ -703,10 +747,10 @@ public final class MainActivity extends Activity {
     }
     private interface RenderRecords { void render(LinearLayout target, String query); }
     private void searchable(String hint, RenderRecords render) {
-        LinearLayout searchBar = row(); searchBar.setPadding(dp(16), 0, 0, 0); searchBar.setMinimumHeight(dp(52)); searchBar.setBackground(shape(dark ? 0xFF222632 : 0xFFF5F6FA, 26, false)); searchBar.addView(icon(R.drawable.ic_ui_search, 20));
-        EditText search = new EditText(this); search.setSingleLine(true); search.setTextSize(14); search.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL)); search.setTextColor(foreground); search.setHintTextColor(dark ? 0xFFCBD0DA : 0xFF667085); search.setHint(hint); search.setContentDescription("Search " + page.toLowerCase(Locale.ROOT)); search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); search.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH); search.setBackgroundColor(Color.TRANSPARENT); search.setPadding(dp(12), dp(10), dp(8), dp(10)); search.setText(query); searchBar.addView(search, new LinearLayout.LayoutParams(0, -2, 1));
-        ImageButton clear = new ImageButton(this); clear.setImageResource(R.drawable.ic_ui_close); clear.setImageTintList(ColorStateList.valueOf(dark ? Color.WHITE : 0xFF667085)); clear.setContentDescription("Clear search"); clear.setPadding(dp(14), dp(14), dp(14), dp(14)); clear.setBackground(new RippleDrawable(ColorStateList.valueOf(0x224F46E5), shape(Color.TRANSPARENT, 24, false), null)); clear.setVisibility(query.isEmpty() ? View.GONE : View.VISIBLE); clear.setOnClickListener(v -> { search.setText(""); search.requestFocus(); }); searchBar.addView(clear, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        search.setOnFocusChangeListener((v, focused) -> { GradientDrawable fill = shape(dark ? 0xFF222632 : 0xFFF5F6FA, 26, false); if (focused) fill.setStroke(dp(2), accent); searchBar.setBackground(fill); if (!focused) liveHandler.post(this::renderLiveWorkspace); });
+        LinearLayout searchBar = row(); searchBar.setPadding(dp(16), 0, 0, 0); searchBar.setMinimumHeight(dp(52)); searchBar.setBackground(shape(dark ? 0xFF2C2C2E : 0xFFF2F2F7, 12, false)); searchBar.addView(icon(R.drawable.ic_ui_search, 20));
+        EditText search = new EditText(this); search.setSingleLine(true); search.setTextSize(14); search.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL)); search.setTextColor(foreground); search.setHintTextColor(dark ? 0xFFCBD0DA : 0xFF626269); search.setHint(hint); search.setContentDescription("Search " + page.toLowerCase(Locale.ROOT)); search.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS); search.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH); search.setBackgroundColor(Color.TRANSPARENT); search.setPadding(dp(12), dp(10), dp(8), dp(10)); search.setText(query); searchBar.addView(search, new LinearLayout.LayoutParams(0, -2, 1));
+        ImageButton clear = new ImageButton(this); clear.setImageResource(R.drawable.ic_ui_close); clear.setImageTintList(ColorStateList.valueOf(dark ? Color.WHITE : 0xFF626269)); clear.setContentDescription("Clear search"); clear.setPadding(dp(14), dp(14), dp(14), dp(14)); clear.setBackground(new RippleDrawable(ColorStateList.valueOf(0x220066CC), shape(Color.TRANSPARENT, 24, false), null)); clear.setVisibility(query.isEmpty() ? View.GONE : View.VISIBLE); clear.setOnClickListener(v -> { search.setText(""); search.requestFocus(); }); searchBar.addView(clear, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        search.setOnFocusChangeListener((v, focused) -> { GradientDrawable fill = shape(dark ? 0xFF2C2C2E : 0xFFF2F2F7, 12, false); if (focused) fill.setStroke(dp(2), accent); searchBar.setBackground(fill); if (!focused) liveHandler.post(this::renderLiveWorkspace); });
         search.setOnEditorActionListener((v, action, event) -> { if (action == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) { hideKeyboard(); search.clearFocus(); return true; } return false; });
         int searchIndex = body.getChildCount(); if (searchIndex > 0 && "list-controls".equals(body.getChildAt(searchIndex - 1).getTag())) searchIndex--;
         LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(-1, -2); searchParams.bottomMargin = dp(10); body.addView(searchBar, searchIndex, searchParams);
@@ -738,8 +782,8 @@ public final class MainActivity extends Activity {
     private LinearLayout detailsContent(JSONObject item, String... fields) {
         LinearLayout content = column(); content.setPadding(0, 0, 0, dp(8));
         for (String field : fields) if (!text(item, field).isEmpty()) {
-            LinearLayout fieldRow = column(); fieldRow.setPadding(dp(14), dp(10), dp(14), dp(10)); fieldRow.setBackground(shape(dark ? 0xFF222632 : 0xFFF7F8FB, 12, false));
-            String title = field.replaceAll("([A-Z])", " $1"); TextView caption = label(title.substring(0, 1).toUpperCase(Locale.US) + title.substring(1), 12, true); caption.setTextColor(dark ? Color.WHITE : 0xFF667085); fieldRow.addView(caption);
+            LinearLayout fieldRow = column(); fieldRow.setPadding(dp(14), dp(10), dp(14), dp(10)); fieldRow.setBackground(shape(dark ? 0xFF2C2C2E : 0xFFF7F8FB, 12, false));
+            String title = field.replaceAll("([A-Z])", " $1"); TextView caption = label(title.substring(0, 1).toUpperCase(Locale.US) + title.substring(1), 12, true); caption.setTextColor(dark ? Color.WHITE : 0xFF626269); fieldRow.addView(caption);
             TextView value = label(text(item, field), 14, false); value.setTextIsSelectable(true); value.setPadding(0, dp(4), 0, 0); fieldRow.addView(value);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.bottomMargin = dp(8); content.addView(fieldRow, params);
         }
@@ -787,7 +831,7 @@ public final class MainActivity extends Activity {
                 ImageButton menu = new ImageButton(this); menu.setImageResource(R.drawable.ic_ui_more); menu.setImageTintList(ColorStateList.valueOf(foreground)); menu.setBackground(shape(surface, 10, false)); menu.setContentDescription("Task actions for " + display(task)); header.addView(menu, new LinearLayout.LayoutParams(dp(48), dp(48))); menu.setOnClickListener(v -> taskActions(task));
                 if (!text(task, "relatedName").isEmpty()) { TextView related = label(text(task, "relatedName"), 12, false); LinearLayout.LayoutParams relatedParams = new LinearLayout.LayoutParams(-1, -2); relatedParams.leftMargin = dp(48); relatedParams.bottomMargin = dp(8); card.addView(related, relatedParams); }
                 String due = text(task, "taskDate"), chip = completed ? "Completed" : due.isEmpty() ? "No due date" : due.equals(WorkspaceModel.today()) ? "Due today" : due.compareTo(WorkspaceModel.today()) < 0 ? "Overdue · " + due : "Due " + due;
-                TextView badge = label(chip, 11, true); badge.setPadding(dp(9), dp(5), dp(9), dp(5)); badge.setBackground(shape(dark ? 0xFF313B60 : completed ? 0xFFEAF8F0 : due.isEmpty() || due.compareTo(WorkspaceModel.today()) >= 0 ? 0xFFF0EFFF : 0xFFFFF3E4, 8, false)); LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(-2, -2); badgeParams.leftMargin = dp(48); card.addView(badge, badgeParams);
+                TextView badge = label(chip, 11, true); badge.setPadding(dp(9), dp(5), dp(9), dp(5)); badge.setBackground(shape(dark ? 0xFF173858 : completed ? 0xFFEAF8F0 : due.isEmpty() || due.compareTo(WorkspaceModel.today()) >= 0 ? 0xFFE8F2FF : 0xFFFFF3E4, 8, false)); LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(-2, -2); badgeParams.leftMargin = dp(48); card.addView(badge, badgeParams);
                 checkbox.setOnCheckedChangeListener((view, checked) -> { if (!mayEdit()) { view.setOnCheckedChangeListener(null); view.setChecked(completed); return; } setTaskComplete(task, checked); });
             }
             if (items.isEmpty()) { addText(card(target), taskSection.equals("Completed") ? "No completed tasks yet" : "You're all caught up", 16, true); addText(target, "Try another filter or search.", 13, false); }
@@ -1054,16 +1098,24 @@ public final class MainActivity extends Activity {
         });
         action(body, "Share letter text", false, () -> { String letter = "Dear " + recipient.getText() + ",\n\n" + copy.getText() + "\n\n" + company.getText() + " · " + role.getText(); startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, letter), "Share cover letter")); });
     }
+    private Switch workspaceSwitch() {
+        Switch control = new Switch(this);
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        control.setThumbTintList(ColorStateList.valueOf(Color.WHITE));
+        control.setTrackTintList(new ColorStateList(states, new int[]{0xFF248A3D, dark ? 0xFF636366 : 0xFFAEAEB2}));
+        control.setSwitchPadding(dp(16));
+        return control;
+    }
     private void settings() {
         accountSummary(body, true);
         LinearLayout appearance = card(body); addText(appearance, "Appearance", 18, true);
-        Switch control = new Switch(this); control.setText("Dark mode"); control.setTextColor(foreground); control.setTextSize(16); control.setChecked(dark); control.setMinHeight(dp(48)); appearance.addView(control);
+        Switch control = workspaceSwitch(); control.setText("Dark mode"); control.setTextColor(foreground); control.setTextSize(16); control.setChecked(dark); control.setMinHeight(dp(48)); appearance.addView(control);
         control.setOnCheckedChangeListener((view, checked) -> { dark = checked; preferences.edit().putBoolean("dark", dark).apply(); showWorkspace(); });
         LinearLayout sync = card(body); addText(sync, "Live workspace updates", 18, true); addText(sync, "Saved workspace changes sync automatically while this app is open. Reconnecting and a periodic check recover missed updates.", 13, false);
         addText(sync, "Background push: setup required", 13, true); addText(sync, "Notifications while the app is closed are not connected yet. The daily reminders below use your last synced data. New Gmail delivery also needs a server connection.", 12, false);
         LinearLayout notifications = card(body); addText(notifications, "Notifications", 18, true);
         addText(notifications, "Daily reminders around 9 AM, based on your last synced tasks and renewals. Android may delay delivery to save battery.", 13, false);
-        Switch enabled = new Switch(this); enabled.setText("Mobile reminders"); enabled.setTextColor(foreground); enabled.setMinHeight(dp(48)); enabled.setChecked(preferences.getBoolean("notifications", false)); notifications.addView(enabled);
+        Switch enabled = workspaceSwitch(); enabled.setText("Mobile reminders"); enabled.setTextColor(foreground); enabled.setMinHeight(dp(48)); enabled.setChecked(preferences.getBoolean("notifications", false)); notifications.addView(enabled);
         enabled.setOnCheckedChangeListener((view, checked) -> {
             if (preview) { toast("Notifications are unavailable in preview."); return; }
             preferences.edit().putBoolean("notifications", checked).apply();
@@ -1094,7 +1146,7 @@ public final class MainActivity extends Activity {
             }).create()));
     }
     private void notificationOption(LinearLayout parent, String title, String key) {
-        Switch option = new Switch(this); option.setText(title); option.setTextColor(foreground); option.setTextSize(13); option.setMinHeight(dp(48)); option.setChecked(preferences.getBoolean(key, true)); parent.addView(option);
+        Switch option = workspaceSwitch(); option.setText(title); option.setTextColor(foreground); option.setTextSize(13); option.setMinHeight(dp(48)); option.setChecked(preferences.getBoolean(key, true)); parent.addView(option);
         option.setOnCheckedChangeListener((view, checked) -> preferences.edit().putBoolean(key, checked).apply());
     }
     @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
@@ -1203,7 +1255,7 @@ public final class MainActivity extends Activity {
             });
         });
         searchable("Sender, recipient or subject", (target, term) -> {
-            LinearLayout heading = row(); TextView section = label(mailFolder, 14, true), count = label("", 12, false); count.setTextColor(dark ? 0xFFCBD0DA : 0xFF667085); heading.addView(section, new LinearLayout.LayoutParams(0, -2, 1)); heading.addView(count); heading.setPadding(0, dp(4), 0, dp(12)); target.addView(heading);
+            LinearLayout heading = row(); TextView section = label(mailFolder, 14, true), count = label("", 12, false); count.setTextColor(dark ? 0xFFCBD0DA : 0xFF626269); heading.addView(section, new LinearLayout.LayoutParams(0, -2, 1)); heading.addView(count); heading.setPadding(0, dp(4), 0, dp(12)); target.addView(heading);
             List<JSONObject> emails = records("emails"); emails.sort((a, b) -> text(b, "date").compareTo(text(a, "date")));
             Set<String> deleted = new HashSet<>(); JSONArray ids = WorkspaceModel.array(data, "deletedGmailIds"); for (int i = 0; i < ids.length(); i++) deleted.add(ids.optString(i));
             int shown = 0;
@@ -1241,18 +1293,18 @@ public final class MainActivity extends Activity {
     }
     private void emailListRow(LinearLayout parent, JSONObject email, boolean sent) {
         boolean unread = !sent && !email.optBoolean("mobileRead"); String name = emailDisplayName(text(email, sent ? "to" : "from")), subject = text(email, "subject"); if (subject.isEmpty()) subject = "(No subject)";
-        LinearLayout panel = row(); panel.setMinimumHeight(dp(104)); panel.setPadding(dp(10), dp(10), dp(2), dp(10)); panel.setBackgroundColor(unread ? (dark ? 0xFF22283B : 0xFFF6F5FF) : surface);
+        LinearLayout panel = row(); panel.setMinimumHeight(dp(104)); panel.setPadding(dp(10), dp(10), dp(2), dp(10)); panel.setBackgroundColor(unread ? (dark ? 0xFF173047 : 0xFFEDF5FF) : surface);
         String[] words = name.split("\\s+"); String initials = name.substring(0, 1); if (words.length > 1 && !words[words.length - 1].isEmpty()) initials += words[words.length - 1].substring(0, 1);
-        int[] tones = dark ? new int[]{0xFF313B60, 0xFF244741, 0xFF4C3547, 0xFF4A4029} : new int[]{0xFFE7E4FF, 0xFFDDF3ED, 0xFFF8E3ED, 0xFFFFEFCF};
-        TextView avatar = label(initials.toUpperCase(Locale.ROOT), 16, true); avatar.setTextColor(dark ? Color.WHITE : 0xFF403C69); avatar.setGravity(Gravity.CENTER); avatar.setBackground(shape(tones[Math.floorMod(name.hashCode(), tones.length)], 22, false)); avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); panel.addView(avatar, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        int[] tones = dark ? new int[]{0xFF173858, 0xFF244741, 0xFF4C3547, 0xFF4A4029} : new int[]{0xFFDCECFF, 0xFFDDF3ED, 0xFFF8E3ED, 0xFFFFEFCF};
+        TextView avatar = label(initials.toUpperCase(Locale.ROOT), 16, true); avatar.setTextColor(dark ? Color.WHITE : 0xFF23486B); avatar.setGravity(Gravity.CENTER); avatar.setBackground(shape(tones[Math.floorMod(name.hashCode(), tones.length)], 22, false)); avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); panel.addView(avatar, new LinearLayout.LayoutParams(dp(44), dp(44)));
         LinearLayout copy = column(); LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1); cp.leftMargin = dp(12); cp.rightMargin = dp(4); panel.addView(copy, cp);
         TextView sender = label(name, 14, unread); sender.setSingleLine(true); sender.setEllipsize(android.text.TextUtils.TruncateAt.END); copy.addView(sender);
         LinearLayout subjectRow = row(); TextView title = label(subject, 14, unread); title.setSingleLine(true); title.setEllipsize(android.text.TextUtils.TruncateAt.END); subjectRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         if (email.optBoolean("mobileStarred")) { ImageView star = icon(R.drawable.ic_ui_star, 14); star.setImageTintList(ColorStateList.valueOf(dark ? 0xFFFFD773 : 0xFF976900)); star.setContentDescription("Starred"); star.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES); subjectRow.addView(star); } copy.addView(subjectRow);
         String snippet = text(email, "snippet"); if (snippet.isEmpty()) snippet = text(email, "body");
-        TextView preview = label(Html.fromHtml(snippet, Html.FROM_HTML_MODE_LEGACY).toString().replaceAll("\\s+", " ").trim(), 13, false); preview.setSingleLine(true); preview.setEllipsize(android.text.TextUtils.TruncateAt.END); preview.setTextColor(dark ? 0xFFCBD0DA : 0xFF667085); copy.addView(preview);
-        LinearLayout trailing = column(); trailing.setGravity(Gravity.CENTER_HORIZONTAL); TextView date = label(emailListDate(text(email, "date")), 11, unread); date.setTextColor(unread ? accent : (dark ? 0xFFCBD0DA : 0xFF667085)); date.setSingleLine(true); trailing.addView(date);
-        ImageButton menu = new ImageButton(this); menu.setImageResource(R.drawable.ic_ui_more); menu.setImageTintList(ColorStateList.valueOf(dark ? Color.WHITE : 0xFF667085)); menu.setPadding(dp(14), dp(14), dp(14), dp(14)); menu.setBackground(new RippleDrawable(ColorStateList.valueOf(0x224F46E5), shape(Color.TRANSPARENT, 24, false), null)); menu.setContentDescription("Actions for " + subject); menu.setOnClickListener(v -> emailActions(email)); trailing.addView(menu, new LinearLayout.LayoutParams(dp(48), dp(48))); panel.addView(trailing, new LinearLayout.LayoutParams(dp(60), -2));
+        TextView preview = label(Html.fromHtml(snippet, Html.FROM_HTML_MODE_LEGACY).toString().replaceAll("\\s+", " ").trim(), 13, false); preview.setSingleLine(true); preview.setEllipsize(android.text.TextUtils.TruncateAt.END); preview.setTextColor(dark ? 0xFFCBD0DA : 0xFF626269); copy.addView(preview);
+        LinearLayout trailing = column(); trailing.setGravity(Gravity.CENTER_HORIZONTAL); TextView date = label(emailListDate(text(email, "date")), 11, unread); date.setTextColor(unread ? accent : (dark ? 0xFFCBD0DA : 0xFF626269)); date.setSingleLine(true); trailing.addView(date);
+        ImageButton menu = new ImageButton(this); menu.setImageResource(R.drawable.ic_ui_more); menu.setImageTintList(ColorStateList.valueOf(dark ? Color.WHITE : 0xFF626269)); menu.setPadding(dp(14), dp(14), dp(14), dp(14)); menu.setBackground(new RippleDrawable(ColorStateList.valueOf(0x220066CC), shape(Color.TRANSPARENT, 24, false), null)); menu.setContentDescription("Actions for " + subject); menu.setOnClickListener(v -> emailActions(email)); trailing.addView(menu, new LinearLayout.LayoutParams(dp(48), dp(48))); panel.addView(trailing, new LinearLayout.LayoutParams(dp(60), -2));
         clickable(panel, () -> emailDetails(email)); parent.addView(panel, new LinearLayout.LayoutParams(-1, -2)); View divider = new View(this); divider.setBackgroundColor(line); parent.addView(divider, new LinearLayout.LayoutParams(-1, dp(1)));
     }
     private void emailDetails(JSONObject email) {

@@ -894,6 +894,53 @@ body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsVi
 #walletEntryForm .wallet-form-actions { align-items: center; flex-wrap: wrap; }
 #walletEntryForm .wallet-form-actions > .form-draft-status { margin: 0 auto 0 0; }
 
+#workspaceShell #walletView .wallet-report-panel { display: grid; gap: 14px; padding: 16px; }
+#workspaceShell #walletView .wallet-report-panel > .wallet-section-heading { margin: 0; }
+#workspaceShell #walletView .wallet-report-panel > .wallet-section-heading p { margin: 4px 0 0; color: var(--modern-muted); font-size: 12px; }
+#workspaceShell #walletView .wallet-report-controls { display: grid; grid-template-columns: minmax(160px, .8fr) minmax(160px, .8fr) minmax(200px, 1.2fr) auto; align-items: end; gap: 10px; }
+#workspaceShell #walletView .wallet-report-controls .form-field { min-width: 0; margin: 0; gap: 5px; font-size: 11px; font-weight: 600; }
+#workspaceShell #walletView .wallet-report-controls > [hidden] { display: none !important; }
+#workspaceShell #walletView .wallet-report-controls :is(input, select) { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; min-height: 38px; padding: 7px 10px; border: 1px solid var(--modern-border); border-radius: 8px; background: var(--modern-surface); color: var(--modern-text); font: inherit; font-size: 12px; }
+#workspaceShell #walletView .wallet-report-actions { display: flex; gap: 8px; }
+#workspaceShell #walletView .wallet-report-actions .button { min-height: 38px; white-space: nowrap; }
+#workspaceShell #walletView .wallet-report-preview { padding: 12px; border: 1px solid var(--modern-border); border-radius: 10px; background: var(--modern-soft); }
+#workspaceShell #walletView .wallet-report-preview-heading { display: flex; justify-content: space-between; gap: 12px; color: var(--modern-muted); font-size: 11px; }
+#workspaceShell #walletView .wallet-report-preview-heading strong { color: var(--modern-text); font-size: 13px; }
+#workspaceShell #walletView .wallet-report-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+#workspaceShell #walletView .wallet-report-metrics > div { display: grid; gap: 3px; min-width: 0; }
+#workspaceShell #walletView .wallet-report-metrics span { color: var(--modern-muted); font-size: 11px; }
+#workspaceShell #walletView .wallet-report-metrics strong { color: var(--modern-text); font-size: 14px; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) {
+  #workspaceShell #walletView .wallet-report-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #workspaceShell #walletView .wallet-report-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  #workspaceShell #walletView .wallet-report-controls { grid-template-columns: minmax(0, 1fr); }
+  #workspaceShell #walletView .wallet-report-actions { grid-column: auto; }
+  #workspaceShell #walletView .wallet-report-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+#workspaceShell #walletView .wallet-monthly-email { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 1px solid var(--modern-border); }
+#workspaceShell #walletView .wallet-monthly-email > div:first-child { min-width: 0; }
+#workspaceShell #walletView .wallet-monthly-email strong { color: var(--modern-text); font-size: 12px; }
+#workspaceShell #walletView .wallet-monthly-email p { margin: 3px 0 0; color: var(--modern-muted); font-size: 11px; line-height: 1.45; }
+#workspaceShell #walletView .wallet-monthly-email-actions { display: flex; flex: 0 0 auto; gap: 8px; }
+#workspaceShell #walletView .wallet-monthly-email-actions .button { min-height: 36px; white-space: nowrap; }
+@media (min-width: 901px) and (min-height: 600px) {
+  body:has(#walletView.active) .content > #walletView.active { grid-template-rows: auto auto auto minmax(108px, auto) minmax(0, 1fr); }
+  #workspaceShell #walletView .wallet-report-panel { grid-column: 1 / -1; grid-row: 2; width: 100%; min-width: 0; box-sizing: border-box; }
+  #workspaceShell #walletView .wallet-report-controls { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #workspaceShell #walletView .wallet-report-actions { grid-column: auto; align-self: end; }
+  #workspaceShell #walletView .wallet-report-actions .button { flex: 1 1 auto; padding-inline: 10px; }
+  body:has(#walletView.active) #walletInvoiceNotice { grid-row: 3; }
+  #workspaceShell #walletView .wallet-section[aria-labelledby="walletClientRatesTitle"] { grid-column: 1; grid-row: 4; }
+  #workspaceShell #walletView .wallet-section[aria-labelledby="walletAccountsTitle"] { grid-column: 2; grid-row: 4; }
+  #workspaceShell #walletView .wallet-transactions { grid-row: 5; }
+}
+@media (max-width: 560px) {
+  #workspaceShell #walletView .wallet-monthly-email { align-items: stretch; flex-direction: column; }
+  #workspaceShell #walletView .wallet-monthly-email-actions .button { flex: 1; }
+}
+
 #subscriptionEditor #subscriptionForm > footer.subscription-editor-footer { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: 100%; box-sizing: border-box; padding: 16px 22px; border-top: 1px solid var(--theme-border, #e5e7eb); background: var(--theme-surface, #fff); }
 #subscriptionForm > footer .subscription-footer-status { min-width: 0; margin: 0; color: var(--theme-muted, #667085); font-size: 12px; }
 #subscriptionForm > footer .subscription-footer-reopen:has(> #completeSubscription[hidden]) { display: none; }
@@ -907,6 +954,137 @@ body.workspace-starting:has(:is(#dashboardView, #dailyTaskView, #subscriptionsVi
 #subscriptionForm > footer .subscription-delete { order: 0; border-color: transparent; background: transparent; color: var(--theme-danger-text, #c2410c); }
 #subscriptionForm > footer .subscription-delete:hover { background: var(--theme-danger-soft, #fff1ed); }
 #subscriptionForm > footer .subscription-delete[hidden] { display: none; }
+
+/* Wallet: compact overview, a single report toolbar, and a transactions-first body. */
+#walletView.active { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+#walletView .wallet-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+#walletView .wallet-stat { min-height: 0; padding: 10px 14px; gap: 4px; border-radius: 12px; }
+#walletView .wallet-stat > span { font-size: 11px; }
+#walletView .wallet-stat strong { font-size: 22px; }
+#walletView .wallet-stat small { font-size: 10px; }
+#walletView .wallet-stat .wallet-negative { color: #c2410c; }
+#walletView .wallet-report-toolbar { min-width: 0; }
+#walletView .wallet-report-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#walletView .wallet-report-controls .form-field { min-width: 0; margin: 0; }
+#walletView .wallet-report-controls :is(input, select) { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; min-height: 38px; padding: 7px 10px; border: 1px solid var(--modern-border); border-radius: 8px; background: var(--modern-surface); color: var(--modern-text); font: inherit; font-size: 12px; }
+#walletView .wallet-report-controls #walletReportMonthField { width: 170px; }
+#walletView .wallet-report-controls #walletReportWeekField { width: 155px; }
+#walletView .wallet-report-controls #walletReportSalaryField { flex: 1 1 260px; }
+#walletView .wallet-report-period-field { width: 175px; }
+#walletView .wallet-report-controls #walletDownloadReport { height: 38px; min-height: 38px; white-space: nowrap; }
+#walletView .wallet-report-more { position: relative; margin-left: auto; }
+#walletView .wallet-report-more > summary { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 78px; height: 38px; padding: 0 10px; border: 1px solid var(--modern-border); border-radius: 8px; background: var(--modern-surface); color: var(--modern-text); cursor: pointer; font-size: 12px; list-style: none; }
+#walletView .wallet-report-more > summary::-webkit-details-marker { display: none; }
+#walletView .wallet-report-menu { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; width: min(340px, calc(100vw - 32px)); padding: 8px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); box-shadow: 0 14px 36px rgb(15 23 42 / 14%); }
+#walletView .wallet-report-menu > button { width: 100%; padding: 10px; border: 0; border-radius: 7px; background: transparent; color: var(--modern-text); text-align: left; cursor: pointer; }
+#walletView .wallet-report-menu > button:hover { background: var(--modern-soft); }
+#walletView .wallet-monthly-email { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border-top: 1px solid var(--modern-border); }
+#walletView .wallet-monthly-email strong { font-size: 12px; font-weight: 550; }
+#walletView .wallet-monthly-email p { max-width: 230px; margin: 3px 0 0; color: var(--modern-muted); font-size: 11px; line-height: 1.4; }
+#walletView .wallet-monthly-email .button { min-height: 34px; white-space: nowrap; }
+#walletView #walletInvoiceNotice { margin: 0; font-size: 11px; }
+#walletView .wallet-main-layout { display: grid; grid-template-columns: minmax(0, 7fr) minmax(250px, 3fr); align-items: start; gap: 14px; min-height: 0; }
+#walletView .wallet-transactions, #walletView .wallet-section { min-width: 0; padding: 14px; border: 1px solid var(--modern-border); border-radius: 12px; background: var(--modern-surface); }
+#walletView .wallet-transactions { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#walletView .wallet-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+#walletView .wallet-section-heading h3 { margin: 0; font-size: 15px; font-weight: 600; }
+#walletView .wallet-transaction-filters { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#walletView .wallet-type-filter { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--modern-border); border-radius: 9px; background: var(--modern-canvas); }
+#walletView .wallet-type-filter button { min-height: 30px; padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--modern-muted); font: inherit; font-size: 11px; cursor: pointer; }
+#walletView .wallet-type-filter button[aria-pressed="true"] { background: var(--modern-surface); color: var(--modern-text); box-shadow: 0 1px 2px rgb(15 23 42 / 12%); }
+#walletView .wallet-filter select { height: 36px; min-height: 36px; max-width: 140px; padding: 6px 26px 6px 9px; border: 1px solid var(--modern-border); border-radius: 8px; background-color: var(--modern-surface); color: var(--modern-text); font: inherit; font-size: 11px; }
+#walletView #walletTransactionList { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; }
+#walletView .wallet-table-scroll { max-height: none; overflow: visible; }
+#walletView .wallet-table { width: 100%; border-collapse: collapse; }
+#walletView .wallet-table th { position: sticky; top: 0; z-index: 1; background: var(--modern-surface); font-size: 10px; }
+#walletView .wallet-table :is(th, td) { padding: 8px 7px; }
+#walletView .wallet-table td { font-size: 11px; }
+#walletView .wallet-table td small { display: block; max-width: 300px; overflow: hidden; color: var(--modern-muted); text-overflow: ellipsis; white-space: nowrap; }
+#walletView .wallet-table td[data-label="Description"] strong { display: block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#walletView .wallet-side-summary { display: grid; gap: 12px; min-width: 0; }
+#walletView .wallet-side-summary .wallet-section { padding: 12px; }
+#walletView .wallet-accounts { display: grid; gap: 0; overflow: visible; }
+#walletView .wallet-account { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; padding: 9px 2px; border: 0; border-bottom: 1px solid var(--modern-border); border-radius: 0; background: transparent; }
+#walletView .wallet-account:last-child { border-bottom: 0; }
+#walletView .wallet-account-mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; font-size: 11px; }
+#walletView .wallet-account h4 { min-width: 0; margin: 0; overflow: hidden; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+#walletView .wallet-account > strong { justify-self: end; font-size: 11px; font-weight: 600; white-space: nowrap; }
+#walletView .wallet-account .wallet-zero { color: var(--modern-muted); font-size: 10px; font-weight: 400; }
+#walletView .wallet-set-rate { padding: 3px 0; border: 0; background: transparent; color: var(--modern-accent, #4f46e5); font: inherit; font-size: 11px; cursor: pointer; }
+#walletView .wallet-empty { display: grid; justify-items: center; align-content: center; gap: 8px; min-height: 190px; padding: 20px; color: var(--modern-muted); text-align: center; }
+#walletView .wallet-empty > i { color: var(--modern-accent, #4f46e5); font-size: 18px; }
+#walletView .wallet-empty h4 { margin: 0; color: var(--modern-text); font-size: 14px; font-weight: 550; }
+#walletView .wallet-empty .button { margin-top: 3px; min-height: 34px; }
+#walletView :is(.wallet-report-more summary, .wallet-type-filter button, .wallet-set-rate):focus-visible { outline: 2px solid var(--modern-accent, #4f46e5); outline-offset: 2px; }
+@media (min-width: 901px) and (min-height: 600px) {
+  body:has(#walletView.active) .content { box-sizing: border-box; height: 100dvh; min-height: 0; padding-bottom: 14px; overflow: hidden; }
+  body:has(#walletView.active) .content > #walletView.active { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+  #walletView .wallet-main-layout { flex: 1; }
+}
+@media (max-width: 1000px) {
+  #walletView .wallet-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #walletView .wallet-main-layout { grid-template-columns: minmax(0, 1fr); }
+  #walletView .wallet-side-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #walletView .wallet-transactions { min-height: 360px; }
+}
+@media (min-width: 1001px) and (max-width: 1150px) {
+  #walletView .wallet-main-layout { grid-template-columns: minmax(0, 1fr) minmax(220px, .42fr); }
+  #walletView .wallet-stat { padding: 9px 10px; }
+  #walletView .wallet-stat strong { font-size: 19px; }
+}
+@media (max-width: 760px) {
+  #walletView.active { overflow: visible; }
+  #walletView .wallet-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #walletView .wallet-stat:first-child { grid-column: 1 / -1; }
+  #walletView .wallet-report-controls { flex-wrap: wrap; }
+  #walletView .wallet-report-controls #walletReportMonthField,
+  #walletView .wallet-report-controls #walletReportWeekField,
+  #walletView .wallet-report-period-field { flex: 1 1 145px; width: auto; }
+  #walletView .wallet-report-controls #walletDownloadReport { flex: 1 1 auto; }
+  #walletView .wallet-main-layout { grid-template-columns: minmax(0, 1fr); }
+  #walletView .wallet-side-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #walletView .wallet-transactions { min-height: 360px; }
+}
+@media (max-width: 560px) {
+  #walletView .wallet-side-summary { grid-template-columns: minmax(0, 1fr); }
+  #walletView .wallet-section-heading { align-items: flex-start; flex-direction: column; }
+  #walletView .wallet-transaction-filters { flex-wrap: wrap; width: 100%; }
+  #walletView .wallet-type-filter { max-width: 100%; overflow-x: auto; }
+  #walletView .wallet-type-filter button { padding-inline: 6px; }
+  #walletView .wallet-filter select { max-width: 100%; }
+}
+/* Clear the older Wallet grid placements so the transaction column and its sidebar
+   remain siblings in the new two-column layout at desktop sizes. */
+#workspaceShell #walletView .wallet-main-layout { display: grid; grid-template-columns: minmax(0, 7fr) minmax(270px, 3fr); grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+#workspaceShell #walletView .wallet-main-layout > .wallet-transactions { grid-column: 1; grid-row: 1; min-height: 0; margin: 0; }
+#workspaceShell #walletView .wallet-main-layout > .wallet-side-summary { grid-column: 2; grid-row: 1; grid-template-columns: minmax(0, 1fr); align-content: start; }
+#workspaceShell #walletView .wallet-side-summary .wallet-section { grid-column: 1; grid-row: auto; width: auto; max-height: none; }
+#workspaceShell #walletView .wallet-side-summary .wallet-accounts { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1000px) {
+  #workspaceShell #walletView .wallet-main-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
+  #workspaceShell #walletView .wallet-main-layout > .wallet-transactions { grid-column: 1; grid-row: 1; }
+  #workspaceShell #walletView .wallet-main-layout > .wallet-side-summary { grid-column: 1; grid-row: 2; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #workspaceShell #walletView .wallet-side-summary .wallet-section { grid-row: auto; }
+}
+@media (max-width: 560px) {
+  #workspaceShell #walletView .wallet-main-layout > .wallet-side-summary { grid-template-columns: minmax(0, 1fr); }
+}
+/* Keep report controls compact even when the earlier four-column report grid is cached in the cascade. */
+#workspaceShell #walletView .wallet-report-controls { display: flex; grid-template-columns: none; align-items: center; justify-content: flex-start; gap: 8px; }
+#workspaceShell #walletView .wallet-report-controls #walletReportMonthField { flex: 0 0 170px; width: 170px; }
+#workspaceShell #walletView .wallet-report-controls .wallet-report-period-field { flex: 0 0 175px; width: 175px; }
+#workspaceShell #walletView .wallet-report-controls #walletDownloadReport { flex: 0 0 auto; width: auto; min-width: 140px; padding-inline: 14px; }
+#workspaceShell #walletView .wallet-report-controls #walletDownloadReport { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+#workspaceShell #walletView .wallet-download-icon { display: block; width: 16px; height: 16px; flex: 0 0 16px; }
+#workspaceShell #walletView .wallet-report-controls .wallet-report-more { margin-left: auto; }
+@media (max-width: 760px) {
+  #workspaceShell #walletView .wallet-report-controls { flex-wrap: wrap; }
+  #workspaceShell #walletView .wallet-report-controls #walletReportMonthField,
+  #workspaceShell #walletView .wallet-report-controls #walletReportWeekField,
+  #workspaceShell #walletView .wallet-report-controls .wallet-report-period-field { flex: 1 1 145px; width: auto; }
+  #workspaceShell #walletView .wallet-report-controls #walletDownloadReport { flex: 1 1 160px; }
+  #workspaceShell #walletView .wallet-report-controls .wallet-report-more { margin-left: 0; }
+}
 @media (max-width: 420px) {
   #subscriptionEditor #subscriptionForm > footer.subscription-editor-footer { padding: 12px 14px; }
   #subscriptionForm > footer .subscription-footer-row { flex-direction: column-reverse; align-items: stretch; gap: 8px; }

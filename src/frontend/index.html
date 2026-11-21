@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="css/styles.css?v=20261113-structure-cleanup" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261116-news-list-scroll" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261121-wallet-report-pdf-fix" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -847,9 +847,17 @@
         <!-- Wallet page -->
         <section class="view" id="walletView" data-view-panel="wallet" data-page="wallet">
           <div class="wallet-summary" id="walletSummary" aria-label="Wallet totals"></div>
+          <section class="wallet-report-toolbar" aria-label="Wallet report tools">
+            <div class="wallet-report-controls">
+              <label class="form-field" id="walletReportMonthField"><span class="sr-only">Month</span><input id="walletReportMonth" type="month" aria-label="Report month" /></label>
+              <label class="form-field" id="walletReportWeekField" hidden><span class="sr-only">Week of</span><input id="walletReportWeek" type="date" aria-label="Report week" /></label>
+              <label class="form-field" id="walletReportSalaryField" hidden><span class="sr-only">Salary transaction</span><select id="walletReportSalary" aria-label="Salary transaction"></select></label>
+              <label class="form-field wallet-report-period-field"><span class="sr-only">Report type</span><select id="walletReportPeriod" aria-label="Report type"><option value="month">Monthly summary</option><option value="week">Weekly summary</option><option value="salary">Specific salary</option></select></label>
+              <button class="button button-primary" id="walletDownloadReport" type="button"><svg class="wallet-download-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v8m0 0 3-3m-3 3-3-3M2.5 10.5v3h11v-3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/></svg><span>Download PDF</span></button>
+              <details class="wallet-report-more" id="walletReportMore"><summary aria-label="More wallet report options"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i><span>More</span></summary><div class="wallet-report-menu"><button type="button" id="walletEmailReport">Email preview</button><div class="wallet-monthly-email"><div><strong>Email me each month</strong><p id="walletMonthlyEmailStatus" role="status" aria-live="polite">Checking email schedule…</p></div><button class="button button-secondary" id="walletMonthlyEmailToggle" type="button">Turn on</button></div></div></details>
+            </div>
+          </section>
           <p class="wallet-hint" id="walletInvoiceNotice" role="status"></p>
-          <section class="wallet-section" aria-labelledby="walletClientRatesTitle"><div class="wallet-section-heading"><h3 id="walletClientRatesTitle">Active client salary rates</h3></div><div class="wallet-accounts" id="walletClientRates"></div></section>
-          <section class="wallet-section" aria-labelledby="walletAccountsTitle"><div class="wallet-section-heading"><h3 id="walletAccountsTitle">Bank accounts & wallets</h3></div><div class="wallet-accounts" id="walletAccounts"></div></section>
           <dialog class="panel wallet-entry-panel" id="walletEntryPanel" aria-labelledby="walletEntryTitle">
             <h3 id="walletEntryTitle">Add transaction</h3>
             <form id="walletEntryForm">
@@ -871,10 +879,16 @@
             <div class="wallet-actions-list"><button class="wallet-action-button" type="button" id="walletEditAction"><span class="wallet-action-icon"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></span><span><strong>Edit transaction</strong><small>Update the description, amount, date, or account.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button><button class="wallet-action-button is-danger" type="button" id="walletDeleteAction"><span class="wallet-action-icon"><i class="fa-regular fa-trash-can" aria-hidden="true"></i></span><span><strong>Delete transaction</strong><small>Remove it from your wallet totals.</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button></div>
             <footer class="wallet-actions-footer"><button class="button button-secondary" type="button" id="walletCancelActions">Cancel</button></footer>
           </dialog>
-          <section class="panel wallet-transactions" aria-labelledby="walletTransactionsTitle">
-            <div class="wallet-section-heading"><h3 id="walletTransactionsTitle">Transactions</h3><label class="wallet-filter">Account <select id="walletAccountFilter"><option value="all">All accounts</option><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option><option value="unassigned">Other / unassigned</option></select></label></div>
-            <div id="walletTransactionList"></div>
-          </section>
+          <div class="wallet-main-layout">
+            <section class="panel wallet-transactions" aria-labelledby="walletTransactionsTitle">
+              <div class="wallet-section-heading"><h3 id="walletTransactionsTitle">Transactions</h3><div class="wallet-transaction-filters"><div class="wallet-type-filter" role="group" aria-label="Filter transactions by type"><button type="button" data-wallet-type="all" aria-pressed="true">All</button><button type="button" data-wallet-type="income" aria-pressed="false">Income</button><button type="button" data-wallet-type="salary" aria-pressed="false">Salary</button><button type="button" data-wallet-type="expense" aria-pressed="false">Expense</button></div><label class="wallet-filter"><span class="sr-only">Filter by account</span><select id="walletAccountFilter" aria-label="Filter by account"><option value="all">All accounts</option><option value="maribank">MariBank</option><option value="gcash">GCash</option><option value="wise">Wise</option><option value="unassigned">Other / unassigned</option></select></label></div></div>
+              <div id="walletTransactionList"></div>
+            </section>
+            <aside class="wallet-side-summary" aria-label="Wallet details">
+              <section class="wallet-section" aria-labelledby="walletAccountsTitle"><div class="wallet-section-heading"><h3 id="walletAccountsTitle">Accounts</h3></div><div class="wallet-accounts" id="walletAccounts"></div></section>
+              <section class="wallet-section" aria-labelledby="walletClientRatesTitle"><div class="wallet-section-heading"><h3 id="walletClientRatesTitle">Client salary rates</h3></div><div class="wallet-accounts" id="walletClientRates"></div></section>
+            </aside>
+          </div>
         </section>
 
         <!-- Account and security page -->
@@ -1312,11 +1326,6 @@
         <button class="application-actions-panel-action" type="button" data-application-panel-action="edit">
           <span class="application-actions-panel-icon"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i></span>
           <span><strong>Edit</strong><small>Update this application.</small></span>
-          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </button>
-        <button class="application-actions-panel-action" type="button" data-application-panel-action="status">
-          <span class="application-actions-panel-icon"><i class="fa-solid fa-tag" aria-hidden="true"></i></span>
-          <span><strong>Change status</strong></span>
           <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
         </button>
         <button class="application-actions-panel-action is-danger" type="button" data-application-panel-action="delete">
@@ -2029,6 +2038,6 @@
     <script src="js/invoice-engine.js?v=20261111-invoice-summary-layout"></script>
     <script src="js/invoice-payment-brands.js?v=20261111-terms-below-payment"></script>
     <script src="js/invoice-pdf.js?v=20261112-compact-invoice-total"></script>
-    <script src="js/app.js?v=20261113-structure-cleanup"></script>
+    <script src="js/app.js?v=20261121-wallet-report-amount-fit-v8"></script>
   </body>
 </html>

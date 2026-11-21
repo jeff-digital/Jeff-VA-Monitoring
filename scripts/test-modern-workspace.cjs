@@ -109,6 +109,8 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
       previewView('documentsView');
     ` });
     const formSource = fs.readFileSync(path.join(root, 'js/modules/pages/07c-application-form.js'), 'utf8');
+    const routerSource = fs.readFileSync(path.join(root, 'js/modules/pages/06a-view-router.js'), 'utf8');
+    await page.addScriptTag({ content: routerSource.slice(0, routerSource.indexOf('  function updateWeekNavigationCounts')) });
     await page.addScriptTag({ content: formSource.slice(formSource.indexOf('  function enhanceWorkspaceSelect('), formSource.indexOf("  for (const select of $$('#clientForm select'))")) });
     await page.addScriptTag({ content: fs.readFileSync(path.join(root, 'js/modules/02ad-follow-up-date-picker.js'), 'utf8') });
     for (const file of ['11-tools-page.js', '14-wallet-page.js', '17-subscriptions-page.js', '09-daily-task-page.js']) {
@@ -120,9 +122,9 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
       const isContractEnded = item => item.contractStatus === 'Contract Ended';
       const contractEndingLabel = () => '', activeSinceDate = () => '2026-10-01', emailDate = value => value;
       const matchingEmailsForApplication = () => [], isSentEmail = item => item.direction === 'sent', clientTimeZones = new Map();
-      const getClientTasks = () => [];
+      const getClientTasks = () => [], followUpTimeZone = () => '';
       ${clientsSource.slice(clientsSource.indexOf('  function normalizeUrl('), clientsSource.indexOf('  const hiredClientAvatarUrls'))}
-      ${clientsSource.slice(clientsSource.indexOf('  function renderActiveClientCard('), clientsSource.indexOf("  $('#backToHiredList').addEventListener"))}
+      ${clientsSource.slice(clientsSource.indexOf('  function hiredListDetails('), clientsSource.indexOf("  $('#backToHiredList').addEventListener"))}
       $('#hiredList').innerHTML = [
         {id:'client-a',clientName:'Acme Studio',contact:'Alex Morgan',companyName:'Acme Studio',role:'Social Media Manager',email:'alex@acmestudio.example',employmentType:'Part time'},
         {id:'client-b',clientName:'Northstar Digital Strategy and Marketing',role:'Virtual Assistant',email:'hello@northstardigital.example',employmentType:'Full time'},
@@ -184,7 +186,7 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
     assert.ok(await page.locator('#walletView').isVisible());
     for (const [view, selectors] of [
       ['dashboardView', ['clientDashboardStatusFilter']],
-      ['applicationsView', ['applicationDateSort', 'applicationOrderSort', 'statusFilter', 'platformFilter', 'applicationEmploymentFilter']],
+      ['applicationsView', ['applicationDateSort', 'applicationOrderSort', 'platformFilter', 'applicationEmploymentFilter']],
       ['inboxView', ['emailDateSort']],
       ['hiredView', ['hiredDateSort', 'hiredStatusFilter']],
       ['subscriptionsView', ['subscriptionFilter']]
@@ -196,6 +198,7 @@ const output = path.join(process.env.TEMP || process.env.TMP || '.', 'jeff-moder
           if (!select.nextElementSibling?.matches('.application-select-trigger')) enhanceWorkspaceSelect(select, { labelText: id });
         });
       }, {view, selectors});
+      if (view === 'applicationsView') await page.locator('#applicationFiltersButton').click();
       for (const id of selectors) {
         const trigger = page.locator(`#${id} + .application-select-trigger`);
         assert.ok(await trigger.isVisible(), id);

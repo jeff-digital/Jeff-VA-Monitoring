@@ -33,10 +33,10 @@ final class WorkspaceDialog extends AlertDialog {
         setCanceledOnTouchOutside(true);
     }
     private int dp(float n) { return Math.round(n * getContext().getResources().getDisplayMetrics().density); }
-    private int ink() { return spec.dark ? Color.WHITE : 0xFF172033; }
-    private int accent() { return spec.dark ? 0xFFB9C3FF : 0xFF4F46E5; }
-    private int surface() { return spec.dark ? 0xFF191C25 : Color.WHITE; }
-    private int line() { return spec.dark ? 0xFF343946 : 0xFFE8EBF2; }
+    private int ink() { return spec.dark ? Color.WHITE : 0xFF1D1D1F; }
+    private int accent() { return spec.dark ? 0xFF70B7FF : 0xFF0066CC; }
+    private int surface() { return spec.dark ? 0xFF1C1C1E : Color.WHITE; }
+    private int line() { return spec.dark ? 0xFF38383A : 0xFFE5E5EA; }
     private GradientDrawable shape(int fill, int radius, boolean border) {
         GradientDrawable d = new GradientDrawable(); d.setColor(fill); d.setCornerRadius(dp(radius));
         if (border) d.setStroke(dp(1), line()); return d;
@@ -44,7 +44,7 @@ final class WorkspaceDialog extends AlertDialog {
     private LinearLayout column() { LinearLayout v = new LinearLayout(getContext()); v.setOrientation(LinearLayout.VERTICAL); return v; }
     private TextView text(CharSequence value, int size, boolean medium) {
         TextView v = new TextView(getContext()); v.setText(value); v.setTextColor(ink()); v.setTextSize(size);
-        v.setTypeface(Typeface.create(medium ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL)); v.setLineSpacing(dp(3), 1); return v;
+        v.setTypeface(Typeface.create(medium ? "sans-serif-medium" : "sans-serif", Typeface.NORMAL)); v.setIncludeFontPadding(false); v.setLineSpacing(dp(3), 1); return v;
     }
     private ImageView icon(int resource) {
         ImageView v = new ImageView(getContext()); v.setImageResource(resource); v.setImageTintList(ColorStateList.valueOf(accent()));
@@ -54,7 +54,7 @@ final class WorkspaceDialog extends AlertDialog {
         Button v = new Button(getContext()); v.setText(title); v.setTextSize(14); v.setAllCaps(false);
         v.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL)); v.setMinHeight(dp(48)); v.setMinimumHeight(dp(48));
         v.setPadding(dp(16), dp(10), dp(16), dp(10)); v.setTextColor(primary ? Color.WHITE : ink());
-        v.setBackground(new RippleDrawable(ColorStateList.valueOf(0x224F46E5), shape(primary ? 0xFF4F46E5 : surface(), 24, !primary), null));
+        v.setBackground(new RippleDrawable(ColorStateList.valueOf(0x220066CC), shape(primary ? 0xFF0066CC : (spec.dark ? 0xFF2C2C2E : 0xFFF2F2F7), 14, false), null));
         v.setOnTouchListener((view, event) -> { view.setAlpha(view.isEnabled() ? 1 : .45f); return false; }); return v;
     }
     private View content() {
@@ -74,7 +74,7 @@ final class WorkspaceDialog extends AlertDialog {
         LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(dp(32), dp(4)); handleParams.gravity = Gravity.CENTER_HORIZONTAL; handleParams.bottomMargin = dp(10); shell.addView(handle, handleParams);
         LinearLayout header = new LinearLayout(getContext()); header.setGravity(Gravity.CENTER_VERTICAL);
         ImageView mark = icon(spec.icon != 0 ? spec.icon : actionIcon(spec.title.toString())); header.addView(mark, new LinearLayout.LayoutParams(dp(22), dp(22)));
-        TextView title = text(spec.title, 18, true); if (android.os.Build.VERSION.SDK_INT >= 28) title.setAccessibilityHeading(true);
+        TextView title = text(spec.title, 20, true); if (android.os.Build.VERSION.SDK_INT >= 28) title.setAccessibilityHeading(true);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, -2, 1); titleParams.leftMargin = dp(12); header.addView(title, titleParams);
         close = button("×", false); close.setTextSize(24); close.setContentDescription("Close " + spec.title); close.setBackgroundColor(Color.TRANSPARENT);
         close.setOnClickListener(v -> cancel()); header.addView(close, new LinearLayout.LayoutParams(dp(48), dp(48))); shell.addView(header);
@@ -83,12 +83,12 @@ final class WorkspaceDialog extends AlertDialog {
         if (spec.items != null) for (int i = 0; i < spec.items.length; i++) {
             final int index = i; String value = spec.items[i].toString();
             LinearLayout row = new LinearLayout(getContext()); row.setGravity(Gravity.CENTER_VERTICAL); row.setMinimumHeight(dp(56)); row.setPadding(dp(12), dp(8), dp(12), dp(8));
-            row.setBackground(new RippleDrawable(ColorStateList.valueOf(0x224F46E5), shape(i == spec.selected ? (spec.dark ? 0xFF313B60 : 0xFFF0EFFF) : surface(), 14, false), null));
+            row.setBackground(new RippleDrawable(ColorStateList.valueOf(0x220066CC), shape(i == spec.selected ? (spec.dark ? 0xFF173858 : 0xFFE8F2FF) : surface(), 14, false), null));
             row.addView(icon(actionIcon(value)), new LinearLayout.LayoutParams(dp(20), dp(20)));
             LinearLayout copy = column(); TextView label = text(value, 14, i == spec.selected); copy.addView(label);
             if (spec.choice && spec.title.toString().toLowerCase(Locale.ROOT).startsWith("sort")) {
                 String hint = value.equals("Due date") ? "Soonest due first" : value.equals("Newest") ? "Most recently added" : value.equals("Oldest") ? "Earliest added first" : "A to Z";
-                TextView description = text(hint, 12, false); description.setTextColor(spec.dark ? 0xFFCBD0DA : 0xFF667085); description.setPadding(0, dp(2), 0, 0); copy.addView(description);
+                TextView description = text(hint, 12, false); description.setTextColor(spec.dark ? 0xFFCBD0DA : 0xFF626269); description.setPadding(0, dp(2), 0, 0); copy.addView(description);
             }
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1); lp.leftMargin = dp(14); lp.rightMargin = dp(10); row.addView(copy, lp);
             if (spec.choice) { TextView check = text(i == spec.selected ? "●" : "○", 20, false); check.setTextColor(accent()); row.addView(check); }
@@ -123,7 +123,8 @@ final class WorkspaceDialog extends AlertDialog {
     @Override public void cancel() { if (canCancel) super.cancel(); }
     @Override protected void onStart() {
         super.onStart(); Window window = getWindow(); if (window == null) return;
-        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT)); window.setDimAmount(.42f);
+        window.setWindowAnimations(WorkspaceMotion.enabled(getContext()) ? R.style.WorkspaceSheetAnimation : 0);
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT)); window.setDimAmount(.32f);
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); window.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         int width = Math.min(getContext().getResources().getDisplayMetrics().widthPixels - dp(16), dp(600));

@@ -124,10 +124,6 @@
       if (action === 'email' && application) openPlainClientEmailComposer(application, false, true);
       else if (action === 'follow-up' && application) openApplicationFollowUpModal(application);
       else if (action === 'edit') openClientModal(applicationId);
-      else if (action === 'status' && application) {
-        openClientModal(applicationId);
-        ($('#clientStatus + .application-select-trigger') || $('#clientStatus')).focus();
-      }
       else if (action === 'delete') await deleteClient(applicationId);
       return;
     }

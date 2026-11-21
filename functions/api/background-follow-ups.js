@@ -1,7 +1,8 @@
 import { isFollowUpSendTime, followUpLocalDate } from './follow-up-calendar.js';
 import { savedFollowUpDelivery } from './follow-up-send.js';
-import {d1Enabled} from './d1-workspace.js';
+import {d1Enabled,readD1Workspace} from './d1-workspace.js';
 import {d1FollowUpSchedules,saveD1FollowUpReceipt} from './d1-follow-ups.js';
+import { createWalletReportPdf, reportLabel } from '../../src/frontend/js/wallet-report-pdf.js';
 
 const CONFIG = 'background-follow-up-config';
 const HISTORY = 'background-follow-up-history';
@@ -100,11 +101,16 @@ export async function backgroundFollowUps(request, env, user) {
   }
   let input = { action: request.method === 'GET' ? 'status' : 'disable', userId: user.id };
   if (request.method === 'POST') {
-    if (!backgroundFollowUpReady(env)) return json({ error: 'Background sending needs the server setup. See the deployment guide.', configured: false }, 503);
     const body = await connectionInput(request);
-    if (typeof body?.refreshToken !== 'string' || !body.refreshToken || body.refreshToken.length > 8192 || Object.keys(body).some(key => key !== 'refreshToken')) return json({ error: 'Reconnect Gmail before enabling background follow-ups.' }, 400);
-    input = { ...input, action: 'enable', email: email(user.email),
-      senderName: String(user.user_metadata?.full_name || user.user_metadata?.name || user.email).replace(/[\r\n]+/g, ' ').trim().slice(0, 200), refreshToken: body.refreshToken };
+    const monthlySetting = typeof body?.walletMonthlyReportEnabled === 'boolean';
+    if (!backgroundFollowUpReady(env) && (!monthlySetting || body.walletMonthlyReportEnabled)) return json({ error: 'Background sending needs the server setup. See the deployment guide.', configured: false }, 503);
+    const allowed = monthlySetting ? ['refreshToken', 'walletMonthlyReportEnabled'] : ['refreshToken'];
+    if (!body || Object.keys(body).some(key => !allowed.includes(key))
+      || (monthlySetting && body.refreshToken !== undefined && (typeof body.refreshToken !== 'string' || body.refreshToken.length > 8192))
+      || (!monthlySetting && (typeof body.refreshToken !== 'string' || !body.refreshToken || body.refreshToken.length > 8192))) return json({ error: 'Reconnect Gmail before enabling background email.' }, 400);
+    input = { ...input, action: monthlySetting ? 'wallet-report-setting' : 'enable', email: email(user.email),
+      senderName: String(user.user_metadata?.full_name || user.user_metadata?.name || user.email).replace(/[\r\n]+/g, ' ').trim().slice(0, 200),
+      ...(body.refreshToken ? { refreshToken: body.refreshToken } : {}), ...(monthlySetting ? { walletMonthlyReportEnabled: body.walletMonthlyReportEnabled } : {}) };
   }
   return userObject(env, user.id).fetch(new Request('https://internal/background-follow-ups', { method: 'POST', body: JSON.stringify(input) }));
 }
@@ -113,14 +119,64 @@ export async function coordinateBackgroundFollowUps(storage, env, input) {
   if (input.action === 'status') {
     const config = await storage.get(CONFIG);
     const history = await storage.get(HISTORY) || [];
-    return json({ configured: backgroundFollowUpReady(env), enabled: Boolean(config?.enabled), email: config?.email || '',
+    const walletMonthly = await storage.get('wallet-monthly-report-last') || null;
+    return json({ configured: backgroundFollowUpReady(env), enabled: Boolean(config?.followUpsEnabled ?? config?.enabled), walletMonthlyReportEnabled: Boolean(config?.walletMonthlyReportEnabled),
+      walletMonthlyReportLastSentAt: walletMonthly?.status === 'sent' ? walletMonthly.sentAt : '', walletMonthlyReportLastStatus: walletMonthly?.status || '',
+      email: config?.email || '',
       status: config?.enabled && env.BACKGROUND_FOLLOW_UPS_PAUSED === 'true' ? 'paused' : config?.status || 'off', lastCheckedAt: config?.lastCheckedAt || '', message: config?.enabled && env.BACKGROUND_FOLLOW_UPS_PAUSED === 'true' ? 'Automatic follow-ups are paused during migration. Review restored schedules before resuming.' : config?.message || '',
       recent: history.slice(0, 20).map(({ body, subject, ...record }) => record) });
   }
   if (input.action === 'disable') {
+    const config = await storage.get(CONFIG);
+    if (config?.walletMonthlyReportEnabled) {
+      const updated = { ...config, followUpsEnabled: false, enabled: true, generation: crypto.randomUUID(), status: 'ready', message: '' };
+      await storage.put(CONFIG, updated);
+      await storage.setAlarm(Date.now() + 60000);
+      return json({ enabled: false, walletMonthlyReportEnabled: true });
+    }
     await storage.delete(CONFIG);
     await storage.deleteAlarm();
-    return json({ enabled: false });
+    return json({ enabled: false, walletMonthlyReportEnabled: false });
+  }
+  if (input.action === 'wallet-report-setting') {
+    if (!input.userId || !validEmail(input.email) || typeof input.walletMonthlyReportEnabled !== 'boolean') return json({ error: 'Monthly email is not configured for this account.' }, 503);
+    const previous = await storage.get(CONFIG);
+    if (!input.walletMonthlyReportEnabled && !previous?.token) return json({ error: 'No background Gmail connection is available.' }, 409);
+    try {
+      if (!input.walletMonthlyReportEnabled) {
+        if (previous.userId !== input.userId || previous.email !== input.email) return json({ error: 'The saved Gmail connection belongs to another account.' }, 403);
+        const followUpsEnabled = Boolean(previous.followUpsEnabled ?? previous.enabled);
+        const updated = { ...previous, followUpsEnabled, walletMonthlyReportEnabled: false, enabled: followUpsEnabled,
+          generation: crypto.randomUUID(), status: 'ready', message: '' };
+        if (updated.enabled) {
+          await storage.put(CONFIG, updated);
+          await storage.setAlarm(Date.now() + 60000);
+        } else {
+          await storage.delete(CONFIG);
+          await storage.deleteAlarm();
+        }
+        return json({ enabled: followUpsEnabled, walletMonthlyReportEnabled: false, email: input.email });
+      }
+      if (!backgroundFollowUpReady(env)) return json({ error: 'Background sending needs the server setup. See the deployment guide.', configured: false }, 503);
+      const refreshToken = input.refreshToken || (previous?.userId === input.userId ? await unseal(env, previous) : '');
+      if (!refreshToken) throw new Error('Reconnect Gmail before enabling month-end reports.');
+      const access = await gmailAccess(env, refreshToken);
+      const profile = await googleJson(`${ROOT}/profile`, access.access_token);
+      if (email(profile.emailAddress) !== input.email || (previous?.email && previous.email !== input.email)) return json({ error: 'Connect the Gmail address used by your signed-in account.' }, 403);
+      const token = await seal(env, input.userId, access.refresh_token || refreshToken);
+      const followUpsEnabled = Boolean(previous?.followUpsEnabled ?? previous?.enabled);
+      const updated = { ...previous, userId: input.userId, email: input.email, senderName: input.senderName || previous?.senderName || input.email,
+        token, followUpsEnabled, walletMonthlyReportEnabled: input.walletMonthlyReportEnabled, enabled: followUpsEnabled || input.walletMonthlyReportEnabled,
+        generation: crypto.randomUUID(), status: 'ready', message: '' };
+      if (updated.enabled) {
+        await storage.put(CONFIG, updated);
+        await storage.setAlarm(Date.now() + 60000);
+      } else {
+        await storage.delete(CONFIG);
+        await storage.deleteAlarm();
+      }
+      return json({ enabled: followUpsEnabled, walletMonthlyReportEnabled: input.walletMonthlyReportEnabled, email: input.email });
+    } catch (error) { return json({ error: error.message || 'Gmail could not be connected for month-end reports.' }, error.reconnect ? 409 : 503); }
   }
   if (input.action !== 'enable') return json({ error: 'Invalid action.' }, 400);
   try {
@@ -130,7 +186,9 @@ export async function coordinateBackgroundFollowUps(storage, env, input) {
     if (email(profile.emailAddress) !== input.email) return json({ error: 'Connect the Gmail address used by your signed-in account.' }, 403);
     await saveReceipt(env, input.userId, null, true);
     const token = await seal(env, input.userId, access.refresh_token || input.refreshToken);
-    await storage.put(CONFIG, { userId: input.userId, email: input.email, senderName: input.senderName, token, enabled: true, generation: crypto.randomUUID(), status: 'ready', message: '' });
+    const previous = await storage.get(CONFIG);
+    await storage.put(CONFIG, { ...previous, userId: input.userId, email: input.email, senderName: input.senderName, token, enabled: true, followUpsEnabled: true,
+      walletMonthlyReportEnabled: Boolean(previous?.walletMonthlyReportEnabled), generation: crypto.randomUUID(), status: 'ready', message: '' });
     await storage.setAlarm(Date.now() + 60000);
     return json({ enabled: true, email: input.email });
   } catch (error) { return json({ error: error.message || 'Gmail could not be connected.' }, 503); }
@@ -201,6 +259,123 @@ async function remember(storage, record) {
 const eligible = app => app && app.automaticFollowUp === true && !['Active client', 'Not selected'].includes(app.status) && /^\d{4}-\d{2}-\d{2}$/.test(app.followUpDate || '') && isFollowUpSendTime(app, app.followUpDate) && validEmail(email(app.email));
 const fingerprint = app => JSON.stringify([app.id, app.followUpDate, app.email, app.role, app.contact, app.clientName, app.appliedDate, app.platform, app.status, app.location, app.clientTimeZone, app.timeZone, app.timezone, app.automaticFollowUp]);
 
+function manilaDateParts(date = new Date()) {
+  return Object.fromEntries(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+}
+function monthEndKey(date = new Date()) {
+  const parts = manilaDateParts(date);
+  const days = new Date(Date.UTC(Number(parts.year), Number(parts.month), 0)).getUTCDate();
+  return Number(parts.day) === days ? `${parts.year}-${parts.month}` : '';
+}
+function previousManilaMonth(date = new Date()) {
+  const parts = manilaDateParts(date);
+  const previous = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, 1) - 86400000);
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+async function walletMonthToSend(storage, date = new Date()) {
+  const last = await storage.get('wallet-monthly-report-last');
+  if (last?.status === 'pending') return last.month;
+  const current = monthEndKey(date);
+  if (current) return current;
+  const day = Number(manilaDateParts(date).day);
+  if (day <= 2) {
+    const previous = previousManilaMonth(date);
+    const state = await storage.get(`wallet-monthly-report:${previous}`);
+    if (state?.status !== 'sent') return previous;
+  }
+  return '';
+}
+function monthReportRaw(recipient, subject, body, pdfBytes, filename) {
+  const encodedBody = base64(new TextEncoder().encode(body));
+  const encodedPdf = base64(pdfBytes).match(/.{1,76}/g)?.join('\r\n') || '';
+  const boundary = `wallet-report-${crypto.randomUUID()}`;
+  const raw = [`To: ${email(recipient)}`, `Subject: ${subject}`, 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${boundary}"`, '', `--${boundary}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', encodedBody, `--${boundary}`, 'Content-Type: application/pdf', `Content-Disposition: attachment; filename="${filename}"`, 'Content-Transfer-Encoding: base64', '', encodedPdf, `--${boundary}--`].join('\r\n');
+  return base64(new TextEncoder().encode(raw)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function sentWalletMonth(accessToken, recipient, month) {
+  const subject = `Monthly Wallet Report - ${month}`;
+  const query = `in:sent to:${email(recipient)} subject:"${subject}"`;
+  const list = await googleJson(`${ROOT}/messages?${new URLSearchParams({ q: query, maxResults: '10' })}`, accessToken);
+  for (const message of list.messages || []) {
+    const item = await googleJson(`${ROOT}/messages/${encodeURIComponent(message.id)}?format=full`, accessToken);
+    const header = name => item.payload?.headers?.find(row => row.name.toLowerCase() === name.toLowerCase())?.value || '';
+    const to = header('to').match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase();
+    if (to === email(recipient) && header('subject').trim() === subject) return { gmailId: item.id, sentAt: new Date(Number(item.internalDate) || Date.now()).toISOString() };
+  }
+  return null;
+}
+async function sendMonthlyWalletReport(storage, env, config, accessToken, month) {
+  const key = `wallet-monthly-report:${month}`;
+  const previous = await storage.get(key);
+  if (previous?.status === 'sent') return;
+  if (previous?.status === 'pending') {
+    const sent = await sentWalletMonth(accessToken, config.email, month);
+    if (sent) {
+      const result = { month, status: 'sent', ...sent };
+      await storage.put(key, result); await storage.put('wallet-monthly-report-last', result); return;
+    }
+    if (Date.now() - Date.parse(previous.startedAt || '') < 15 * 60000) return;
+  }
+  if (!d1Enabled(env)) throw new Error('Automatic month-end reports require the cloud wallet data store.');
+  const loaded = await readD1Workspace(env, config.userId, ['walletEntries', 'invoices', 'applications']);
+  if (!loaded) throw new Error('Wallet data is not ready for the month-end report.');
+  const entries = [];
+  const accountBalances = {};
+  const addAccountBalance = (account, type, cents) => {
+    const value = String(account || '').toLowerCase();
+    const key = ['maribank', 'gcash', 'wise'].includes(value) ? value : 'unassigned';
+    accountBalances[key] = (accountBalances[key] || 0) + (type === 'expense' ? -cents : cents);
+  };
+  for (const entry of loaded.data.walletEntries || []) {
+    if (!['income', 'salary', 'expense', 'payable', 'opening'].includes(entry.type) || (entry.cents !== null && (!Number.isSafeInteger(entry.cents) || entry.cents <= 0))) continue;
+    if (entry.type !== 'payable' && Number.isSafeInteger(entry.cents)) addAccountBalance(entry.account, entry.type, entry.cents);
+    if (String(entry.date || '').slice(0, 7) !== month) continue;
+    entries.push({ date: String(entry.date), createdAt: String(entry.createdAt || ''), type: entry.type, cents: entry.cents, description: String(entry.description || ''), payee: String(entry.payee || ''), account: String(entry.account || 'unassigned') });
+  }
+  const seen = new Set();
+  for (const invoice of loaded.data.invoices || []) {
+    if (!invoice.id || seen.has(invoice.id) || invoice.deletedAt || invoice.invoiceDraft || !invoice.paidAt) continue;
+    seen.add(invoice.id);
+    const amount = invoice.amountReceivedPhp !== '' && invoice.amountReceivedPhp != null ? Number(invoice.amountReceivedPhp)
+      : String(invoice.paymentCurrency || '').toUpperCase() === 'PHP' && invoice.amountReceived !== '' && invoice.amountReceived != null ? Number(invoice.amountReceived) : NaN;
+    const cents = Math.round(amount * 100);
+    const safeCents = Number.isSafeInteger(cents) && cents > 0 ? cents : null;
+    const method = String(invoice.walletAccount || invoice.paymentMethod || '').toLowerCase();
+    const account = ['maribank', 'gcash', 'wise'].includes(method) ? method : 'unassigned';
+    if (safeCents !== null) addAccountBalance(account, 'salary', safeCents);
+    if (String(invoice.paidAt).slice(0, 7) !== month) continue;
+    const client = (loaded.data.applications || []).find(item => item.id === invoice.clientId);
+    entries.push({ date: String(invoice.paidAt).slice(0, 10), createdAt: String(invoice.sentAt || ''), type: 'salary', cents: safeCents, description: `${client?.clientName || 'Client'} · Invoice ${invoice.invoiceNumber || invoice.id}`, account });
+  }
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+  const totals = entries.reduce((sum, entry) => {
+    if (entry.type === 'payable') { sum.due += Number.isSafeInteger(entry.cents) ? entry.cents : 0; sum.dueCount++; }
+    else if (Number.isSafeInteger(entry.cents) && (entry.type === 'income' || entry.type === 'salary' || entry.type === 'expense')) sum[entry.type] += entry.cents;
+    return sum;
+  }, { income: 0, salary: 0, expense: 0, due: 0, dueCount: 0 });
+  const php = cents => `PHP ${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const net = totals.income + totals.salary - totals.expense;
+  const subject = `Monthly Wallet Report - ${month}`;
+  const typeLabels = { income: 'Other income', salary: 'Salary received', expense: 'Expense', payable: 'To be paid', opening: 'Opening balance' };
+  const transactionLines = entries.length ? entries.map(entry => `${entry.date} | ${typeLabels[entry.type] || entry.type} | ${entry.description}${entry.type === 'payable' && entry.payee ? ` · Pay to ${entry.payee}` : ''} | ${entry.account} | ${entry.cents === null ? 'Needs PHP amount' : `${entry.type === 'payable' ? 'Due ' : entry.type === 'expense' ? '-' : entry.type === 'opening' ? '' : '+'}${php(entry.cents)}`}`) : ['No recorded transactions for this month.'];
+  const body = [`Wallet report for ${month}`, '', `Other income: ${php(totals.income)}`, `Salary received: ${php(totals.salary)}`, `Expenses: ${php(totals.expense)}`, `To be paid: ${php(totals.due)} (${totals.dueCount} unpaid item${totals.dueCount === 1 ? '' : 's'})`, `Net: ${php(net)}`, `Transactions: ${entries.length}`, '', 'Transaction details', ...transactionLines, '', 'This monthly report was sent automatically from your Jeff VA Wallet.'].join('\n');
+  const title = reportLabel('month', month);
+  const [reportYear, reportMonth] = month.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(reportYear, reportMonth, 0)).getUTCDate();
+  const pdf = createWalletReportPdf({ title, period: title.replace(/^Monthly report - /, ''), rangeStart: `${month}-01`, rangeEnd: `${month}-${String(lastDay).padStart(2, '0')}`, userName: config.senderName || 'Jeffrey Almocera', entries, accountBalances });
+  const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`;
+  const pending = { month, status: 'pending', startedAt: new Date().toISOString() };
+  await storage.put(key, pending); await storage.put('wallet-monthly-report-last', pending);
+  const response = await fetch(`${ROOT}/messages/send`, { method: 'POST', headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ raw: monthReportRaw(config.email, subject, body, pdf, filename) }), signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`Gmail did not accept the month-end report (HTTP ${response.status}). It will retry.`);
+  const result = await response.json();
+  if (!result.id) throw new Error('Month-end email delivery could not be confirmed.');
+  const sent = { month, status: 'sent', gmailId: result.id, sentAt: new Date().toISOString() };
+  await storage.put(key, sent); await storage.put('wallet-monthly-report-last', sent);
+}
+
 export async function runBackgroundFollowUps(storage, env) {
   const config = await storage.get(CONFIG);
   if (!config?.enabled) return;
@@ -209,6 +384,7 @@ export async function runBackgroundFollowUps(storage, env) {
     const latest = await storage.get(CONFIG);
     return latest?.enabled && latest.generation === config.generation;
   };
+  const followUpsEnabled = Boolean(config.followUpsEnabled ?? config.enabled);
   try {
     if (!backgroundFollowUpReady(env)) throw new Error('Background sending needs the server setup.');
     const history = await storage.get(HISTORY) || [];
@@ -222,8 +398,9 @@ export async function runBackgroundFollowUps(storage, env) {
       if (await current()) { await storage.delete(CONFIG); await storage.deleteAlarm(); }
       return;
     }
-    const due = (state.applications || []).filter(eligible).slice(0, 10);
-    if (due.length) {
+    const due = followUpsEnabled ? (state.applications || []).filter(eligible).slice(0, 10) : [];
+    const reportMonth = config.walletMonthlyReportEnabled ? await walletMonthToSend(storage) : '';
+    if (due.length || reportMonth) {
       if(d1Enabled(env)) {
         const response=await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(config.userId)}`,{headers:serviceHeaders(env),signal:AbortSignal.timeout(10000)});
         if(!response.ok) throw Object.assign(new Error('Account verification failed. Background sending is paused.'),{reconnect:response.status===404});
@@ -293,6 +470,7 @@ export async function runBackgroundFollowUps(storage, env) {
             message: claimedToken && !sendStarted ? 'Schedule check failed before sending. It will retry.' : 'Follow-up needs review. Check Gmail Sent before retrying.' });
         }
       }
+      if (reportMonth && await current()) await sendMonthlyWalletReport(storage, env, config, access.access_token, reportMonth);
     }
     if (await current()) await storage.put(CONFIG, { ...config, status: 'ready', message: '', lastCheckedAt: new Date().toISOString() });
   } catch (error) {

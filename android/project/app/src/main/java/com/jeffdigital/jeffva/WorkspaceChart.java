@@ -14,7 +14,7 @@ final class WorkspaceChart extends View {
     private final double[] values;
     private final boolean donut, dark;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final int[] colors = {0xFF6366F1, 0xFF22B8A8, 0xFFF4B860, 0xFFEF7992, 0xFF94A3B8, 0xFF8B5CF6};
+    private final int[] colors = {0xFF007AFF, 0xFF22B8A8, 0xFFF4B860, 0xFFEF7992, 0xFF94A3B8, 0xFF8B5CF6};
     WorkspaceChart(Context context, String[] labels, double[] values, boolean donut, boolean dark) {
         super(context); this.labels = labels; this.values = values; this.donut = donut; this.dark = dark;
         StringBuilder description = new StringBuilder();

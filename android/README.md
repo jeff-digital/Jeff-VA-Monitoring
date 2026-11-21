@@ -6,11 +6,15 @@ The Android app uses the same Supabase account data and Cloudflare APIs as the w
 
 ## Design preview
 
+Version 1.4.0 introduces an Apple-inspired visual refresh: larger page titles, blue actions, neutral rounded cards, grouped navigation, simpler search/filter controls and coordinated action sheets. The application remains a native Android app with Android system permissions, document pickers and back navigation.
+
 These screenshots show a **browser design preview with synthetic data**. They are not screenshots of a connected account or an Android emulator. Native layouts can vary with phone size and system font settings.
 
 | Dashboard | Tasks | Email inbox |
 | --- | --- | --- |
 | ![Sample dashboard](docs/images/dashboard.jpg) | ![Sample tasks](docs/images/tasks.jpg) | ![Sample email inbox](docs/images/inbox.jpg) |
+
+Version 1.4.1 adds connection-status notices, Retry and restrained native page/sheet motion, plus a full preview navigation and action review.
 
 ## Features
 

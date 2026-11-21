@@ -29,8 +29,12 @@ vm.runInContext(`function renderApplications() {
   const employment = $('#applicationEmploymentFilter').value;
   ${matcher.slice(start, end)}
 }`, context);
+$('#applicationOrderSort').value = 'newest';
+$('#applicationWeekDate').textContent = 'Nov 9 to Nov 13';
 context.renderApplications();
-assert.equal($('#applicationFilterChips').innerHTML, '', 'Defaults do not add clickable chips');
+assert.match($('#applicationFilterChips').innerHTML, /Stage: Applied/);
+assert.match($('#applicationFilterChips').innerHTML, /Week: Nov 9 to Nov 13/);
+assert.equal($('#clearApplicationFilters').hidden, false);
 $('#statusFilter').value = 'Interview'; $('#applicationSearch').value = 'Acme';
 context.renderApplications();
 assert.match($('#applicationFilterChips').innerHTML, /Stage: Interview/);
@@ -45,4 +49,10 @@ assert.ok(read('pages/07-applications-page.js').includes('data-application-statu
 $('#applicationEmploymentFilter').value = 'Part time';
 context.renderApplications();
 assert.match($('#applicationFilterChips').innerHTML, /Employment: Part time/);
+$('#applicationSearch').value = '';
+$('#statusFilter').value = '';
+$('#applicationEmploymentFilter').value = '';
+context.applicationDateSort = 'all';
+context.renderApplications();
+assert.equal($('#clearApplicationFilters').hidden, true);
 console.log('Applications keep the existing defaults and expose the employment filter chip.');
