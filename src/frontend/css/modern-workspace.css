@@ -627,62 +627,6 @@ body:has(#documentsView.active) #documentsView .documents-tab.active { backgroun
   .content > .view:not(#hiredView):not(#accountView) :is(.application-filters, .subscriptions-toolbar) { padding: 8px; }
 }
 
-/* Keep the News header and controls fixed while only the article feed scrolls. */
-body:has(#newsView.active) {
-  height: 100dvh;
-  min-height: 0;
-  overflow: hidden;
-}
-body:has(#newsView.active) .app-shell {
-  height: 100dvh;
-  min-height: 0;
-  overflow: hidden;
-}
-body:has(#newsView.active) #workspaceShell > .content {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  min-height: 0;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-body:has(#newsView.active) #workspaceShell > .content > .topbar {
-  flex: 0 0 auto;
-}
-body:has(#newsView.active) #newsView.active {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-body:has(#newsView.active) #newsView .news-live-panel {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-body:has(#newsView.active) #newsView .news-live-toolbar,
-body:has(#newsView.active) #newsView .news-topic-focus,
-body:has(#newsView.active) #newsView .news-live-status,
-body:has(#newsView.active) #newsView .news-load-more {
-  flex: 0 0 auto;
-}
-body:has(#newsView.active) #newsView .news-live-grid {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  align-content: start;
-}
-body:has(#newsView.active) #newsView .news-live-grid:has(> .news-empty:only-child),
-body:has(#newsView.active) #newsView .news-live-grid:has(> .news-category-loader:only-child) {
-  min-height: 0;
-}
-
 /* Shared dashboard, task, and subscription surfaces */
 #workspaceShell {
   --refined-surface: var(--theme-surface, #fff);
@@ -1274,4 +1218,53 @@ body:has(#inboxView.active) #workspaceShell > .content { padding-bottom: 12px; }
   #settingsModal .settings-backup-controls > .settings-backup-row { grid-template-columns: minmax(0, 1fr); }
   #settingsModal .settings-backup-row > :is(select, button) { justify-self: start; max-width: 100%; }
   #settingsModal .settings-data-actions { justify-content: flex-start; }
+}
+
+/* Industry News uses a fixed shell; the article feed is its only scroll area. */
+html:has(#newsView.active),
+body:has(#newsView.active) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+body:has(#newsView.active) #workspaceShell,
+body:has(#newsView.active) #workspaceShell > .content {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+body:has(#newsView.active) #workspaceShell > .content {
+  display: flex;
+  flex-direction: column;
+}
+body:has(#newsView.active) #workspaceShell > .content > .topbar { flex: 0 0 auto; }
+body:has(#newsView.active) #workspaceShell #newsView.active {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+body:has(#newsView.active) #workspaceShell #newsView .news-live-panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+body:has(#newsView.active) #workspaceShell #newsView :is(.news-live-toolbar, .news-topic-focus, .news-live-status, .news-load-more) {
+  flex: 0 0 auto;
+}
+body:has(#newsView.active) #workspaceShell #newsView .news-live-grid {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  align-content: start;
+}
+body:has(#newsView.active) #workspaceShell #newsView .news-live-grid:has(> :is(.news-empty:only-child, .news-category-loader:only-child)) {
+  min-height: 0;
 }
