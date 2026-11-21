@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="css/styles.css?v=20261113-structure-cleanup" />
     <link rel="stylesheet" href="css/login-layout.css?v=20261101" />
     <link rel="stylesheet" href="css/responsive-layout.css?v=20261105-polished-settings" />
-    <link rel="stylesheet" href="css/modern-workspace.css?v=20261121-news-scroll-rootfix" />
+    <link rel="stylesheet" href="css/modern-workspace.css?v=20261121-news-load-more-end" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha384-PPIZEGYM1v8zp5Py7UjFb79S58UeqCL9pYVnVPURKEqvioPROaVAJKKLzvH2rDnI" crossorigin="anonymous" />
   </head>
   <body class="workspace-starting">
@@ -486,8 +486,10 @@
             </div>
             <p class="news-topic-focus" id="newsTopicFocus" hidden></p>
             <p class="news-live-status" id="newsLiveStatus" role="status" aria-live="polite"></p>
-            <div class="news-card-grid news-live-grid" id="newsLiveGrid"><div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>New articles will appear here when available.</p></div></div>
-            <button class="button button-secondary news-load-more" type="button" id="loadMoreNews" hidden>Load more</button>
+            <div class="news-feed-scroll" id="newsFeedScroll">
+              <div class="news-card-grid news-live-grid" id="newsLiveGrid"><div class="news-empty"><i class="fa-regular fa-newspaper" aria-hidden="true"></i><h2>No news available</h2><p>New articles will appear here when available.</p></div></div>
+              <button class="button button-secondary news-load-more" type="button" id="loadMoreNews" hidden>Load more</button>
+            </div>
           </section>
         </section>
 

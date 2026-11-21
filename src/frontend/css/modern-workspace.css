@@ -1257,14 +1257,21 @@ body:has(#newsView.active) #workspaceShell #newsView :is(.news-live-toolbar, .ne
   flex: 0 0 auto;
 }
 body:has(#newsView.active) #workspaceShell #newsView .news-live-grid {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+  align-content: start;
+}
+body:has(#newsView.active) #workspaceShell #newsView .news-feed-scroll {
   flex: 1 1 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  align-content: start;
 }
+body:has(#newsView.active) #workspaceShell #newsView .news-load-more { display: flex; width: fit-content; margin: 16px auto; }
+body:has(#newsView.active) #workspaceShell #newsView .news-load-more[hidden] { display: none; }
 body:has(#newsView.active) #workspaceShell #newsView .news-live-grid:has(> :is(.news-empty:only-child, .news-category-loader:only-child)) {
   min-height: 0;
 }
